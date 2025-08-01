@@ -36,7 +36,7 @@ export const sendImage = mutation({
       body: args.storageId,
       userId: id,
       format: "image",
-      type: args.type
+      type: args.type,
     });
   }
 });

@@ -1,5 +1,5 @@
 import { AppSidebar } from "@/components/navigation/AppSidebar";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+// import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function DashboardLayout({
   children
@@ -7,9 +7,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <main className="flex h-screen items-center w-full">
+    <main className="flex p-10 w-full">
       <AppSidebar />
-      <SidebarTrigger />
       {children}
     </main>
   );

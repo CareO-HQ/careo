@@ -32,10 +32,48 @@ export default defineSchema({
 
   files: defineTable({
     body: v.id("_storage"),
+    name: v.optional(v.string()),
+    originalName: v.optional(v.string()),
+    size: v.optional(v.number()),
+    extension: v.optional(v.string()),
+    uploadedBy: v.optional(v.string()),
+    uploadedAt: v.optional(v.number()),
+    organizationId: v.optional(v.string()),
+    teamId: v.optional(v.string()),
+    parentFolderId: v.optional(v.id("folders")),
+    isPublic: v.optional(v.boolean()),
+    tags: v.optional(v.array(v.string())),
     userId: v.string(),
     format: v.string(),
-    type: v.union(v.literal("profile"), v.literal("organization"))
-  }),
+    type: v.union(
+      v.literal("profile"),
+      v.literal("organization"),
+      v.literal("file")
+    )
+  })
+    .index("byUserId", ["userId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byParentFolderId", ["parentFolderId"])
+    .index("byTags", ["tags"])
+    .index("byType", ["type"]),
+
+  folders: defineTable({
+    name: v.string(),
+    organizationId: v.string(),
+    teamId: v.optional(v.string()),
+    parentFolderId: v.optional(v.id("folders")), // For nested folders
+    createdBy: v.string(),
+    description: v.optional(v.string()),
+    color: v.optional(v.string()),
+    createdAt: v.number(),
+    lastModified: v.number()
+  })
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byParentFolderId", ["parentFolderId"])
+    .index("byCreatedBy", ["createdBy"])
+    .index("byName", ["name"]),
 
   // Team membership junction table for many-to-many relationship
   teamMembers: defineTable({
