@@ -10,7 +10,14 @@ import {
   SidebarMenu,
   SidebarMenuButton
 } from "@/components/ui/sidebar";
-import { ArrowLeftIcon, BuildingIcon, UserIcon, UsersIcon, WarehouseIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  BuildingIcon,
+  TagsIcon,
+  UserIcon,
+  UsersIcon,
+  WarehouseIcon
+} from "lucide-react";
 import Link from "next/link";
 
 export function SettingsSidebar() {
@@ -56,6 +63,12 @@ export function SettingsSidebar() {
               <Link href="/settings/members">
                 <UsersIcon className="text-muted-foreground group-hover/members:text-foreground transition-colors" />
                 Members
+              </Link>
+            </SidebarMenuButton>
+            <SidebarMenuButton className="group/labels" asChild>
+              <Link href="/settings/labels">
+                <TagsIcon className="text-muted-foreground group-hover/labels:text-foreground transition-colors" />
+                Labels
               </Link>
             </SidebarMenuButton>
             {/* <SidebarMenuButton className="group/billing" asChild disabled>

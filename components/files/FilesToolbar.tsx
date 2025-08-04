@@ -1,6 +1,7 @@
-import { FileUpIcon, FolderPlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { FolderPlusIcon } from "lucide-react";
+import UploadFileButton from "./UploadFileButton";
 
 export default function FilesToolbar() {
   return (
@@ -8,10 +9,7 @@ export default function FilesToolbar() {
       <div className="flex w-full flex-row justify-between items-center">
         <div className="text-sm text-muted-foreground">Breadcrumbs</div>
         <div className="flex flex-row gap-2">
-          <Button variant="outline">
-            <FileUpIcon />
-            Upload file
-          </Button>
+          <UploadFileButton />
           <Button variant="outline">
             <FolderPlusIcon />
             Create folder

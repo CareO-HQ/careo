@@ -42,7 +42,7 @@ export default defineSchema({
     teamId: v.optional(v.string()),
     parentFolderId: v.optional(v.id("folders")),
     isPublic: v.optional(v.boolean()),
-    tags: v.optional(v.array(v.string())),
+    labels: v.optional(v.array(v.string())),
     userId: v.string(),
     format: v.string(),
     type: v.union(
@@ -55,8 +55,16 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byTeamId", ["teamId"])
     .index("byParentFolderId", ["parentFolderId"])
-    .index("byTags", ["tags"])
+    .index("byLabels", ["labels"])
     .index("byType", ["type"]),
+
+  labels: defineTable({
+    name: v.string(),
+    color: v.string(),
+    organizationId: v.string()
+  })
+    .index("byName", ["name"])
+    .index("byOrganizationId", ["organizationId"]),
 
   folders: defineTable({
     name: v.string(),

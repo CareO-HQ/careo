@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as files_image from "../files/image.js";
 import type * as http from "../http.js";
+import type * as labels from "../labels.js";
 import type * as teams from "../teams.js";
 import type * as user from "../user.js";
 
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   "files/image": typeof files_image;
   http: typeof http;
+  labels: typeof labels;
   teams: typeof teams;
   user: typeof user;
 }>;
