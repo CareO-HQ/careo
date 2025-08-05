@@ -22,7 +22,7 @@ export default function OnboardingPage() {
         <p className="text-2xl font-bold mt-4">
           {step === 1 && "Set up your profile"}
           {step === 2 && "Choose your theme"}
-          {step === 3 && "Add your organization"}
+          {step === 3 && "Add your organization "}
           {step === 4 && "Invite your managing team"}
         </p>
         <p className="text-muted-foreground my-2">
