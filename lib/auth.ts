@@ -5,7 +5,7 @@ import { type GenericCtx } from "../convex/_generated/server";
 import { betterAuthComponent } from "../convex/auth";
 import { nextCookies } from "better-auth/next-js";
 import resend from "./resend";
-import { organization, customSession } from "better-auth/plugins";
+import { organization, customSession, twoFactor } from "better-auth/plugins";
 import { components } from "../convex/_generated/api";
 import { ac, member, admin, owner } from "./permissions";
 import { passkey } from "better-auth/plugins/passkey";
@@ -60,6 +60,23 @@ export const createAuth = (ctx: GenericCtx) =>
     plugins: [
       nextCookies(),
       convex(),
+      twoFactor({
+        skipVerificationOnEnable: true,
+        otpOptions: {
+          async sendOTP({ user, otp }) {
+            await resend.emails.send({
+              from: "Uprio <uprio@auth.tryuprio.com>",
+              to: [user.email],
+              subject: "Your Uprio 2FA code",
+              html: `
+            <h3>Your Uprio 2FA code</h3>
+            <p>Your 2FA code is ${otp}</p>
+            <p>This code will expire in 3 minutes.</p>
+            `
+            });
+          }
+        }
+      }),
       organization({
         ac,
         roles: {

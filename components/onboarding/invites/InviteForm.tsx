@@ -16,9 +16,11 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { api, components } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { InviteUsersOnboardingForm } from "@/schemas/InviteUsersOnboardingForm";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "convex/react";
 import { PlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -27,7 +29,13 @@ import z from "zod";
 
 export default function InviteForm() {
   const [isLoading, startTransition] = useTransition();
+  const { data: session } = authClient.useSession();
+  console.log("SESSION", session);
   const router = useRouter();
+  const setIsOnboardingCompleted = useMutation(
+    api.user.setIsOnboardingCompleted
+  );
+
   const form = useForm<z.infer<typeof InviteUsersOnboardingForm>>({
     resolver: zodResolver(InviteUsersOnboardingForm),
     defaultValues: {
@@ -69,6 +77,7 @@ export default function InviteForm() {
       }
 
       router.push("/dashboard");
+      await setIsOnboardingCompleted();
     });
   }
 

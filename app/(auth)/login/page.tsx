@@ -8,7 +8,7 @@ import { Suspense } from "react";
 export default function LoginPage() {
   const { data: session } = authClient.useSession();
   if (session) {
-    redirect("/dashboard");
+    redirect("/onboarding");
   }
   return (
     <div className="flex flex-col justify-center items-center h-dvh">

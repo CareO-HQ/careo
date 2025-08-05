@@ -14,6 +14,7 @@ import {
   ArrowLeftIcon,
   Building2Icon,
   BuildingIcon,
+  KeyRoundIcon,
   TagsIcon,
   UserIcon,
   UsersIcon,
@@ -41,6 +42,12 @@ export function SettingsSidebar() {
               <Link href="/settings/profile">
                 <UserIcon className="text-muted-foreground group-hover/profile:text-foreground transition-colors" />
                 Profile
+              </Link>
+            </SidebarMenuButton>
+            <SidebarMenuButton className="group/security" asChild>
+              <Link href="/settings/security">
+                <KeyRoundIcon className="text-muted-foreground group-hover/security:text-foreground transition-colors" />
+                Security
               </Link>
             </SidebarMenuButton>
           </SidebarMenu>
