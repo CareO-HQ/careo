@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import InviteActions from "@/components/settings/InviteActions";
 // import SendInvitationModal from "@/components/settings/SendInvitationModal";
 import MemberActions from "@/components/settings/members/MemberActions";
-import { SessionManage } from "@/components/settings/SessionManage";
+// import { SessionManage } from "@/components/settings/SessionManage";
 import SendInvitationModal from "@/components/settings/SendInvitationModal";
 
 export default function MembersPage() {
