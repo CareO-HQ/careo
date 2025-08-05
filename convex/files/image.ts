@@ -46,7 +46,7 @@ export const getUserLogo = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      return null;
     }
 
     const userLogo = await ctx.db

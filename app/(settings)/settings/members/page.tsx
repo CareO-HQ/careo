@@ -5,8 +5,10 @@ import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import InviteActions from "@/components/settings/InviteActions";
-import SendInvitationModal from "@/components/settings/SendInvitationModal";
+// import SendInvitationModal from "@/components/settings/SendInvitationModal";
 import MemberActions from "@/components/settings/members/MemberActions";
+import { SessionManage } from "@/components/settings/SessionManage";
+import SendInvitationModal from "@/components/settings/SendInvitationModal";
 
 export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
@@ -85,6 +87,7 @@ export default function MembersPage() {
         <div className="flex flex-row justify-between items-center w-full">
           <p className="font-medium">Pending invitations</p>
           <SendInvitationModal />
+
         </div>
         {invitations?.length ? (
           invitations?.map((invitation) => (

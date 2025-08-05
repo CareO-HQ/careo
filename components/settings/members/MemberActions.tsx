@@ -16,6 +16,7 @@ import { api } from "@/convex/_generated/api";
 
 import { toast } from "sonner";
 import { useMutation } from "convex/react";
+import { SessionManage } from "../SessionManage";
 
 interface MemberActionsProps {
   memberId: string;
@@ -93,7 +94,7 @@ export default function MemberActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem>
-          <p>Invite</p>
+         <SessionManage/>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

@@ -69,7 +69,7 @@ export function TeamSwitcher({
           onSuccess: ({ data }) => {
             console.log("data", data);
             // Filter out teams that have the same name as the organization (default teams)
-            const filteredTeams = data.filter(
+            const filteredTeams = data?.filter(
               (team: { id: string; name: string }) =>
                 team.name !== activeOrganization?.name
             );
@@ -131,15 +131,13 @@ export function TeamSwitcher({
                     {isPending ? (
                       <Skeleton className="w-10 h-[17px] bg-muted-foreground/10 mb-[1px]" />
                     ) : (
-                      <span className="truncate font-medium">Carehome international</span>
-                      // <span className="truncate font-medium">{orgName}</span>
+                      <span className="truncate font-medium">{orgName}</span>
                     )}
                     {isPending ? (
                       <Skeleton className="w-20 h-4 bg-muted-foreground/10" />
                     ) : (
                       <p className="text-xs text-muted-foreground truncate">
-                        Organization 1 - Team 1
-                        {/* {activeTeam ? activeTeam.name : email} */}
+                        {activeTeam ? activeTeam.name : email}
                       </p>
                     )}
                   </div>
@@ -181,13 +179,13 @@ export function TeamSwitcher({
               <CreateTeamModal onTeamCreated={getTeams}>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}
-                  disabled={(orgTeams.length ?? 0) >= config.limits.teams}
+                  disabled={(orgTeams?.length ?? 0) >= config.limits.teams}
                 >
                   <PlusIcon className="size-3 text-primary" />
                 </DropdownMenuItem>
               </CreateTeamModal>
             </div>
-            {orgTeams.length ? (
+            {orgTeams?.length ? (
               orgTeams.map((team: { id: string; name: string }) => (
                 <DropdownMenuItem
                   key={team.id}

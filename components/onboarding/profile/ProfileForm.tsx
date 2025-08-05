@@ -39,6 +39,7 @@ export default function ProfileForm({
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const user: User = useQuery(api.auth.getCurrentUser);
+  console.log(user)
   const updateUser = useMutation(api.user.updateUserOnboarding);
 
   const generateUploadUrlMutation = useMutation(
