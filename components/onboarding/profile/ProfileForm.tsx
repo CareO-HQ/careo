@@ -39,12 +39,14 @@ export default function ProfileForm({
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const user: User = useQuery(api.auth.getCurrentUser);
+
   const updateUser = useMutation(api.user.updateUserOnboarding);
 
   const generateUploadUrlMutation = useMutation(
     api.files.image.generateUploadUrl
   );
   const sendImageMutation = useMutation(api.files.image.sendImage);
+
   const getUserLogoQuery = useQuery(
     api.files.image.getUserLogo,
     user ? {} : "skip"
@@ -128,6 +130,7 @@ export default function ProfileForm({
           fileId={getUserLogoQuery?.storageId}
           selectedFile={selectedFile}
           setSelectedFile={setSelectedFile}
+          userInitial={user?.name?.charAt(0) || ""}
         />
         <FormField
           control={form.control}
