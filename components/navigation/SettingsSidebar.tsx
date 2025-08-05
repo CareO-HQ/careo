@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   ArrowLeftIcon,
+  Building2Icon,
   BuildingIcon,
   TagsIcon,
   UserIcon,
@@ -47,6 +48,12 @@ export function SettingsSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Administration</SidebarGroupLabel>
           <SidebarMenu>
+            <SidebarMenuButton className="group/company" asChild>
+              <Link href="/settings/company">
+                <Building2Icon className="text-muted-foreground group-hover/company:text-foreground transition-colors" />
+                Company
+              </Link>
+            </SidebarMenuButton>
             <SidebarMenuButton className="group/organization" asChild>
               <Link href="/settings/organization">
                 <BuildingIcon className="text-muted-foreground group-hover/organization:text-foreground transition-colors" />

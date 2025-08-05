@@ -71,3 +71,18 @@ export const getLabelsByOrganization = query({
     return labels;
   }
 });
+
+/**
+ * Delete a label
+ */
+export const deleteLabel = mutation({
+  args: {
+    labelId: v.id("labels")
+  },
+  handler: async (ctx, args) => {
+    const { labelId } = args;
+
+    // Delete the label
+    await ctx.db.delete(labelId);
+  }
+});

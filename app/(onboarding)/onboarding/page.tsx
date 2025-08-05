@@ -12,7 +12,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const TOTAL_STEPS = 4;
   return (
-    <ContentWrapper className="max-w-xl">
+    <ContentWrapper className="max-w-xl w-full">
       <div className="flex flex-col justify-start items-start mt-4">
         <span className="flex justify-center items-center w-full">
           <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
@@ -23,7 +23,7 @@ export default function OnboardingPage() {
           {step === 1 && "Set up your profile"}
           {step === 2 && "Choose your theme"}
           {step === 3 && "Add your organization"}
-          {step === 4 && "Invite your team"}
+          {step === 4 && "Invite your managing team"}
         </p>
         <p className="text-muted-foreground my-2">
           {step === 1 &&
@@ -32,8 +32,7 @@ export default function OnboardingPage() {
             "Select the theme for the application. You’ll be able to change this later."}
           {step === 3 &&
             "We just need some basic info to get your organization set up. You’ll be able to edit this later."}
-          {step === 4 &&
-            "Add team members to get started. You can always invite more people later."}
+          {step === 4 && "Add managers and let them invite their team members."}
         </p>
         {step === 1 && <ProfileForm step={step} setStep={setStep} />}
         {step === 2 && <SelectTheme step={step} setStep={setStep} />}

@@ -131,13 +131,15 @@ export function TeamSwitcher({
                     {isPending ? (
                       <Skeleton className="w-10 h-[17px] bg-muted-foreground/10 mb-[1px]" />
                     ) : (
-                      <span className="truncate font-medium">{orgName}</span>
+                      <span className="truncate font-medium">Carehome international</span>
+                      // <span className="truncate font-medium">{orgName}</span>
                     )}
                     {isPending ? (
                       <Skeleton className="w-20 h-4 bg-muted-foreground/10" />
                     ) : (
                       <p className="text-xs text-muted-foreground truncate">
-                        {activeTeam ? activeTeam.name : email}
+                        Organization 1 - Team 1
+                        {/* {activeTeam ? activeTeam.name : email} */}
                       </p>
                     )}
                   </div>
