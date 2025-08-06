@@ -142,7 +142,7 @@ export default function OrganizationForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Organization name</FormLabel>
+              <FormLabel isRequired>Carehome name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Acme Inc."
