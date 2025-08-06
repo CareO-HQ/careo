@@ -5,7 +5,7 @@ import {
   customSessionClient,
   twoFactorClient
 } from "better-auth/client/plugins";
-import { passkeyClient } from "better-auth/client/plugins";
+import { passkeyClient, adminClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   plugins: [
@@ -17,6 +17,7 @@ export const authClient = createAuthClient({
       }
     }),
     passkeyClient(),
-    customSessionClient()
+    customSessionClient(),
+    adminClient()
   ]
 });

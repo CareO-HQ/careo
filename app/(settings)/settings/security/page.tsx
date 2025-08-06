@@ -22,17 +22,23 @@ import { useForm } from "react-hook-form";
 import z from "zod";
 import { EyeIcon, EyeOffIcon, LockIcon } from "lucide-react";
 import { toast } from "sonner";
+import { Session } from "@/types";
+import SessionPill from "@/components/settings/SessionPill";
+import UserRevokeSingleSessionModal from "@/components/settings/members/UserRevokeSingleSessionModal";
+import UserRevokeAllSessionsModal from "@/components/settings/members/UserRevokeAllSessionsModal";
 
 export default function SecurityPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, startTransition] = useTransition();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
 
   const user = useQuery(api.auth.getCurrentUser);
 
   // Update local state when user data loads
   useEffect(() => {
+    getUserSessions();
     if (user) {
       setTwoFactorEnabled(user.twoFactorEnabled ?? false);
     }
@@ -94,9 +100,48 @@ export default function SecurityPage() {
     });
   }
 
+  async function getUserSessions() {
+    const sessions = await authClient.listSessions();
+    setSessions(sessions.data ?? []);
+  }
+
   return (
     <div className="flex flex-col justify-start items-start gap-8">
       <p className="font-semibold text-xl">Security</p>
+      <div className="flex flex-row justify-between items-start w-full">
+        <div className="flex flex-col justify-start items-start">
+          <p className="font-medium">Sessions</p>
+          <p className="text-sm text-muted-foreground">
+            Devices logged into your account
+          </p>
+        </div>
+        <UserRevokeAllSessionsModal
+          name={user?.name ?? ""}
+          email={user?.email ?? ""}
+        />
+      </div>
+      {sessions.length ? (
+        sessions.map((session) => (
+          <SessionPill
+            key={session.id}
+            ipAddress={session.ipAddress ?? ""}
+            sessionId={session.id}
+            sessionToken={session.token}
+            createdAt={session.createdAt}
+            userName={user?.name ?? ""}
+            userEmail={user?.email ?? ""}
+            revokeSessionComponent={
+              <UserRevokeSingleSessionModal
+                sessionToken={session.token}
+                name={user?.name ?? ""}
+                email={user?.email ?? ""}
+              />
+            }
+          />
+        ))
+      ) : (
+        <p className="text-sm text-muted-foreground">No sessions found</p>
+      )}
       <div className="flex flex-col justify-start items-start gap-2 w-full">
         <p className="font-medium">
           {twoFactorEnabled

@@ -22,12 +22,16 @@ interface MemberActionsProps {
   memberId: string;
   memberName: string;
   isOwner: boolean;
+  userId: string;
+  email: string;
 }
 
 export default function MemberActions({
   memberId,
   memberName,
-  isOwner
+  isOwner,
+  userId,
+  email
 }: MemberActionsProps) {
   const teams = useQuery(api.auth.getTeamsWithMembers, {});
   const memberTeams = useQuery(
@@ -88,7 +92,7 @@ export default function MemberActions({
   };
 
   const handleManageSessions = () => {
-    router.push(`/settings/members/session?memberId=${memberId}`);
+    router.push(`/settings/members/session?userId=${userId}&email=${email}`);
   };
 
   return (

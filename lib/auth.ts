@@ -7,8 +7,8 @@ import { nextCookies } from "better-auth/next-js";
 import resend from "./resend";
 import { organization, customSession, twoFactor } from "better-auth/plugins";
 import { components } from "../convex/_generated/api";
-import { ac, member, admin, owner } from "./permissions";
 import { passkey } from "better-auth/plugins/passkey";
+import { admin } from "better-auth/plugins";
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -78,12 +78,6 @@ export const createAuth = (ctx: GenericCtx) =>
         }
       }),
       organization({
-        ac,
-        roles: {
-          owner,
-          admin,
-          member
-        },
         teams: {
           enabled: true,
           maximumTeams: 10,
@@ -112,6 +106,12 @@ export const createAuth = (ctx: GenericCtx) =>
             activeTeamId: (session as any).activeTeamId || null
           }
         };
+      }),
+      admin({
+        adminUserIds: [
+          "m17f5hycmedfr15th28e1xt13d7n4nqc",
+          "m170w78er3krb5js6j3yh3c6rd7n2pyz"
+        ]
       })
     ]
   });

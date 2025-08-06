@@ -26,6 +26,7 @@ export default function MembersPage() {
   }
 
   const isOwner = member?.role === "owner";
+  const isAdmin = member?.role === "admin";
 
   return (
     <div className="flex flex-col justify-start items-start gap-8">
@@ -75,7 +76,9 @@ export default function MembersPage() {
                   <MemberActions
                     memberId={member.id}
                     memberName={member.user.name || member.user.email}
-                    isOwner={isOwner}
+                    userId={member.userId}
+                    email={member.user.email}
+                    isOwner={isOwner || isAdmin}
                   />
                 </>
               )}
