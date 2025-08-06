@@ -62,27 +62,8 @@ export default function OrganizationForm({
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof SaveOnboardingOrganizationForm>) {
     startTransition(async () => {
-      if (selectedFile) {
-        if (getOrganizationLogoQuery?.storageId) {
-          await deleteImageMutation({
-            fileId: getOrganizationLogoQuery.storageId
-          });
-        }
-        const uploadUrl = await generateUploadUrlMutation();
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile!.type },
-          body: selectedFile
-        });
-        const { storageId } = await result.json();
-        await sendImageMutation({
-          storageId,
-          type: "organization",
-        });
-        console.log("userLogo", getOrganizationLogoQuery);
-      }
+      // First create/update the organization, then handle the image upload
       if (activeOrganization?.name) {
-        
         await authClient.organization.update(
           {
             data: {
@@ -94,7 +75,32 @@ export default function OrganizationForm({
             onError: (ctx) => {
               toast.error("Error updating organization");
             },
-            onSuccess: () => {
+            onSuccess: async () => {
+              // Now upload the image after organization exists
+              if (selectedFile) {
+                try {
+                  if (getOrganizationLogoQuery?.storageId) {
+                    await deleteImageMutation({
+                      fileId: getOrganizationLogoQuery.storageId
+                    });
+                  }
+                  const uploadUrl = await generateUploadUrlMutation();
+                  const result = await fetch(uploadUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": selectedFile!.type },
+                    body: selectedFile
+                  });
+                  const { storageId } = await result.json();
+                  await sendImageMutation({
+                    storageId,
+                    type: "organization",
+                  });
+                  console.log("organizationLogo", getOrganizationLogoQuery);
+                } catch (error) {
+                  console.error("Error uploading organization logo:", error);
+                  toast.error("Organization updated but logo upload failed");
+                }
+              }
               setStep(step + 1);
             }
           }
@@ -115,7 +121,32 @@ export default function OrganizationForm({
               }
               toast.error("Error creating organization");
             },
-            onSuccess: () => {
+            onSuccess: async () => {
+              // Now upload the image after organization is created
+              if (selectedFile) {
+                try {
+                  if (getOrganizationLogoQuery?.storageId) {
+                    await deleteImageMutation({
+                      fileId: getOrganizationLogoQuery.storageId
+                    });
+                  }
+                  const uploadUrl = await generateUploadUrlMutation();
+                  const result = await fetch(uploadUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": selectedFile!.type },
+                    body: selectedFile
+                  });
+                  const { storageId } = await result.json();
+                  await sendImageMutation({
+                    storageId,
+                    type: "organization",
+                  });
+                  console.log("organizationLogo", getOrganizationLogoQuery);
+                } catch (error) {
+                  console.error("Error uploading organization logo:", error);
+                  toast.error("Organization created but logo upload failed");
+                }
+              }
               setStep(step + 1);
             }
           }
