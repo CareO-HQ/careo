@@ -62,26 +62,11 @@ export default function OrganizationForm({
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof SaveOnboardingOrganizationForm>) {
     startTransition(async () => {
-      if (selectedFile) {
-        if (getOrganizationLogoQuery?.storageId) {
-          await deleteImageMutation({
-            fileId: getOrganizationLogoQuery.storageId
-          });
-        }
-        const uploadUrl = await generateUploadUrlMutation();
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile!.type },
-          body: selectedFile
-        });
-        const { storageId } = await result.json();
-        await sendImageMutation({
-          storageId,
-          type: "organization"
-        });
-        console.log("userLogo", getOrganizationLogoQuery);
-      }
+      let organizationId: string | undefined;
+      let organizationCreated = false;
+
       if (activeOrganization?.name) {
+        // Updating existing organization
         await authClient.organization.update(
           {
             data: {
@@ -90,15 +75,17 @@ export default function OrganizationForm({
             }
           },
           {
-            onError: (ctx) => {
+            onError: () => {
               toast.error("Error updating organization");
             },
             onSuccess: () => {
-              setStep(step + 1);
+              // For existing organizations, we already have the ID
+              organizationId = activeOrganization.id;
             }
           }
         );
       } else {
+        // Creating new organization
         await authClient.organization.create(
           {
             name: values.name,
@@ -115,11 +102,44 @@ export default function OrganizationForm({
               toast.error("Error creating organization");
             },
             onSuccess: () => {
-              setStep(step + 1);
+              organizationCreated = true;
             }
           }
         );
+
+        // If organization was created successfully, wait a moment for the session to update
+        if (organizationCreated) {
+          // Small delay to allow Better Auth session to update with the new active organization
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          organizationId = "session-based"; // Use a placeholder to indicate we should rely on session
+        }
       }
+
+      // Only upload image after organization is created/updated and we have the ID
+      if (selectedFile && organizationId) {
+        if (getOrganizationLogoQuery?.storageId) {
+          await deleteImageMutation({
+            fileId: getOrganizationLogoQuery.storageId
+          });
+        }
+        const uploadUrl = await generateUploadUrlMutation();
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedFile!.type },
+          body: selectedFile
+        });
+        const { storageId } = await result.json();
+        await sendImageMutation({
+          storageId,
+          type: "organization",
+          organizationId:
+            organizationId !== "session-based" ? organizationId : undefined // Pass the organization ID explicitly, or rely on session for new orgs
+        });
+        console.log("userLogo", getOrganizationLogoQuery);
+      }
+
+      // Move to next step only after everything is complete
+      setStep(step + 1);
     });
 
     // Do something with the form values.
