@@ -153,7 +153,7 @@ export function TeamSwitcher({
             sideOffset={4}
           >
             <div className="flex flex-row items-center justify-between">
-              <DropdownMenuLabel>Carehomes</DropdownMenuLabel>
+              <DropdownMenuLabel>Care homes</DropdownMenuLabel>
               <CreateOrgModal>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}

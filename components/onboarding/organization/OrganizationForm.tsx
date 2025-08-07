@@ -62,27 +62,29 @@ export default function OrganizationForm({
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof SaveOnboardingOrganizationForm>) {
     startTransition(async () => {
-      if (selectedFile) {
-        if (getOrganizationLogoQuery?.storageId) {
-          await deleteImageMutation({
-            fileId: getOrganizationLogoQuery.storageId
+      const handleImageUpload = async () => {
+        if (selectedFile) {
+          if (getOrganizationLogoQuery?.storageId) {
+            await deleteImageMutation({
+              fileId: getOrganizationLogoQuery.storageId
+            });
+          }
+          const uploadUrl = await generateUploadUrlMutation();
+          const result = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": selectedFile!.type },
+            body: selectedFile
           });
+          const { storageId } = await result.json();
+          await sendImageMutation({
+            storageId,
+            type: "organization",
+          });
+          console.log("userLogo", getOrganizationLogoQuery);
         }
-        const uploadUrl = await generateUploadUrlMutation();
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile!.type },
-          body: selectedFile
-        });
-        const { storageId } = await result.json();
-        await sendImageMutation({
-          storageId,
-          type: "organization",
-        });
-        console.log("userLogo", getOrganizationLogoQuery);
-      }
+      };
+
       if (activeOrganization?.name) {
-        
         await authClient.organization.update(
           {
             data: {
@@ -92,9 +94,10 @@ export default function OrganizationForm({
           },
           {
             onError: (ctx) => {
-              toast.error("Error updating organization");
+              toast.error("Error updating care home");
             },
-            onSuccess: () => {
+            onSuccess: async () => {
+              await handleImageUpload();
               setStep(step + 1);
             }
           }
@@ -109,13 +112,14 @@ export default function OrganizationForm({
             onError: (ctx) => {
               if (ctx.error.code === "ORGANIZATION_ALREADY_EXISTS") {
                 form.setError("name", {
-                  message: "An organization with this name already exists"
+                  message: "A care home with this name already exists"
                 });
                 return;
               }
-              toast.error("Error creating organization");
+              toast.error("Error creating care home");
             },
-            onSuccess: () => {
+            onSuccess: async () => {
+              await handleImageUpload();
               setStep(step + 1);
             }
           }
@@ -142,7 +146,7 @@ export default function OrganizationForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Carehome name</FormLabel>
+              <FormLabel isRequired>Care home name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Acme Inc."
