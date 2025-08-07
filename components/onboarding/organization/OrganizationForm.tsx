@@ -43,7 +43,6 @@ export default function OrganizationForm({
   );
   const sendImageMutation = useMutation(api.files.image.sendImage);
   const deleteImageMutation = useMutation(api.files.image.deleteById);
-  console.log("activeOrganization", activeOrganization);
 
   const form = useForm<z.infer<typeof SaveOnboardingOrganizationForm>>({
     resolver: zodResolver(SaveOnboardingOrganizationForm),
@@ -62,28 +61,25 @@ export default function OrganizationForm({
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof SaveOnboardingOrganizationForm>) {
     startTransition(async () => {
-      const handleImageUpload = async () => {
-        if (selectedFile) {
-          if (getOrganizationLogoQuery?.storageId) {
-            await deleteImageMutation({
-              fileId: getOrganizationLogoQuery.storageId
-            });
-          }
-          const uploadUrl = await generateUploadUrlMutation();
-          const result = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": selectedFile!.type },
-            body: selectedFile
+      if (selectedFile) {
+        if (getOrganizationLogoQuery?.storageId) {
+          await deleteImageMutation({
+            fileId: getOrganizationLogoQuery.storageId
           });
-          const { storageId } = await result.json();
-          await sendImageMutation({
-            storageId,
-            type: "organization",
-          });
-          console.log("userLogo", getOrganizationLogoQuery);
         }
-      };
-
+        const uploadUrl = await generateUploadUrlMutation();
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedFile!.type },
+          body: selectedFile
+        });
+        const { storageId } = await result.json();
+        await sendImageMutation({
+          storageId,
+          type: "organization"
+        });
+        console.log("userLogo", getOrganizationLogoQuery);
+      }
       if (activeOrganization?.name) {
         await authClient.organization.update(
           {
@@ -94,10 +90,9 @@ export default function OrganizationForm({
           },
           {
             onError: (ctx) => {
-              toast.error("Error updating care home");
+              toast.error("Error updating Care home");
             },
-            onSuccess: async () => {
-              await handleImageUpload();
+            onSuccess: () => {
               setStep(step + 1);
             }
           }
@@ -112,14 +107,13 @@ export default function OrganizationForm({
             onError: (ctx) => {
               if (ctx.error.code === "ORGANIZATION_ALREADY_EXISTS") {
                 form.setError("name", {
-                  message: "A care home with this name already exists"
+                  message: "A Care home with this name already exists"
                 });
                 return;
               }
-              toast.error("Error creating care home");
+              toast.error("Error creating Care home");
             },
-            onSuccess: async () => {
-              await handleImageUpload();
+            onSuccess: () => {
               setStep(step + 1);
             }
           }
