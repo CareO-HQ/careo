@@ -44,14 +44,14 @@ export default function CreateOrgForm({
           onError: (ctx) => {
             if (ctx.error.code === "ORGANIZATION_ALREADY_EXISTS") {
               form.setError("name", {
-                message: "An organization with this name already exists"
+                message: "A Care home with this name already exists"
               });
               return;
             }
-            toast.error("Error creating organization");
+            toast.error("Error creating Care home");
           },
           onSuccess: () => {
-            toast.success("Organization created successfully");
+            toast.success("Care home created successfully");
             onSuccess();
           }
         }
@@ -67,7 +67,7 @@ export default function CreateOrgForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Organization name</FormLabel>
+              <FormLabel isRequired>Care home name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Acme Inc."

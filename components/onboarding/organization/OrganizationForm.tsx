@@ -43,7 +43,6 @@ export default function OrganizationForm({
   );
   const sendImageMutation = useMutation(api.files.image.sendImage);
   const deleteImageMutation = useMutation(api.files.image.deleteById);
-  console.log("activeOrganization", activeOrganization);
 
   const form = useForm<z.infer<typeof SaveOnboardingOrganizationForm>>({
     resolver: zodResolver(SaveOnboardingOrganizationForm),
@@ -77,12 +76,11 @@ export default function OrganizationForm({
         const { storageId } = await result.json();
         await sendImageMutation({
           storageId,
-          type: "organization",
+          type: "organization"
         });
         console.log("userLogo", getOrganizationLogoQuery);
       }
       if (activeOrganization?.name) {
-        
         await authClient.organization.update(
           {
             data: {
@@ -92,7 +90,7 @@ export default function OrganizationForm({
           },
           {
             onError: (ctx) => {
-              toast.error("Error updating organization");
+              toast.error("Error updating Care home");
             },
             onSuccess: () => {
               setStep(step + 1);
@@ -109,11 +107,11 @@ export default function OrganizationForm({
             onError: (ctx) => {
               if (ctx.error.code === "ORGANIZATION_ALREADY_EXISTS") {
                 form.setError("name", {
-                  message: "An organization with this name already exists"
+                  message: "A Care home with this name already exists"
                 });
                 return;
               }
-              toast.error("Error creating organization");
+              toast.error("Error creating Care home");
             },
             onSuccess: () => {
               setStep(step + 1);
@@ -142,7 +140,7 @@ export default function OrganizationForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Organization name</FormLabel>
+              <FormLabel isRequired>Care home name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Acme Inc."

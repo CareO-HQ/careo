@@ -17,10 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   BuildingIcon,
   ChevronDown,
-  CogIcon,
   PlusIcon,
   UserIcon,
-  UsersIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -98,7 +96,7 @@ export function TeamSwitcher({
       // Refresh teams for the new organization
       getTeams();
 
-      toast.success("Organization switched successfully");
+      toast.success("Care home switched successfully");
     } catch (error) {
       console.error("Error switching organization:", error);
       toast.error("Failed to switch organization");
@@ -131,15 +129,15 @@ export function TeamSwitcher({
                     {isPending ? (
                       <Skeleton className="w-10 h-[17px] bg-muted-foreground/10 mb-[1px]" />
                     ) : (
-                      <span className="truncate font-medium">Carehome international</span>
-                      // <span className="truncate font-medium">{orgName}</span>
+                   
+                      <span className="truncate font-medium">{orgName}</span>
                     )}
                     {isPending ? (
                       <Skeleton className="w-20 h-4 bg-muted-foreground/10" />
                     ) : (
                       <p className="text-xs text-muted-foreground truncate">
-                        Organization 1 - Team 1
-                        {/* {activeTeam ? activeTeam.name : email} */}
+                        {/* Organization 1 - Team 1 */}
+                        {activeTeam ? activeTeam.name : email}
                       </p>
                     )}
                   </div>
@@ -155,7 +153,7 @@ export function TeamSwitcher({
             sideOffset={4}
           >
             <div className="flex flex-row items-center justify-between">
-              <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+              <DropdownMenuLabel>Care homes</DropdownMenuLabel>
               <CreateOrgModal>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}
