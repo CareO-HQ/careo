@@ -42,7 +42,6 @@ export default function LoginForm() {
   });
   function onSubmit(values: z.infer<typeof LoginFormSchema>) {
     startTransition(async () => {
-      console.log("TOKEN", token);
       await authClient.signIn.email(
         {
           email: values.email,
@@ -51,7 +50,6 @@ export default function LoginForm() {
         {
           async onSuccess(ctx) {
             if (ctx.data.twoFactorRedirect) {
-              console.log("2FA REDIRECT", ctx.data);
               const { data, error } = await authClient.twoFactor.sendOtp({
                 query: {
                   trustDevice: true
@@ -69,11 +67,14 @@ export default function LoginForm() {
             });
             if (userFromDb?.isOnboardingComplete) {
               router.push("/dashboard");
+              return;
             } else {
-              if (redirect) {
+              if (redirect && token) {
                 router.push(`/${redirect}?token=${token}`);
+                return;
               } else {
                 router.push("/onboarding");
+                return;
               }
             }
           },

@@ -26,6 +26,7 @@ type User = {
   name?: string;
   email: string;
   image?: string;
+  phone?: string;
   // Add other user properties as needed
 } | null;
 
@@ -58,7 +59,7 @@ export default function ProfileForm({
     defaultValues: {
       name: user?.name || "",
       email: user?.email || "",
-      phone: "",
+      phone: user?.phone || "",
       imageUrl: user?.image || ""
     }
   });
@@ -69,7 +70,7 @@ export default function ProfileForm({
       form.reset({
         name: user.name || "",
         email: user.email || "",
-        phone: "",
+        phone: user.phone || "",
         imageUrl: user.image || ""
       });
     }

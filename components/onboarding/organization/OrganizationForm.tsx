@@ -77,12 +77,11 @@ export default function OrganizationForm({
         const { storageId } = await result.json();
         await sendImageMutation({
           storageId,
-          type: "organization",
+          type: "organization"
         });
         console.log("userLogo", getOrganizationLogoQuery);
       }
       if (activeOrganization?.name) {
-        
         await authClient.organization.update(
           {
             data: {

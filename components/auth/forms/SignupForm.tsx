@@ -32,13 +32,15 @@ export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, startTransition] = useTransition();
   const [token] = useQueryState("token");
+  const [invitationEmail] = useQueryState("email");
+
   const router = useRouter();
 
   const form = useForm<z.infer<typeof SignupFormSchema>>({
     resolver: zodResolver(SignupFormSchema),
     defaultValues: {
       name: "",
-      email: "",
+      email: invitationEmail ?? "",
       password: ""
     }
   });
@@ -111,7 +113,7 @@ export default function SignupForm() {
                     type="email"
                     placeholder="email@example.com"
                     required
-                    disabled={isLoading}
+                    disabled={isLoading || !!invitationEmail}
                     {...field}
                   />
                 </FormControl>

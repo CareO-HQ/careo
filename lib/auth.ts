@@ -84,7 +84,8 @@ export const createAuth = (ctx: GenericCtx) =>
           allowRemovingAllTeams: false
         },
         async sendInvitationEmail(data) {
-          const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}`;
+          const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}&email=${data.email}`;
+          console.log("sendInvitationEmail", inviteLink);
           await resend.emails.send({
             from: "Uprio <uprio@auth.tryuprio.com>",
             to: [data.email],
