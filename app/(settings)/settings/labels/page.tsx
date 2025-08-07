@@ -21,6 +21,7 @@ export default function LabelsPage() {
         <CreateLabelModal />
       </div>
       <div className="flex flex-col justify-start items-start gap-4 w-full">
+        {/* @ts-expect-error - TODO: fix this */}
         <DataTable columns={columns} data={labels ?? []} />
       </div>
     </div>

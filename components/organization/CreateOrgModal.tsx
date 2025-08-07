@@ -25,9 +25,9 @@ export default function CreateOrgModal({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create a new organization</DialogTitle>
+          <DialogTitle>Create a new Care home</DialogTitle>
           <DialogDescription>
-            A new organization will be added to your account.
+            A new Care home will be added to your account.
           </DialogDescription>
         </DialogHeader>
         <CreateOrgForm onSuccess={() => setOpen(false)} />

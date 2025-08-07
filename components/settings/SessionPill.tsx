@@ -1,6 +1,5 @@
-import { formatLocationDisplay } from "@/app/(settings)/settings/members/session/page";
+import { formatLocationDisplay } from "@/lib/utils/locationUtils";
 import { formatHoursOnly, LocationInfo } from "@/types";
-import RevokeSingleSessionModal from "./members/RevokeSingleSessionModal";
 
 interface SessionPillProps {
   ipAddress: string;

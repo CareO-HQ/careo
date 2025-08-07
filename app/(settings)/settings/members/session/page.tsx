@@ -2,7 +2,7 @@
 
 import { authClient } from "@/lib/auth-client";
 import { useQueryState } from "nuqs";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import {
   Session,
   SessionWithLocation,
@@ -14,22 +14,9 @@ import { api } from "@/convex/_generated/api";
 import { getLocationByIP } from "@/lib/settings/location";
 import RevokeSingleSessionModal from "@/components/settings/members/RevokeSingleSessionModal";
 import RevokeAllSessionsModal from "@/components/settings/members/RevokeAllSessionsModal";
+import { formatLocationDisplay } from "@/lib/utils/locationUtils";
 
-// Helper function to format location display
-export const formatLocationDisplay = (
-  location: LocationInfo | null | undefined
-): string => {
-  if (!location) return "Loading location...";
-
-  const parts = [];
-  if (location.city) parts.push(location.city);
-  if (location.region) parts.push(location.region);
-  if (location.country) parts.push(location.country);
-
-  return parts.length > 0 ? parts.join(", ") : "Unknown location";
-};
-
-export default function SessionPage() {
+function SessionPageContent() {
   const [email] = useQueryState("email");
   const [userId] = useQueryState("userId");
   const [sessions, setSessions] = useState<SessionWithLocation[]>([]);
@@ -168,5 +155,13 @@ export default function SessionPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SessionPage() {
+  return (
+    <Suspense fallback={<p>Loading...</p>}>
+      <SessionPageContent />
+    </Suspense>
   );
 }

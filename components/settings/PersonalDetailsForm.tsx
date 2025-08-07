@@ -109,6 +109,7 @@ export default function PersonalDetailsForm({
           fileId={getUserLogoQuery?.storageId}
           selectedFile={selectedFile}
           setSelectedFile={setSelectedFile}
+          userInitial={name.charAt(0)}
         />
         <FormField
           control={form.control}
