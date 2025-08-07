@@ -1,16 +1,17 @@
 "use client";
 
-import ProfileForm from "@/components/onboarding/profile/ProfileForm";
+import InviteForm from "@/components/onboarding/invites/InviteForm";
 import OrganizationForm from "@/components/onboarding/organization/OrganizationForm";
+import ProfileForm from "@/components/onboarding/profile/ProfileForm";
 import SelectTheme from "@/components/onboarding/theme/SelectTheme";
 import Stepper from "@/components/stepper/Stepper";
 import ContentWrapper from "@/components/utils/ContentWrapper";
 import { useState } from "react";
-import InviteForm from "@/components/onboarding/invites/InviteForm";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const TOTAL_STEPS = 4;
+
   return (
     <ContentWrapper className="max-w-xl w-full">
       <div className="flex flex-col justify-start items-start mt-4">

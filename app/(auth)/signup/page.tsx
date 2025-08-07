@@ -11,7 +11,7 @@ export default function SignupPage() {
     redirect("/dashboard");
   }
   return (
-    <div className="flex flex-col justify-center items-center h-dvh">
+    <div className="flex flex-col justify-center items-center h-dvh w-full">
       <Suspense fallback={<div>Loading...</div>}>
         <AuthCard action="signup" google microsoft />
       </Suspense>

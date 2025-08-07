@@ -11,7 +11,8 @@ export const generateUploadUrl = mutation({
 export const sendImage = mutation({
   args: {
     storageId: v.id("_storage"),
-    type: v.union(v.literal("profile"), v.literal("organization"))
+    type: v.union(v.literal("profile"), v.literal("organization")),
+    organizationId: v.optional(v.string()) // Add optional organizationId parameter
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -21,13 +22,19 @@ export const sendImage = mutation({
 
     let id;
     if (args.type === "organization") {
-      const activeOrganization = await ctx.runQuery(
-        components.betterAuth.lib.getCurrentSession
-      );
-      if (!activeOrganization?.activeOrganizationId) {
-        throw new Error("No active organization");
+      // If organizationId is provided explicitly, use it
+      if (args.organizationId) {
+        id = args.organizationId;
+      } else {
+        // Fallback to session-based lookup
+        const activeOrganization = await ctx.runQuery(
+          components.betterAuth.lib.getCurrentSession
+        );
+        if (!activeOrganization?.activeOrganizationId) {
+          throw new Error("No active organization");
+        }
+        id = activeOrganization.activeOrganizationId;
       }
-      id = activeOrganization.activeOrganizationId;
     } else {
       id = identity.subject;
     }
@@ -36,7 +43,7 @@ export const sendImage = mutation({
       body: args.storageId,
       userId: id,
       format: "image",
-      type: args.type,
+      type: args.type
     });
   }
 });

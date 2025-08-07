@@ -27,9 +27,14 @@ export const {
   isAuthenticated
 } = betterAuthComponent.createAuthFunctions<DataModel>({
   // Must create a user and return the user id
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onCreateUser: async (ctx, _user) => {
-    return ctx.db.insert("users", {});
+  onCreateUser: async (ctx, user) => {
+    console.log("Creating user in Convex:", user);
+    return ctx.db.insert("users", {
+      email: user.email,
+      name: user.name || undefined,
+      image: user.image || undefined,
+      isOnboardingComplete: false
+    });
   },
 
   // Delete the user when they are deleted from Better Auth
@@ -59,6 +64,10 @@ export const getCurrentUser = query({
       return null;
     }
 
+    // Debug: Log the userMetadata to see what fields are available
+    console.log("userMetadata from Better Auth:", userMetadata);
+    console.log("twoFactorEnabled value:", userMetadata.twoFactorEnabled);
+
     // Get user data from your application's database for custom fields
     const customUserData = await ctx.db.get(userMetadata.userId as Id<"users">);
 
@@ -79,16 +88,18 @@ export const getCurrentUser = query({
 
     // Better Auth user data takes precedence since we update it directly
     return {
+      // Include all Better Auth fields first
+      ...userMetadata,
+      // Then override with explicit fields to ensure they take precedence
       id: userMetadata.id,
       email: userMetadata.email,
+      twoFactorEnabled: userMetadata.twoFactorEnabled || false, // Provide default value
       name: userMetadata.name, // Use Better Auth name (updated by our mutation)
       image: userMetadata.image, // Use Better Auth image (updated by our mutation)
       phone: userMetadata.phoneNumber, // Use Better Auth phoneNumber
       isOnboardingComplete: customUserData?.isOnboardingComplete || false,
       activeTeamId: customUserData?.activeTeamId || null, // Include active team ID
       activeTeam: activeTeam, // Include active team details
-      // Include any other Better Auth fields
-      ...userMetadata,
       // Include any other custom fields that aren't in Better Auth
       ...(customUserData && {
         customField1: customUserData.name, // Keep custom fields if needed

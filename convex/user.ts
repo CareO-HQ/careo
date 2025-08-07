@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { components } from "./_generated/api";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 export const updateUserOnboarding = mutation({
   args: {
@@ -11,13 +11,13 @@ export const updateUserOnboarding = mutation({
   handler: async (ctx, args) => {
     const { name, phone, imageUrl } = args;
 
-    // Get user from db
+    // Get user from Better Auth
     const user = await ctx.auth.getUserIdentity();
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Update the Better Auth user table using the userId from the session
+    // Update the Better Auth user table
     await ctx.runMutation(components.betterAuth.lib.updateOne, {
       input: {
         model: "user",
@@ -30,6 +30,20 @@ export const updateUserOnboarding = mutation({
       }
     });
 
+    // Also update the Convex users table to keep data in sync
+    const convexUser = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", user.email as string))
+      .first();
+
+    if (convexUser) {
+      await ctx.db.patch(convexUser._id, {
+        name: name,
+        phone: phone || undefined,
+        image: imageUrl || undefined
+      });
+    }
+
     return {
       success: true,
       updatedFields: { name, phone, imageUrl }
@@ -37,4 +51,44 @@ export const updateUserOnboarding = mutation({
   }
 });
 
+export const setIsOnboardingCompleted = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get user from Better Auth
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity) {
+      throw new Error("User not found");
+    }
 
+    // Find the user in Convex users table
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found in Convex database");
+    }
+
+    // Update user table to mark onboarding as complete
+    await ctx.db.patch(user._id, {
+      isOnboardingComplete: true
+    });
+
+    return { success: true };
+  }
+});
+
+export const getUserByEmail = query({
+  args: {
+    email: v.string()
+  },
+  handler: async (ctx, args) => {
+    const { email } = args;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", email))
+      .first();
+    return user;
+  }
+});

@@ -2,20 +2,22 @@ import { createAuthClient } from "better-auth/react";
 import { convexClient } from "@convex-dev/better-auth/client/plugins";
 import {
   organizationClient,
-  customSessionClient
+  customSessionClient,
+  twoFactorClient
 } from "better-auth/client/plugins";
-import { passkeyClient } from "better-auth/client/plugins";
-import type { createAuth } from "./auth";
+import { passkeyClient, adminClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   plugins: [
     convexClient(),
+    twoFactorClient(),
     organizationClient({
       teams: {
         enabled: true
       }
     }),
     passkeyClient(),
-    customSessionClient()
+    customSessionClient(),
+    adminClient()
   ]
 });

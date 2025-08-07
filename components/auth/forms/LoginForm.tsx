@@ -10,23 +10,28 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { LoginFormSchema } from "@/schemas/auth/LoginFormSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useConvex } from "convex/react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQueryState } from "nuqs";
+import posthog from "posthog-js";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
-import z from "zod";
-import posthog from "posthog-js";
 import { toast } from "sonner";
-import Link from "next/link";
-import { useQueryState } from "nuqs";
+import z from "zod";
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, startTransition] = useTransition();
   const [redirect] = useQueryState("redirect");
   const [token] = useQueryState("token");
+  const convex = useConvex();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof LoginFormSchema>>({
     resolver: zodResolver(LoginFormSchema),
@@ -37,15 +42,42 @@ export default function LoginForm() {
   });
   function onSubmit(values: z.infer<typeof LoginFormSchema>) {
     startTransition(async () => {
-      console.log("REDIRECT", redirect);
-      console.log("TOKEN", token);
       await authClient.signIn.email(
         {
           email: values.email,
-          password: values.password,
-          callbackURL: redirect ? `/${redirect}?token=${token}` : "/onboarding"
+          password: values.password
         },
         {
+          async onSuccess(ctx) {
+            if (ctx.data.twoFactorRedirect) {
+              const { data, error } = await authClient.twoFactor.sendOtp({
+                query: {
+                  trustDevice: true
+                }
+              });
+              if (error) {
+                toast.error("Error sending OTP");
+                return;
+              }
+              router.push(`/login/two-factor?email=${values.email}`);
+              return;
+            }
+            const userFromDb = await convex.query(api.user.getUserByEmail, {
+              email: values.email
+            });
+            if (userFromDb?.isOnboardingComplete) {
+              router.push("/dashboard");
+              return;
+            } else {
+              if (redirect && token) {
+                router.push(`/${redirect}?token=${token}`);
+                return;
+              } else {
+                router.push("/onboarding");
+                return;
+              }
+            }
+          },
           onError: (ctx) => {
             if (ctx.error.code === "INVALID_EMAIL_OR_PASSWORD") {
               toast.error("Invalid email or password");

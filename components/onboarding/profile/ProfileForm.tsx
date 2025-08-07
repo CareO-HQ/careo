@@ -26,6 +26,7 @@ type User = {
   name?: string;
   email: string;
   image?: string;
+  phone?: string;
   // Add other user properties as needed
 } | null;
 
@@ -39,12 +40,14 @@ export default function ProfileForm({
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const user: User = useQuery(api.auth.getCurrentUser);
+
   const updateUser = useMutation(api.user.updateUserOnboarding);
 
   const generateUploadUrlMutation = useMutation(
     api.files.image.generateUploadUrl
   );
   const sendImageMutation = useMutation(api.files.image.sendImage);
+
   const getUserLogoQuery = useQuery(
     api.files.image.getUserLogo,
     user ? {} : "skip"
@@ -56,7 +59,7 @@ export default function ProfileForm({
     defaultValues: {
       name: user?.name || "",
       email: user?.email || "",
-      phone: "",
+      phone: user?.phone || "",
       imageUrl: user?.image || ""
     }
   });
@@ -67,7 +70,7 @@ export default function ProfileForm({
       form.reset({
         name: user.name || "",
         email: user.email || "",
-        phone: "",
+        phone: user.phone || "",
         imageUrl: user.image || ""
       });
     }
@@ -128,6 +131,7 @@ export default function ProfileForm({
           fileId={getUserLogoQuery?.storageId}
           selectedFile={selectedFile}
           setSelectedFile={setSelectedFile}
+          userInitial={user?.name?.charAt(0) || ""}
         />
         <FormField
           control={form.control}

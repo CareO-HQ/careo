@@ -3,14 +3,17 @@ import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
+    // Better Auth user data
+    email: v.string(), // Save email from Better Auth
+    name: v.optional(v.string()), // Save name from Better Auth
+    image: v.optional(v.string()), // Save image from Better Auth
     // Onboarding profile fields
-    name: v.optional(v.string()),
     phone: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     // Add other custom user fields as needed
     isOnboardingComplete: v.optional(v.boolean()),
     activeTeamId: v.optional(v.string())
-  }),
+  }).index("byEmail", ["email"]), // Add index for email lookups
 
   // Passkey table for better-auth passkey plugin
   passkey: defineTable({

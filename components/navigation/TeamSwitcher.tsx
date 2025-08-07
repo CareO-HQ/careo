@@ -67,7 +67,7 @@ export function TeamSwitcher({
           onSuccess: ({ data }) => {
             console.log("data", data);
             // Filter out teams that have the same name as the organization (default teams)
-            const filteredTeams = data.filter(
+            const filteredTeams = data?.filter(
               (team: { id: string; name: string }) =>
                 team.name !== activeOrganization?.name
             );
@@ -179,13 +179,13 @@ export function TeamSwitcher({
               <CreateTeamModal onTeamCreated={getTeams}>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}
-                  disabled={(orgTeams.length ?? 0) >= config.limits.teams}
+                  disabled={(orgTeams?.length ?? 0) >= config.limits.teams}
                 >
                   <PlusIcon className="size-3 text-primary" />
                 </DropdownMenuItem>
               </CreateTeamModal>
             </div>
-            {orgTeams.length ? (
+            {orgTeams?.length ? (
               orgTeams.map((team: { id: string; name: string }) => (
                 <DropdownMenuItem
                   key={team.id}

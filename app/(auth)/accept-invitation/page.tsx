@@ -1,20 +1,24 @@
 "use client";
 
-import { useQueryState } from "nuqs";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { useEffect, Suspense } from "react";
+import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import { useQueryState } from "nuqs";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 function AcceptInvitationContent() {
   const router = useRouter();
   const [token] = useQueryState("token");
+  const [email] = useQueryState("email");
+  const [invitation, setInvitation] = useState<{
+    inviterEmail: string;
+    role: string;
+    organizationName: string;
+    email: string;
+  } | null>(null);
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
-  const user = useQuery(api.auth.getCurrentUser);
 
   const handleAcceptInvitation = async () => {
     await authClient.organization.acceptInvitation(
@@ -34,8 +38,21 @@ function AcceptInvitationContent() {
     );
   };
 
+  const getInvitation = async () => {
+    if (!token) return;
+    const { data } = await authClient.organization.getInvitation({
+      query: {
+        id: token
+      }
+    });
+    if (data) {
+      setInvitation(data);
+    }
+  };
+
   useEffect(() => {
     if (sessionPending) return;
+    getInvitation();
 
     if (!session) {
       const params = new URLSearchParams();
@@ -43,9 +60,12 @@ function AcceptInvitationContent() {
       if (token) {
         params.set("token", token);
       }
+      if (email) {
+        params.set("email", email);
+      }
       router.push(`/signup?${params.toString()}`);
     }
-  }, [session, sessionPending, router, token]);
+  }, [session, sessionPending, router, token, email]);
 
   if (sessionPending) {
     return (
@@ -74,8 +94,19 @@ function AcceptInvitationContent() {
   return (
     <div className="flex flex-col justify-center items-center h-dvh space-y-4">
       <h1 className="text-2xl font-bold">Accept Invitation</h1>
-      {user && <p className="text-gray-600">Logged in as: {user.email}</p>}
-      <p className="text-sm text-gray-500">Invitation Token: {token}</p>
+      <p className="text-muted-foreground text-center max-w-sm text-sm">
+        You have been invited by{" "}
+        <span className="font-semibold text-primary">
+          {invitation?.inviterEmail}
+        </span>{" "}
+        to join{" "}
+        <span className="font-semibold text-primary">
+          {invitation?.organizationName}
+        </span>{" "}
+        as a{" "}
+        <span className="font-semibold text-primary">{invitation?.role}</span>.
+      </p>
+
       <Button onClick={handleAcceptInvitation}>Accept Invitation</Button>
     </div>
   );

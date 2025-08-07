@@ -25,17 +25,19 @@ export default function ImageSelector({
   selectedFile,
   setSelectedFile,
   currentImageUrl,
-  fileId
+  fileId,
+  userInitial
 }: {
   selectedFile: File | null;
   setSelectedFile: (file: File | null) => void;
   currentImageUrl: string | null | undefined;
   fileId: Id<"files"> | null | undefined;
+  userInitial: string;
 }) {
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const deleteImageMutation = useMutation(api.files.image.deleteById);
-  
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -128,7 +130,7 @@ export default function ImageSelector({
               <div className="bg-muted w-30 h-30 flex flex-col items-center justify-center rounded-full">
                 {/* TODO: Get the initials from the name */}
                 <div className="text-primary font-semibold text-2xl text-center">
-                  JG
+                  {userInitial}
                 </div>
               </div>
             </div>

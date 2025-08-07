@@ -4,27 +4,34 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
-  DropdownMenuSubTrigger
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { EllipsisVerticalIcon, UsersIcon } from "lucide-react";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
+import { EllipsisVerticalIcon, UsersIcon } from "lucide-react";
 
-import { toast } from "sonner";
 import { useMutation } from "convex/react";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface MemberActionsProps {
   memberId: string;
   memberName: string;
+  isOwner: boolean;
+  userId: string;
+  email: string;
 }
 
 export default function MemberActions({
   memberId,
-  memberName
+  memberName,
+  isOwner,
+  userId,
+  email
 }: MemberActionsProps) {
   const teams = useQuery(api.auth.getTeamsWithMembers, {});
   const memberTeams = useQuery(
@@ -33,6 +40,7 @@ export default function MemberActions({
   );
   const addMemberToTeam = useMutation(api.auth.addMemberToTeam);
   const removeMemberFromTeam = useMutation(api.auth.removeMemberFromTeam);
+  const router = useRouter();
 
   const handleTeamSelect = async (teamId: string, teamName: string) => {
     if (!memberId) {
@@ -83,8 +91,9 @@ export default function MemberActions({
     return memberTeams?.some((memberTeam) => memberTeam.id === teamId);
   };
 
-  console.log("TEAMS", teams);
-  console.log("MEMBER TEAMS", memberTeams);
+  const handleManageSessions = () => {
+    router.push(`/settings/members/session?userId=${userId}&email=${email}`);
+  };
 
   return (
     <DropdownMenu>
@@ -92,11 +101,14 @@ export default function MemberActions({
         <EllipsisVerticalIcon className="w-4 h-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem>
-          <p>Invite</p>
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
+        {isOwner && (
+          <>
+            <DropdownMenuItem onClick={handleManageSessions}>
+              <p>Manage sessions</p>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
 
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

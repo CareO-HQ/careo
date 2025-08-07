@@ -5,10 +5,10 @@ import { type GenericCtx } from "../convex/_generated/server";
 import { betterAuthComponent } from "../convex/auth";
 import { nextCookies } from "better-auth/next-js";
 import resend from "./resend";
-import { organization, customSession } from "better-auth/plugins";
+import { organization, customSession, twoFactor } from "better-auth/plugins";
 import { components } from "../convex/_generated/api";
-import { ac, member, admin, owner } from "./permissions";
 import { passkey } from "better-auth/plugins/passkey";
+import { admin } from "better-auth/plugins";
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -60,20 +60,32 @@ export const createAuth = (ctx: GenericCtx) =>
     plugins: [
       nextCookies(),
       convex(),
+      twoFactor({
+        skipVerificationOnEnable: true,
+        otpOptions: {
+          async sendOTP({ user, otp }) {
+            await resend.emails.send({
+              from: "Uprio <uprio@auth.tryuprio.com>",
+              to: [user.email],
+              subject: "Your Uprio 2FA code",
+              html: `
+            <h3>Your Uprio 2FA code</h3>
+            <p>Your 2FA code is ${otp}</p>
+            <p>This code will expire in 3 minutes.</p>
+            `
+            });
+          }
+        }
+      }),
       organization({
-        ac,
-        roles: {
-          owner,
-          admin,
-          member
-        },
         teams: {
           enabled: true,
           maximumTeams: 10,
           allowRemovingAllTeams: false
         },
         async sendInvitationEmail(data) {
-          const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}`;
+          const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}&email=${data.email}`;
+          console.log("sendInvitationEmail", inviteLink);
           await resend.emails.send({
             from: "Uprio <uprio@auth.tryuprio.com>",
             to: [data.email],
@@ -95,6 +107,12 @@ export const createAuth = (ctx: GenericCtx) =>
             activeTeamId: (session as any).activeTeamId || null
           }
         };
+      }),
+      admin({
+        adminUserIds: [
+          "m17f5hycmedfr15th28e1xt13d7n4nqc",
+          "m170w78er3krb5js6j3yh3c6rd7n2pyz"
+        ]
       })
     ]
   });
