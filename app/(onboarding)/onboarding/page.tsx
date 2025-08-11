@@ -12,6 +12,7 @@ import { useState } from "react";
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const OWNER_TOTAL_STEPS = 4;
+  const ADMIN_TOTAL_STEPS = 3;
   const MEMBER_TOTAL_STEPS = 2;
 
   const { data: session } = authClient.useSession();
@@ -59,6 +60,37 @@ export default function OnboardingPage() {
     );
   }
 
+  // ADMIN ONBOARDING
+  if (activeMember?.role === "admin") {
+    return (
+      <ContentWrapper className="max-w-xl w-full">
+        <div className="flex flex-col justify-start items-start mt-4">
+          <span className="flex justify-center items-center w-full">
+            <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+          </span>
+          {/* Stepper */}
+          <Stepper step={step} totalSteps={ADMIN_TOTAL_STEPS} />
+          <p className="text-2xl font-bold mt-4">
+            {step === 1 && "Set up your profile"}
+            {step === 2 && "Choose your theme"}
+            {step === 3 && "Create teams"}
+          </p>
+          <p className="text-muted-foreground my-2">
+            {step === 1 &&
+              "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
+            {step === 2 &&
+              "Select the theme for the application. You’ll be able to change this later."}
+            {step === 3 &&
+              "Create your first teams. You'll be able to create more teams and invite members to them later."}
+          </p>
+          {step === 1 && <ProfileForm step={step} setStep={setStep} />}
+          {step === 2 && <SelectTheme step={step} setStep={setStep} />}
+        </div>
+      </ContentWrapper>
+    );
+  }
+
+  // MEMBER ONBOARDING
   if (activeMember?.role === "member") {
     return (
       <ContentWrapper className="max-w-xl w-full">
@@ -89,9 +121,5 @@ export default function OnboardingPage() {
         </div>
       </ContentWrapper>
     );
-  }
-
-  if (activeMember?.role === "admin") {
-    return <div>Admin onboarding</div>;
   }
 }
