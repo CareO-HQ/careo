@@ -10,9 +10,11 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { SignupFormSchema } from "@/schemas/auth/SignupFormSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useConvex } from "convex/react";
 import {
   EyeIcon,
   EyeOffIcon,
@@ -33,7 +35,7 @@ export default function SignupForm() {
   const [isLoading, startTransition] = useTransition();
   const [token] = useQueryState("token");
   const [invitationEmail] = useQueryState("email");
-
+  const convex = useConvex();
   const router = useRouter();
 
   const form = useForm<z.infer<typeof SignupFormSchema>>({
@@ -62,12 +64,13 @@ export default function SignupForm() {
               custom_message: "Error signing up"
             });
           },
-          onSuccess: () => {
-            console.log("REDIRECTING WITH TOKEN", token);
+          onSuccess: async () => {
             if (token) {
-              router.push(`/accept-invitation?token=${token}`);
+              router.push(`/accept-invitation?token=${token}&email=${values.email}`);
+              return;
             } else {
               router.push("/onboarding");
+              return;
             }
           }
         }

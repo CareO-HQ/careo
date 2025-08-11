@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
+import { useConvex } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
@@ -17,6 +19,7 @@ function AcceptInvitationContent() {
     organizationName: string;
     email: string;
   } | null>(null);
+  const convex = useConvex();
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
 
@@ -26,9 +29,23 @@ function AcceptInvitationContent() {
         invitationId: token!
       },
       {
-        onSuccess: () => {
-          toast.success("Invitation accepted");
-          router.push("/dashboard");
+        onSuccess: async () => {
+          if (!email) {
+            router.push("/onboarding");
+            return;
+          }
+
+          const userFromDb = await convex.query(api.user.getUserByEmail, {
+            email: email!
+          });
+
+          if (userFromDb?.isOnboardingComplete) {
+            router.push("/dashboard");
+            return;
+          } else {
+            router.push("/onboarding");
+            return;
+          }
         },
         onError: (error) => {
           toast.error("Failed to accept invitation");

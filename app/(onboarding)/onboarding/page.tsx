@@ -6,15 +6,16 @@ import ProfileForm from "@/components/onboarding/profile/ProfileForm";
 import SelectTheme from "@/components/onboarding/theme/SelectTheme";
 import Stepper from "@/components/stepper/Stepper";
 import ContentWrapper from "@/components/utils/ContentWrapper";
-import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
-import { useQuery } from "convex/react";
 import { useState } from "react";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const OWNER_TOTAL_STEPS = 4;
   const MEMBER_TOTAL_STEPS = 2;
+
+  const { data: session } = authClient.useSession();
+  console.log(session);
 
   const { data: activeMember, isPending } = authClient.useActiveMember();
   console.log(activeMember);
@@ -78,7 +79,13 @@ export default function OnboardingPage() {
               "Select the theme for the application. You’ll be able to change this later."}
           </p>
           {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && <SelectTheme step={step} setStep={setStep} isLastStep={step === MEMBER_TOTAL_STEPS} />}
+          {step === 2 && (
+            <SelectTheme
+              step={step}
+              setStep={setStep}
+              isLastStep={step === MEMBER_TOTAL_STEPS}
+            />
+          )}
         </div>
       </ContentWrapper>
     );
