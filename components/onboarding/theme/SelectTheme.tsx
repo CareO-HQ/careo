@@ -3,19 +3,37 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useTransition } from "react";
 
 export default function SelectTheme({
   step,
-  setStep
+  setStep,
+  isLastStep
 }: {
   step: number;
   setStep: (step: number) => void;
+  isLastStep?: boolean;
 }) {
+  const [isLoading, startTransition] = useTransition();
   const { setTheme, theme } = useTheme();
+  const router = useRouter();
+  const setIsOnboardingCompleted = useMutation(
+    api.user.setIsOnboardingCompleted
+  );
 
   const handleNext = () => {
-    setStep(step + 1);
+    startTransition(async () => {
+      if (isLastStep) {
+        router.push("/dashboard");
+        await setIsOnboardingCompleted();
+      } else {
+        setStep(step + 1);
+      }
+    });
   };
 
   const handleThemeChange = (theme: string) => {
@@ -84,8 +102,8 @@ export default function SelectTheme({
       </RadioGroup>
 
       <div className="flex justify-end pt-4">
-        <Button onClick={handleNext} className="px-8">
-          Continue
+        <Button onClick={handleNext} className="px-8" disabled={isLoading}>
+          {isLastStep ? "Finish" : "Continue"}
         </Button>
       </div>
     </div>
