@@ -3,6 +3,7 @@
 import InviteForm from "@/components/onboarding/invites/InviteForm";
 import OrganizationForm from "@/components/onboarding/organization/OrganizationForm";
 import ProfileForm from "@/components/onboarding/profile/ProfileForm";
+import CreateMultipleTeams from "@/components/onboarding/teams/CreateMultipleTeams";
 import SelectTheme from "@/components/onboarding/theme/SelectTheme";
 import Stepper from "@/components/stepper/Stepper";
 import ContentWrapper from "@/components/utils/ContentWrapper";
@@ -81,10 +82,11 @@ export default function OnboardingPage() {
             {step === 2 &&
               "Select the theme for the application. You’ll be able to change this later."}
             {step === 3 &&
-              "Create your first teams. You'll be able to create more teams and invite members to them later."}
+              "Create your first teams for your care home. You'll be able to create more teams and invite members to them later."}
           </p>
           {step === 1 && <ProfileForm step={step} setStep={setStep} />}
           {step === 2 && <SelectTheme step={step} setStep={setStep} />}
+          {step === 3 && <CreateMultipleTeams step={step} setStep={setStep} />}
         </div>
       </ContentWrapper>
     );
