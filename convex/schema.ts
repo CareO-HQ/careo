@@ -98,5 +98,44 @@ export default defineSchema({
     .index("byUserId", ["userId"])
     .index("byTeamId", ["teamId"])
     .index("byUserAndTeam", ["userId", "teamId"])
-    .index("byOrganization", ["organizationId"])
+    .index("byOrganization", ["organizationId"]),
+
+  // Residents table for care home management
+  residents: defineTable({
+    firstName: v.string(),
+    lastName: v.string(),
+    dateOfBirth: v.string(),
+    phoneNumber: v.optional(v.string()),
+    roomNumber: v.optional(v.string()),
+    admissionDate: v.string(),
+    organizationId: v.string(), // Care home (organization) this resident belongs to
+    teamId: v.optional(v.string()), // Specific team/unit within the care home
+    createdBy: v.string(), // User who created this resident record
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    isActive: v.optional(v.boolean()) // For soft delete/discharge
+  })
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byCreatedBy", ["createdBy"])
+    .index("byRoomNumber", ["roomNumber"])
+    .index("byFullName", ["firstName", "lastName"])
+    .index("byActiveStatus", ["isActive"]),
+
+  // Emergency contacts for residents
+  emergencyContacts: defineTable({
+    residentId: v.id("residents"),
+    name: v.string(),
+    phoneNumber: v.string(),
+    relationship: v.string(),
+    isPrimary: v.optional(v.boolean()),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byPrimary", ["isPrimary"]),
+
+  
 });
