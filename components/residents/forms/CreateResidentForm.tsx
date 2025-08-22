@@ -2,7 +2,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import z from "zod";
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useMutation } from "convex/react";
@@ -29,6 +29,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Stepper from "@/components/stepper/Stepper"; 
 
 interface CreateResidentFormProps {
@@ -41,6 +48,7 @@ export function CreateResidentForm({
 }: CreateResidentFormProps) {
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const totalSteps = 2;
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
@@ -80,6 +88,34 @@ export function CreateResidentForm({
     control: form.control,
     name: "emergencyContacts",
   });
+
+  const getTeams = useCallback(() => {
+    if (!activeOrganization?.id) return;
+    
+    startTransition(async () => {
+      await authClient.organization.listTeams(
+        {},
+        {
+          onSuccess: ({ data }) => {
+            // Filter out teams that have the same name as the organization (default teams)
+            const filteredTeams = data?.filter(
+              (team: { id: string; name: string }) =>
+                team.name !== activeOrganization?.name
+            ) || [];
+            setTeams(filteredTeams);
+          },
+          onError: (error) => {
+            console.error("Error fetching teams:", error);
+            toast.error("Failed to load teams");
+          }
+        }
+      );
+    });
+  }, [activeOrganization?.id, activeOrganization?.name]);
+
+  useEffect(() => {
+    getTeams();
+  }, [getTeams]);
 
   function onSubmit(values: z.infer<typeof CreateResidentSchema>) {
     startTransition(async () => {
@@ -245,13 +281,26 @@ export function CreateResidentForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Team/Unit</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Nursing Unit A"
-                          disabled={isLoading}
-                          {...field}
-                        />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a team" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {teams.length > 0 ? (
+                            teams.map((team) => (
+                              <SelectItem key={team.id} value={team.id}>
+                                {team.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                              No teams available
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
