@@ -8,6 +8,12 @@ export const CreateResidentSchema = z.object({
   roomNumber: z.string().optional(),
   admissionDate: z.string().min(1, { message: "Admission date is required" }),
   teamId: z.string().optional(),
+  healthConditions: z.array(z.object({
+    condition: z.string().min(1, { message: "Health condition is required" })
+  })).optional(),
+  risks: z.array(z.object({
+    risk: z.string().min(1, { message: "Risk is required" })
+  })).optional(),
   emergencyContacts: z.array(z.object({
     name: z.string().min(1, { message: "Emergency contact name is required" }),
     phoneNumber: z.string().min(1, { message: "Emergency contact phone is required" }),

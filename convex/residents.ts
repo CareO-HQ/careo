@@ -11,6 +11,8 @@ export const create = mutation({
     admissionDate: v.string(),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
+    healthConditions: v.array(v.string()),
+    risks: v.array(v.string()),
     createdBy: v.string()
   },
   handler: async (ctx, args) => {
@@ -25,6 +27,8 @@ export const create = mutation({
       admissionDate: args.admissionDate,
       organizationId: args.organizationId,
       teamId: args.teamId,
+      healthConditions: args.healthConditions,
+      risks: args.risks,
       createdBy: args.createdBy,
       createdAt: now,
       updatedAt: now,

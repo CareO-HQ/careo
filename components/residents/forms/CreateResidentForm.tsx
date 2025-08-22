@@ -36,20 +36,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Stepper from "@/components/stepper/Stepper"; 
+import Stepper from "@/components/stepper/Stepper";
 
 interface CreateResidentFormProps {
   onSubmit?: (values: z.infer<typeof CreateResidentSchema>) => void;
   onCancel?: () => void;
+  onSuccess?: () => void;
 }
 
 export function CreateResidentForm({
   onSubmit: onSubmitProp,
+  onSuccess,
 }: CreateResidentFormProps) {
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
-  const totalSteps = 2;
+  const totalSteps = 3;
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const createResidentMutation = useMutation(api.residents.create);
@@ -68,6 +70,8 @@ export function CreateResidentForm({
       roomNumber: "",
       admissionDate: "",
       teamId: "",
+      healthConditions: [],
+      risks: [],
       emergencyContacts: [
         {
           name: "",
@@ -89,15 +93,32 @@ export function CreateResidentForm({
     name: "emergencyContacts",
   });
 
+  const { 
+    fields: healthConditionsFields, 
+    append: appendHealthCondition, 
+    remove: removeHealthCondition 
+  } = useFieldArray({
+    control: form.control,
+    name: "healthConditions",
+  });
+
+  const { 
+    fields: risksFields, 
+    append: appendRisk, 
+    remove: removeRisk 
+  } = useFieldArray({
+    control: form.control,
+    name: "risks",
+  });
+
   const getTeams = useCallback(() => {
     if (!activeOrganization?.id) return;
-    
+
     startTransition(async () => {
       await authClient.organization.listTeams(
         {},
         {
           onSuccess: ({ data }) => {
-            // Filter out teams that have the same name as the organization (default teams)
             const filteredTeams = data?.filter(
               (team: { id: string; name: string }) =>
                 team.name !== activeOrganization?.name
@@ -134,6 +155,8 @@ export function CreateResidentForm({
           roomNumber: values.roomNumber,
           admissionDate: values.admissionDate,
           teamId: values.teamId,
+          healthConditions: values.healthConditions?.map(hc => hc.condition) || [],
+          risks: values.risks?.map(r => r.risk) || [],
           organizationId: activeOrganization.id,
           createdBy: user.user.id,
         });
@@ -157,7 +180,12 @@ export function CreateResidentForm({
 
         toast.success("Resident created successfully");
         form.reset();
-        setStep(1); 
+        setStep(1);
+        
+        // Close the form if callback provided
+        if (onSuccess) {
+          onSuccess();
+        }
       } catch (error) {
         toast.error("Error creating resident");
         console.error("Error creating resident:", error);
@@ -166,19 +194,25 @@ export function CreateResidentForm({
   }
 
   const handleNext = async () => {
-    const valid = await form.trigger([
-      "firstName",
-      "lastName",
-      "dateOfBirth",
-      "phoneNumber",
-      "roomNumber",
-      "teamId",
-      "admissionDate",
-    ]);
-    if (valid) {
-      setStep(2);
-    } else {
-      toast.error("Please fill all required fields in this step.");
+    if (step === 1) {
+      const valid = await form.trigger([
+        "firstName",
+        "lastName",
+        "dateOfBirth",
+        "phoneNumber",
+        "roomNumber",
+        "teamId",
+        "admissionDate",
+      ]);
+      if (valid) {
+        setStep(2);
+      } else {
+        toast.error("Please fill all required fields in this step.");
+      }
+    } else if (step === 2) {
+      // Step 2 validation - health conditions and risks are optional
+      // No specific validation needed as fields are optional
+      setStep(3);
     }
   };
 
@@ -328,9 +362,150 @@ export function CreateResidentForm({
             </CardFooter>
           </Card>
         )}
-
-        {/* Step 2: Emergency Contacts */}
+        {/* Step 2: Health Conditions and Risks */}
         {step === 2 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Health Information</CardTitle>
+              <CardDescription>
+                Add health conditions and risks for the resident
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              {/* Health Conditions Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium">Health Conditions</h3>
+                    <p className="text-sm text-muted-foreground">Add any known health conditions</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendHealthCondition({ condition: "" })}
+                    disabled={isLoading}
+                  >
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    Add Condition
+                  </Button>
+                </div>
+                
+                {healthConditionsFields.length > 0 && (
+                  <div className="space-y-3">
+                    {healthConditionsFields.map((field, index) => (
+                      <div key={field.id} className="flex items-center gap-3">
+                        <FormField
+                          control={form.control}
+                          name={`healthConditions.${index}.condition`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g., Diabetes, Hypertension"
+                                  disabled={isLoading}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeHealthCondition(index)}
+                          disabled={isLoading}
+                        >
+                          <Trash2Icon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {healthConditionsFields.length === 0 && (
+                 <div className="text-center py-8 text-muted-foreground">
+                 No health conditions added yet. Click &quot;Add Condition&quot; to get started.
+               </div>
+               
+                )}
+              </div>
+
+              {/* Risks Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium">Risks</h3>
+                    <p className="text-sm text-muted-foreground">Add any known risks or safety concerns</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendRisk({ risk: "" })}
+                    disabled={isLoading}
+                  >
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    Add Risk
+                  </Button>
+                </div>
+                
+                {risksFields.length > 0 && (
+                  <div className="space-y-3">
+                    {risksFields.map((field, index) => (
+                      <div key={field.id} className="flex items-center gap-3">
+                        <FormField
+                          control={form.control}
+                          name={`risks.${index}.risk`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g., Fall risk, Medication allergy"
+                                  disabled={isLoading}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeRisk(index)}
+                          disabled={isLoading}
+                        >
+                          <Trash2Icon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {risksFields.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                No risks added yet. Click &quot;Add Risk&quot; to get started.
+              </div>
+              
+                )}
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button type="button" onClick={handleNext}>
+                Next
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+        {/* Step 3: Emergency Contacts */}
+        {step === 3 && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -456,7 +631,9 @@ export function CreateResidentForm({
               ))}
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+              <Button type="button" variant="outline" onClick={() => setStep(2
+                
+              )}>
                 Back
               </Button>
               <Button type="submit" disabled={isLoading}>

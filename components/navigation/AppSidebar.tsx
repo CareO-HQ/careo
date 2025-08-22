@@ -23,10 +23,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useState } from "react";
 
 import { CreateResidentForm } from "@/components/residents/forms/CreateResidentForm";
 
 export function AppSidebar() {
+  const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
 
@@ -53,7 +55,7 @@ export function AppSidebar() {
               </SidebarMenuButton>
 
               {/* Dialog for Add Resident */}
-              <Dialog>
+              <Dialog open={isResidentDialogOpen} onOpenChange={setIsResidentDialogOpen}>
                 <DialogTrigger asChild>
                   <SidebarMenuAction>
                     <PlusIcon />
@@ -62,12 +64,12 @@ export function AppSidebar() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add Resident</DialogTitle>
+                    <DialogTitle>Create New Resident Profile</DialogTitle>
                     <DialogDescription>
-                      Fill in the details below to add a new resident.
+                      Enter the resident’s personal information and relevant care details to create their profile.
                     </DialogDescription>
                   </DialogHeader>
-                  <CreateResidentForm />
+                  <CreateResidentForm onSuccess={() => setIsResidentDialogOpen(false)} />
                 </DialogContent>
               </Dialog>
             </SidebarMenuItem>

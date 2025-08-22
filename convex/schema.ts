@@ -86,9 +86,9 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byName", ["name"]),
 
-  // Team membership junction table for many-to-many relationship
+  
   teamMembers: defineTable({
-    userId: v.string(), // The user ID from Better Auth
+    userId: v.string(), 
     teamId: v.string(), // The team ID from Better Auth
     organizationId: v.string(), // The organization ID for validation
     role: v.optional(v.string()), // Optional role within the team
@@ -100,7 +100,7 @@ export default defineSchema({
     .index("byUserAndTeam", ["userId", "teamId"])
     .index("byOrganization", ["organizationId"]),
 
-  // Residents table for care home management
+
   residents: defineTable({
     firstName: v.string(),
     lastName: v.string(),
@@ -108,12 +108,14 @@ export default defineSchema({
     phoneNumber: v.optional(v.string()),
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
-    organizationId: v.string(), // Care home (organization) this resident belongs to
-    teamId: v.optional(v.string()), // Specific team/unit within the care home
-    createdBy: v.string(), // User who created this resident record
+    healthConditions: v.array(v.string()),
+    risks: v.array(v.string()),
+    organizationId: v.string(),
+    teamId: v.optional(v.string()),
+    createdBy: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
-    isActive: v.optional(v.boolean()) // For soft delete/discharge
+    isActive: v.optional(v.boolean())
   })
     .index("byOrganizationId", ["organizationId"])
     .index("byTeamId", ["teamId"])
@@ -137,5 +139,5 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byPrimary", ["isPrimary"]),
 
-  
+
 });
