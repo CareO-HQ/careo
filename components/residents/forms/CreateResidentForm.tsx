@@ -42,10 +42,8 @@ export function CreateResidentForm({
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const totalSteps = 2;
-
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
-
   const createResidentMutation = useMutation(api.residents.create);
   const createEmergencyContactMutation = useMutation(
     api.residents.createEmergencyContact
