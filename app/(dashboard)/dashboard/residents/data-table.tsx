@@ -49,6 +49,34 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [unitFilter, setUnitFilter] = React.useState<string>("all")
+    const [residetn,setResident]=React.useState()
+
+    const getResident = React.useCallback((activeOrganizationId) => {
+        if (!activeOrganization?.id) return;
+    
+        startTransition(async () => {
+          await authClient.organization.listTeams(
+            {},
+            {
+              onSuccess: ({ data }) => {
+                const filteredTeams = data?.filter(
+                  (team: { id: string; name: string }) =>
+                    team.name !== activeOrganization?.name
+                ) || [];
+                setTeams(filteredTeams);
+              },
+              onError: (error) => {
+                console.error("Error fetching teams:", error);
+                toast.error("Failed to load teams");
+              }
+            }
+          );
+        });
+      }, [activeOrganization?.id, activeOrganization?.name]);
+    
+      useEffect(() => {
+        getResident();
+      }, [getTeams]);
 
     // Get unique units from data for filter dropdown
     const units = React.useMemo(() => {
