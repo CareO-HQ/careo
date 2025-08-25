@@ -12,14 +12,6 @@ import z from "zod";
 
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import {
   Form,
   FormControl,
   FormField,
@@ -50,7 +42,6 @@ export function CreateResidentForm({
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
-  const totalSteps = 3;
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const createResidentMutation = useMutation(api.residents.create);
@@ -136,7 +127,7 @@ export function CreateResidentForm({
 
   const MAX_CONDITIONS = 10;
   const MAX_RISKS = 10;
-
+  const MAX_CONTACT = 5;
   useEffect(() => {
     getTeams();
   }, [getTeams]);
@@ -228,6 +219,7 @@ export function CreateResidentForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4 w-full max-w-5xl mx-auto"
       >
+         {/* Step 1: personal information*/}
         {step === 1 && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -394,7 +386,6 @@ export function CreateResidentForm({
             </div>
           </>
         )}
-
         {/* Step 2: Health Conditions and Risks */}
         {step === 2 && (
           <div className="space-y-6">
@@ -423,7 +414,7 @@ export function CreateResidentForm({
               </div>
 
               {healthConditionsFields.length > 0 && (
-                <div className="space-y-3">
+                <div className={`space-y-3 ${healthConditionsFields.length > 3 ? 'max-h-50 overflow-y-auto' : ''}`}>
                   {healthConditionsFields.map((field, index) => (
                     <div key={field.id} className="flex items-center gap-3">
                       <FormField
@@ -486,7 +477,7 @@ export function CreateResidentForm({
               </div>
 
               {risksFields.length > 0 && (
-                <div className="space-y-3">
+                 <div className={`space-y-3 ${risksFields.length > 3 ? 'max-h-50 overflow-y-auto' : ''}`}>
                   {risksFields.map((field, index) => (
                     <div key={field.id} className="flex items-center gap-3">
                       <FormField
@@ -543,33 +534,36 @@ export function CreateResidentForm({
         )}
         {/* Step 3: Emergency Contacts */}
         {step === 3 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Emergency Contacts</CardTitle>
-                <CardDescription>
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Emergency Contacts</h3>
+                  <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
                   Add one or more emergency contacts
-                </CardDescription>
+                </div>
+                </div>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    append({
+                      name: "",
+                      phoneNumber: "",
+                      relationship: "",
+                      isPrimary: false
+                    })
+                  }
+                  disabled={isLoading || fields.length >= MAX_CONTACT}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Contact
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  append({
-                    name: "",
-                    phoneNumber: "",
-                    relationship: "",
-                    isPrimary: false
-                  })
-                }
-                disabled={isLoading}
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Add Contact
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
+         
+            <div className={`space-y-6 ${fields.length > 2 ? 'max-h-96 overflow-y-auto' : ''}`}>
               {fields.map((field, index) => (
                 <div key={field.id} className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -596,7 +590,7 @@ export function CreateResidentForm({
                       name={`emergencyContacts.${index}.name`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Contact Name *</FormLabel>
+                          <FormLabel isRequired>Contact Name</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Jane Doe"
@@ -613,7 +607,7 @@ export function CreateResidentForm({
                       name={`emergencyContacts.${index}.phoneNumber`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone Number *</FormLabel>
+                          <FormLabel isRequired>Phone Number</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="+1 (555) 987-6543"
@@ -630,7 +624,7 @@ export function CreateResidentForm({
                       name={`emergencyContacts.${index}.relationship`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Relationship *</FormLabel>
+                          <FormLabel isRequired>Relationship</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Daughter"
@@ -652,7 +646,17 @@ export function CreateResidentForm({
                         <FormControl>
                           <Switch
                             checked={field.value}
-                            onCheckedChange={field.onChange}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                // Set all other contacts to false when this one is set to true
+                                const currentValues = form.getValues("emergencyContacts");
+                                currentValues.forEach((_, i) => {
+                                  form.setValue(`emergencyContacts.${i}.isPrimary`, i === index);
+                                });
+                              } else {
+                                field.onChange(false);
+                              }
+                            }}
                             disabled={isLoading}
                           />
                         </FormControl>
@@ -668,8 +672,9 @@ export function CreateResidentForm({
                   {index < fields.length - 1 && <hr className="my-6" />}
                 </div>
               ))}
-            </CardContent>
-            <CardFooter className="flex justify-between">
+            </div>
+            </div>
+            <div className="flex justify-between">
               <Button
                 type="button"
                 variant="outline"
@@ -680,10 +685,10 @@ export function CreateResidentForm({
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? "Creating..." : "Create Resident"}
               </Button>
-            </CardFooter>
-          </Card>
+            </div>
+          </div>
         )}
       </form>
-    </Form>
+    </Form> 
   );
 }
