@@ -1,0 +1,62 @@
+[
+  {
+    "id": "1",
+    "avatar": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&h=400&fit=crop&crop=face",
+    "details": "Margaret Smith, 89 years old",
+    "unit": "Unit A - Room 101",
+    "health": "Diabetes, Hypertension",
+    "risks": "Fall Risk - High",
+    "dependency": "Assistance with mobility",
+    "medication": "8:00 AM"
+  },
+  {
+    "id": "2",
+    "avatar": "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=400&h=400&fit=crop&crop=face",
+    "details": "James Wilson, 81 years old",
+    "unit": "Unit B - Room 205",
+    "health": "Heart Disease, Arthritis",
+    "risks": "Cardiac Risk - Medium",
+    "dependency": "Independent",
+    "medication": "9:00 AM"
+  },
+  {
+    "id": "3",
+    "avatar": "https://images.unsplash.com/photo-1594824804732-ca8db7abd263?w=400&h=400&fit=crop&crop=face",
+    "details": "Eleanor Johnson, 85 years old",
+    "unit": "Unit A - Room 103",
+    "health": "Dementia, Osteoporosis",
+    "risks": "Cognitive Risk - High",
+    "dependency": "Full assistance required",
+    "medication": "7:30 AM"
+  },
+  {
+    "id": "4",
+    "avatar": "https://images.unsplash.com/photo-1607990281513-2c110a25bd8c?w=400&h=400&fit=crop&crop=face",
+    "details": "Robert Brown, 83 years old",
+    "unit": "Unit C - Room 301",
+    "health": "COPD, Depression",
+    "risks": "Respiratory Risk - Medium",
+    "dependency": "Assistance with breathing",
+    "medication": "10:00 AM"
+  },
+  {
+    "id": "5",
+    "avatar": "https://images.unsplash.com/photo-1551836022-deb4988cc6c0?w=400&h=400&fit=crop&crop=face",
+    "details": "Dorothy Davis, 79 years old",
+    "unit": "Unit B - Room 210",
+    "health": "Stroke, Paralysis",
+    "risks": "Mobility Risk - High",
+    "dependency": "Full care required",
+    "medication": "8:30 AM"
+  },
+  {
+    "id": "6",
+    "avatar": "https://images.unsplash.com/photo-1566492031773-4f4e44671d66?w=400&h=400&fit=crop&crop=face",
+    "details": "William Miller, 87 years old",
+    "unit": "Unit A - Room 105",
+    "health": "Parkinson's Disease",
+    "risks": "Movement Risk - Medium",
+    "dependency": "Assistance with movement",
+    "medication": "7:00 AM"
+  }
+]

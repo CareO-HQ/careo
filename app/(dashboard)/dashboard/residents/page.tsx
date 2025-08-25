@@ -1,29 +1,15 @@
-"use client";
+"use client"
 
-import { CreateResidentForm } from "@/components/residents/forms/CreateResidentForm"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DialogTrigger } from "@radix-ui/react-dialog"
-import { Plus } from "lucide-react"
-import React, { useState } from 'react'
+import { DataTable } from "./data-table"
+import { columns } from "./ columns"
+import data from "./data.json"
 
 const Page = () => {
-    const [isOpen, setIsOpen] = useState(false)
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button>  <Plus className="h-6 w-6" />Add Resident</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Resident Profile</DialogTitle>
-                    <DialogDescription>
-                        Enter the resident’s personal information and care details to create their profile.
-                    </DialogDescription>
-                </DialogHeader>
-                <CreateResidentForm onSuccess={() => setIsOpen(false)} />
-            </DialogContent>
-        </Dialog>
+        <div className="container mx-auto py-10">
+            <h1 className="text-2xl font-bold mb-4">Residents</h1>
+            <DataTable columns={columns} data={data} />
+        </div>
     )
 }
 
