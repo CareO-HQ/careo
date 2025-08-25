@@ -155,6 +155,7 @@ export function CreateResidentForm({
           roomNumber: values.roomNumber,
           admissionDate: values.admissionDate,
           teamId: values.teamId,
+          nhsHealthNumber:values.nhsHealthNumber,
           healthConditions: values.healthConditions?.map(hc => hc.condition) || [],
           risks: values.risks?.map(r => r.risk) || [],
           organizationId: activeOrganization.id,
@@ -341,7 +342,21 @@ export function CreateResidentForm({
                 />
               </div>
 
-              <FormField
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           <FormField
+                control={form.control}
+                name="nhsHealthNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>NHS Health & Care Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="A345657" type="text" disabled={isLoading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+                <FormField
                 control={form.control}
                 name="admissionDate"
                 render={({ field }) => (
@@ -354,6 +369,7 @@ export function CreateResidentForm({
                   </FormItem>
                 )}
               />
+           </div>
             </CardContent>
             <CardFooter className="flex justify-end">
               <Button type="button" onClick={handleNext}>

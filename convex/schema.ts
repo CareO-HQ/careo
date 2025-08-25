@@ -108,8 +108,22 @@ export default defineSchema({
     phoneNumber: v.optional(v.string()),
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
-    healthConditions: v.array(v.string()),
-    risks: v.array(v.string()),
+    nhsHealthNumber: v.optional(v.string()),
+    healthConditions: v.optional(v.union(
+      v.array(v.string()),
+      v.array(v.object({
+        condition: v.string()
+      }))
+    )),
+    risks: v.optional(v.union(
+      v.array(v.string()),
+      v.array(v.object({
+        risk: v.string()
+      }))
+    )),
+    allergies: v.optional(v.string()),
+    medications: v.optional(v.string()),
+    medicalConditions: v.optional(v.string()),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
     createdBy: v.string(),
