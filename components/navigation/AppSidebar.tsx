@@ -7,25 +7,16 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import { FolderIcon, PillIcon, PlusIcon, User2Icon } from "lucide-react";
-import { TeamSwitcher } from "./TeamSwitcher";
+import { FolderIcon, PillIcon, User2Icon } from "lucide-react";
 import Link from "next/link";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { useState } from "react";
+import { TeamSwitcher } from "./TeamSwitcher";
 
-import { CreateResidentForm } from "@/components/residents/forms/CreateResidentForm";
+import CreateResidentDialog from "../residents/CreateResidentDialog";
 
 export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
@@ -53,25 +44,10 @@ export function AppSidebar() {
                   <span>Residents</span>
                 </Link>
               </SidebarMenuButton>
-
-              {/* Dialog for Add Resident */}
-              <Dialog open={isResidentDialogOpen} onOpenChange={setIsResidentDialogOpen}>
-                <DialogTrigger asChild>
-                  <SidebarMenuAction>
-                    <PlusIcon />
-                    <span className="sr-only">Add Resident</span>
-                  </SidebarMenuAction>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Resident Profile</DialogTitle>
-                    <DialogDescription>
-                      Enter the resident’s personal information and relevant care details to create their profile.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CreateResidentForm onSuccess={() => setIsResidentDialogOpen(false)} />
-                </DialogContent>
-              </Dialog>
+              <CreateResidentDialog
+                isResidentDialogOpen={isResidentDialogOpen}
+                setIsResidentDialogOpen={setIsResidentDialogOpen}
+              />
             </SidebarMenuItem>
 
             {/* Medication */}

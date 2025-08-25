@@ -1,24 +1,15 @@
 "use client";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
-import z from "zod";
-import { useTransition, useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
-import { PlusIcon, Trash2Icon } from "lucide-react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "convex/react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import z from "zod";
 
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,17 +17,25 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
+  CardTitle
 } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from "@/components/ui/select";
-import Stepper from "@/components/stepper/Stepper";
+import { Switch } from "@/components/ui/switch";
 
 interface CreateResidentFormProps {
   onSubmit?: (values: z.infer<typeof CreateResidentSchema>) => void;
@@ -46,7 +45,7 @@ interface CreateResidentFormProps {
 
 export function CreateResidentForm({
   onSubmit: onSubmitProp,
-  onSuccess,
+  onSuccess
 }: CreateResidentFormProps) {
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
@@ -77,38 +76,38 @@ export function CreateResidentForm({
           name: "",
           phoneNumber: "",
           relationship: "",
-          isPrimary: true,
-        },
+          isPrimary: true
+        }
       ],
       medicalInfo: {
         allergies: "",
         medications: "",
-        medicalConditions: "",
-      },
-    },
+        medicalConditions: ""
+      }
+    }
   });
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: "emergencyContacts",
+    name: "emergencyContacts"
   });
 
-  const { 
-    fields: healthConditionsFields, 
-    append: appendHealthCondition, 
-    remove: removeHealthCondition 
+  const {
+    fields: healthConditionsFields,
+    append: appendHealthCondition,
+    remove: removeHealthCondition
   } = useFieldArray({
     control: form.control,
-    name: "healthConditions",
+    name: "healthConditions"
   });
 
-  const { 
-    fields: risksFields, 
-    append: appendRisk, 
-    remove: removeRisk 
+  const {
+    fields: risksFields,
+    append: appendRisk,
+    remove: removeRisk
   } = useFieldArray({
     control: form.control,
-    name: "risks",
+    name: "risks"
   });
 
   const getTeams = useCallback(() => {
@@ -119,10 +118,11 @@ export function CreateResidentForm({
         {},
         {
           onSuccess: ({ data }) => {
-            const filteredTeams = data?.filter(
-              (team: { id: string; name: string }) =>
-                team.name !== activeOrganization?.name
-            ) || [];
+            const filteredTeams =
+              data?.filter(
+                (team: { id: string; name: string }) =>
+                  team.name !== activeOrganization?.name
+              ) || [];
             setTeams(filteredTeams);
           },
           onError: (error) => {
@@ -133,6 +133,9 @@ export function CreateResidentForm({
       );
     });
   }, [activeOrganization?.id, activeOrganization?.name]);
+
+  const MAX_CONDITIONS = 10;
+  const MAX_RISKS = 10;
 
   useEffect(() => {
     getTeams();
@@ -145,7 +148,7 @@ export function CreateResidentForm({
           toast.error("Missing organization or user information");
           return;
         }
-        console.log(values)
+        console.log(values);
 
         const residentId = await createResidentMutation({
           firstName: values.firstName,
@@ -155,11 +158,12 @@ export function CreateResidentForm({
           roomNumber: values.roomNumber,
           admissionDate: values.admissionDate,
           teamId: values.teamId,
-          nhsHealthNumber:values.nhsHealthNumber,
-          healthConditions: values.healthConditions?.map(hc => hc.condition) || [],
-          risks: values.risks?.map(r => r.risk) || [],
+          nhsHealthNumber: values.nhsHealthNumber,
+          healthConditions:
+            values.healthConditions?.map((hc) => hc.condition) || [],
+          risks: values.risks?.map((r) => r.risk) || [],
           organizationId: activeOrganization.id,
-          createdBy: user.user.id,
+          createdBy: user.user.id
         });
 
         if (residentId && values.emergencyContacts) {
@@ -170,7 +174,7 @@ export function CreateResidentForm({
               phoneNumber: contact.phoneNumber,
               relationship: contact.relationship,
               isPrimary: contact.isPrimary || false,
-              organizationId: activeOrganization.id,
+              organizationId: activeOrganization.id
             });
           }
         }
@@ -182,7 +186,7 @@ export function CreateResidentForm({
         toast.success("Resident created successfully");
         form.reset();
         setStep(1);
-        
+
         // Close the form if callback provided
         if (onSuccess) {
           onSuccess();
@@ -194,7 +198,7 @@ export function CreateResidentForm({
     });
   }
 
-  const handleNext = async () => {
+  const handleContinue = async () => {
     if (step === 1) {
       const valid = await form.trigger([
         "firstName",
@@ -204,6 +208,7 @@ export function CreateResidentForm({
         "roomNumber",
         "teamId",
         "admissionDate",
+        "nhsHealthNumber"
       ]);
       if (valid) {
         setStep(2);
@@ -221,147 +226,54 @@ export function CreateResidentForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-8 w-full max-w-5xl mx-auto"
+        className="space-y-4 w-full max-w-5xl mx-auto"
       >
-        <Stepper step={step} totalSteps={totalSteps} />
-
         {step === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>
-                Basic resident details and care home assignment
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John" disabled={isLoading} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Doe" disabled={isLoading} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="dateOfBirth"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date of Birth *</FormLabel>
-                      <FormControl>
-                        <Input type="date" disabled={isLoading} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phoneNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="+1 (555) 123-4567"
-                          disabled={isLoading}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="roomNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Room Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="101A" disabled={isLoading} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="teamId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Team/Unit</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a team" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {teams.length > 0 ? (
-                            teams.map((team) => (
-                              <SelectItem key={team.id} value={team.id}>
-                                {team.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                              No teams available
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <FormField
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
                 control={form.control}
-                name="nhsHealthNumber"
+                name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>NHS Health & Care Number</FormLabel>
+                    <FormLabel isRequired>First Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="A345657" type="text" disabled={isLoading} {...field} />
+                      <Input
+                        placeholder="John"
+                        disabled={isLoading}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-                <FormField
+              <FormField
                 control={form.control}
-                name="admissionDate"
+                name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Admission Date *</FormLabel>
+                    <FormLabel isRequired>Last Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Doe"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="dateOfBirth"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel isRequired>Date of Birth</FormLabel>
                     <FormControl>
                       <Input type="date" disabled={isLoading} {...field} />
                     </FormControl>
@@ -369,156 +281,265 @@ export function CreateResidentForm({
                   </FormItem>
                 )}
               />
-           </div>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button type="button" onClick={handleNext}>
-                Next
+              <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="+1 (555) 123-4567"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="roomNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel isRequired>Room Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="101A"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="teamId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel isRequired>Team/Unit</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      disabled={isLoading}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a team" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {teams.length > 0 ? (
+                          teams.map((team) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              {team.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            No teams available
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="nhsHealthNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel isRequired>NHS Health & Care Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="A345657"
+                        type="text"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="admissionDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel isRequired>Admission Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" disabled={isLoading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="w-full flex flex-row justify-end">
+              <Button type="button" onClick={handleContinue}>
+                Continue
               </Button>
-            </CardFooter>
-          </Card>
+            </div>
+          </>
         )}
+
         {/* Step 2: Health Conditions and Risks */}
         {step === 2 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Health Information</CardTitle>
-              <CardDescription>
-                Add health conditions and risks for the resident
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              {/* Health Conditions Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium">Health Conditions</h3>
-                    <p className="text-sm text-muted-foreground">Add any known health conditions</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => appendHealthCondition({ condition: "" })}
-                    disabled={isLoading}
-                  >
-                    <PlusIcon className="h-4 w-4 mr-2" />
-                    Add Condition
-                  </Button>
+          <div className="space-y-6">
+            {/* Health Conditions Section */}
+            <div className="space-y-4 mb-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Health Conditions</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add any known health conditions
+                  </p>
                 </div>
-                
-                {healthConditionsFields.length > 0 && (
-                  <div className="space-y-3">
-                    {healthConditionsFields.map((field, index) => (
-                      <div key={field.id} className="flex items-center gap-3">
-                        <FormField
-                          control={form.control}
-                          name={`healthConditions.${index}.condition`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormControl>
-                                <Input
-                                  placeholder="e.g., Diabetes, Hypertension"
-                                  disabled={isLoading}
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeHealthCondition(index)}
-                          disabled={isLoading}
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {healthConditionsFields.length === 0 && (
-                 <div className="text-center py-8 text-muted-foreground">
-                 No health conditions added yet. Click &quot;Add Condition&quot; to get started.
-               </div>
-               
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendHealthCondition({ condition: "" })}
+                  disabled={
+                    isLoading ||
+                    healthConditionsFields.length === MAX_CONDITIONS
+                  }
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Condition
+                </Button>
               </div>
 
-              {/* Risks Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium">Risks</h3>
-                    <p className="text-sm text-muted-foreground">Add any known risks or safety concerns</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => appendRisk({ risk: "" })}
-                    disabled={isLoading}
-                  >
-                    <PlusIcon className="h-4 w-4 mr-2" />
-                    Add Risk
-                  </Button>
+              {healthConditionsFields.length > 0 && (
+                <div className="space-y-3">
+                  {healthConditionsFields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-3">
+                      <FormField
+                        control={form.control}
+                        name={`healthConditions.${index}.condition`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input
+                                placeholder="Diabetes"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeHealthCondition(index)}
+                        disabled={isLoading}
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                
-                {risksFields.length > 0 && (
-                  <div className="space-y-3">
-                    {risksFields.map((field, index) => (
-                      <div key={field.id} className="flex items-center gap-3">
-                        <FormField
-                          control={form.control}
-                          name={`risks.${index}.risk`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormControl>
-                                <Input
-                                  placeholder="e.g., Fall risk, Medication allergy"
-                                  disabled={isLoading}
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeRisk(index)}
-                          disabled={isLoading}
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {risksFields.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                No risks added yet. Click &quot;Add Risk&quot; to get started.
+              )}
+
+              {healthConditionsFields.length === 0 && (
+                <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
+                  No health conditions added yet. Click &quot;Add
+                  Condition&quot; to get started.
+                </div>
+              )}
+            </div>
+
+            {/* Risks Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Risks</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add any known risks or safety concerns
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendRisk({ risk: "" })}
+                  disabled={isLoading || risksFields.length === MAX_RISKS}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Risk
+                </Button>
               </div>
-              
-                )}
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+
+              {risksFields.length > 0 && (
+                <div className="space-y-3">
+                  {risksFields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-3">
+                      <FormField
+                        control={form.control}
+                        name={`risks.${index}.risk`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input
+                                placeholder="Fall risk"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeRisk(index)}
+                        disabled={isLoading}
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {risksFields.length === 0 && (
+                <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
+                  No risks added yet. Click &quot;Add Risk&quot; to get started.
+                </div>
+              )}
+            </div>
+
+            {/* Buttons Section */}
+            <div className="w-full flex flex-row justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(1)}
+              >
                 Back
               </Button>
-              <Button type="button" onClick={handleNext}>
-                Next
+              <Button type="button" onClick={handleContinue}>
+                Continue
               </Button>
-            </CardFooter>
-          </Card>
+            </div>
+          </div>
         )}
         {/* Step 3: Emergency Contacts */}
         {step === 3 && (
@@ -526,7 +547,9 @@ export function CreateResidentForm({
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Emergency Contacts</CardTitle>
-                <CardDescription>Add one or more emergency contacts</CardDescription>
+                <CardDescription>
+                  Add one or more emergency contacts
+                </CardDescription>
               </div>
               <Button
                 type="button"
@@ -537,7 +560,7 @@ export function CreateResidentForm({
                     name: "",
                     phoneNumber: "",
                     relationship: "",
-                    isPrimary: false,
+                    isPrimary: false
                   })
                 }
                 disabled={isLoading}
@@ -647,9 +670,11 @@ export function CreateResidentForm({
               ))}
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setStep(2
-                
-              )}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(2)}
+              >
                 Back
               </Button>
               <Button type="submit" disabled={isLoading}>
