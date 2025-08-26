@@ -51,19 +51,17 @@ export default function CreateMedicationForm() {
     resolver: zodResolver(CreateMedicationSchema),
     mode: "onChange",
     defaultValues: {
-      name: "Paracetamol",
-      strength: "100",
+      name: "",
+      strength: "",
       strengthUnit: "mg",
-      totalCount: 0,
-      dosageForm: "Tablet",
-      route: "Oral",
-      frequency: "Once daily (OD)",
-      scheduleType: "Scheduled",
+      totalCount: undefined,
+      dosageForm: undefined,
+      route: undefined,
+      frequency: undefined,
+      scheduleType: undefined,
       times: [],
-      instructions: "1",
-      prescriberId: "1",
+      instructions: undefined,
       prescriberName: "",
-      prescribedAt: 1,
       startDate: new Date(),
       endDate: undefined,
       status: "active"
@@ -71,28 +69,25 @@ export default function CreateMedicationForm() {
   });
 
   function onSubmit(values: z.infer<typeof CreateMedicationSchema>) {
-    console.log(values);
+    console.log("Form submitted with values:", values);
     startTransition(async () => {
       try {
         const medicationId = await createMedication({
           medication: {
             ...values,
-            organizationId: member?.organizationId as string,
-            teamId: member?.teamId as string,
-            prescriberId: member?.id as string,
             prescriberName: values.prescriberName as string,
-            startDate: values.startDate.getTime() || 0,
-            endDate: values.endDate?.getTime() || 0
+            startDate: values.startDate.getTime(),
+            endDate: values.endDate?.getTime()
           }
         });
         if (medicationId) {
           toast.success("Medication created successfully");
         }
       } catch (error) {
+        console.error("Error creating medication:", error);
         toast.error("Failed to create medication");
       }
     });
-    console.log(values);
   }
 
   const handleFirstStep = async () => {
@@ -277,7 +272,7 @@ export default function CreateMedicationForm() {
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a verified email to display" />
+                            <SelectValue placeholder="Select a route" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -315,7 +310,7 @@ export default function CreateMedicationForm() {
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a verified email to display" />
+                            <SelectValue placeholder="Select a frequency" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -471,7 +466,7 @@ export default function CreateMedicationForm() {
                   <FormItem>
                     <FormLabel>Prescriber Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Dr.John Doe" {...field} />
+                      <Input placeholder="Dr. John Doe" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -1,5 +1,8 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { betterAuthComponent } from "./auth";
+import { components } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 export const createMedication = mutation({
   args: {
@@ -45,30 +48,53 @@ export const createMedication = mutation({
       ),
       times: v.array(v.string()),
       instructions: v.optional(v.string()),
-      prescriberId: v.string(),
       prescriberName: v.string(),
-      prescribedAt: v.number(),
       startDate: v.number(),
       endDate: v.optional(v.number()),
       status: v.union(
         v.literal("active"),
         v.literal("completed"),
         v.literal("cancelled")
-      ),
-      organizationId: v.string(),
-      teamId: v.string()
+      )
     })
   },
   returns: v.id("medication"),
   handler: async (ctx, args) => {
     const { medication } = args;
 
-    // TODO: Get these values from the current user context
+    // Get current session for organization and authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get current user information
+    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
+    if (!userMetadata) {
+      throw new Error("User not found");
+    }
+
+    // Get current organization from session
+    const currentOrganizationId = session.activeOrganizationId;
+    if (!currentOrganizationId) {
+      throw new Error("No active organization found");
+    }
+
+    // Get current user's active team
+    const userData = await ctx.db.get(userMetadata.userId as Id<"users">);
+    const currentTeamId = userData?.activeTeamId;
+    if (!currentTeamId) {
+      throw new Error("No active team found");
+    }
+
     const medicationData = {
       ...medication,
-      createdByUserId: "temp-user-id", // Replace with actual user ID
-      teamId: "temp-team-id", // Replace with actual team ID
-      organizationId: "temp-org-id" // Replace with actual org ID
+      createdByUserId: userMetadata.userId,
+      organizationId: currentOrganizationId,
+      teamId: currentTeamId
     };
 
     const medicationId = await ctx.db.insert("medication", medicationData);

@@ -40,8 +40,6 @@ export const CreateMedicationSchema = z.object({
   times: z.array(z.string()).min(1),
   prescriberName: z.string().optional(),
   instructions: z.string().optional(),
-  prescriberId: z.string().optional(),
-  prescribedAt: z.number(),
   startDate: z.date(),
   endDate: z.date().optional(),
   status: z.union([

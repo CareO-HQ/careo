@@ -73,7 +73,7 @@ export default defineSchema({
     name: v.string(),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
-    parentFolderId: v.optional(v.id("folders")), // For nested folders
+    parentFolderId: v.optional(v.id("folders")),
     createdBy: v.string(),
     description: v.optional(v.string()),
     color: v.optional(v.string()),
@@ -86,14 +86,13 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byName", ["name"]),
 
-  // Team membership junction table for many-to-many relationship
   teamMembers: defineTable({
-    userId: v.string(), // The user ID from Better Auth
-    teamId: v.string(), // The team ID from Better Auth
-    organizationId: v.string(), // The organization ID for validation
-    role: v.optional(v.string()), // Optional role within the team
-    createdAt: v.number(), // When the membership was created
-    createdBy: v.string() // Who added them to the team
+    userId: v.string(),
+    teamId: v.string(),
+    organizationId: v.string(),
+    role: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.string()
   })
     .index("byUserId", ["userId"])
     .index("byTeamId", ["teamId"])
@@ -139,9 +138,7 @@ export default defineSchema({
     scheduleType: v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)")), // TODO: Add all possible values
     times: v.array(v.string()), // TODO: Maybe make it array of dates?
     instructions: v.optional(v.string()),
-    prescriberId: v.string(),
     prescriberName: v.string(),
-    prescribedAt: v.number(),
     startDate: v.number(),
     endDate: v.optional(v.number()),
     status: v.union(
