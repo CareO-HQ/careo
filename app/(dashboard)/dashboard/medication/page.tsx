@@ -1,11 +1,9 @@
-import React from 'react'
+import CreateMedicationDemo from "@/components/medication/demo/CreateMedicationDemo";
 
-const Page = () => {
+export default function MedicationPage() {
   return (
     <div>
-      Medication
+      <CreateMedicationDemo />
     </div>
-  )
+  );
 }
-
-export default Page

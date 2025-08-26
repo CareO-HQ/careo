@@ -71,7 +71,7 @@ export default defineSchema({
     name: v.string(),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
-    parentFolderId: v.optional(v.id("folders")), // For nested folders
+    parentFolderId: v.optional(v.id("folders")),
     createdBy: v.string(),
     description: v.optional(v.string()),
     color: v.optional(v.string()),
@@ -84,20 +84,18 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byName", ["name"]),
 
-  
   teamMembers: defineTable({
-    userId: v.string(), 
-    teamId: v.string(), // The team ID from Better Auth
-    organizationId: v.string(), // The organization ID for validation
-    role: v.optional(v.string()), // Optional role within the team
-    createdAt: v.number(), // When the membership was created
-    createdBy: v.string() // Who added them to the team
+    userId: v.string(),
+    teamId: v.string(),
+    organizationId: v.string(),
+    role: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.string()
   })
     .index("byUserId", ["userId"])
     .index("byTeamId", ["teamId"])
     .index("byUserAndTeam", ["userId", "teamId"])
     .index("byOrganization", ["organizationId"]),
-
 
   residents: defineTable({
     firstName: v.string(),
@@ -107,48 +105,60 @@ export default defineSchema({
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
-    healthConditions: v.optional(v.union(
-      v.array(v.string()),
-      v.array(v.object({
-        condition: v.string()
-      }))
-    )),
-    risks: v.optional(v.union(
-      v.array(v.string()),
-      v.array(v.object({
-        risk: v.string(),
-        level: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high")))
-      }))
-    )),
-    dependencies: v.optional(v.union(
-      v.array(v.string()), // Legacy format for backward compatibility
-      v.object({
-        mobility: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
-        ),
-        eating: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
-        ),
-        dressing: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
-        ),
-        toileting: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
+    healthConditions: v.optional(
+      v.union(
+        v.array(v.string()),
+        v.array(
+          v.object({
+            condition: v.string()
+          })
         )
-      })
-    )),
+      )
+    ),
+    risks: v.optional(
+      v.union(
+        v.array(v.string()),
+        v.array(
+          v.object({
+            risk: v.string(),
+            level: v.optional(
+              v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
+            )
+          })
+        )
+      )
+    ),
+    dependencies: v.optional(
+      v.union(
+        v.array(v.string()), // Legacy format for backward compatibility
+        v.object({
+          mobility: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          ),
+          eating: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          ),
+          dressing: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          ),
+          toileting: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          )
+        })
+      )
+    ),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
     createdBy: v.string(),
@@ -178,5 +188,55 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byPrimary", ["isPrimary"]),
 
-
+  medication: defineTable({
+    name: v.string(),
+    strength: v.string(),
+    strengthUnit: v.union(v.literal("mg"), v.literal("g")),
+    totalCount: v.number(),
+    dosageForm: v.union(
+      v.literal("Tablet"),
+      v.literal("Capsule"),
+      v.literal("Liquid"),
+      v.literal("Injection"),
+      v.literal("Cream"),
+      v.literal("Ointment"),
+      v.literal("Patch"),
+      v.literal("Inhaler")
+    ), // TODO: Add all possible values
+    route: v.union(
+      v.literal("Oral"),
+      v.literal("Topical"),
+      v.literal("Intramuscular (IM)"),
+      v.literal("Intravenous (IV)"),
+      v.literal("Subcutaneous"),
+      v.literal("Inhalation"),
+      v.literal("Rectal"),
+      v.literal("Sublingual")
+    ), // TODO: Add all possible values
+    frequency: v.union(
+      v.literal("Once daily (OD)"),
+      v.literal("Twice daily (BD)"),
+      v.literal("Three times daily (TD)"),
+      v.literal("Four times daily (QDS)"),
+      v.literal("Four times daily (QIS)"),
+      v.literal("As Needed (PRN)"),
+      v.literal("One time (STAT)"),
+      v.literal("Weekly"),
+      v.literal("Monthly")
+    ), // TODO: Add all possible values
+    scheduleType: v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)")), // TODO: Add all possible values
+    times: v.array(v.string()), // TODO: Maybe make it array of dates?
+    instructions: v.optional(v.string()),
+    prescriberName: v.string(),
+    startDate: v.number(),
+    endDate: v.optional(v.number()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdByUserId: v.string(),
+    teamId: v.string(),
+    organizationId: v.string()
+  })
 });
