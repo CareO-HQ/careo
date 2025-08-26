@@ -6,8 +6,8 @@ const crons = cronJobs();
 crons.daily(
   "Generate daily medicine intakes",
   {
-    // London time: 12:00
-    hourUTC: 11,
+    // London time: 00:00
+    hourUTC: 0,
     minuteUTC: 0
   },
   internal.medication.dailyMedicationCron,
