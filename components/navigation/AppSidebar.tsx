@@ -11,26 +11,46 @@ import {
   SidebarMenuItem
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import { FolderIcon, PillIcon } from "lucide-react";
-import { TeamSwitcher } from "./TeamSwitcher";
+import { FolderIcon, PillIcon, User2Icon } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
+import { TeamSwitcher } from "./TeamSwitcher";
+
+import CreateResidentDialog from "../residents/CreateResidentDialog";
 
 export function AppSidebar() {
+  const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
 
   return (
     <Sidebar>
-      <SidebarContent className="">
+      <SidebarContent>
         <TeamSwitcher
           orgName={activeOrg.data?.name ?? ""}
           isPending={activeOrg.isPending}
           email={user?.user.email ?? ""}
         />
+
         {/* Team Section */}
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
+            {/* Residents */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/residents">
+                  <User2Icon />
+                  <span>Residents</span>
+                </Link>
+              </SidebarMenuButton>
+              <CreateResidentDialog
+                isResidentDialogOpen={isResidentDialogOpen}
+                setIsResidentDialogOpen={setIsResidentDialogOpen}
+              />
+            </SidebarMenuItem>
+
+            {/* Medication */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/medication">
@@ -39,6 +59,8 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+
+            {/* Files */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/files">
@@ -49,7 +71,6 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup />
       </SidebarContent>
       <SidebarFooter />
     </Sidebar>

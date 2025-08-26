@@ -1,5 +1,4 @@
 import { AppSidebar } from "@/components/navigation/AppSidebar";
-// import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function DashboardLayout({
   children
