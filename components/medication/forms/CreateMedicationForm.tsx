@@ -29,18 +29,30 @@ import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function CreateMedicationForm() {
   const createMedication = useMutation(api.medication.createMedication);
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const { data: member } = authClient.useActiveMember();
+  const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
+  const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
     resolver: zodResolver(CreateMedicationSchema),
     mode: "onChange",
     defaultValues: {
-      name: "",
-      strength: "",
+      name: "Paracetamol",
+      strength: "100",
       strengthUnit: "mg",
       totalCount: 0,
       dosageForm: "Tablet",
@@ -50,22 +62,27 @@ export default function CreateMedicationForm() {
       times: [],
       instructions: "1",
       prescriberId: "1",
-      prescriberName: undefined,
+      prescriberName: "",
       prescribedAt: 1,
-      startDate: 1,
-      endDate: 1,
+      startDate: new Date(),
+      endDate: undefined,
       status: "active"
     }
   });
 
   function onSubmit(values: z.infer<typeof CreateMedicationSchema>) {
+    console.log(values);
     startTransition(async () => {
       try {
         const medicationId = await createMedication({
           medication: {
             ...values,
             organizationId: member?.organizationId as string,
-            teamId: member?.teamId as string
+            teamId: member?.teamId as string,
+            prescriberId: member?.id as string,
+            prescriberName: values.prescriberName as string,
+            startDate: values.startDate.getTime() || 0,
+            endDate: values.endDate?.getTime() || 0
           }
         });
         if (medicationId) {
@@ -460,6 +477,130 @@ export default function CreateMedicationForm() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="instructions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Instructions</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Notes on the medication for the patient"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel isRequired>Start date</FormLabel>
+                      <Popover
+                        open={startDatePopoverOpen}
+                        onOpenChange={setStartDatePopoverOpen}
+                        modal
+                      >
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              onClick={() => setStartDatePopoverOpen((v) => !v)}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={(date) => {
+                              if (date) field.onChange(date);
+                              setStartDatePopoverOpen(false);
+                            }}
+                            captionLayout="dropdown"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="endDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>End date</FormLabel>
+                      <Popover
+                        open={endDatePopoverOpen}
+                        onOpenChange={setEndDatePopoverOpen}
+                        modal
+                      >
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              onClick={() => setEndDatePopoverOpen((v) => !v)}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={(date) => {
+                              if (date) field.onChange(date);
+                              setEndDatePopoverOpen(false);
+                            }}
+                            captionLayout="dropdown"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <Button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  variant="outline"
+                >
+                  Back
+                </Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Creating..." : "Create Medication"}
+                </Button>
+              </div>
             </>
           )}
         </form>
