@@ -1,7 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query, internalAction } from "./_generated/server";
+import {
+  mutation,
+  query,
+  internalAction,
+  internalQuery
+} from "./_generated/server";
 import { betterAuthComponent } from "./auth";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 // Helper function to create medication intake records for up to 7 days or until end date
@@ -540,11 +545,105 @@ export const getTodaysMedicationIntakes = query({
   }
 });
 
+export const getAllActiveMedications = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("medication"),
+      _creationTime: v.number(),
+      name: v.string(),
+      strength: v.string(),
+      strengthUnit: v.union(v.literal("mg"), v.literal("g")),
+      totalCount: v.number(),
+      dosageForm: v.union(
+        v.literal("Tablet"),
+        v.literal("Capsule"),
+        v.literal("Liquid"),
+        v.literal("Injection"),
+        v.literal("Cream"),
+        v.literal("Ointment"),
+        v.literal("Patch"),
+        v.literal("Inhaler")
+      ),
+      route: v.union(
+        v.literal("Oral"),
+        v.literal("Topical"),
+        v.literal("Intramuscular (IM)"),
+        v.literal("Intravenous (IV)"),
+        v.literal("Subcutaneous"),
+        v.literal("Inhalation"),
+        v.literal("Rectal"),
+        v.literal("Sublingual")
+      ),
+      frequency: v.union(
+        v.literal("Once daily (OD)"),
+        v.literal("Twice daily (BD)"),
+        v.literal("Three times daily (TD)"),
+        v.literal("Four times daily (QDS)"),
+        v.literal("Four times daily (QIS)"),
+        v.literal("As Needed (PRN)"),
+        v.literal("One time (STAT)"),
+        v.literal("Weekly"),
+        v.literal("Monthly")
+      ),
+      scheduleType: v.union(
+        v.literal("Scheduled"),
+        v.literal("PRN (As Needed)")
+      ),
+      times: v.array(v.string()),
+      instructions: v.optional(v.string()),
+      prescriberName: v.string(),
+      startDate: v.number(),
+      endDate: v.optional(v.number()),
+      status: v.union(
+        v.literal("active"),
+        v.literal("completed"),
+        v.literal("cancelled")
+      ),
+      residentId: v.id("residents"),
+      createdByUserId: v.string(),
+      organizationId: v.string(),
+      teamId: v.string()
+    })
+  ),
+  handler: async (ctx, args) => {
+    const activeMedications = await ctx.db
+      .query("medication")
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    return activeMedications;
+  }
+});
+
 export const dailyMedicationCron = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx, args) => {
     console.log("CRON", new Date());
+
+    // Get all active medications
+    const activeMedications = await ctx.runQuery(
+      internal.medication.getAllActiveMedications,
+      {}
+    );
+
+    console.log(`Found ${activeMedications.length} active medications:`);
+
+    activeMedications.forEach((medication, index) => {
+      console.log(
+        `${index + 1}. ${medication.name} (${medication.strength}${medication.strengthUnit}) - ${medication.frequency}`
+      );
+      console.log(
+        `   Route: ${medication.route}, Form: ${medication.dosageForm}`
+      );
+      console.log(`   Prescriber: ${medication.prescriberName}`);
+      console.log(
+        `   Organization: ${medication.organizationId}, Team: ${medication.teamId}`
+      );
+      console.log(`   ---`);
+    });
+
     return null;
   }
 });
