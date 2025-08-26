@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalAction } from "./_generated/server";
 import { betterAuthComponent } from "./auth";
 import { components } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -537,5 +537,14 @@ export const getTodaysMedicationIntakes = query({
       `Found ${intakesWithDetails.length} medication intakes for today`
     );
     return intakesWithDetails;
+  }
+});
+
+export const dailyMedicationCron = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    console.log("CRON", new Date());
+    return null;
   }
 });
