@@ -7,10 +7,8 @@ export default defineSchema({
     email: v.string(), // Save email from Better Auth
     name: v.optional(v.string()), // Save name from Better Auth
     image: v.optional(v.string()), // Save image from Better Auth
-    // Onboarding profile fields
     phone: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    // Add other custom user fields as needed
     isOnboardingComplete: v.optional(v.boolean()),
     activeTeamId: v.optional(v.string())
   }).index("byEmail", ["email"]), // Add index for email lookups
@@ -86,9 +84,9 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byName", ["name"]),
 
-  // Team membership junction table for many-to-many relationship
+  
   teamMembers: defineTable({
-    userId: v.string(), // The user ID from Better Auth
+    userId: v.string(), 
     teamId: v.string(), // The team ID from Better Auth
     organizationId: v.string(), // The organization ID for validation
     role: v.optional(v.string()), // Optional role within the team
@@ -98,5 +96,87 @@ export default defineSchema({
     .index("byUserId", ["userId"])
     .index("byTeamId", ["teamId"])
     .index("byUserAndTeam", ["userId", "teamId"])
-    .index("byOrganization", ["organizationId"])
+    .index("byOrganization", ["organizationId"]),
+
+
+  residents: defineTable({
+    firstName: v.string(),
+    lastName: v.string(),
+    dateOfBirth: v.string(),
+    phoneNumber: v.optional(v.string()),
+    roomNumber: v.optional(v.string()),
+    admissionDate: v.string(),
+    nhsHealthNumber: v.optional(v.string()),
+    healthConditions: v.optional(v.union(
+      v.array(v.string()),
+      v.array(v.object({
+        condition: v.string()
+      }))
+    )),
+    risks: v.optional(v.union(
+      v.array(v.string()),
+      v.array(v.object({
+        risk: v.string(),
+        level: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high")))
+      }))
+    )),
+    dependencies: v.optional(v.union(
+      v.array(v.string()), // Legacy format for backward compatibility
+      v.object({
+        mobility: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        eating: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        dressing: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        toileting: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        )
+      })
+    )),
+    organizationId: v.string(),
+    teamId: v.optional(v.string()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    isActive: v.optional(v.boolean())
+  })
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byCreatedBy", ["createdBy"])
+    .index("byRoomNumber", ["roomNumber"])
+    .index("byFullName", ["firstName", "lastName"])
+    .index("byActiveStatus", ["isActive"]),
+
+  // Emergency contacts for residents
+  emergencyContacts: defineTable({
+    residentId: v.id("residents"),
+    name: v.string(),
+    phoneNumber: v.string(),
+    relationship: v.string(),
+    isPrimary: v.optional(v.boolean()),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byPrimary", ["isPrimary"]),
+
+
 });
