@@ -189,6 +189,7 @@ export default defineSchema({
     .index("byPrimary", ["isPrimary"]),
 
   medication: defineTable({
+    residentId: v.id("residents"),
     name: v.string(),
     strength: v.string(),
     strengthUnit: v.union(v.literal("mg"), v.literal("g")),
@@ -202,7 +203,7 @@ export default defineSchema({
       v.literal("Ointment"),
       v.literal("Patch"),
       v.literal("Inhaler")
-    ), // TODO: Add all possible values
+    ),
     route: v.union(
       v.literal("Oral"),
       v.literal("Topical"),
@@ -212,7 +213,7 @@ export default defineSchema({
       v.literal("Inhalation"),
       v.literal("Rectal"),
       v.literal("Sublingual")
-    ), // TODO: Add all possible values
+    ),
     frequency: v.union(
       v.literal("Once daily (OD)"),
       v.literal("Twice daily (BD)"),
@@ -223,9 +224,9 @@ export default defineSchema({
       v.literal("One time (STAT)"),
       v.literal("Weekly"),
       v.literal("Monthly")
-    ), // TODO: Add all possible values
-    scheduleType: v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)")), // TODO: Add all possible values
-    times: v.array(v.string()), // TODO: Maybe make it array of dates?
+    ),
+    scheduleType: v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)")),
+    times: v.array(v.string()),
     instructions: v.optional(v.string()),
     prescriberName: v.string(),
     startDate: v.number(),
@@ -239,4 +240,38 @@ export default defineSchema({
     teamId: v.string(),
     organizationId: v.string()
   })
+    .index("byTeamId", ["teamId"])
+    .index("byResidentId", ["residentId"]),
+
+  // Medication intake tracking
+  medicationIntake: defineTable({
+    medicationId: v.id("medication"),
+    residentId: v.id("residents"),
+    scheduledTime: v.number(), // When the medication was scheduled to be taken
+    poppedOutAt: v.optional(v.number()), // When the medication was dispensed/popped out
+    poppedOutByUserId: v.optional(v.string()), // User who dispensed the medication
+    state: v.union(
+      v.literal("scheduled"), // Medication is scheduled but not yet dispensed
+      v.literal("dispensed"), // Medication has been popped out/dispensed
+      v.literal("administered"), // Medication has been given to resident
+      v.literal("missed"), // Medication was not given at scheduled time
+      v.literal("refused"), // Resident refused to take medication
+      v.literal("skipped") // Medication was intentionally skipped
+    ),
+    stateModifiedByUserId: v.optional(v.string()), // User who last modified the state
+    stateModifiedAt: v.optional(v.number()), // When the state was last modified
+    notes: v.optional(v.string()), // Additional notes about the intake
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("byMedicationId", ["medicationId"])
+    .index("byResidentId", ["residentId"])
+    .index("byScheduledTime", ["scheduledTime"])
+    .index("byState", ["state"])
+    .index("byTeamId", ["teamId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byPoppedOutBy", ["poppedOutByUserId"])
+    .index("byStateModifiedBy", ["stateModifiedByUserId"])
 });
