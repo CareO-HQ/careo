@@ -25,7 +25,6 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -40,11 +39,14 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-export default function CreateMedicationForm() {
+export default function CreateMedicationForm({
+  onSuccess
+}: {
+  onSuccess: () => void;
+}) {
   const createMedication = useMutation(api.medication.createMedication);
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
-  const { data: member } = authClient.useActiveMember();
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
@@ -82,6 +84,7 @@ export default function CreateMedicationForm() {
         });
         if (medicationId) {
           toast.success("Medication created successfully");
+          onSuccess();
         }
       } catch (error) {
         console.error("Error creating medication:", error);
