@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as files_image from "../files/image.js";
 import type * as http from "../http.js";
 import type * as labels from "../labels.js";
+import type * as medication from "../medication.js";
 import type * as teams from "../teams.js";
 import type * as user from "../user.js";
 
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   "files/image": typeof files_image;
   http: typeof http;
   labels: typeof labels;
+  medication: typeof medication;
   teams: typeof teams;
   user: typeof user;
 }>;

@@ -98,5 +98,59 @@ export default defineSchema({
     .index("byUserId", ["userId"])
     .index("byTeamId", ["teamId"])
     .index("byUserAndTeam", ["userId", "teamId"])
-    .index("byOrganization", ["organizationId"])
+    .index("byOrganization", ["organizationId"]),
+
+  medication: defineTable({
+    name: v.string(),
+    strength: v.string(),
+    strengthUnit: v.union(v.literal("mg"), v.literal("g")),
+    totalCount: v.number(),
+    dosageForm: v.union(
+      v.literal("Tablet"),
+      v.literal("Capsule"),
+      v.literal("Liquid"),
+      v.literal("Injection"),
+      v.literal("Cream"),
+      v.literal("Ointment"),
+      v.literal("Patch"),
+      v.literal("Inhaler")
+    ), // TODO: Add all possible values
+    route: v.union(
+      v.literal("Oral"),
+      v.literal("Topical"),
+      v.literal("Intramuscular (IM)"),
+      v.literal("Intravenous (IV)"),
+      v.literal("Subcutaneous"),
+      v.literal("Inhalation"),
+      v.literal("Rectal"),
+      v.literal("Sublingual")
+    ), // TODO: Add all possible values
+    frequency: v.union(
+      v.literal("Once daily (OD)"),
+      v.literal("Twice daily (BD)"),
+      v.literal("Three times daily (TD)"),
+      v.literal("Four times daily (QDS)"),
+      v.literal("Four times daily (QIS)"),
+      v.literal("As Needed (PRN)"),
+      v.literal("One time (STAT)"),
+      v.literal("Weekly"),
+      v.literal("Monthly")
+    ), // TODO: Add all possible values
+    scheduleType: v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)")), // TODO: Add all possible values
+    times: v.array(v.string()), // TODO: Maybe make it array of dates?
+    instructions: v.optional(v.string()),
+    prescriberId: v.string(),
+    prescriberName: v.string(),
+    prescribedAt: v.number(),
+    startDate: v.number(),
+    endDate: v.optional(v.number()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdByUserId: v.string(),
+    teamId: v.string(),
+    organizationId: v.string()
+  })
 });
