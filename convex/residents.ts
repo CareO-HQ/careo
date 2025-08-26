@@ -10,58 +10,70 @@ export const create = mutation({
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
-    healthConditions: v.optional(v.union(
-      v.array(v.string()),
-      v.array(v.object({
-        condition: v.string()
-      }))
-    )),
-    risks: v.optional(v.union(
-      v.array(v.string()),
-      v.array(v.object({
-        risk: v.string(),
-        level: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high")))
-      }))
-    )),
-    dependencies: v.optional(v.union(
-      v.array(v.string()), // Legacy format for backward compatibility
-      v.object({
-        mobility: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
-        ),
-        eating: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
-        ),
-        dressing: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
-        ),
-        toileting: v.union(
-          v.literal("Independent"), 
-          v.literal("Supervision Needed"), 
-          v.literal("Assistance Needed"), 
-          v.literal("Fully Dependent")
+    healthConditions: v.optional(
+      v.union(
+        v.array(v.string()),
+        v.array(
+          v.object({
+            condition: v.string()
+          })
         )
-      })
-    )),
+      )
+    ),
+    risks: v.optional(
+      v.union(
+        v.array(v.string()),
+        v.array(
+          v.object({
+            risk: v.string(),
+            level: v.optional(
+              v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
+            )
+          })
+        )
+      )
+    ),
+    dependencies: v.optional(
+      v.union(
+        v.array(v.string()), // Legacy format for backward compatibility
+        v.object({
+          mobility: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          ),
+          eating: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          ),
+          dressing: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          ),
+          toileting: v.union(
+            v.literal("Independent"),
+            v.literal("Supervision Needed"),
+            v.literal("Assistance Needed"),
+            v.literal("Fully Dependent")
+          )
+        })
+      )
+    ),
     allergies: v.optional(v.string()),
     medications: v.optional(v.string()),
     medicalConditions: v.optional(v.string()),
     organizationId: v.string(),
-    teamId: v.optional(v.string()),
+    teamId: v.string(),
     createdBy: v.string()
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    
+
     const residentId = await ctx.db.insert("residents", {
       firstName: args.firstName,
       lastName: args.lastName,
@@ -96,7 +108,7 @@ export const createEmergencyContact = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    
+
     const contactId = await ctx.db.insert("emergencyContacts", {
       residentId: args.residentId,
       name: args.name,
@@ -119,7 +131,9 @@ export const getByOrganization = query({
   handler: async (ctx, args) => {
     const residents = await ctx.db
       .query("residents")
-      .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
+      .withIndex("byOrganizationId", (q) =>
+        q.eq("organizationId", args.organizationId)
+      )
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
@@ -144,5 +158,18 @@ export const getById = query({
       ...resident,
       emergencyContacts
     };
+  }
+});
+
+export const getByTeamId = query({
+  args: {
+    teamId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const residents = await ctx.db
+      .query("residents")
+      .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
+      .collect();
+    return residents;
   }
 });

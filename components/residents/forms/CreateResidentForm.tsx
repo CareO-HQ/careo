@@ -583,7 +583,7 @@ export function CreateResidentForm({
                           value={field.value}
                           disabled={isLoading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
@@ -612,7 +612,7 @@ export function CreateResidentForm({
                           value={field.value}
                           disabled={isLoading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
@@ -641,7 +641,7 @@ export function CreateResidentForm({
                           value={field.value}
                           disabled={isLoading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
@@ -670,7 +670,7 @@ export function CreateResidentForm({
                           value={field.value}
                           disabled={isLoading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>

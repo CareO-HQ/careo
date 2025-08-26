@@ -160,7 +160,7 @@ export default defineSchema({
       )
     ),
     organizationId: v.string(),
-    teamId: v.optional(v.string()),
+    teamId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
