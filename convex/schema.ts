@@ -116,12 +116,39 @@ export default defineSchema({
     risks: v.optional(v.union(
       v.array(v.string()),
       v.array(v.object({
-        risk: v.string()
+        risk: v.string(),
+        level: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high")))
       }))
     )),
-    allergies: v.optional(v.string()),
-    medications: v.optional(v.string()),
-    medicalConditions: v.optional(v.string()),
+    dependencies: v.optional(v.union(
+      v.array(v.string()), // Legacy format for backward compatibility
+      v.object({
+        mobility: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        eating: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        dressing: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        toileting: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        )
+      })
+    )),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
     createdBy: v.string(),

@@ -23,10 +23,17 @@ export const CreateResidentSchema = z.object({
   risks: z
     .array(
       z.object({
-        risk: z.string().min(1, { message: "Risk is required" })
+        risk: z.string().min(1, { message: "Risk is required" }),
+        level: z.enum(["low", "medium", "high"], { message: "Risk level is required" })
       })
     )
     .optional(),
+  dependencies: z.object({
+    mobility: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Mobility level is required" }),
+    eating: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Eating level is required" }),
+    dressing: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Dressing level is required" }),
+    toileting: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Toileting level is required" }),
+  }),
   emergencyContacts: z
     .array(
       z.object({
@@ -42,12 +49,5 @@ export const CreateResidentSchema = z.object({
         isPrimary: z.boolean().optional()
       })
     )
-    .min(1, { message: "At least one emergency contact is required" }),
-  medicalInfo: z
-    .object({
-      allergies: z.string().optional(),
-      medications: z.string().optional(),
-      medicalConditions: z.string().optional()
-    })
-    .optional()
+    .min(1, { message: "At least one emergency contact is required" })
 });

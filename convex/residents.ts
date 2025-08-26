@@ -19,8 +19,38 @@ export const create = mutation({
     risks: v.optional(v.union(
       v.array(v.string()),
       v.array(v.object({
-        risk: v.string()
+        risk: v.string(),
+        level: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high")))
       }))
+    )),
+    dependencies: v.optional(v.union(
+      v.array(v.string()), // Legacy format for backward compatibility
+      v.object({
+        mobility: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        eating: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        dressing: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        ),
+        toileting: v.union(
+          v.literal("Independent"), 
+          v.literal("Supervision Needed"), 
+          v.literal("Assistance Needed"), 
+          v.literal("Fully Dependent")
+        )
+      })
     )),
     allergies: v.optional(v.string()),
     medications: v.optional(v.string()),
@@ -42,9 +72,7 @@ export const create = mutation({
       nhsHealthNumber: args.nhsHealthNumber,
       healthConditions: args.healthConditions,
       risks: args.risks,
-      allergies: args.allergies,
-      medications: args.medications,
-      medicalConditions: args.medicalConditions,
+      dependencies: args.dependencies,
       organizationId: args.organizationId,
       teamId: args.teamId,
       createdBy: args.createdBy,

@@ -49,7 +49,9 @@ export function CreateResidentForm({
     api.residents.createEmergencyContact
   );
 
-  const form = useForm<z.infer<typeof CreateResidentSchema>>({
+  type FormType = z.infer<typeof CreateResidentSchema>;
+  
+  const form = useForm<FormType>({
     resolver: zodResolver(CreateResidentSchema),
     mode: "onChange",
     defaultValues: {
@@ -62,6 +64,12 @@ export function CreateResidentForm({
       teamId: "",
       healthConditions: [],
       risks: [],
+      dependencies: {
+        mobility: undefined,
+        eating: undefined, 
+        dressing: undefined,
+        toileting: undefined,
+      },
       emergencyContacts: [
         {
           name: "",
@@ -70,11 +78,6 @@ export function CreateResidentForm({
           isPrimary: true
         }
       ],
-      medicalInfo: {
-        allergies: "",
-        medications: "",
-        medicalConditions: ""
-      }
     }
   });
 
@@ -100,6 +103,7 @@ export function CreateResidentForm({
     control: form.control,
     name: "risks"
   });
+
 
   const getTeams = useCallback(() => {
     if (!activeOrganization?.id) return;
@@ -133,6 +137,7 @@ export function CreateResidentForm({
   }, [getTeams]);
 
   function onSubmit(values: z.infer<typeof CreateResidentSchema>) {
+    console.log("form value",values)
     startTransition(async () => {
       try {
         if (!activeOrganization?.id || !user?.user?.id) {
@@ -152,7 +157,8 @@ export function CreateResidentForm({
           nhsHealthNumber: values.nhsHealthNumber,
           healthConditions:
             values.healthConditions?.map((hc) => hc.condition) || [],
-          risks: values.risks?.map((r) => r.risk) || [],
+          risks: values.risks || [],
+          dependencies: values.dependencies,
           organizationId: activeOrganization.id,
           createdBy: user.user.id
         });
@@ -207,9 +213,18 @@ export function CreateResidentForm({
         toast.error("Please fill all required fields in this step.");
       }
     } else if (step === 2) {
-      // Step 2 validation - health conditions and risks are optional
-      // No specific validation needed as fields are optional
-      setStep(3);
+      // Step 2 validation - validate all dependency fields are selected
+      const valid = await form.trigger([
+        "dependencies.mobility",
+        "dependencies.eating", 
+        "dependencies.dressing",
+        "dependencies.toileting"
+      ]);
+      if (valid) {
+        setStep(3);
+      } else {
+        toast.error("Please select dependency levels for all daily living activities.");
+      }
     }
   };
 
@@ -468,7 +483,7 @@ export function CreateResidentForm({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => appendRisk({ risk: "" })}
+                  onClick={() => appendRisk({ risk: "", level: "low" })}
                   disabled={isLoading || risksFields.length === MAX_RISKS}
                 >
                   <PlusIcon className="h-4 w-4" />
@@ -480,22 +495,50 @@ export function CreateResidentForm({
                  <div className={`space-y-3 ${risksFields.length > 3 ? 'max-h-50 overflow-y-auto' : ''}`}>
                   {risksFields.map((field, index) => (
                     <div key={field.id} className="flex items-center gap-3">
-                      <FormField
-                        control={form.control}
-                        name={`risks.${index}.risk`}
-                        render={({ field }) => (
-                          <FormItem className="flex-1">
-                            <FormControl>
-                              <Input
-                                placeholder="Fall risk"
-                                disabled={isLoading}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="flex flex-1">
+                        <FormField
+                          control={form.control}
+                          name={`risks.${index}.risk`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormControl>
+                                <Input
+                                  placeholder="Fall risk"
+                                  disabled={isLoading}
+                                  {...field}
+                                  className="rounded-r-none"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`risks.${index}.level`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                  disabled={isLoading}
+                                >
+                                  <SelectTrigger className="w-24 rounded-l-none border-l-0">
+                                    <SelectValue placeholder="Level" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="low">Low</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"
@@ -516,6 +559,135 @@ export function CreateResidentForm({
                 </div>
               )}
             </div>
+
+            {/* Dependencies Section */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium">Dependencies</h3>
+                <p className="text-sm text-muted-foreground">
+                  Assess care dependency levels for daily activities
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Mobility */}
+                <FormField
+                  control={form.control}
+                  name="dependencies.mobility"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel isRequired>Mobility</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Independent">Independent</SelectItem>
+                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
+                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
+                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Eating */}
+                <FormField
+                  control={form.control}
+                  name="dependencies.eating"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel isRequired>Eating</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Independent">Independent</SelectItem>
+                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
+                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
+                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Dressing */}
+                <FormField
+                  control={form.control}
+                  name="dependencies.dressing"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel isRequired>Dressing</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Independent">Independent</SelectItem>
+                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
+                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
+                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Toileting */}
+                <FormField
+                  control={form.control}
+                  name="dependencies.toileting"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel isRequired>Toileting</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Independent">Independent</SelectItem>
+                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
+                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
+                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
 
             {/* Buttons Section */}
             <div className="w-full flex flex-row justify-between">
