@@ -7,14 +7,21 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { IconDotsVertical } from "@tabler/icons-react"
 
 export type Resident = {
-  id: string
-  avatar: string
-  details: string
-  unit: string
-  health: string
-  risks: string
-  dependency: string
-  medication: string
+  _id: string
+  firstName: string
+  lastName: string
+  roomNumber?: string
+  healthConditions?: string[] | { condition: string }[]
+  risks?: string[] | { risk: string; level?: "low" | "medium" | "high" }[]
+  dependencies?: string[] | {
+    mobility: string
+    eating: string
+    dressing: string
+    toileting: string
+  }
+  phoneNumber?: string
+  dateOfBirth: string
+  admissionDate: string
 }
 
 export const columns: ColumnDef<Resident>[] = [
@@ -23,12 +30,12 @@ export const columns: ColumnDef<Resident>[] = [
     header: "",
     cell: ({ row }) => {
       const resident = row.original
-      const name = resident.details.split(',')[0] // Extract name from details
-      const initials = name.split(' ').map(n => n[0]).join('').toUpperCase()
+      const name = `${resident.firstName} ${resident.lastName}`
+      const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase()
       
       return (
         <Avatar className="h-8 w-8">
-          <AvatarImage src={resident.avatar} alt={name} />
+          <AvatarImage src="" alt={name} />
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       )
@@ -37,26 +44,74 @@ export const columns: ColumnDef<Resident>[] = [
   {
     accessorKey: "details",
     header: "Details",
+    cell: ({ row }) => {
+      const resident = row.original
+      return (
+        <div>
+          <div className="font-medium">{resident.firstName} {resident.lastName}</div>
+          <div className="text-sm text-muted-foreground">DOB: {resident.dateOfBirth}</div>
+          {resident.phoneNumber && (
+            <div className="text-sm text-muted-foreground">{resident.phoneNumber}</div>
+          )}
+        </div>
+      )
+    },
   },
   {
-    accessorKey: "unit",
+    accessorKey: "roomNumber",
     header: "Unit/Room No",
+    cell: ({ row }) => row.original.roomNumber || "-",
   },
   {
-    accessorKey: "health",
+    accessorKey: "healthConditions",
     header: "Health Condition",
+    cell: ({ row }) => {
+      const conditions = row.original.healthConditions
+      if (!conditions || conditions.length === 0) return "-"
+      
+      if (Array.isArray(conditions) && typeof conditions[0] === 'string') {
+        return (conditions as string[]).join(", ")
+      } else if (Array.isArray(conditions)) {
+        return (conditions as { condition: string }[]).map(c => c.condition).join(", ")
+      }
+      return "-"
+    },
   },
   {
     accessorKey: "risks",
     header: "Risks",
+    cell: ({ row }) => {
+      const risks = row.original.risks
+      if (!risks || risks.length === 0) return "-"
+      
+      if (Array.isArray(risks) && typeof risks[0] === 'string') {
+        return (risks as string[]).join(", ")
+      } else if (Array.isArray(risks)) {
+        return (risks as { risk: string }[]).map(r => r.risk).join(", ")
+      }
+      return "-"
+    },
   },
   {
-    accessorKey: "dependency",
+    accessorKey: "dependencies",
     header: "Dependency",
+    cell: ({ row }) => {
+      const deps = row.original.dependencies
+      if (!deps) return "-"
+      
+      if (Array.isArray(deps)) {
+        return (deps as string[]).join(", ")
+      } else if (typeof deps === 'object') {
+        const depObj = deps as { mobility: string; eating: string; dressing: string; toileting: string }
+        return `Mobility: ${depObj.mobility}, Eating: ${depObj.eating}`
+      }
+      return "-"
+    },
   },
   {
     accessorKey: "medication",
     header: "Next Scheduled Medication",
+    cell: () => "-", // Leave blank as requested
   },
   {
     id: "actions",

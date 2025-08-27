@@ -59,7 +59,6 @@ export function DataTable<TData, TValue>({
     []
   );
   const [unitFilter, setUnitFilter] = React.useState<string>("all");
-  // const [residetn,setResident]=React.useState()
 
   // const getResident = React.useCallback((activeOrganizationId) => {
   //     if (!activeOrganization?.id) return;
