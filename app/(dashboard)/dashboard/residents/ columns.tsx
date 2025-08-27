@@ -25,7 +25,6 @@ export const columns: ColumnDef<Resident>[] = [
       const resident = row.original
       const name = resident.details.split(',')[0] // Extract name from details
       const initials = name.split(' ').map(n => n[0]).join('').toUpperCase()
-      
       return (
         <Avatar className="h-8 w-8">
           <AvatarImage src={resident.avatar} alt={name} />
