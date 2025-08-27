@@ -1,5 +1,4 @@
 "use client"
-
 import * as React from "react"
 import {
   closestCenter,
@@ -21,17 +20,13 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-  IconChevronDown,
+
   IconChevronLeft,
   IconChevronRight,
   IconChevronsLeft,
   IconChevronsRight,
-  IconCircleCheckFilled,
   IconDotsVertical,
   IconGripVertical,
-  IconLayoutColumns,
-  IconLoader,
-  IconPlus,
   IconTrendingUp,
 } from "@tabler/icons-react"
 import {
@@ -75,9 +70,9 @@ import {
 } from "@/components/ui/drawer"
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -86,7 +81,9 @@ import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -115,7 +112,6 @@ export const schema = z.object({
   limit: z.string(),
   reviewer: z.string(),
 })
-
 function DragHandle({ id }: { id: number }) {
   const { attributes, listeners } = useSortable({
     id,
@@ -133,7 +129,6 @@ function DragHandle({ id }: { id: number }) {
     </Button>
   )
 }
-
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
   {
     id: "drag",
@@ -186,22 +181,8 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     ),
   },
   {
-    accessorKey: "status",
-    header: "Medications",
-    cell: ({ row }) => (
-      <Badge variant="outline" className="text-muted-foreground px-1.5">
-        {row.original.status === "Done" ? (
-          <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
-        ) : (
-          <IconLoader />
-        )}
-        {row.original.status}
-      </Badge>
-    ),
-  },
-  {
     accessorKey: "target",
-    header: () => <div className="w-full text-right">Target</div>,
+    header: () => <div className="w-full text-right">Time</div>,
     cell: ({ row }) => (
       <form
         onSubmit={(e) => {
@@ -225,39 +206,138 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     ),
   },
   {
+    accessorKey: "status",
+    header: "Medications",
+    cell: ({ row }) => {
+      const [selectedMeds, setSelectedMeds] = React.useState<string[]>([])
+      const medications = [
+        { id: "paracetamol", name: "Paracetamol 500mg", count: 1 },
+        { id: "ibuprofen", name: "Ibuprofen 400mg", count: 2 },
+        { id: "amoxicillin", name: "Amoxicillin 250mg", count: 2 },
+        { id: "metformin", name: "Metformin 500mg", count: 2 },
+        { id: "amlodipine", name: "Amlodipine 5mg", count: 2 },
+      ]
+
+      const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+          setSelectedMeds(medications.map(med => med.id))
+        } else {
+          setSelectedMeds([])
+        }
+      }
+
+      const handleMedToggle = (medId: string, checked: boolean) => {
+        if (checked) {
+          setSelectedMeds(prev => [...prev, medId])
+        } else {
+          setSelectedMeds(prev => prev.filter(id => id !== medId))
+        }
+      }
+
+      const allSelected = selectedMeds.length === medications.length
+      const someSelected = selectedMeds.length > 0 && selectedMeds.length < medications.length
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger>See List</DropdownMenuTrigger>
+          <DropdownMenuContent modal={false}>
+            <DropdownMenuLabel>Tablet Medications</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <Checkbox 
+                checked={allSelected || someSelected}
+                onCheckedChange={handleSelectAll}
+                className="mr-2" 
+              />
+              <label>
+                {allSelected ? "Deselect All" : "Select All"}
+              </label>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+    
+            {medications.map((med) => (
+              <DropdownMenuItem key={med.id} onSelect={(e) => e.preventDefault()}>
+                <Checkbox 
+                  id={med.id} 
+                  className="mr-2"
+                  checked={selectedMeds.includes(med.id)}
+                  onCheckedChange={(checked) => handleMedToggle(med.id, !!checked)}
+                />
+                <label htmlFor={med.id}>
+                  {med.name}
+                  <Badge className="ms-3 h-5 min-w-5 rounded-full px-1 font-mono tabular-nums">
+                    {med.count}
+                  </Badge>
+                </label>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    },
+  }
+,  
+
+  {
     accessorKey: "limit",
-    header: () => <div className="w-full text-right">Limit</div>,
+    header: () => <div className="w-full text-right">Status</div>,
     cell: ({ row }) => (
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          toast.promise(new Promise((resolve) => setTimeout(resolve, 1000)), {
-            loading: `Saving ${row.original.header}`,
-            success: "Done",
-            error: "Error",
-          })
-        }}
-      >
-        <Label htmlFor={`${row.original.id}-limit`} className="sr-only">
-          Limit
-        </Label>
-        <Input
-          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
-          defaultValue={row.original.limit}
-          id={`${row.original.id}-limit`}
-        />
-      </form>
+      <Select>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectLabel>David</SelectLabel>
+            <SelectItem value="given">Given</SelectItem>
+            <SelectItem value="refused">Refused</SelectItem>
+            <SelectItem value="hospital">Hospital</SelectItem>
+            <SelectItem value="social-leave">Social Leave</SelectItem>
+            <SelectItem value="not-available">Not Available</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
     ),
   },
   {
     accessorKey: "reviewer",
-    header: "Reviewer",
+    header: "Administered By",
     cell: ({ row }) => {
       const isAssigned = row.original.reviewer !== "Assign reviewer"
 
       if (isAssigned) {
         return row.original.reviewer
       }
+
+      return (
+        <>
+          <Label htmlFor={`${row.original.id}-reviewer`} className="sr-only">
+            Complete
+          </Label>
+          <Select>
+            <SelectTrigger
+              className="w-38 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate"
+              size="sm"
+              id={`${row.original.id}-reviewer`}
+            >
+              <SelectValue placeholder="Assign reviewer" />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="Eddie Lake">Eddie Lake</SelectItem>
+              <SelectItem value="Jamik Tashpulatov">
+                Jamik Tashpulatov
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </>
+      )
+    },
+  },
+  {
+    accessorKey: "reviewer",
+    header: "Witness",
+    cell: ({ row }) => {
 
       return (
         <>
@@ -280,6 +360,36 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
             </SelectContent>
           </Select>
         </>
+      )
+    },
+  },
+  {
+    accessorKey: "reviewer",
+    header: "Notes",
+    cell: ({ row }) => {
+
+
+
+      return (
+        <>
+          <Input></Input>
+        </>
+
+      )
+    },
+  },
+  {
+    accessorKey: "reviewer",
+    header: "Complete",
+    cell: ({ row }) => {
+
+
+
+      return (
+        <>
+          <Button>Save</Button>
+        </>
+
       )
     },
   },
@@ -308,12 +418,10 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     ),
   },
 ]
-
 function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
   const { transform, transition, setNodeRef, isDragging } = useSortable({
     id: row.original.id,
   })
-
   return (
     <TableRow
       data-state={row.getIsSelected() && "selected"}
@@ -476,83 +584,7 @@ export function DataTable({
             </Table>
           </DndContext>
         </div>
-        <div className="flex items-center justify-between px-4">
-          <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-          </div>
-          <div className="flex w-full items-center gap-8 lg:w-fit">
-            <div className="hidden items-center gap-2 lg:flex">
-              <Label htmlFor="rows-per-page" className="text-sm font-medium">
-                Rows per page
-              </Label>
-              <Select
-                value={`${table.getState().pagination.pageSize}`}
-                onValueChange={(value) => {
-                  table.setPageSize(Number(value))
-                }}
-              >
-                <SelectTrigger size="sm" className="w-20" id="rows-per-page">
-                  <SelectValue
-                    placeholder={table.getState().pagination.pageSize}
-                  />
-                </SelectTrigger>
-                <SelectContent side="top">
-                  {[10, 20, 30, 40, 50].map((pageSize) => (
-                    <SelectItem key={pageSize} value={`${pageSize}`}>
-                      {pageSize}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex w-fit items-center justify-center text-sm font-medium">
-              Page {table.getState().pagination.pageIndex + 1} of{" "}
-              {table.getPageCount()}
-            </div>
-            <div className="ml-auto flex items-center gap-2 lg:ml-0">
-              <Button
-                variant="outline"
-                className="hidden h-8 w-8 p-0 lg:flex"
-                onClick={() => table.setPageIndex(0)}
-                disabled={!table.getCanPreviousPage()}
-              >
-                <span className="sr-only">Go to first page</span>
-                <IconChevronsLeft />
-              </Button>
-              <Button
-                variant="outline"
-                className="size-8"
-                size="icon"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                <span className="sr-only">Go to previous page</span>
-                <IconChevronLeft />
-              </Button>
-              <Button
-                variant="outline"
-                className="size-8"
-                size="icon"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                <span className="sr-only">Go to next page</span>
-                <IconChevronRight />
-              </Button>
-              <Button
-                variant="outline"
-                className="hidden size-8 lg:flex"
-                size="icon"
-                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                disabled={!table.getCanNextPage()}
-              >
-                <span className="sr-only">Go to last page</span>
-                <IconChevronsRight />
-              </Button>
-            </div>
-          </div>
-        </div>
+
       </TabsContent>
       <TabsContent
         value="past-performance"
