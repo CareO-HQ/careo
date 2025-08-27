@@ -4,33 +4,39 @@ import { columns } from "./ columns";
 import { DataTable } from "./data-table";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { authClient } from "@/lib/auth-client";
 
 export default function ResidentsPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
   
-  const residents = useQuery(
+  const teamResidents = useQuery(
     api.residents.getByTeamId, 
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
+  
+  const organizationResidents = useQuery(
+    api.residents.getByOrganization,
+    !activeTeamId && activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
+  );
+
+  const residents = activeTeamId ? teamResidents : organizationResidents;
 
   console.dir("ACTIVE TEAM ID", activeTeamId);
+  console.dir("ACTIVE ORGANIZATION", activeOrganization);
   console.dir("RESIDENTS", residents);
 
   return (
     <div className="container mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Residents</h1>
-        {activeTeam && (
-          <div className="text-sm text-muted-foreground">
-            Team: {activeTeam.name}
-          </div>
-        )}
+
       </div>
 
       <DataTable
         columns={columns}
         data={residents || []}
-        teamName={activeTeam?.name ?? ""}
+        teamName={activeTeam?.name ?? activeOrganization?.name ?? ""}
       />
     </div>
   );
