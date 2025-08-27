@@ -9,9 +9,10 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 
 export default function ResidentsPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
-  const residents = useQuery(api.residents.getByTeamId, {
-    teamId: activeTeamId
-  });
+  const residents = useQuery(
+    api.residents.getByTeamId, 
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
   console.dir("ACTIVE TEAM ID", activeTeamId);
   console.dir("RESIDENTS", residents);
   return (
