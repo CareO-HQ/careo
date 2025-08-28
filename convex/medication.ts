@@ -3,7 +3,8 @@ import {
   mutation,
   query,
   internalAction,
-  internalQuery
+  internalQuery,
+  internalMutation
 } from "./_generated/server";
 import { betterAuthComponent } from "./auth";
 import { components, internal } from "./_generated/api";
@@ -616,6 +617,210 @@ export const getAllActiveMedications = internalQuery({
   }
 });
 
+export const getLastScheduledTimeForMedication = internalQuery({
+  args: {
+    medicationId: v.id("medication")
+  },
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx, args) => {
+    const lastIntake = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byMedicationId", (q) =>
+        q.eq("medicationId", args.medicationId)
+      )
+      .order("desc")
+      .first();
+
+    return lastIntake ? lastIntake.scheduledTime : null;
+  }
+});
+
+export const getMedicationIntakeCount = internalQuery({
+  args: {
+    medicationId: v.id("medication")
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const intakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byMedicationId", (q) =>
+        q.eq("medicationId", args.medicationId)
+      )
+      .collect();
+
+    return intakes.length;
+  }
+});
+
+export const createInitialMedicationIntakes = internalMutation({
+  args: {
+    medicationId: v.id("medication"),
+    organizationId: v.string(),
+    teamId: v.string()
+  },
+  returns: v.array(v.id("medicationIntake")),
+  handler: async (ctx, args) => {
+    const medication = await ctx.db.get(args.medicationId);
+    if (!medication) {
+      console.log(`Medication with ID ${args.medicationId} not found`);
+      return [];
+    }
+
+    console.log(`Creating initial intakes for medication: ${medication.name}`);
+
+    // Use the existing helper function to create initial intakes
+    const intakeRecords = await createMedicationIntakes(
+      ctx,
+      args.medicationId,
+      {
+        name: medication.name,
+        frequency: medication.frequency,
+        times: medication.times,
+        startDate: medication.startDate,
+        endDate: medication.endDate,
+        scheduleType: medication.scheduleType,
+        residentId: medication.residentId
+      },
+      args.organizationId,
+      args.teamId
+    );
+
+    return intakeRecords || [];
+  }
+});
+
+export const createNextDayMedicationIntakes = internalMutation({
+  args: {
+    medicationId: v.id("medication"),
+    organizationId: v.string(),
+    teamId: v.string()
+  },
+  returns: v.array(v.id("medicationIntake")),
+  handler: async (ctx, args) => {
+    const medication = await ctx.db.get(args.medicationId);
+    if (!medication) {
+      console.log(`Medication with ID ${args.medicationId} not found`);
+      return [];
+    }
+
+    console.log(`Creating next day intakes for medication: ${medication.name}`);
+
+    // Only create intakes for scheduled medications, not PRN
+    if (medication.scheduleType === "PRN (As Needed)") {
+      console.log(
+        `Medication "${medication.name}" is PRN (As Needed) - no scheduled intakes created`
+      );
+      return [];
+    }
+
+    // Get the last scheduled time for this medication
+    const lastScheduledTime: number | null = await ctx.runQuery(
+      internal.medication.getLastScheduledTimeForMedication,
+      {
+        medicationId: args.medicationId
+      }
+    );
+
+    if (!lastScheduledTime) {
+      console.log(
+        `No existing intakes found for medication: ${medication.name}`
+      );
+      return [];
+    }
+
+    const lastScheduledDate: Date = new Date(lastScheduledTime);
+    console.log(
+      `Last scheduled date for ${medication.name}: ${lastScheduledDate.toLocaleDateString()} ${lastScheduledDate.toLocaleTimeString()}`
+    );
+
+    // Calculate the next day based on frequency
+    let dayIncrement: number = 1;
+    if (medication.frequency === "Weekly") {
+      dayIncrement = 7;
+    } else if (medication.frequency === "Monthly") {
+      dayIncrement = 30;
+    } else if (medication.frequency === "One time (STAT)") {
+      console.log(
+        `Medication "${medication.name}" is one-time (STAT) - no additional intakes needed`
+      );
+      return [];
+    }
+
+    // Calculate next scheduled date
+    const nextDate: Date = new Date(lastScheduledDate);
+    nextDate.setDate(lastScheduledDate.getDate() + dayIncrement);
+
+    // Check if next date is within medication's end date range
+    if (medication.endDate) {
+      const endDate = new Date(medication.endDate);
+      console.log(`Medication end date: ${endDate.toLocaleDateString()}`);
+      console.log(`Next scheduled date: ${nextDate.toLocaleDateString()}`);
+
+      if (nextDate > endDate) {
+        console.log(
+          `Next scheduled date (${nextDate.toLocaleDateString()}) is beyond medication end date (${endDate.toLocaleDateString()}) - skipping`
+        );
+        return [];
+      }
+    }
+
+    console.log(
+      `Creating intakes for ${medication.name} on ${nextDate.toLocaleDateString()}`
+    );
+    console.log(`Medication times: ${medication.times.join(", ")}`);
+
+    const intakeRecords: any[] = [];
+
+    // Create intake record for each scheduled time on the next day
+    for (const time of medication.times) {
+      const [hours, minutes] = time.split(":");
+      const scheduledDateTime: Date = new Date(
+        nextDate.getFullYear(),
+        nextDate.getMonth(),
+        nextDate.getDate(),
+        parseInt(hours),
+        parseInt(minutes),
+        0,
+        0
+      );
+
+      console.log(
+        `Creating intake for: ${scheduledDateTime.toLocaleDateString()} at ${scheduledDateTime.toLocaleTimeString(
+          "en-GB",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+          }
+        )} (Local time)`
+      );
+
+      const intakeRecord = {
+        medicationId: args.medicationId,
+        residentId: medication.residentId,
+        scheduledTime: scheduledDateTime.getTime(),
+        state: "scheduled" as const,
+        teamId: args.teamId,
+        organizationId: args.organizationId,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      const intakeId: any = await ctx.db.insert(
+        "medicationIntake",
+        intakeRecord
+      );
+      intakeRecords.push(intakeId);
+      console.log(`Created intake record with ID: ${intakeId}`);
+    }
+
+    console.log(
+      `Created ${intakeRecords.length} medication intake records for "${medication.name}" on ${nextDate.toLocaleDateString()}`
+    );
+    return intakeRecords;
+  }
+});
+
 export const dailyMedicationCron = internalAction({
   args: {},
   returns: v.null(),
@@ -630,7 +835,7 @@ export const dailyMedicationCron = internalAction({
 
     console.log(`Found ${activeMedications.length} active medications:`);
 
-    activeMedications.forEach((medication, index) => {
+    activeMedications.forEach((medication: any, index: number) => {
       console.log(
         `${index + 1}. ${medication.name} (${medication.strength}${medication.strengthUnit}) - ${medication.frequency}`
       );
@@ -643,6 +848,108 @@ export const dailyMedicationCron = internalAction({
       );
       console.log(`   ---`);
     });
+
+    console.log("\n=== STARTING NEXT DAY INTAKE CREATION ===");
+
+    // First, let's check if any medications have existing intakes
+    console.log("\n=== DIAGNOSTIC: Checking existing intakes ===");
+    for (const medication of activeMedications) {
+      const intakeCount = await ctx.runQuery(
+        internal.medication.getMedicationIntakeCount,
+        {
+          medicationId: medication._id
+        }
+      );
+      console.log(
+        `Medication "${medication.name}": ${intakeCount} existing intake records`
+      );
+    }
+
+    // Process each active medication to create next day intakes
+    let totalCreatedIntakes = 0;
+    for (const medication of activeMedications) {
+      console.log(`\n--- Processing medication: ${medication.name} ---`);
+
+      // Get the last scheduled time for this medication
+      const lastScheduledTime = await ctx.runQuery(
+        internal.medication.getLastScheduledTimeForMedication,
+        {
+          medicationId: medication._id
+        }
+      );
+
+      if (!lastScheduledTime) {
+        console.log(
+          `No existing intakes found for medication: ${medication.name}`
+        );
+        console.log(
+          `This appears to be a new medication without any intake records yet.`
+        );
+        console.log(`Creating initial intakes for this medication...`);
+
+        const initialIntakes = await ctx.runMutation(
+          internal.medication.createInitialMedicationIntakes,
+          {
+            medicationId: medication._id,
+            organizationId: medication.organizationId,
+            teamId: medication.teamId
+          }
+        );
+
+        totalCreatedIntakes += initialIntakes.length;
+        console.log(
+          `Created ${initialIntakes.length} initial intakes for ${medication.name}`
+        );
+        continue;
+      }
+
+      const lastScheduledDate = new Date(lastScheduledTime);
+      const startDate = new Date(medication.startDate);
+      const endDate = medication.endDate ? new Date(medication.endDate) : null;
+
+      console.log(`Last scheduled: ${lastScheduledDate.toLocaleDateString()}`);
+      console.log(`Medication start date: ${startDate.toLocaleDateString()}`);
+      if (endDate) {
+        console.log(`Medication end date: ${endDate.toLocaleDateString()}`);
+      }
+
+      // Check if the last scheduled time is within the medication's date range
+      const isWithinStartDate = lastScheduledDate >= startDate;
+      const isWithinEndDate = !endDate || lastScheduledDate <= endDate;
+
+      console.log(`Within start date range: ${isWithinStartDate}`);
+      console.log(`Within end date range: ${isWithinEndDate}`);
+
+      if (isWithinStartDate && isWithinEndDate) {
+        console.log(
+          `Last scheduled time is within date range - creating next day intakes`
+        );
+
+        const createdIntakes = await ctx.runMutation(
+          internal.medication.createNextDayMedicationIntakes,
+          {
+            medicationId: medication._id,
+            organizationId: medication.organizationId,
+            teamId: medication.teamId
+          }
+        );
+
+        totalCreatedIntakes += createdIntakes.length;
+        console.log(
+          `Created ${createdIntakes.length} intakes for ${medication.name}`
+        );
+      } else {
+        console.log(
+          `Last scheduled time is outside date range - skipping intake creation`
+        );
+      }
+    }
+
+    console.log(`\n=== CRON COMPLETED ===`);
+    console.log(
+      `Total active medications processed: ${activeMedications.length}`
+    );
+    console.log(`Total new intakes created: ${totalCreatedIntakes}`);
 
     return null;
   }

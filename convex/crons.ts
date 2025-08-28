@@ -10,8 +10,7 @@ crons.daily(
     hourUTC: 0,
     minuteUTC: 0
   },
-  internal.medication.dailyMedicationCron,
-  {}
+  internal.medication.dailyMedicationCron
 );
 
 export default crons;
