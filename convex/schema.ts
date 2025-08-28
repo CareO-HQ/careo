@@ -247,20 +247,22 @@ export default defineSchema({
   medicationIntake: defineTable({
     medicationId: v.id("medication"),
     residentId: v.id("residents"),
-    scheduledTime: v.number(), // When the medication was scheduled to be taken
-    poppedOutAt: v.optional(v.number()), // When the medication was dispensed/popped out
-    poppedOutByUserId: v.optional(v.string()), // User who dispensed the medication
+    scheduledTime: v.number(),
+    poppedOutAt: v.optional(v.number()),
+    poppedOutByUserId: v.optional(v.string()),
     state: v.union(
-      v.literal("scheduled"), // Medication is scheduled but not yet dispensed
-      v.literal("dispensed"), // Medication has been popped out/dispensed
-      v.literal("administered"), // Medication has been given to resident
-      v.literal("missed"), // Medication was not given at scheduled time
-      v.literal("refused"), // Resident refused to take medication
-      v.literal("skipped") // Medication was intentionally skipped
+      v.literal("scheduled"),
+      v.literal("dispensed"),
+      v.literal("administered"),
+      v.literal("missed"),
+      v.literal("refused"),
+      v.literal("skipped")
     ),
-    stateModifiedByUserId: v.optional(v.string()), // User who last modified the state
-    stateModifiedAt: v.optional(v.number()), // When the state was last modified
-    notes: v.optional(v.string()), // Additional notes about the intake
+    stateModifiedByUserId: v.optional(v.string()),
+    stateModifiedAt: v.optional(v.number()),
+    witnessByUserId: v.optional(v.string()),
+    witnessAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
     teamId: v.string(),
     organizationId: v.string(),
     createdAt: v.number(),

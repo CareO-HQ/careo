@@ -542,6 +542,113 @@ export const getTodaysMedicationIntakes = query({
     console.log(
       `Found ${intakesWithDetails.length} medication intakes for today`
     );
+
+    // DEBUG: If no intakes found today, let's check what's coming up
+    if (intakesWithDetails.length === 0) {
+      console.log("No intakes for today, checking upcoming intakes...");
+      const upcomingIntakes = await ctx.db
+        .query("medicationIntake")
+        .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
+        .filter((q) => q.gte(q.field("scheduledTime"), now.getTime()))
+        .order("asc")
+        .take(5);
+
+      console.log(`Found ${upcomingIntakes.length} upcoming intakes:`);
+      upcomingIntakes.forEach((intake) => {
+        console.log(
+          `- Scheduled for: ${new Date(intake.scheduledTime).toLocaleString()}`
+        );
+      });
+    }
+
+    return intakesWithDetails;
+  }
+});
+
+// New query to get upcoming medication intakes (next 7 days)
+export const getUpcomingMedicationIntakes = query({
+  args: {
+    teamId: v.string(),
+    daysAhead: v.optional(v.number()) // How many days to look ahead (default 7)
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.id("residents"),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any()),
+      resident: v.optional(v.any())
+    })
+  ),
+  handler: async (ctx, args) => {
+    const daysAhead = args.daysAhead || 7;
+    const now = new Date();
+
+    // Start from beginning of today
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+
+    // End at the end of the specified days ahead
+    const endDate = new Date(startOfToday);
+    endDate.setDate(startOfToday.getDate() + daysAhead);
+    endDate.setHours(23, 59, 59, 999);
+
+    console.log(
+      `Getting upcoming intakes from ${startOfToday.toISOString()} to ${endDate.toISOString()}`
+    );
+
+    // Query medication intakes for the upcoming period
+    const upcomingIntakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("scheduledTime"), startOfToday.getTime()),
+          q.lte(q.field("scheduledTime"), endDate.getTime())
+        )
+      )
+      .order("asc")
+      .collect();
+
+    // Include medication and resident details
+    const intakesWithDetails = await Promise.all(
+      upcomingIntakes.map(async (intake) => {
+        const medication = await ctx.db.get(intake.medicationId);
+        const resident = await ctx.db.get(intake.residentId);
+        return { ...intake, medication, resident };
+      })
+    );
+
+    console.log(
+      `Found ${intakesWithDetails.length} upcoming medication intakes`
+    );
+
     return intakesWithDetails;
   }
 });
