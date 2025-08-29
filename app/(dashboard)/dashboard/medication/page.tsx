@@ -1,5 +1,7 @@
 "use client";
 
+import { columns } from "@/components/medication/daily/columns";
+import { DataTable } from "@/components/medication/daily/data-table";
 // import CreateMedicationDemo from "@/components/medication/demo/CreateMedicationDemo";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import { api } from "@/convex/_generated/api";
@@ -90,6 +92,10 @@ export default function MedicationPage() {
       <ShiftTimes
         selectedTime={selectedTime}
         setSelectedTime={setSelectedTime}
+      />
+      <DataTable
+        columns={columns}
+        data={filteredIntakes}
       />
 
       {/* Display filtered intakes */}
