@@ -1,6 +1,6 @@
 "use client";
 
-import { columns } from "@/components/medication/daily/columns";
+import { createColumns } from "@/components/medication/daily/columns";
 import { DataTable } from "@/components/medication/daily/data-table";
 // import CreateMedicationDemo from "@/components/medication/demo/CreateMedicationDemo";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
@@ -93,13 +93,18 @@ export default function MedicationPage() {
   console.dir("TODAYS MEDICATION INTAKES", todaysMedicationIntakes);
   console.dir("MEDICATIONS", medications);
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       {/* <CreateMedicationDemo /> */}
       <ShiftTimes
         selectedTime={selectedTime}
         setSelectedTime={setSelectedTime}
       />
-      <DataTable columns={columns} data={filteredIntakes} />
+      <div className="w-full">
+        <DataTable
+          columns={createColumns(teamWithMembers?.members || [])}
+          data={filteredIntakes}
+        />
+      </div>
 
       {/* Display filtered intakes */}
       {/* {selectedTime && (

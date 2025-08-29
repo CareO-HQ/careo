@@ -11,37 +11,75 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { BubblesIcon, NotebookPen, NotebookPenIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+
+interface TeamMember {
+  id: string;
+  userId: string;
+  email: string;
+  name: string;
+  image: string | null;
+  role: string;
+  organizationId: string;
+  createdAt: string;
+  teamMembershipId: string;
+  teamRole: string | undefined;
+  addedToTeamAt: number;
+  addedBy: string;
+}
 
 interface MedicationIntake {
   _id: string;
-  scheduledTime: string;
+  scheduledTime: number;
   state: string;
+  notes: string;
   resident: {
     imageUrl?: string;
     firstName: string;
     lastName: string;
-    roomNumber: string;
-  };
+    roomNumber?: string;
+  } | null;
   medication: {
     _id: string;
     name: string;
     dosageForm: string;
     strength: string;
     strengthUnit: string;
-  };
+  } | null;
 }
 
-export const columns: ColumnDef<MedicationIntake>[] = [
+export const createColumns = (
+  members: TeamMember[] = []
+): ColumnDef<MedicationIntake>[] => [
   {
     id: "resident",
     header: "Resident",
     cell: ({ row }) => {
+      const resident = row.original.resident;
+
+      if (!resident) {
+        return (
+          <div className="flex flex-col">
+            <p className="font-medium text-muted-foreground">No resident</p>
+          </div>
+        );
+      }
+
       return (
         <div className="flex flex-col">
           <p className="font-medium">
-            {row.original.resident.firstName} {row.original.resident.lastName}
+            {resident.firstName} {resident.lastName}
           </p>
-          {/* <p className="text-xs text-muted-foreground">Room: {row.original.resident.roomNumber}</p> */}
+          {/* <p className="text-xs text-muted-foreground">Room: {resident.roomNumber}</p> */}
         </div>
       );
     }
@@ -50,7 +88,8 @@ export const columns: ColumnDef<MedicationIntake>[] = [
     accessorKey: "resident.roomNumber",
     header: "Room",
     cell: ({ row }) => {
-      return <p>{row.original.resident.roomNumber}</p>;
+      const resident = row.original.resident;
+      return <p>{resident?.roomNumber || "N/A"}</p>;
     }
   },
   {
@@ -65,13 +104,23 @@ export const columns: ColumnDef<MedicationIntake>[] = [
     id: "medication",
     header: "Medication",
     cell: ({ row }) => {
-      const strength = row.original.medication.strength;
-      const strengthUnit = row.original.medication.strengthUnit;
-      const dosageForm = row.original.medication.dosageForm;
+      const medication = row.original.medication;
+
+      if (!medication) {
+        return (
+          <div className="flex flex-col">
+            <p className="font-medium text-muted-foreground">No medication</p>
+          </div>
+        );
+      }
+
+      const strength = medication.strength;
+      const strengthUnit = medication.strengthUnit;
+      const dosageForm = medication.dosageForm;
 
       return (
         <div className="flex flex-col">
-          <p className="font-medium">{row.original.medication.name}</p>
+          <p className="font-medium">{medication.name}</p>
           <p className="text-xs text-muted-foreground">
             {strength} {strengthUnit} - {dosageForm}
           </p>
@@ -100,9 +149,68 @@ export const columns: ColumnDef<MedicationIntake>[] = [
   {
     id: "witness",
     header: "Witnessed By",
-    cell: ({ row }) => {
-      const allUsers = [];
-      return <>Select</>;
+    cell: () => {
+      return (
+        <Select>
+          <SelectTrigger className="w-[180px] bg-white">
+            <SelectValue placeholder="Select witness" />
+          </SelectTrigger>
+          <SelectContent>
+            {members.map((member) => (
+              <SelectItem key={member.id} value={member.userId}>
+                {member.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+  },
+  {
+    accessorKey: "state",
+    header: "State",
+    cell: () => {
+      return (
+        <Select>
+          <SelectTrigger className="w-[180px] bg-white">
+            <SelectValue placeholder="Select state" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="poppedOut">Option 1</SelectItem>
+            <SelectItem value="notPoppedOut">Option 2</SelectItem>
+            <SelectItem value="missed">Missed</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+  },
+  {
+    accessorKey: "notes",
+    header: "Notes",
+    cell: () => {
+      return (
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-primary"
+            >
+              <NotebookPenIcon className="w-4 h-4 " />
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Notes</DialogTitle>
+              <DialogDescription>
+                Add notes for this medication intake
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea placeholder="Add notes" />
+            <Button>Save</Button>
+          </DialogContent>
+        </Dialog>
+      );
     }
   }
 ];
