@@ -8,20 +8,36 @@ import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function MedicationPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filteredIntakes, setFilteredIntakes] = useState<
-    NonNullable<typeof todaysMedicationIntakes>
+    NonNullable<typeof selectedDateIntakes>
   >([]);
   const medications = useQuery(
     api.medication.getActiveByTeamId,
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
-  const todaysMedicationIntakes = useQuery(
-    api.medication.getTodaysMedicationIntakes,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
+  const selectedDateIntakes = useQuery(
+    api.medication.getMedicationIntakesByDate,
+    activeTeamId 
+      ? { 
+          teamId: activeTeamId, 
+          date: selectedDate.getTime() 
+        } 
+      : "skip"
   );
   const teamWithMembers = useQuery(
     api.teams.getTeam,
@@ -30,13 +46,10 @@ export default function MedicationPage() {
 
   console.log("TEAM WITH MEMBERS", teamWithMembers?.members);
 
-  // Filter intakes by selected time and current date
+  // Filter intakes by selected time (date filtering is handled by the query)
   useEffect(() => {
-    if (selectedTime && todaysMedicationIntakes) {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-      const filteredIntakes = todaysMedicationIntakes.filter((intake) => {
+    if (selectedTime && selectedDateIntakes) {
+      const filteredIntakes = selectedDateIntakes.filter((intake) => {
         // The scheduledTime is stored as a UTC timestamp, but it was created from local time
         // We need to interpret it as if it were stored as "local time as UTC"
         const scheduledDateUTC = new Date(intake.scheduledTime);
@@ -47,14 +60,6 @@ export default function MedicationPage() {
           scheduledDateUTC.getTime() + timezoneOffset
         );
 
-        // Check if it's today in local timezone
-        const intakeDate = new Date(
-          scheduledDateLocal.getFullYear(),
-          scheduledDateLocal.getMonth(),
-          scheduledDateLocal.getDate()
-        );
-        const isToday = intakeDate.getTime() === today.getTime();
-
         // Check if the time matches selected time
         const intakeTime = scheduledDateLocal.toLocaleTimeString("en-GB", {
           hour: "2-digit",
@@ -63,23 +68,11 @@ export default function MedicationPage() {
         });
         const isSelectedTime = intakeTime === selectedTime;
 
-        // Debug logging to verify timezone handling
-        console.log(`Intake debug:`, {
-          originalTimestamp: intake.scheduledTime,
-          scheduledDateUTC: scheduledDateUTC.toISOString(),
-          timezoneOffset: timezoneOffset / 60000, // in hours
-          scheduledDateLocal: scheduledDateLocal.toLocaleString(),
-          intakeTime,
-          selectedTime,
-          isToday,
-          isSelectedTime
-        });
-
-        return isToday && isSelectedTime;
+        return isSelectedTime;
       });
 
       console.log(
-        `Filtered intakes for ${selectedTime} today:`,
+        `Filtered intakes for ${selectedTime} on ${format(selectedDate, "yyyy-MM-dd")}:`,
         filteredIntakes
       );
 
@@ -87,18 +80,51 @@ export default function MedicationPage() {
     } else {
       setFilteredIntakes([]);
     }
-  }, [selectedTime, todaysMedicationIntakes]);
+  }, [selectedTime, selectedDate, selectedDateIntakes]);
 
   console.log("ACTIVE TEAM", activeTeam);
-  console.dir("TODAYS MEDICATION INTAKES", todaysMedicationIntakes);
+  console.dir("SELECTED DATE INTAKES", selectedDateIntakes);
   console.dir("MEDICATIONS", medications);
   return (
     <div className="space-y-6 w-full">
       {/* <CreateMedicationDemo /> */}
-      <ShiftTimes
-        selectedTime={selectedTime}
-        setSelectedTime={setSelectedTime}
-      />
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium">Select Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? (
+                  format(selectedDate, "PPP")
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="flex-1">
+          <ShiftTimes
+            selectedTime={selectedTime}
+            setSelectedTime={setSelectedTime}
+          />
+        </div>
+      </div>
       <div className="w-full">
         <DataTable
           columns={createColumns(teamWithMembers?.members || [])}

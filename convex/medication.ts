@@ -565,6 +565,95 @@ export const getTodaysMedicationIntakes = query({
   }
 });
 
+export const getMedicationIntakesByDate = query({
+  args: {
+    teamId: v.string(),
+    date: v.number() // Timestamp for the selected date
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.id("residents"),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any()),
+      resident: v.optional(v.any())
+    })
+  ),
+  handler: async (ctx, args) => {
+    // Convert the date timestamp to start and end of that day
+    const selectedDate = new Date(args.date);
+    const startOfDay = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
+      0, // Start at midnight
+      0,
+      0,
+      0
+    );
+    const endOfDay = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
+      23, // End at 11:59:59 PM
+      59,
+      59,
+      999
+    );
+
+    console.log(
+      `Getting intakes for ${selectedDate.toDateString()} from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`
+    );
+
+    // Query medication intakes for the selected date
+    const dateIntakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("scheduledTime"), startOfDay.getTime()),
+          q.lte(q.field("scheduledTime"), endOfDay.getTime())
+        )
+      )
+      .order("asc")
+      .collect();
+
+    // Include medication and resident details
+    const intakesWithDetails = await Promise.all(
+      dateIntakes.map(async (intake) => {
+        const medication = await ctx.db.get(intake.medicationId);
+        const resident = await ctx.db.get(intake.residentId);
+        return { ...intake, medication, resident };
+      })
+    );
+
+    console.log(
+      `Found ${intakesWithDetails.length} medication intakes for ${selectedDate.toDateString()}`
+    );
+
+    return intakesWithDetails;
+  }
+});
+
 // New query to get upcoming medication intakes (next 7 days)
 export const getUpcomingMedicationIntakes = query({
   args: {

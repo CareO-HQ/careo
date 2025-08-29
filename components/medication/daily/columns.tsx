@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { BubblesIcon, NotebookPen, NotebookPenIcon } from "lucide-react";
+import { NotebookPenIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 interface TeamMember {
@@ -41,7 +41,7 @@ interface MedicationIntake {
   _id: string;
   scheduledTime: number;
   state: string;
-  notes: string;
+  notes?: string;
   resident: {
     imageUrl?: string;
     firstName: string;
@@ -136,7 +136,8 @@ export const createColumns = (
         console.log("marked out intake", row.original._id);
         console.log("medication", row.original.medication?._id);
         // TODO: Show name of the user that marked it out and timestamp
-        toast.success("Popped out");
+        // TODO: Modify total count
+        toast.success("Popped out. Modify total count");
       };
       return (
         // If popped out, show the name of the user that marked it out and timestamp
