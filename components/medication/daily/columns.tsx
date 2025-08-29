@@ -148,6 +148,17 @@ export const createColumns = (
     }
   },
   {
+    id: "totalCount",
+    header: "Total Count",
+    cell: ({ row }) => {
+      return (
+        // TODO
+        // If popped out, show the name of the user that marked it out and timestamp
+        <p>10</p>
+      );
+    }
+  },
+  {
     id: "witness",
     header: "Witnessed By",
     cell: () => {
@@ -177,8 +188,11 @@ export const createColumns = (
             <SelectValue placeholder="Select state" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="poppedOut">Option 1</SelectItem>
-            <SelectItem value="notPoppedOut">Option 2</SelectItem>
+            <SelectItem value="given">Given</SelectItem>
+            <SelectItem value="refused">Refused</SelectItem>
+            <SelectItem value="hospitalized">Hospitalized</SelectItem>
+            <SelectItem value="socialLeave">Social Leave</SelectItem>
+            <SelectItem value="withheld">Withheld</SelectItem>
             <SelectItem value="missed">Missed</SelectItem>
           </SelectContent>
         </Select>

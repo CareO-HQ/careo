@@ -163,6 +163,28 @@ export const getOrganizationLogoById = query({
   }
 });
 
+export const getResidentImageByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const { residentId } = args;
+
+    const residentImage = await ctx.db
+      .query("files")
+      .filter((q) => q.eq(q.field("type"), "resident"))
+      .filter((q) => q.eq(q.field("userId"), residentId))
+      .first();
+
+    if (residentImage?.format === "image") {
+      const url = await ctx.storage.getUrl(residentImage.body);
+      return { url, storageId: residentImage._id };
+    }
+
+    return null;
+  }
+});
+
 export const deleteById = mutation({
   args: {
     fileId: v.id("files")

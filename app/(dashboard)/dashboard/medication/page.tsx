@@ -2,7 +2,7 @@
 
 import { createColumns } from "@/components/medication/daily/columns";
 import { DataTable } from "@/components/medication/daily/data-table";
-// import CreateMedicationDemo from "@/components/medication/demo/CreateMedicationDemo";
+import CreateMedicationDemo from "@/components/medication/demo/CreateMedicationDemo";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
@@ -87,7 +87,7 @@ export default function MedicationPage() {
   console.dir("MEDICATIONS", medications);
   return (
     <div className="space-y-6 w-full">
-      {/* <CreateMedicationDemo /> */}
+      <CreateMedicationDemo />
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium">Select Date</label>
