@@ -32,11 +32,11 @@ export default function MedicationPage() {
   );
   const selectedDateIntakes = useQuery(
     api.medication.getMedicationIntakesByDate,
-    activeTeamId 
-      ? { 
-          teamId: activeTeamId, 
-          date: selectedDate.getTime() 
-        } 
+    activeTeamId
+      ? {
+          teamId: activeTeamId,
+          date: selectedDate.getTime()
+        }
       : "skip"
   );
   const teamWithMembers = useQuery(
