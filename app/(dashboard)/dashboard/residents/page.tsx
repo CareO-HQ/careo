@@ -10,10 +10,8 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 export default function ResidentsPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
   const residents = useQuery(api.residents.getByTeamId, {
-    teamId: activeTeamId
+    teamId: activeTeamId ?? "skip"
   });
-  console.dir("ACTIVE TEAM ID", activeTeamId);
-  console.dir("RESIDENTS", residents);
   return (
     <div className="container mx-auto ">
       <h1 className="text-2xl font-bold mb-4">Residents</h1>
@@ -22,6 +20,7 @@ export default function ResidentsPage() {
         data={data}
         teamName={activeTeam?.name ?? ""}
       />
+      <pre>{JSON.stringify(residents, null, 2)}</pre>
     </div>
   );
 }

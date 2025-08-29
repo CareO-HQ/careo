@@ -49,6 +49,7 @@ export default defineSchema({
     type: v.union(
       v.literal("profile"),
       v.literal("organization"),
+      v.literal("resident"),
       v.literal("file")
     )
   })
@@ -101,6 +102,7 @@ export default defineSchema({
     firstName: v.string(),
     lastName: v.string(),
     dateOfBirth: v.string(),
+    imageUrl: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),

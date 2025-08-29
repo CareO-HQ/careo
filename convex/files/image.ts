@@ -11,8 +11,13 @@ export const generateUploadUrl = mutation({
 export const sendImage = mutation({
   args: {
     storageId: v.id("_storage"),
-    type: v.union(v.literal("profile"), v.literal("organization")),
-    organizationId: v.optional(v.string()) // Add optional organizationId parameter
+    type: v.union(
+      v.literal("profile"),
+      v.literal("organization"),
+      v.literal("resident")
+    ),
+    organizationId: v.optional(v.string()),
+    residentId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -21,7 +26,13 @@ export const sendImage = mutation({
     }
 
     let id;
-    if (args.type === "organization") {
+    if (args.type === "resident") {
+      if (args.residentId) {
+        id = args.residentId;
+      } else {
+        throw new Error("Resident ID is required");
+      }
+    } else if (args.type === "organization") {
       // If organizationId is provided explicitly, use it
       if (args.organizationId) {
         id = args.organizationId;
