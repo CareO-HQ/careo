@@ -7,7 +7,7 @@ import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useQuery } from "convex/react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function MedicationPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
@@ -23,6 +23,12 @@ export default function MedicationPage() {
     api.medication.getTodaysMedicationIntakes,
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
+  const teamWithMembers = useQuery(
+    api.teams.getTeam,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
+
+  console.log("TEAM WITH MEMBERS", teamWithMembers?.members);
 
   // Filter intakes by selected time and current date
   useEffect(() => {
@@ -93,10 +99,7 @@ export default function MedicationPage() {
         selectedTime={selectedTime}
         setSelectedTime={setSelectedTime}
       />
-      <DataTable
-        columns={columns}
-        data={filteredIntakes}
-      />
+      <DataTable columns={columns} data={filteredIntakes} />
 
       {/* Display filtered intakes */}
       {/* {selectedTime && (

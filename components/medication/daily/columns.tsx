@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { formatInTimeZone } from "date-fns-tz";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 interface MedicationIntake {
   _id: string;
@@ -76,15 +83,15 @@ export const columns: ColumnDef<MedicationIntake>[] = [
     id: "poppedOut",
     header: "Popped Out",
     cell: ({ row }) => {
-      const markedOut = () => {
+      const markAsOut = () => {
         console.log("marked out intake", row.original._id);
-        console.log("medication", row.original.medication._id);
+        console.log("medication", row.original.medication?._id);
         // TODO: Show name of the user that marked it out and timestamp
         toast.success("Popped out");
       };
       return (
         // If popped out, show the name of the user that marked it out and timestamp
-        <Button variant="outline" size="sm" onClick={markedOut}>
+        <Button variant="outline" size="sm" onClick={markAsOut}>
           Popped Out
         </Button>
       );
@@ -95,12 +102,7 @@ export const columns: ColumnDef<MedicationIntake>[] = [
     header: "Witnessed By",
     cell: ({ row }) => {
       const allUsers = [];
-      return (
-        // If popped out, show the name of the user that marked it out and timestamp
-        <Button variant="outline" size="sm" onClick={markedOut}>
-          Popped Out
-        </Button>
-      );
+      return <>Select</>;
     }
   }
 ];
