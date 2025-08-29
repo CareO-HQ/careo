@@ -26,13 +26,15 @@ export default function ImageSelector({
   setSelectedFile,
   currentImageUrl,
   fileId,
-  userInitial
+  userInitial,
+  placeholder
 }: {
   selectedFile: File | null;
   setSelectedFile: (file: File | null) => void;
   currentImageUrl: string | null | undefined;
   fileId: Id<"files"> | null | undefined;
   userInitial: string;
+  placeholder?: React.ReactNode;
 }) {
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -128,10 +130,13 @@ export default function ImageSelector({
             />
             <div className="w-32 h-32 rounded-full border border-dashed border-muted-foreground/50 flex items-center justify-center overflow-hidden hover:border-primary hover:bg-muted transition-colors shadow-xs">
               <div className="bg-muted w-30 h-30 flex flex-col items-center justify-center rounded-full">
-                {/* TODO: Get the initials from the name */}
-                <div className="text-primary font-semibold text-2xl text-center">
-                  {userInitial}
-                </div>
+                {placeholder ? (
+                  placeholder
+                ) : (
+                  <div className="text-primary font-semibold text-2xl text-center">
+                    {userInitial}
+                  </div>
+                )}
               </div>
             </div>
           </label>

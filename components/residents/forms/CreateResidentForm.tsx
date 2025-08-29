@@ -4,7 +4,7 @@ import { authClient } from "@/lib/auth-client";
 import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -261,6 +261,7 @@ export function CreateResidentForm({
           <>
             <div className="mb-12">
               <ImageSelector
+                placeholder={<User2Icon strokeWidth={1.5} className="w-14 h-14 text-muted-foreground" />}
                 currentImageUrl={""}
                 fileId={undefined}
                 selectedFile={selectedFile}
