@@ -27,7 +27,12 @@ import {
   Clock,
   ChevronRight,
   FileText,
-  Folder
+  Folder,
+  Utensils,
+  Moon,
+  Stethoscope,
+  Users,
+  Ambulance
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -121,13 +126,13 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         </div>
       </div>
 
-  
-  
+
+
 
       {/* Main Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Overview Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('overview')}
         >
@@ -146,30 +151,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
-        {/* Medication Card */}
-        <Card 
-          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('medication')}
-        >
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Pill className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Medication</h3>
-                  <p className="text-sm text-muted-foreground">Prescriptions & schedules</p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Daily Care Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('daily-care')}
         >
@@ -190,9 +173,28 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
+        {/* Medication Card */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('medication')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Pill className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Medication</h3>
+                  <p className="text-sm text-muted-foreground">Prescriptions & schedules</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
         {/* Clinical Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('clinical')}
         >
@@ -205,7 +207,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 <div>
                   <h3 className="font-semibold">Clinical</h3>
                   <p className="text-sm text-muted-foreground">
-                    {getHealthConditionsCount() > 0 || getRisksCount() > 0 
+                    {getHealthConditionsCount() > 0 || getRisksCount() > 0
                       ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
                       : "Health information"
                     }
@@ -216,9 +218,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
         {/* Incidents & Falls Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('incidents')}
         >
@@ -237,9 +238,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
         {/* Additional Info Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('additional')}
         >
@@ -258,9 +258,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
         {/* Appointments Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('appointments')}
         >
@@ -279,9 +278,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
         {/* Care File Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('care-file')}
         >
@@ -300,9 +298,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </div>
           </CardContent>
         </Card>
-
         {/* Documents Card */}
-        <Card 
+        <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
           onClick={() => handleCardClick('documents')}
         >
@@ -315,6 +312,111 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 <div>
                   <h3 className="font-semibold">Documents</h3>
                   <p className="text-sm text-muted-foreground">Files & attachments</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Food & Fluid Card */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('food-fluid')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <Utensils className="w-6 h-6 text-yellow-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Food & Fluid</h3>
+                  <p className="text-sm text-muted-foreground">Nutrition & hydration</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Night Check Card */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('night-check')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <Moon className="w-6 h-6 text-slate-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Night Check</h3>
+                  <p className="text-sm text-muted-foreground">Night monitoring</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Health & Monitoring Card */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('health-monitoring')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <Stethoscope className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Health & Monitoring</h3>
+                  <p className="text-sm text-muted-foreground">Vital signs & health tracking</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Lifestyle & Social Card */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('lifestyle-social')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-pink-100 rounded-lg">
+                  <Users className="w-6 h-6 text-pink-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Lifestyle & Social</h3>
+                  <p className="text-sm text-muted-foreground">Activities & relationships</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Hospital Transfer Card */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('hospital-transfer')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <Ambulance className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Hospital Transfer</h3>
+                  <p className="text-sm text-muted-foreground">Emergency & transfers</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
