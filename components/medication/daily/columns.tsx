@@ -22,6 +22,7 @@ import {
 import { NotebookPenIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface TeamMember {
   id: string;
@@ -39,10 +40,11 @@ interface TeamMember {
 }
 
 interface MedicationIntake {
-  _id: string;
+  _id: Id<"medicationIntake">;
   scheduledTime: number;
   state: string;
   notes?: string;
+  poppedOutAt?: number;
   resident: {
     imageUrl?: string;
     firstName: string;
@@ -55,11 +57,15 @@ interface MedicationIntake {
     dosageForm: string;
     strength: string;
     strengthUnit: string;
+    totalCount: number;
   } | null;
 }
 
 export const createColumns = (
-  members: TeamMember[] = []
+  members: TeamMember[] = [],
+  markMedicationIntakeAsPoppedOut?: (args: {
+    medicationIntakeId: Id<"medicationIntake">;
+  }) => Promise<boolean>
 ): ColumnDef<MedicationIntake>[] => [
   {
     id: "resident",
@@ -140,13 +146,41 @@ export const createColumns = (
     id: "poppedOut",
     header: "Popped Out",
     cell: ({ row }) => {
-      const markAsOut = () => {
-        console.log("marked out intake", row.original._id);
-        console.log("medication", row.original.medication?._id);
-        // TODO: Show name of the user that marked it out and timestamp
-        // TODO: Modify total count
-        toast.success("Popped out. Modify total count");
+      const poppedOutAt = row.original.poppedOutAt;
+
+      const markAsOut = async () => {
+        if (!markMedicationIntakeAsPoppedOut) {
+          toast.error("Function not available");
+          return;
+        }
+
+        try {
+          const success = await markMedicationIntakeAsPoppedOut({
+            medicationIntakeId: row.original._id
+          });
+
+          if (success) {
+            toast.success("Medication popped out successfully");
+          } else {
+            toast.error("Failed to pop out medication");
+          }
+        } catch (error) {
+          console.error("Error popping out medication:", error);
+          toast.error(
+            "Failed to pop out medication: " + (error as Error).message
+          );
+        }
       };
+
+      if (poppedOutAt) {
+        return (
+          <p>
+            Popped out at{" "}
+            {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+          </p>
+        );
+      }
+
       return (
         // If popped out, show the name of the user that marked it out and timestamp
         <Button variant="outline" size="sm" onClick={markAsOut}>
@@ -159,11 +193,8 @@ export const createColumns = (
     id: "totalCount",
     header: "Total Count",
     cell: ({ row }) => {
-      return (
-        // TODO
-        // If popped out, show the name of the user that marked it out and timestamp
-        <p>10</p>
-      );
+      const medication = row.original.medication;
+      return <p>{medication?.totalCount || "N/A"}</p>;
     }
   },
   {

@@ -6,7 +6,7 @@ import CreateMedicationDemo from "@/components/medication/demo/CreateMedicationD
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useEffect, useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,9 @@ export default function MedicationPage() {
   const teamWithMembers = useQuery(
     api.teams.getTeam,
     activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
+  const markMedicationIntakeAsPoppedOut = useMutation(
+    api.medication.markMedicationIntakeAsPoppedOut
   );
 
   console.log("TEAM WITH MEMBERS", teamWithMembers?.members);
@@ -126,7 +129,10 @@ export default function MedicationPage() {
       </div>
       <div className="w-full">
         <DataTable
-          columns={createColumns(teamWithMembers?.members || [])}
+          columns={createColumns(
+            teamWithMembers?.members || [],
+            markMedicationIntakeAsPoppedOut
+          )}
           data={filteredIntakes}
         />
       </div>

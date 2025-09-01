@@ -419,47 +419,6 @@ export const updateMedicationIntakeState = mutation({
   }
 });
 
-export const markMedicationAsDispensed = mutation({
-  args: {
-    intakeId: v.id("medicationIntake"),
-    notes: v.optional(v.string())
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    // Get current session for authentication
-    const session = await ctx.runQuery(
-      components.betterAuth.lib.getCurrentSession
-    );
-
-    if (!session || !session.token) {
-      throw new Error("Not authenticated");
-    }
-
-    // Get current user information
-    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
-    if (!userMetadata) {
-      throw new Error("User not found");
-    }
-
-    const updateData: any = {
-      state: "dispensed" as const,
-      poppedOutAt: Date.now(),
-      poppedOutByUserId: userMetadata.userId,
-      stateModifiedByUserId: userMetadata.userId,
-      stateModifiedAt: Date.now(),
-      updatedAt: Date.now()
-    };
-
-    // Add notes if provided
-    if (args.notes !== undefined) {
-      updateData.notes = args.notes;
-    }
-
-    await ctx.db.patch(args.intakeId, updateData);
-    return null;
-  }
-});
-
 export const getTodaysMedicationIntakes = query({
   args: {
     teamId: v.string()
@@ -1166,5 +1125,66 @@ export const dailyMedicationCron = internalAction({
     console.log(`Total new intakes created: ${totalCreatedIntakes}`);
 
     return null;
+  }
+});
+
+export const markMedicationIntakeAsPoppedOut = mutation({
+  args: {
+    medicationIntakeId: v.id("medicationIntake")
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get current user information
+    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
+    if (!userMetadata) {
+      throw new Error("User not found");
+    }
+
+    const { medicationIntakeId } = args;
+    const medicationIntake = await ctx.db.get(medicationIntakeId);
+    console.log("medicationIntake", medicationIntake);
+    if (!medicationIntake) {
+      throw new Error(
+        `Medication intake with ID ${medicationIntakeId} not found`
+      );
+    }
+
+    console.log("medicationIntake", medicationIntake);
+
+    const alreadyPoppedOut = medicationIntake.poppedOutAt !== undefined;
+    if (alreadyPoppedOut) {
+      throw new Error("Medication intake already popped out");
+    }
+
+    const medication = await ctx.db.get(medicationIntake.medicationId);
+    if (!medication) {
+      throw new Error(
+        `Medication with ID ${medicationIntake.medicationId} not found`
+      );
+    }
+
+    if (medication.totalCount <= 0) {
+      throw new Error("No medication available to pop out");
+    }
+
+    await ctx.db.patch(medicationIntakeId, {
+      poppedOutAt: Date.now(),
+      poppedOutByUserId: userMetadata.userId
+    });
+
+    await ctx.db.patch(medicationIntake.medicationId, {
+      totalCount: medication.totalCount - 1
+    });
+
+    return true;
   }
 });
