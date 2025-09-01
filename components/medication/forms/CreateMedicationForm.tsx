@@ -1,19 +1,22 @@
 "use client";
 
-import { CreateMedicationSchema } from "@/schemas/medication/CreateMedicationSchema";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -21,23 +24,20 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { useTransition } from "react";
-import { toast } from "sonner";
-import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { config } from "@/config";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { CreateMedicationSchema } from "@/schemas/medication/CreateMedicationSchema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "convex/react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 export default function CreateMedicationForm({
   onSuccess
@@ -75,11 +75,31 @@ export default function CreateMedicationForm({
     startTransition(async () => {
       try {
         const medicationId = await createMedication({
+          // TODO: Get residentId from the URL or something once Abi is done with his task
+          residentId: "m5708pq5mgq6q7pqs24p2xeh057ps61v" as Id<"residents">,
           medication: {
             ...values,
             prescriberName: values.prescriberName as string,
-            startDate: values.startDate.getTime(),
-            endDate: values.endDate?.getTime()
+            startDate: new Date(
+              values.startDate.getFullYear(),
+              values.startDate.getMonth(),
+              values.startDate.getDate(),
+              12,
+              0,
+              0,
+              0
+            ).getTime(),
+            endDate: values.endDate
+              ? new Date(
+                  values.endDate.getFullYear(),
+                  values.endDate.getMonth(),
+                  values.endDate.getDate(),
+                  12,
+                  0,
+                  0,
+                  0
+                ).getTime()
+              : undefined
           }
         });
         if (medicationId) {
@@ -131,26 +151,6 @@ export default function CreateMedicationForm({
     }
 
     setStep(step + 1);
-  };
-
-  const addTime = () => {
-    const currentTimes = form.getValues("times");
-    const now = new Date();
-    const timeString = now.toTimeString().slice(0, 5); // HH:MM format
-    form.setValue("times", [...currentTimes, timeString]);
-  };
-
-  const removeTime = (index: number) => {
-    const currentTimes = form.getValues("times");
-    const newTimes = currentTimes.filter((_, i) => i !== index);
-    form.setValue("times", newTimes);
-  };
-
-  const updateTime = (index: number, newTime: string) => {
-    const currentTimes = form.getValues("times");
-    const updatedTimes = [...currentTimes];
-    updatedTimes[index] = newTime;
-    form.setValue("times", updatedTimes);
   };
 
   return (
@@ -382,65 +382,75 @@ export default function CreateMedicationForm({
           )}
           {step === 2 && (
             <>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <Label>Medication Times</Label>
-                  <Button
-                    type="button"
-                    onClick={addTime}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Time
-                  </Button>
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="times"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <div className="space-y-2">
-                          {field.value.map((time, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2"
-                            >
-                              <Input
-                                type="time"
-                                value={time}
-                                onChange={(e) =>
-                                  updateTime(index, e.target.value)
-                                }
-                                className="flex-1"
-                              />
-                              <Button
-                                type="button"
-                                onClick={() => removeTime(index)}
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+              <FormField
+                control={form.control}
+                name="times"
+                render={() => (
+                  <FormItem>
+                    <div className="mb-4">
+                      <FormLabel className="text-base">
+                        Medication Times
+                      </FormLabel>
+                      <FormDescription>
+                        Select the times when this medication should be
+                        administered.
+                      </FormDescription>
+                    </div>
+                    {config.times.map((timeGroup) => (
+                      <div key={timeGroup.name} className="mb-6">
+                        <h4 className="mb-3 text-sm font-medium text-muted-foreground">
+                          {timeGroup.name}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {timeGroup.values.map((time) => (
+                            <FormField
+                              key={time}
+                              control={form.control}
+                              name="times"
+                              render={({ field }) => {
+                                const isSelected = field.value?.includes(time);
+                                return (
+                                  <FormItem key={time} className="space-y-0">
+                                    <FormControl>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const checked = !isSelected;
+                                          return checked
+                                            ? field.onChange([
+                                                ...field.value,
+                                                time
+                                              ])
+                                            : field.onChange(
+                                                field.value?.filter(
+                                                  (value) => value !== time
+                                                )
+                                              );
+                                        }}
+                                        className={cn(
+                                          "w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors",
+                                          "hover:bg-accent hover:text-accent-foreground",
+                                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                          isSelected
+                                            ? "bg-accent border-primary hover:bg-primary/10"
+                                            : "bg-background text-foreground border-input"
+                                        )}
+                                      >
+                                        {time}
+                                      </button>
+                                    </FormControl>
+                                  </FormItem>
+                                );
+                              }}
+                            />
                           ))}
-                          {field.value.length === 0 && (
-                            <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                              No times added yet. Click &apos;Add Time&apos; to
-                              schedule medication times.
-                            </div>
-                          )}
                         </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                      </div>
+                    ))}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="flex justify-between items-center">
                 <Button

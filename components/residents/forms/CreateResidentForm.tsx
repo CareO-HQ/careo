@@ -4,7 +4,7 @@ import { authClient } from "@/lib/auth-client";
 import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import ImageSelector from "@/components/onboarding/profile/ImageSelector";
 
 interface CreateResidentFormProps {
   onSubmit?: (values: z.infer<typeof CreateResidentSchema>) => void;
@@ -42,15 +43,20 @@ export function CreateResidentForm({
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const createResidentMutation = useMutation(api.residents.create);
   const createEmergencyContactMutation = useMutation(
     api.residents.createEmergencyContact
   );
+  const generateUploadUrlMutation = useMutation(
+    api.files.image.generateUploadUrl
+  );
+  const sendImageMutation = useMutation(api.files.image.sendImage);
 
   type FormType = z.infer<typeof CreateResidentSchema>;
-  
+
   const form = useForm<FormType>({
     resolver: zodResolver(CreateResidentSchema),
     mode: "onChange",
@@ -66,9 +72,9 @@ export function CreateResidentForm({
       risks: [],
       dependencies: {
         mobility: undefined,
-        eating: undefined, 
+        eating: undefined,
         dressing: undefined,
-        toileting: undefined,
+        toileting: undefined
       },
       emergencyContacts: [
         {
@@ -77,7 +83,7 @@ export function CreateResidentForm({
           relationship: "",
           isPrimary: true
         }
-      ],
+      ]
     }
   });
 
@@ -103,7 +109,6 @@ export function CreateResidentForm({
     control: form.control,
     name: "risks"
   });
-
 
   const getTeams = useCallback(() => {
     if (!activeOrganization?.id) return;
@@ -137,7 +142,7 @@ export function CreateResidentForm({
   }, [getTeams]);
 
   function onSubmit(values: z.infer<typeof CreateResidentSchema>) {
-    console.log("form value",values)
+    console.log("form value", values);
     startTransition(async () => {
       try {
         if (!activeOrganization?.id || !user?.user?.id) {
@@ -180,6 +185,21 @@ export function CreateResidentForm({
           await onSubmitProp(values);
         }
 
+        if (selectedFile) {
+          const uploadUrl = await generateUploadUrlMutation();
+          const result = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": selectedFile!.type },
+            body: selectedFile
+          });
+          const { storageId } = await result.json();
+          await sendImageMutation({
+            storageId,
+            type: "resident",
+            residentId
+          });
+        }
+
         toast.success("Resident created successfully");
         form.reset();
         setStep(1);
@@ -216,14 +236,16 @@ export function CreateResidentForm({
       // Step 2 validation - validate all dependency fields are selected
       const valid = await form.trigger([
         "dependencies.mobility",
-        "dependencies.eating", 
+        "dependencies.eating",
         "dependencies.dressing",
         "dependencies.toileting"
       ]);
       if (valid) {
         setStep(3);
       } else {
-        toast.error("Please select dependency levels for all daily living activities.");
+        toast.error(
+          "Please select dependency levels for all daily living activities."
+        );
       }
     }
   };
@@ -234,9 +256,19 @@ export function CreateResidentForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4 w-full max-w-5xl mx-auto"
       >
-         {/* Step 1: personal information*/}
+        {/* Step 1: personal information*/}
         {step === 1 && (
           <>
+            <div className="mb-12">
+              <ImageSelector
+                placeholder={<User2Icon strokeWidth={1.5} className="w-14 h-14 text-muted-foreground" />}
+                currentImageUrl={""}
+                fileId={undefined}
+                selectedFile={selectedFile}
+                setSelectedFile={setSelectedFile}
+                userInitial={""}
+              />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
@@ -429,7 +461,9 @@ export function CreateResidentForm({
               </div>
 
               {healthConditionsFields.length > 0 && (
-                <div className={`space-y-3 ${healthConditionsFields.length > 3 ? 'max-h-50 overflow-y-auto' : ''}`}>
+                <div
+                  className={`space-y-3 ${healthConditionsFields.length > 3 ? "max-h-50 overflow-y-auto" : ""}`}
+                >
                   {healthConditionsFields.map((field, index) => (
                     <div key={field.id} className="flex items-center gap-3">
                       <FormField
@@ -492,7 +526,9 @@ export function CreateResidentForm({
               </div>
 
               {risksFields.length > 0 && (
-                 <div className={`space-y-3 ${risksFields.length > 3 ? 'max-h-50 overflow-y-auto' : ''}`}>
+                <div
+                  className={`space-y-3 ${risksFields.length > 3 ? "max-h-50 overflow-y-auto" : ""}`}
+                >
                   {risksFields.map((field, index) => (
                     <div key={field.id} className="flex items-center gap-3">
                       <div className="flex flex-1">
@@ -529,7 +565,9 @@ export function CreateResidentForm({
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="low">Low</SelectItem>
-                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="medium">
+                                      Medium
+                                    </SelectItem>
                                     <SelectItem value="high">High</SelectItem>
                                   </SelectContent>
                                 </Select>
@@ -587,10 +625,18 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Independent">Independent</SelectItem>
-                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
-                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
-                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                            <SelectItem value="Independent">
+                              Independent
+                            </SelectItem>
+                            <SelectItem value="Supervision Needed">
+                              Supervision Needed
+                            </SelectItem>
+                            <SelectItem value="Assistance Needed">
+                              Assistance Needed
+                            </SelectItem>
+                            <SelectItem value="Fully Dependent">
+                              Fully Dependent
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -616,10 +662,18 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Independent">Independent</SelectItem>
-                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
-                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
-                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                            <SelectItem value="Independent">
+                              Independent
+                            </SelectItem>
+                            <SelectItem value="Supervision Needed">
+                              Supervision Needed
+                            </SelectItem>
+                            <SelectItem value="Assistance Needed">
+                              Assistance Needed
+                            </SelectItem>
+                            <SelectItem value="Fully Dependent">
+                              Fully Dependent
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -645,10 +699,18 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Independent">Independent</SelectItem>
-                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
-                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
-                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                            <SelectItem value="Independent">
+                              Independent
+                            </SelectItem>
+                            <SelectItem value="Supervision Needed">
+                              Supervision Needed
+                            </SelectItem>
+                            <SelectItem value="Assistance Needed">
+                              Assistance Needed
+                            </SelectItem>
+                            <SelectItem value="Fully Dependent">
+                              Fully Dependent
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -674,10 +736,18 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Independent">Independent</SelectItem>
-                            <SelectItem value="Supervision Needed">Supervision Needed</SelectItem>
-                            <SelectItem value="Assistance Needed">Assistance Needed</SelectItem>
-                            <SelectItem value="Fully Dependent">Fully Dependent</SelectItem>
+                            <SelectItem value="Independent">
+                              Independent
+                            </SelectItem>
+                            <SelectItem value="Supervision Needed">
+                              Supervision Needed
+                            </SelectItem>
+                            <SelectItem value="Assistance Needed">
+                              Assistance Needed
+                            </SelectItem>
+                            <SelectItem value="Fully Dependent">
+                              Fully Dependent
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -687,7 +757,6 @@ export function CreateResidentForm({
                 />
               </div>
             </div>
-
 
             {/* Buttons Section */}
             <div className="w-full flex flex-row justify-between">
@@ -712,10 +781,10 @@ export function CreateResidentForm({
                 <div>
                   <h3 className="font-medium">Emergency Contacts</h3>
                   <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                  Add one or more emergency contacts
+                    Add one or more emergency contacts
+                  </div>
                 </div>
-                </div>
-                
+
                 <Button
                   type="button"
                   variant="outline"
@@ -734,117 +803,123 @@ export function CreateResidentForm({
                   Add Contact
                 </Button>
               </div>
-         
-            <div className={`space-y-6 ${fields.length > 2 ? 'max-h-96 overflow-y-auto' : ''}`}>
-              {fields.map((field, index) => (
-                <div key={field.id} className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm text-muted-foreground">
-                      Contact {index + 1}
-                    </h4>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                        disabled={isLoading}
-                      >
-                        <Trash2Icon className="h-4 w-4 mr-1" />
-                        Remove
-                      </Button>
-                    )}
+
+              <div
+                className={`space-y-6 ${fields.length > 2 ? "max-h-96 overflow-y-auto" : ""}`}
+              >
+                {fields.map((field, index) => (
+                  <div key={field.id} className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm text-muted-foreground">
+                        Contact {index + 1}
+                      </h4>
+                      {fields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => remove(index)}
+                          disabled={isLoading}
+                        >
+                          <Trash2Icon className="h-4 w-4 mr-1" />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name={`emergencyContacts.${index}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel isRequired>Contact Name</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Jane Doe"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`emergencyContacts.${index}.phoneNumber`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel isRequired>Phone Number</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="+1 (555) 987-6543"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`emergencyContacts.${index}.relationship`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel isRequired>Relationship</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Daughter"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name={`emergencyContacts.${index}.isPrimary`}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3">
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  // Set all other contacts to false when this one is set to true
+                                  const currentValues =
+                                    form.getValues("emergencyContacts");
+                                  currentValues.forEach((_, i) => {
+                                    form.setValue(
+                                      `emergencyContacts.${i}.isPrimary`,
+                                      i === index
+                                    );
+                                  });
+                                } else {
+                                  field.onChange(false);
+                                }
+                              }}
+                              disabled={isLoading}
+                            />
+                          </FormControl>
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">
+                              Primary Contact
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+
+                    {index < fields.length - 1 && <hr className="my-6" />}
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`emergencyContacts.${index}.name`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel isRequired>Contact Name</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Jane Doe"
-                              disabled={isLoading}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`emergencyContacts.${index}.phoneNumber`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel isRequired>Phone Number</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="+1 (555) 987-6543"
-                              disabled={isLoading}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`emergencyContacts.${index}.relationship`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel isRequired>Relationship</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Daughter"
-                              disabled={isLoading}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name={`emergencyContacts.${index}.isPrimary`}
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                // Set all other contacts to false when this one is set to true
-                                const currentValues = form.getValues("emergencyContacts");
-                                currentValues.forEach((_, i) => {
-                                  form.setValue(`emergencyContacts.${i}.isPrimary`, i === index);
-                                });
-                              } else {
-                                field.onChange(false);
-                              }
-                            }}
-                            disabled={isLoading}
-                          />
-                        </FormControl>
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-sm">
-                            Primary Contact
-                          </FormLabel>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-
-                  {index < fields.length - 1 && <hr className="my-6" />}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             </div>
             <div className="flex justify-between">
               <Button
@@ -861,6 +936,6 @@ export function CreateResidentForm({
           </div>
         )}
       </form>
-    </Form> 
+    </Form>
   );
 }

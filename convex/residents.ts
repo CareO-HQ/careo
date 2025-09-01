@@ -173,3 +173,4 @@ export const getByTeamId = query({
     return residents;
   }
 });
+

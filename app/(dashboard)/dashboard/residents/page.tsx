@@ -8,19 +8,9 @@ import { authClient } from "@/lib/auth-client";
 
 export default function ResidentsPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
-  const { data: activeOrganization } = authClient.useActiveOrganization();
-  
-  const teamResidents = useQuery(
-    api.residents.getByTeamId, 
-    activeTeamId ? { teamId: activeTeamId } : "skip"
-  );
-  
-  const organizationResidents = useQuery(
-    api.residents.getByOrganization,
-    !activeTeamId && activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
-  );
-  const residents = activeTeamId ? teamResidents : organizationResidents;
-
+  const residents = useQuery(api.residents.getByTeamId, {
+    teamId: activeTeamId ?? "skip"
+  });
   return (
     <div className="container mx-auto space-y-4">
       <div className="flex items-center justify-between">
@@ -29,8 +19,9 @@ export default function ResidentsPage() {
       <DataTable
         columns={columns}
         data={residents || []}
-        teamName={activeTeam?.name ?? activeOrganization?.name ?? ""}
+        teamName={activeTeam?.name ?? ""}
       />
+      <pre>{JSON.stringify(residents, null, 2)}</pre>
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function AppSidebar() {
           email={user?.user.email ?? ""}
         />
 
-        {/* Team Section */}
+        {/* Management Section */}
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
