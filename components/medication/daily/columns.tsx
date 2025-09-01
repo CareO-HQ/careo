@@ -23,6 +23,12 @@ import { NotebookPenIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Id } from "@/convex/_generated/dataModel";
+import { useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface TeamMember {
   id: string;
@@ -45,6 +51,7 @@ interface MedicationIntake {
   state: string;
   notes?: string;
   poppedOutAt?: number;
+  poppedOutByUserId?: Id<"users">;
   resident: {
     imageUrl?: string;
     firstName: string;
@@ -59,13 +66,33 @@ interface MedicationIntake {
     strengthUnit: string;
     totalCount: number;
   } | null;
+  witnessByUserId: Id<"users"> | null;
+  witnessAt: number | null;
 }
 
 export const createColumns = (
   members: TeamMember[] = [],
   markMedicationIntakeAsPoppedOut?: (args: {
     medicationIntakeId: Id<"medicationIntake">;
-  }) => Promise<boolean>
+  }) => Promise<boolean>,
+  setWithnessForMedicationIntake?: (args: {
+    medicationIntakeId: Id<"medicationIntake">;
+    witnessByUserId: Id<"users">;
+  }) => Promise<boolean>,
+  updateMedicationIntakeStatus?: (args: {
+    intakeId: Id<"medicationIntake">;
+    state:
+      | "scheduled"
+      | "dispensed"
+      | "administered"
+      | "missed"
+      | "refused"
+      | "skipped";
+  }) => Promise<null>,
+  saveMedicationIntakeComment?: (args: {
+    intakeId: Id<"medicationIntake">;
+    comment: string;
+  }) => Promise<null>
 ): ColumnDef<MedicationIntake>[] => [
   {
     id: "resident",
@@ -174,10 +201,20 @@ export const createColumns = (
 
       if (poppedOutAt) {
         return (
-          <p>
-            Popped out at{" "}
-            {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-          </p>
+          <Tooltip>
+            <TooltipTrigger>
+              <p className="font-medium text-primary text-sm">
+                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+              </p>
+            </TooltipTrigger>
+            <TooltipContent>
+              {/* TODO: It would be nice to show the name of the user that marked it out */}
+              <p>
+                Popped out at{" "}
+                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+              </p>
+            </TooltipContent>
+          </Tooltip>
         );
       }
 
@@ -200,15 +237,35 @@ export const createColumns = (
   {
     id: "witness",
     header: "Witnessed By",
-    cell: () => {
+    cell: ({ row }) => {
+      const medicationIntake = row.original;
+
+      const setWitness = async (value: string) => {
+        if (!setWithnessForMedicationIntake) {
+          toast.error("Function not available");
+          return;
+        }
+        const success = await setWithnessForMedicationIntake({
+          medicationIntakeId: medicationIntake._id,
+          witnessByUserId: value as Id<"users">
+        });
+        if (success) {
+          toast.success("Witness set successfully");
+        } else {
+          toast.error("Failed to set witness");
+        }
+      };
       return (
-        <Select>
+        <Select
+          onValueChange={setWitness}
+          value={medicationIntake.witnessByUserId || undefined}
+        >
           <SelectTrigger className="w-[180px] bg-white">
             <SelectValue placeholder="Select witness" />
           </SelectTrigger>
           <SelectContent>
-            {members.map((member) => (
-              <SelectItem key={member.id} value={member.userId}>
+            {members.map((member, index) => (
+              <SelectItem key={index} value={member.userId}>
                 {member.name}
               </SelectItem>
             ))}
@@ -220,19 +277,47 @@ export const createColumns = (
   {
     accessorKey: "state",
     header: "State",
-    cell: () => {
+    cell: ({ row }) => {
+      const currentState = row.original.state;
+
+      const handleStateChange = async (
+        newState:
+          | "scheduled"
+          | "dispensed"
+          | "administered"
+          | "missed"
+          | "refused"
+          | "skipped"
+      ) => {
+        if (!updateMedicationIntakeStatus) {
+          toast.error("Update function not available");
+          return;
+        }
+
+        try {
+          await updateMedicationIntakeStatus({
+            intakeId: row.original._id,
+            state: newState
+          });
+          toast.success("State updated successfully");
+        } catch (error) {
+          console.error("Error updating state:", error);
+          toast.error("Failed to update state: " + (error as Error).message);
+        }
+      };
+
       return (
-        <Select>
+        <Select onValueChange={handleStateChange} value={currentState}>
           <SelectTrigger className="w-[180px] bg-white">
             <SelectValue placeholder="Select state" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="given">Given</SelectItem>
-            <SelectItem value="refused">Refused</SelectItem>
-            <SelectItem value="hospitalized">Hospitalized</SelectItem>
-            <SelectItem value="socialLeave">Social Leave</SelectItem>
-            <SelectItem value="withheld">Withheld</SelectItem>
+            <SelectItem value="scheduled">Scheduled</SelectItem>
+            <SelectItem value="dispensed">Dispensed</SelectItem>
+            <SelectItem value="administered">Administered</SelectItem>
             <SelectItem value="missed">Missed</SelectItem>
+            <SelectItem value="refused">Refused</SelectItem>
+            <SelectItem value="skipped">Skipped</SelectItem>
           </SelectContent>
         </Select>
       );
@@ -241,30 +326,62 @@ export const createColumns = (
   {
     accessorKey: "notes",
     header: "Notes",
-    cell: () => {
-      return (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-primary"
-            >
-              <NotebookPenIcon className="w-4 h-4 " />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Notes</DialogTitle>
-              <DialogDescription>
-                Add notes for this medication intake
-              </DialogDescription>
-            </DialogHeader>
-            <Textarea placeholder="Add notes" />
-            <Button>Save</Button>
-          </DialogContent>
-        </Dialog>
-      );
+    cell: ({ row }) => {
+      const medicationIntake = row.original;
+
+      const NotesDialog = () => {
+        const [comment, setComment] = useState(medicationIntake.notes || "");
+        const [isOpen, setIsOpen] = useState(false);
+
+        const handleSave = async () => {
+          if (!saveMedicationIntakeComment) {
+            toast.error("Save function not available");
+            return;
+          }
+
+          try {
+            await saveMedicationIntakeComment({
+              intakeId: medicationIntake._id,
+              comment: comment
+            });
+            toast.success("Comment saved successfully");
+            setIsOpen(false);
+          } catch (error) {
+            console.error("Error saving comment:", error);
+            toast.error("Failed to save comment: " + (error as Error).message);
+          }
+        };
+
+        return (
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-primary"
+              >
+                <NotebookPenIcon className="w-4 h-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Notes</DialogTitle>
+                <DialogDescription>
+                  Add notes for this medication intake
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                placeholder="Add notes"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+              <Button onClick={handleSave}>Save</Button>
+            </DialogContent>
+          </Dialog>
+        );
+      };
+
+      return <NotesDialog />;
     }
   }
 ];
