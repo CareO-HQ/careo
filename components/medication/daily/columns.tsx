@@ -24,9 +24,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Id } from "@/convex/_generated/dataModel";
 import { useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface TeamMember {
-  id: string;
+  _id: string;
   userId: string;
   email: string;
   name: string;
@@ -46,6 +51,7 @@ interface MedicationIntake {
   state: string;
   notes?: string;
   poppedOutAt?: number;
+  poppedOutByUserId?: Id<"users">;
   resident: {
     imageUrl?: string;
     firstName: string;
@@ -189,10 +195,20 @@ export const createColumns = (
 
       if (poppedOutAt) {
         return (
-          <p>
-            Popped out at{" "}
-            {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-          </p>
+          <Tooltip>
+            <TooltipTrigger>
+              <p className="font-medium text-primary text-sm">
+                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+              </p>
+            </TooltipTrigger>
+            <TooltipContent>
+              {/* TODO: It would be nice to show the name of the user that marked it out */}
+              <p>
+                Popped out at{" "}
+                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+              </p>
+            </TooltipContent>
+          </Tooltip>
         );
       }
 
