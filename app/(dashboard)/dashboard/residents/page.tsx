@@ -19,20 +19,13 @@ export default function ResidentsPage() {
     api.residents.getByOrganization,
     !activeTeamId && activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
   );
-
   const residents = activeTeamId ? teamResidents : organizationResidents;
-
-  console.dir("ACTIVE TEAM ID", activeTeamId);
-  console.dir("ACTIVE ORGANIZATION", activeOrganization);
-  console.dir("RESIDENTS", residents);
 
   return (
     <div className="container mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Residents</h1>
-
       </div>
-
       <DataTable
         columns={columns}
         data={residents || []}
