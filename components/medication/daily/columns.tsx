@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/tooltip";
 
 interface TeamMember {
-  _id: string;
+  id: string;
   userId: string;
   email: string;
   name: string;
@@ -81,7 +81,13 @@ export const createColumns = (
   }) => Promise<boolean>,
   updateMedicationIntakeStatus?: (args: {
     intakeId: Id<"medicationIntake">;
-    state: string;
+    state:
+      | "scheduled"
+      | "dispensed"
+      | "administered"
+      | "missed"
+      | "refused"
+      | "skipped";
   }) => Promise<null>,
   saveMedicationIntakeComment?: (args: {
     intakeId: Id<"medicationIntake">;
@@ -274,7 +280,15 @@ export const createColumns = (
     cell: ({ row }) => {
       const currentState = row.original.state;
 
-      const handleStateChange = async (newState: string) => {
+      const handleStateChange = async (
+        newState:
+          | "scheduled"
+          | "dispensed"
+          | "administered"
+          | "missed"
+          | "refused"
+          | "skipped"
+      ) => {
         if (!updateMedicationIntakeStatus) {
           toast.error("Update function not available");
           return;
