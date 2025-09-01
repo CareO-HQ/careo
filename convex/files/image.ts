@@ -11,8 +11,13 @@ export const generateUploadUrl = mutation({
 export const sendImage = mutation({
   args: {
     storageId: v.id("_storage"),
-    type: v.union(v.literal("profile"), v.literal("organization")),
-    organizationId: v.optional(v.string()) // Add optional organizationId parameter
+    type: v.union(
+      v.literal("profile"),
+      v.literal("organization"),
+      v.literal("resident")
+    ),
+    organizationId: v.optional(v.string()),
+    residentId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -21,7 +26,13 @@ export const sendImage = mutation({
     }
 
     let id;
-    if (args.type === "organization") {
+    if (args.type === "resident") {
+      if (args.residentId) {
+        id = args.residentId;
+      } else {
+        throw new Error("Resident ID is required");
+      }
+    } else if (args.type === "organization") {
       // If organizationId is provided explicitly, use it
       if (args.organizationId) {
         id = args.organizationId;
@@ -147,6 +158,42 @@ export const getOrganizationLogoById = query({
       const url = await ctx.storage.getUrl(organizationLogo.body);
       return { url, storageId: organizationLogo._id };
     }
+
+    return null;
+  }
+});
+
+export const getResidentImageByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.union(
+    v.object({
+      url: v.union(v.string(), v.null()),
+      storageId: v.id("files")
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const { residentId } = args;
+    console.log("RESIDENT ID in image query", residentId);
+
+    const residentImage = await ctx.db
+      .query("files")
+      .filter((q) => q.eq(q.field("type"), "resident"))
+      .filter((q) =>
+        q.eq(q.field("userId"), residentId)
+      )
+      .first();
+
+    console.log("RESIDENT IMAGE in image query", residentImage);
+
+    if (residentImage?.format === "image") {
+      const url = await ctx.storage.getUrl(residentImage.body);
+      return { url, storageId: residentImage._id };
+    }
+
+    console.log("RESIDENT IMAGE in image query", residentImage);
 
     return null;
   }

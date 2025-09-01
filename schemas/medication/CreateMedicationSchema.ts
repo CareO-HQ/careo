@@ -37,7 +37,9 @@ export const CreateMedicationSchema = z.object({
     z.literal("Monthly")
   ]),
   scheduleType: z.union([z.literal("Scheduled"), z.literal("PRN (As Needed)")]),
-  times: z.array(z.string()).min(1),
+  times: z.array(z.string()).min(1, {
+    message: "At least one time is required"
+  }),
   prescriberName: z.string().optional(),
   instructions: z.string().optional(),
   startDate: z.date(),

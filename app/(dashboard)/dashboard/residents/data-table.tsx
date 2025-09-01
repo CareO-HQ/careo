@@ -20,13 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
+
 import { Search, X } from "lucide-react";
 import { CreateResidentForm } from "@/components/residents/forms/CreateResidentForm";
 import {
@@ -37,6 +31,7 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Dialog } from "@radix-ui/react-dialog";
+import { useRouter } from "next/navigation";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -44,65 +39,16 @@ interface DataTableProps<TData, TValue> {
   teamName: string;
 }
 
-interface ResidentData {
-  unit: string;
-  details: string;
-  [key: string]: unknown;
-}
-
 export function DataTable<TData, TValue>({
   columns,
   data,
-  teamName
 }: DataTableProps<TData, TValue>) {
+  const router = useRouter();
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
-  const [unitFilter, setUnitFilter] = React.useState<string>("all");
-  // const [residetn,setResident]=React.useState()
+  const [unitFilter] = React.useState<string>("all");
 
-  // const getResident = React.useCallback((activeOrganizationId) => {
-  //     if (!activeOrganization?.id) return;
-
-  //     startTransition(async () => {
-  //       await authClient.organization.listTeams(
-  //         {},
-  //         {
-  //           onSuccess: ({ data }) => {
-  //             const filteredTeams = data?.filter(
-  //               (team: { id: string; name: string }) =>
-  //                 team.name !== activeOrganization?.name
-  //             ) || [];
-  //             setTeams(filteredTeams);
-  //           },
-  //           onError: (error) => {
-  //             console.error("Error fetching teams:", error);
-  //             toast.error("Failed to load teams");
-  //           }
-  //         }
-  //       );
-  //     });
-  //   }, [activeOrganization?.id, activeOrganization?.name]);
-
-  //   useEffect(() => {
-  //     getResident();
-  //   }, [getTeams]);
-
-  // Get unique units from data for filter dropdown
-  const units = React.useMemo(() => {
-    const uniqueUnits = Array.from(
-      new Set(
-        data
-          .map((item) => {
-            const residentItem = item as ResidentData;
-            const unit = residentItem.unit?.split(" - ")[0];
-            return unit;
-          })
-          .filter(Boolean)
-      )
-    );
-    return uniqueUnits.sort();
-  }, [data]);
 
   const table = useReactTable({
     data,
@@ -115,7 +61,6 @@ export function DataTable<TData, TValue>({
     }
   });
 
-  // Handle unit filter change
   React.useEffect(() => {
     if (unitFilter === "all") {
       table.getColumn("unit")?.setFilterValue("");
@@ -152,20 +97,7 @@ export function DataTable<TData, TValue>({
             )}
           </div>
 
-          {/* Filter by unit */}
-          <Select value={unitFilter} onValueChange={setUnitFilter}>
-            <SelectTrigger className="w-[180px]" disabled>
-              <SelectValue placeholder="Filter by unit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{teamName}</SelectItem>
-              {units.map((unit) => (
-                <SelectItem key={unit} value={unit}>
-                  {unit}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    
         </div>
 
         {/* Results count */}
@@ -214,21 +146,26 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const resident = row.original as { _id: string };
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => router.push(`/dashboard/residents/${resident._id}`)}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell
