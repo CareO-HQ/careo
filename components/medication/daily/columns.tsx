@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { NotebookPenIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface TeamMember {
   id: string;
@@ -75,7 +76,14 @@ export const createColumns = (
       }
 
       return (
-        <div className="flex flex-col">
+        <div className="flex flex-row justify-start items-center gap-2">
+          <Avatar>
+            <AvatarImage src={resident.imageUrl} />
+            <AvatarFallback>
+              {resident.firstName.charAt(0)}
+              {resident.lastName.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
           <p className="font-medium">
             {resident.firstName} {resident.lastName}
           </p>

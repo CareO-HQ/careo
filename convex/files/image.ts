@@ -167,19 +167,33 @@ export const getResidentImageByResidentId = query({
   args: {
     residentId: v.string()
   },
+  returns: v.union(
+    v.object({
+      url: v.union(v.string(), v.null()),
+      storageId: v.id("files")
+    }),
+    v.null()
+  ),
   handler: async (ctx, args) => {
     const { residentId } = args;
+    console.log("RESIDENT ID in image query", residentId);
 
     const residentImage = await ctx.db
       .query("files")
       .filter((q) => q.eq(q.field("type"), "resident"))
-      .filter((q) => q.eq(q.field("userId"), residentId))
+      .filter((q) =>
+        q.eq(q.field("userId"), residentId)
+      )
       .first();
+
+    console.log("RESIDENT IMAGE in image query", residentImage);
 
     if (residentImage?.format === "image") {
       const url = await ctx.storage.getUrl(residentImage.body);
       return { url, storageId: residentImage._id };
     }
+
+    console.log("RESIDENT IMAGE in image query", residentImage);
 
     return null;
   }

@@ -9,6 +9,7 @@ import {
 import { betterAuthComponent } from "./auth";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { api } from "./_generated/api";
 
 // Helper function to create medication intake records for up to 7 days or until end date
 async function createMedicationIntakes(
@@ -598,7 +599,7 @@ export const getMedicationIntakesByDate = query({
       resident: v.optional(v.any())
     })
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any[]> => {
     // Convert the date timestamp to start and end of that day
     const selectedDate = new Date(args.date);
     const startOfDay = new Date(
@@ -637,12 +638,29 @@ export const getMedicationIntakesByDate = query({
       .order("asc")
       .collect();
 
-    // Include medication and resident details
+    // Include medication and resident details with image
     const intakesWithDetails = await Promise.all(
       dateIntakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
         const resident = await ctx.db.get(intake.residentId);
-        return { ...intake, medication, resident };
+
+        // Get resident image and add imageUrl to resident object
+        const residentImage = await ctx.runQuery(
+          api.files.image.getResidentImageByResidentId,
+          {
+            residentId: intake.residentId as string
+          }
+        );
+
+        console.log("RESIDENT IMAGE", residentImage);
+
+        const residentWithImage = {
+          ...resident,
+          imageUrl: residentImage?.url || "No image"
+        };
+
+        console.log(residentWithImage);
+        return { ...intake, medication, resident: residentWithImage };
       })
     );
 

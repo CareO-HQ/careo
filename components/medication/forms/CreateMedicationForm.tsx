@@ -76,7 +76,7 @@ export default function CreateMedicationForm({
       try {
         const medicationId = await createMedication({
           // TODO: Get residentId from the URL or something once Abi is done with his task
-          residentId: "m579vyfyx3ah0sjy8rq680r5hd7pcd0v" as Id<"residents">,
+          residentId: "m5708pq5mgq6q7pqs24p2xeh057ps61v" as Id<"residents">,
           medication: {
             ...values,
             prescriberName: values.prescriberName as string,

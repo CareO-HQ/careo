@@ -113,7 +113,6 @@ export default function MedicationPage() {
                 mode="single"
                 selected={selectedDate}
                 onSelect={(date) => date && setSelectedDate(date)}
-                initialFocus
               />
             </PopoverContent>
           </Popover>
