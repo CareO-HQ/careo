@@ -9,20 +9,25 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
   Phone,
   Calendar,
   MapPin,
-  AlertTriangle,
   Heart,
-  Activity
+  Activity,
+  Pill,
+  ClipboardList,
+  TrendingDown,
+  User,
+  Clock,
+  ChevronRight,
+  FileText,
+  Folder
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -55,7 +60,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         <div className="text-center">
           <p className="text-lg font-semibold">Resident not found</p>
           <p className="text-muted-foreground">
-            The resident youre looking for doesnt exist.
+            The resident you&apos;re looking for doesn&apos;t exist.
           </p>
           <Button
             variant="outline"
@@ -74,257 +79,251 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const initials =
     `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
+  const handleCardClick = (cardType: string) => {
+    router.push(`/dashboard/residents/${id}/${cardType}`);
+  };
+
+  const getHealthConditionsCount = () => {
+    if (!resident.healthConditions) return 0;
+    return Array.isArray(resident.healthConditions) ? resident.healthConditions.length : 0;
+  };
+
+  const getRisksCount = () => {
+    if (!resident.risks) return 0;
+    return Array.isArray(resident.risks) ? resident.risks.length : 0;
+  };
+
+  const getDependenciesCount = () => {
+    if (!resident.dependencies || Array.isArray(resident.dependencies)) return 0;
+    return Object.keys(resident.dependencies).length;
+  };
+
   return (
-    <div className="container mx-auto space-y-6">
+    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-4">
+        <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
         <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
+          <Avatar className="w-16 h-16">
+            <AvatarImage src="" alt={fullName} />
+            <AvatarFallback className="text-xl bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
           <div>
-            <h1 className="text-2xl font-bold">Resident Profile</h1>
+            <h1 className="text-3xl font-bold">{fullName}</h1>
             <p className="text-muted-foreground">
-              Detailed information about {fullName}
+              Room {resident.roomNumber || "N/A"} • NHS: {resident.nhsHealthNumber || "N/A"}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Left Column - Basic Info */}
-        <div className="space-y-6">
-          {/* Profile Card */}
-          <Card>
-            <CardHeader className="text-center pb-4">
-              <Avatar className="w-20 h-20 mx-auto mb-4">
-                <AvatarImage src="" alt={fullName} />
-                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
-              </Avatar>
-              <CardTitle className="text-xl">{fullName}</CardTitle>
-              <CardDescription>
-                Room {resident.roomNumber || "N/A"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2 text-sm">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span>DOB: {resident.dateOfBirth}</span>
+  
+  
+
+      {/* Main Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Overview Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('overview')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <User className="w-6 h-6 text-blue-600" />
                 </div>
-                {resident.phoneNumber && (
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{resident.phoneNumber}</span>
-                  </div>
-                )}
-                {resident.roomNumber && (
-                  <div className="flex items-center space-x-2 text-sm">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span>Room {resident.roomNumber}</span>
-                  </div>
-                )}
-                <div className="flex items-center space-x-2 text-sm">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span>Admitted: {resident.admissionDate}</span>
+                <div>
+                  <h3 className="font-semibold">Overview</h3>
+                  <p className="text-sm text-muted-foreground">Basic information</p>
                 </div>
-                {resident.nhsHealthNumber && (
-                  <div className="flex items-center space-x-2 text-sm">
-                    <span className="text-muted-foreground">NHS:</span>
-                    <span className="font-mono">
-                      {resident.nhsHealthNumber}
-                    </span>
-                  </div>
-                )}
               </div>
-            </CardContent>
-          </Card>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Emergency Contacts */}
-          {resident.emergencyContacts &&
-            resident.emergencyContacts.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Emergency Contacts</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {resident.emergencyContacts.map((contact, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{contact.name}</span>
-                          {contact.isPrimary && (
-                            <Badge variant="outline" className="text-xs">
-                              Primary
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {contact.relationship}
-                        </div>
-                        <div className="flex items-center space-x-2 text-sm">
-                          <Phone className="w-3 h-3" />
-                          <span>{contact.phoneNumber}</span>
-                        </div>
-                        {index < resident.emergencyContacts.length - 1 && (
-                          <Separator className="mt-3" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-        </div>
-
-        {/* Right Column - Medical Info */}
-        <div className="md:col-span-2 space-y-6">
-          {/* Health Conditions */}
-          {resident.healthConditions &&
-            resident.healthConditions.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Heart className="w-5 h-5 text-red-500" />
-                    <span>Health Conditions</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.isArray(resident.healthConditions) &&
-                    typeof resident.healthConditions[0] === "string"
-                      ? (resident.healthConditions as string[]).map(
-                          (condition, index) => (
-                            <Badge
-                              key={index}
-                              variant="outline"
-                              className="bg-red-50 border-red-200"
-                            >
-                              {condition}
-                            </Badge>
-                          )
-                        )
-                      : (
-                          resident.healthConditions as { condition: string }[]
-                        ).map((item, index) => (
-                          <Badge
-                            key={index}
-                            variant="outline"
-                            className="bg-red-50 border-red-200"
-                          >
-                            {item.condition}
-                          </Badge>
-                        ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-          {/* Risks */}
-          {resident.risks && resident.risks.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-500" />
-                  <span>Risk Factors</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {Array.isArray(resident.risks) &&
-                  typeof resident.risks[0] === "string"
-                    ? (resident.risks as string[]).map((risk, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-2 bg-amber-50 rounded-lg border border-amber-200"
-                        >
-                          <span>{risk}</span>
-                        </div>
-                      ))
-                    : (
-                        resident.risks as { risk: string; level?: string }[]
-                      ).map((item, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-2 bg-amber-50 rounded-lg border border-amber-200"
-                        >
-                          <span>{item.risk}</span>
-                          {item.level && (
-                            <Badge
-                              variant={
-                                item.level === "high"
-                                  ? "destructive"
-                                  : item.level === "medium"
-                                    ? "default"
-                                    : "secondary"
-                              }
-                              className="text-xs"
-                            >
-                              {item.level}
-                            </Badge>
-                          )}
-                        </div>
-                      ))}
+        {/* Medication Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('medication')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Pill className="w-6 h-6 text-green-600" />
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div>
+                  <h3 className="font-semibold">Medication</h3>
+                  <p className="text-sm text-muted-foreground">Prescriptions & schedules</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Dependencies */}
-          {resident.dependencies && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Activity className="w-5 h-5 text-blue-500" />
-                  <span>Care Dependencies</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {Array.isArray(resident.dependencies) ? (
-                  <div className="flex flex-wrap gap-2">
-                    {(resident.dependencies as string[]).map((dep, index) => (
-                      <Badge
-                        key={index}
-                        variant="outline"
-                        className="bg-blue-50 border-blue-200"
-                      >
-                        {dep}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {Object.entries(
-                      resident.dependencies as {
-                        mobility: string;
-                        eating: string;
-                        dressing: string;
-                        toileting: string;
-                      }
-                    ).map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200"
-                      >
-                        <span className="font-medium capitalize">{key}</span>
-                        <Badge
-                          variant={
-                            value === "Independent" ? "secondary" : "outline"
-                          }
-                          className="text-xs"
-                        >
-                          {value}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {/* Daily Care Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('daily-care')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Activity className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Daily Care</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {getDependenciesCount() > 0 ? `${getDependenciesCount()} dependencies` : "Care activities"}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Clinical Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('clinical')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <Heart className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Clinical</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {getHealthConditionsCount() > 0 || getRisksCount() > 0 
+                      ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
+                      : "Health information"
+                    }
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Incidents & Falls Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('incidents')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <TrendingDown className="w-6 h-6 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Incidents & Falls</h3>
+                  <p className="text-sm text-muted-foreground">Safety records</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Additional Info Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('additional')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <ClipboardList className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Additional Info</h3>
+                  <p className="text-sm text-muted-foreground">Notes & documents</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Appointments Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('appointments')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Calendar className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Appointments</h3>
+                  <p className="text-sm text-muted-foreground">Medical appointments</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Care File Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('care-file')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-teal-100 rounded-lg">
+                  <FileText className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Care File</h3>
+                  <p className="text-sm text-muted-foreground">Care plan & records</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Documents Card */}
+        <Card 
+          className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
+          onClick={() => handleCardClick('documents')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <Folder className="w-6 h-6 text-gray-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Documents</h3>
+                  <p className="text-sm text-muted-foreground">Files & attachments</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+
     </div>
   );
 }
