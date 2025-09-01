@@ -47,8 +47,8 @@ interface MedicationIntake {
   poppedOutAt?: number;
   resident: {
     imageUrl?: string;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
     roomNumber?: string;
   } | null;
   medication: {
@@ -86,12 +86,12 @@ export const createColumns = (
           <Avatar>
             <AvatarImage src={resident.imageUrl} />
             <AvatarFallback>
-              {resident.firstName.charAt(0)}
-              {resident.lastName.charAt(0)}
+              {resident.firstName?.charAt(0) || ''}
+              {resident.lastName?.charAt(0) || ''}
             </AvatarFallback>
           </Avatar>
           <p className="font-medium">
-            {resident.firstName} {resident.lastName}
+            {resident.firstName || ''} {resident.lastName || ''}
           </p>
           {/* <p className="text-xs text-muted-foreground">Room: {resident.roomNumber}</p> */}
         </div>

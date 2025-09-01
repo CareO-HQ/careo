@@ -192,7 +192,7 @@ export default defineSchema({
     .index("byPrimary", ["isPrimary"]),
 
   medication: defineTable({
-    residentId: v.id("residents"),
+    residentId: v.optional(v.string()),
     name: v.string(),
     strength: v.string(),
     strengthUnit: v.union(v.literal("mg"), v.literal("g")),
@@ -249,7 +249,7 @@ export default defineSchema({
   // Medication intake tracking
   medicationIntake: defineTable({
     medicationId: v.id("medication"),
-    residentId: v.id("residents"),
+    residentId: v.string(),
     scheduledTime: v.number(),
     poppedOutAt: v.optional(v.number()),
     poppedOutByUserId: v.optional(v.string()),
