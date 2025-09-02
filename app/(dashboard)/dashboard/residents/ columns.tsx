@@ -1,7 +1,7 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,68 +10,42 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-
-import { IconDotsVertical } from "@tabler/icons-react";
-import {
-  ChevronDown,
-  CircleQuestionMark,
-  FileQuestionIcon
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-
-export type Resident = {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  roomNumber?: string;
-  healthConditions?: string[] | { condition: string }[];
-  risks?: string[] | { risk: string; level?: "low" | "medium" | "high" }[];
-  dependencies?:
-    | string[]
-    | {
-        mobility: string;
-        eating: string;
-        dressing: string;
-        toileting: string;
-      };
-  phoneNumber?: string;
-  dateOfBirth: string;
-  admissionDate: string;
-  imageUrl: string;
-};
+import { Resident } from "@/types";
+import { IconDotsVertical } from "@tabler/icons-react";
+import { ColumnDef } from "@tanstack/react-table";
+import { ChevronDown, CircleQuestionMark } from "lucide-react";
+import { cn, getAge, getColorForBadge } from "@/lib/utils";
 
 export const columns: ColumnDef<Resident>[] = [
   {
-    accessorKey: "avatar",
-    header: "",
+    accessorKey: "details",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm"> Name </div>
+      );
+    },
     cell: ({ row }) => {
       const resident = row.original;
       const name = `${resident.firstName} ${resident.lastName}`;
       const initials =
         `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
-
+      const age = getAge(resident.dateOfBirth);
       return (
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={resident.imageUrl} alt={name} />
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-      );
-    }
-  },
-  {
-    accessorKey: "details",
-    header: "Name",
-    cell: ({ row }) => {
-      const resident = row.original;
-      return (
-        <div>
+        <div className="flex items-center gap-2">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={resident.imageUrl} alt={name} />
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
           <div className="font-medium">
-            {resident.firstName} {resident.lastName}
+            <p>
+              {resident.firstName} {resident.lastName}
+            </p>{" "}
+            <span className="text-muted-foreground">{age} years old</span>
           </div>
         </div>
       );
@@ -79,45 +53,76 @@ export const columns: ColumnDef<Resident>[] = [
   },
   {
     accessorKey: "roomNumber",
-    header: "Room No",
-    cell: ({ row }) => row.original.roomNumber || "-"
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm"> Room No </div>
+      );
+    },
+    cell: ({ row }) => {
+      return (
+        <p className="text-muted-foreground">
+          {row.original.roomNumber || "-"}
+        </p>
+      );
+    }
   },
   {
     accessorKey: "healthConditions",
-    header: "Health Conditions",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Health Conditions
+        </div>
+      );
+    },
     cell: ({ row }) => {
       const conditions = row.original.healthConditions;
       console.log(conditions);
       if (!conditions || conditions.length === 0) {
-        return <Badge variant="secondary">No conditions</Badge>;
+        return <Badge variant="table">No conditions</Badge>;
       }
 
       if (conditions.length > 2) {
+        const extraConditions = conditions.length - 2;
         return (
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge variant="outline">
-                <p className="flex items-center gap-2 group">
-                  {conditions.length} conditions
-                  <CircleQuestionMark className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
-                </p>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide text-ellipsis">
+            {conditions.slice(0, 2).map((condition, index: number) => (
+              <Badge
+                key={index}
+                variant="table"
+                className={getColorForBadge(condition.toString())}
+              >
+                {condition.toString()}
               </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="flex flex-row gap-2">
-              {conditions.map((condition, index: number) => (
-                <Badge key={index} variant="secondary">
-                  {condition.toString()}
-                </Badge>
-              ))}
-            </TooltipContent>
-          </Tooltip>
+            ))}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="table">+{extraConditions}</Badge>
+              </TooltipTrigger>
+              <TooltipContent className="bg-white border flex flex-row gap-2">
+                {conditions.slice(2).map((condition, index: number) => (
+                  <Badge
+                    key={index}
+                    variant="table"
+                    className={getColorForBadge(condition.toString())}
+                  >
+                    {condition.toString()}
+                  </Badge>
+                ))}
+              </TooltipContent>
+            </Tooltip>
+          </div>
         );
       }
 
       return (
-        <div className="flex gap-2 max-w-48 overflow-x-auto scrollbar-hide text-ellipsis">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide text-ellipsis">
           {conditions?.map((condition, index: number) => (
-            <Badge key={index} variant="outline">
+            <Badge
+              key={index}
+              variant="table"
+              className={getColorForBadge(condition.toString())}
+            >
               {condition.toString()}
             </Badge>
           ))}
@@ -127,31 +132,57 @@ export const columns: ColumnDef<Resident>[] = [
   },
   {
     accessorKey: "risks",
-    header: "Risks",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm"> Risks </div>
+      );
+    },
     cell: ({ row }) => {
-      const risks = row.original.risks;
+      const risks = row.original.risks as { risk: string; level?: string }[];
       if (!risks || risks.length === 0) {
         return <Badge variant="secondary">No risks</Badge>;
       }
 
-      console.log("RISKS", risks);
+      // Get the higher level risk
+      const higherLevelRisk = risks.reduce((max, risk) => {
+        return risk.level === "high" ? risk : max;
+      }, risks[0]);
 
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="outline">
-              <p className="flex items-center gap-2 group">
-                {risks.length} risks
-                <CircleQuestionMark className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+            <Badge
+              variant="table"
+              className={cn(
+                higherLevelRisk.level === "high" &&
+                  "bg-red-50 text-red-700 border-red-300",
+                higherLevelRisk.level === "medium" &&
+                  "bg-yellow-50 text-yellow-700 border-yellow-300",
+                higherLevelRisk.level === "low" &&
+                  "bg-blue-50 text-blue-700 border-blue-300"
+              )}
+            >
+              <p className="flex items-center gap-2">
+                {risks.length} {risks.length > 1 ? "risks" : "risk"}
               </p>
             </Badge>
           </TooltipTrigger>
-          <TooltipContent className="flex flex-row gap-2">
+          <TooltipContent className="flex flex-col gap-2 bg-white border">
             {(risks as { risk: string; level?: string }[]).map(
               (riskItem, index: number) => (
-                <Badge key={index} variant="secondary">
-                  {riskItem.risk} {riskItem.level && `(${riskItem.level})`}
-                </Badge>
+                <div
+                  key={index}
+                  className="flex flex-row justify-between items-center text-primary w-full gap-4"
+                >
+                  <p className="text-primary font-medium">{riskItem.risk}</p>
+                  <p className="text-muted-foreground">
+                    {/* first letter uppercase */}
+                    {riskItem.level
+                      ? riskItem.level.charAt(0).toUpperCase() +
+                        riskItem.level.slice(1)
+                      : "Low"}
+                  </p>
+                </div>
               )
             )}
           </TooltipContent>
@@ -161,7 +192,14 @@ export const columns: ColumnDef<Resident>[] = [
   },
   {
     accessorKey: "dependencies",
-    header: "Dependency",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          {" "}
+          Dependency{" "}
+        </div>
+      );
+    },
     cell: ({ row }) => {
       const deps = row.original.dependencies;
 
@@ -278,7 +316,13 @@ export const columns: ColumnDef<Resident>[] = [
   },
   {
     accessorKey: "medication",
-    header: "Next Scheduled Medication",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Next Scheduled Medication
+        </div>
+      );
+    },
     cell: () => "-" // Leave blank as requested
   },
   {
