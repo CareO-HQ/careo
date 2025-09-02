@@ -195,8 +195,7 @@ export const columns: ColumnDef<Resident>[] = [
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm">
-          {" "}
-          Dependency{" "}
+          Dependencies
         </div>
       );
     },
@@ -204,54 +203,37 @@ export const columns: ColumnDef<Resident>[] = [
       const deps = row.original.dependencies;
 
       if (!deps) {
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 px-2 text-muted-foreground"
-              >
-                No dependencies
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuItem disabled>
-                No dependencies recorded
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
+        return <Badge variant="outline">No dependencies</Badge>;
       }
 
       if (Array.isArray(deps)) {
         const depsList = deps as string[];
-        const displayText =
-          depsList.length > 2
-            ? `${depsList.slice(0, 2).join(", ")}... (+${depsList.length - 2})`
-            : depsList.join(", ");
+
+        if (depsList.length === 0) {
+          return <Badge variant="outline">No dependencies</Badge>;
+        }
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 px-2">
-                {displayText}
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64">
-              {depsList.map((dep, index) => (
-                <DropdownMenuItem
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="table">
+                <p className="flex items-center gap-2">
+                  {depsList.length}{" "}
+                  {depsList.length > 1 ? "dependencies" : "dependency"}
+                </p>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="flex flex-col gap-2 bg-white border">
+              {depsList.map((dep, index: number) => (
+                <div
                   key={index}
-                  className="flex items-center gap-2"
+                  className="flex flex-row justify-between items-center text-primary w-full gap-4"
                 >
-                  <Badge variant="outline" className="text-xs">
-                    {dep}
-                  </Badge>
-                </DropdownMenuItem>
+                  <p className="text-primary font-medium">{dep}</p>
+                </div>
               ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </TooltipContent>
+          </Tooltip>
         );
       } else if (typeof deps === "object") {
         const depObj = deps as {
@@ -260,54 +242,39 @@ export const columns: ColumnDef<Resident>[] = [
           dressing: string;
           toileting: string;
         };
+
         const activeDeps = Object.entries(depObj).filter(
           ([, value]) => value && value !== "Independent"
         );
-        const displayText =
-          activeDeps.length > 0
-            ? `${activeDeps.length} dependencies`
-            : "Independent";
 
-        const getDependencyColor = (level: string) => {
-          switch (level) {
-            case "Fully Dependent":
-              return "destructive";
-            case "Assistance Needed":
-              return "default";
-            case "Supervision Needed":
-              return "secondary";
-            case "Independent":
-              return "outline";
-            default:
-              return "outline";
-          }
-        };
+        if (activeDeps.length === 0) {
+          return <Badge variant="secondary">Independent</Badge>;
+        }
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 px-2">
-                {displayText}
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64">
-              {Object.entries(depObj).map(([category, level]) => (
-                <DropdownMenuItem
-                  key={category}
-                  className="flex items-center justify-between gap-2"
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="table" className="text-primary">
+                <p className="flex items-center gap-2">
+                  {activeDeps.length}{" "}
+                  {activeDeps.length > 1 ? "dependencies" : "dependency"}
+                </p>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="flex flex-col gap-2 bg-white border">
+              {activeDeps.map(([category, level], index: number) => (
+                <div
+                  key={index}
+                  className="flex flex-row justify-between items-center text-primary w-full gap-4"
                 >
-                  <span className="capitalize font-medium">{category}</span>
-                  <Badge
-                    variant={getDependencyColor(level)}
-                    className="text-xs"
-                  >
-                    {level}
-                  </Badge>
-                </DropdownMenuItem>
+                  <p className="text-primary font-medium capitalize">
+                    {category}
+                  </p>
+                  <p className="text-muted-foreground">{level}</p>
+                </div>
               ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </TooltipContent>
+          </Tooltip>
         );
       }
 
