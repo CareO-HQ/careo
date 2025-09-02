@@ -79,11 +79,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Resident Profile</h1>
+            <h1 className="text-2xl font-bold">{fullName}</h1>
             <p className="text-muted-foreground">
               Detailed information about {fullName}
             </p>

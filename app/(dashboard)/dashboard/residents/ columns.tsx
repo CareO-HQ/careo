@@ -12,8 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { IconDotsVertical } from "@tabler/icons-react";
-import { ChevronDown } from "lucide-react";
+import {
+  ChevronDown,
+  CircleQuestionMark,
+  FileQuestionIcon
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export type Resident = {
   _id: string;
@@ -56,7 +65,7 @@ export const columns: ColumnDef<Resident>[] = [
   },
   {
     accessorKey: "details",
-    header: "Details",
+    header: "Name",
     cell: ({ row }) => {
       const resident = row.original;
       return (
@@ -70,60 +79,49 @@ export const columns: ColumnDef<Resident>[] = [
   },
   {
     accessorKey: "roomNumber",
-    header: "Unit/Room No",
+    header: "Room No",
     cell: ({ row }) => row.original.roomNumber || "-"
   },
   {
     accessorKey: "healthConditions",
-    header: "Health Condition",
+    header: "Health Conditions",
     cell: ({ row }) => {
       const conditions = row.original.healthConditions;
+      console.log(conditions);
       if (!conditions || conditions.length === 0) {
+        return <Badge variant="secondary">No conditions</Badge>;
+      }
+
+      if (conditions.length > 2) {
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 px-2 text-muted-foreground"
-              >
-                No conditions
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuItem disabled>
-                No health conditions recorded
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      }
-      let conditionsList: string[] = [];
-      if (Array.isArray(conditions) && typeof conditions[0] === "string") {
-        conditionsList = conditions as string[];
-      } else if (Array.isArray(conditions)) {
-        conditionsList = (conditions as { condition: string }[]).map(
-          (c) => c.condition
-        );
-      }
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 px-2">
-              Health Conditions
-              <ChevronDown className="ml-2 h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            {conditionsList.map((condition, index) => (
-              <DropdownMenuItem key={index} className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {condition}
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="outline">
+                <p className="flex items-center gap-2 group">
+                  {conditions.length} conditions
+                  <CircleQuestionMark className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                </p>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="flex flex-row gap-2">
+              {conditions.map((condition, index: number) => (
+                <Badge key={index} variant="secondary">
+                  {condition.toString()}
                 </Badge>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              ))}
+            </TooltipContent>
+          </Tooltip>
+        );
+      }
+
+      return (
+        <div className="flex gap-2 max-w-48 overflow-x-auto scrollbar-hide text-ellipsis">
+          {conditions?.map((condition, index: number) => (
+            <Badge key={index} variant="outline">
+              {condition.toString()}
+            </Badge>
+          ))}
+        </div>
       );
     }
   },
@@ -132,107 +130,32 @@ export const columns: ColumnDef<Resident>[] = [
     header: "Risks",
     cell: ({ row }) => {
       const risks = row.original.risks;
-
       if (!risks || risks.length === 0) {
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 px-2 text-muted-foreground"
-              >
-                No risks
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuItem disabled>No risks recorded</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
+        return <Badge variant="secondary">No risks</Badge>;
       }
 
-      let risksList: { risk: string; level?: string }[] = [];
-      if (Array.isArray(risks) && typeof risks[0] === "string") {
-        risksList = (risks as string[]).map((r) => ({ risk: r }));
-      } else if (Array.isArray(risks)) {
-        risksList = risks as {
-          risk: string;
-          level?: "low" | "medium" | "high";
-        }[];
-      }
-
-      const getRiskColor = (level?: string) => {
-        switch (level) {
-          case "high":
-            return "destructive";
-          case "medium":
-            return "default";
-          case "low":
-            return "secondary";
-          default:
-            return "secondary";
-        }
-      };
-
-      // Get the highest risk level to color the button
-      const getHighestRiskLevel = () => {
-        const levels = risksList.map((r) => r.level).filter(Boolean);
-        if (levels.includes("high")) return "high";
-        if (levels.includes("medium")) return "medium";
-        if (levels.includes("low")) return "low";
-        return undefined;
-      };
-
-      const highestRiskLevel = getHighestRiskLevel();
-      const getButtonProps = () => {
-        switch (highestRiskLevel) {
-          case "high":
-            return { variant: "destructive" as const, className: "h-8 px-2" };
-          case "medium":
-            return {
-              variant: "outline" as const,
-              className:
-                "h-8 px-2 border-orange-500 text-orange-600 hover:bg-orange-50"
-            };
-          case "low":
-            return {
-              variant: "outline" as const,
-              className:
-                "h-8 px-2 border-blue-500 text-blue-600 hover:bg-blue-50"
-            };
-          default:
-            return { variant: "ghost" as const, className: "h-8 px-2" };
-        }
-      };
-
-      const buttonProps = getButtonProps();
+      console.log("RISKS", risks);
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant={buttonProps.variant}
-              className={buttonProps.className}
-            >
-              Risks
-              <ChevronDown className="ml-2 h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            {risksList.map((riskItem, index) => (
-              <DropdownMenuItem key={index} className="flex items-center gap-2">
-                <Badge
-                  variant={getRiskColor(riskItem.level)}
-                  className="text-xs"
-                >
-                  {riskItem.risk}
-                  {riskItem.level && ` (${riskItem.level})`}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline">
+              <p className="flex items-center gap-2 group">
+                {risks.length} risks
+                <CircleQuestionMark className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+              </p>
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="flex flex-row gap-2">
+            {(risks as { risk: string; level?: string }[]).map(
+              (riskItem, index: number) => (
+                <Badge key={index} variant="secondary">
+                  {riskItem.risk} {riskItem.level && `(${riskItem.level})`}
                 </Badge>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              )
+            )}
+          </TooltipContent>
+        </Tooltip>
       );
     }
   },
