@@ -1,3 +1,4 @@
+import { api } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -71,6 +72,7 @@ export const create = mutation({
     teamId: v.string(),
     createdBy: v.string()
   },
+  returns: v.id("residents"),
   handler: async (ctx, args) => {
     const now = Date.now();
 
@@ -106,6 +108,7 @@ export const createEmergencyContact = mutation({
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string()
   },
+  returns: v.id("emergencyContacts"),
   handler: async (ctx, args) => {
     const now = Date.now();
 
@@ -128,6 +131,7 @@ export const getByOrganization = query({
   args: {
     organizationId: v.string()
   },
+  returns: v.array(v.any()),
   handler: async (ctx, args) => {
     const residents = await ctx.db
       .query("residents")
@@ -145,6 +149,7 @@ export const getById = query({
   args: {
     residentId: v.id("residents")
   },
+  returns: v.union(v.any(), v.null()),
   handler: async (ctx, args) => {
     const resident = await ctx.db.get(args.residentId);
     if (!resident) return null;
@@ -165,12 +170,26 @@ export const getByTeamId = query({
   args: {
     teamId: v.string()
   },
-  handler: async (ctx, args) => {
+  returns: v.array(v.any()),
+  handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     const residents = await ctx.db
       .query("residents")
       .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
       .collect();
-    return residents;
+
+    // Process residents with images
+    const results: Array<Record<string, unknown>> = [];
+    for (const resident of residents) {
+      const residentImage: { url: string | null; storageId: string } | null =
+        await ctx.runQuery(api.files.image.getResidentImageByResidentId, {
+          residentId: resident._id as string
+        });
+      results.push({
+        ...resident,
+        imageUrl: residentImage?.url || "No image"
+      });
+    }
+
+    return results;
   }
 });
-
