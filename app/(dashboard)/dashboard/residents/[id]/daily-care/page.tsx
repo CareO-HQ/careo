@@ -47,6 +47,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [selectedActivity, setSelectedActivity] = React.useState("");
   const [selectedStatus, setSelectedStatus] = React.useState("");
   const [selectedTime, setSelectedTime] = React.useState("");
+  const [selectedStaff, setSelectedStaff] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
   // Get personal care task statuses for today
@@ -70,6 +71,13 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     { key: "not_present", label: "Not present" },
     { key: "na", label: "N/A" },
   ];
+  const staffOptions = [
+    { key: "john_smith", label: "John Smith" },
+    { key: "sarah_jones", label: "Sarah Jones" },
+    { key: "mike_wilson", label: "Mike Wilson" },
+    { key: "emma_brown", label: "Emma Brown" },
+    { key: "david_taylor", label: "David Taylor" },
+  ];
 
   // Handle form submission
   const handleSubmit = async () => {
@@ -91,6 +99,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       setSelectedActivity("");
       setSelectedStatus("");
       setSelectedTime("");
+      setSelectedStaff("");
       setNotes("");
     } catch (error) {
       console.error("Error saving personal care task:", error);
@@ -190,79 +199,85 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <span>Today&apos;s Personal Care</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-6">
-            {/* Left Box - Activity Selection and Time */}
-            <div className="p-4 border rounded-lg space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Select Activity</Label>
-                <Select value={selectedActivity} onValueChange={setSelectedActivity}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose activity..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activityOptions.map((activity) => (
-                      <SelectItem key={activity.key} value={activity.key}>
-                        {activity.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Status</Label>
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose status..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((status) => (
-                      <SelectItem key={status.key} value={status.key}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Time</Label>
-                <Input
-                  type="time"
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                  placeholder="Select time"
-                />
-              </div>
-              
-              <Button 
-                onClick={handleSubmit}
-                disabled={!selectedActivity || !selectedStatus || !selectedTime}
-                className="w-full"
-              >
-                Save Activity
-              </Button>
+        <CardContent className="p-4">
+          <div className="flex items-end gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Activity</Label>
+              <Select value={selectedActivity} onValueChange={setSelectedActivity}>
+                <SelectTrigger className="h-8 w-32">
+                  <SelectValue placeholder="Choose..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {activityOptions.map((activity) => (
+                    <SelectItem key={activity.key} value={activity.key}>
+                      {activity.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-
-            {/* Right Box - Notes and Save */}
-            <div className="p-4 border rounded-lg space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Add Notes</Label>
-                <Input
-                  placeholder="Enter notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-              <Button 
-                onClick={handleSubmit}
-                disabled={!selectedActivity || !selectedStatus || !selectedTime}
-                className="w-full"
-              >
-                Save Care Activity
-              </Button>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Status</Label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="h-8 w-28">
+                  <SelectValue placeholder="Status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status.key} value={status.key}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Time</Label>
+              <Input
+                type="time"
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
+                placeholder="Select time"
+                className="h-8 w-24"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Staff</Label>
+              <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                <SelectTrigger className="h-8 w-32">
+                  <SelectValue placeholder="Staff..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffOptions.map((staff) => (
+                    <SelectItem key={staff.key} value={staff.key}>
+                      {staff.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs font-medium">Notes</Label>
+              <Input
+                placeholder="Enter notes..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="h-8"
+              />
+            </div>
+            
+            <Button 
+              onClick={handleSubmit}
+              disabled={!selectedActivity || !selectedStatus || !selectedTime}
+              className="h-8 text-xs px-4"
+              size="sm"
+            >
+              Save
+            </Button>
           </div>
         </CardContent>
       </Card>

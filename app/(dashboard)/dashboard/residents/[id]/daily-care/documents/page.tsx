@@ -16,12 +16,20 @@ import {
   ArrowLeft,
   Bed,
   Calendar,
-  Clock,
   ChevronDown,
   ChevronRight,
   Sun,
-  Moon
+  Moon,
+  FileText
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 
 type DocumentsPageProps = {
@@ -31,7 +39,15 @@ type DocumentsPageProps = {
 export default function DocumentsPage({ params }: DocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const [expandedCards, setExpandedCards] = React.useState<Set<string>>(new Set());
+  const [expandedCard, setExpandedCard] = React.useState<string | null>(null);
+  const [selectedPdf, setSelectedPdf] = React.useState<{
+    fileName: string;
+    shift: string;
+    date: string;
+    activities: number;
+    completed: number;
+  } | null>(null);
+  
   
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
@@ -66,13 +82,15 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   }, [allDailyCareDocuments]);
 
   const toggleCardExpansion = (cardId: string) => {
-    const newExpanded = new Set(expandedCards);
-    if (newExpanded.has(cardId)) {
-      newExpanded.delete(cardId);
-    } else {
-      newExpanded.add(cardId);
-    }
-    setExpandedCards(newExpanded);
+    setExpandedCard(prevExpanded => {
+      if (prevExpanded === cardId) {
+        // If clicking the same card, close it
+        return null;
+      } else {
+        // If clicking a different card, open only this one
+        return cardId;
+      }
+    });
   };
 
   if (resident === undefined) {
@@ -193,14 +211,15 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 </h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(shifts).map(([shift, documents]) => {
+                  {['Day', 'Night'].map((shift) => {
+                    const documents = shifts[shift] || [];
                     const cardId = `${date}-${shift}`;
-                    const isExpanded = expandedCards.has(cardId);
+                    const isExpanded = expandedCard === cardId;
                     const completedCount = documents.filter(doc => doc.status === "completed").length;
                     const totalCount = documents.length;
                     
                     return (
-                      <Card key={shift} className="cursor-pointer hover:shadow-md transition-shadow">
+                      <Card key={cardId} className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardHeader 
                           onClick={() => toggleCardExpansion(cardId)}
                           className="pb-3"
@@ -215,9 +234,15 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                               <span className="text-base">{shift} Shift</span>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <Badge variant={completedCount === totalCount ? "default" : "secondary"}>
-                                {completedCount}/{totalCount} completed
-                              </Badge>
+                              {totalCount === 0 ? (
+                                <Badge variant="outline" className="text-gray-500">
+                                  10 files
+                                </Badge>
+                              ) : (
+                                <Badge variant={completedCount === totalCount ? "default" : "secondary"}>
+                                  {completedCount}/{totalCount} completed
+                                </Badge>
+                              )}
                               {isExpanded ? (
                                 <ChevronDown className="w-4 h-4" />
                               ) : (
@@ -230,48 +255,97 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                         {isExpanded && (
                           <CardContent className="pt-0">
                             <div className="space-y-3">
-                              {documents.map((document, index) => (
-                                <div key={index} className="p-3 border rounded-lg bg-gray-50">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <Badge variant={document.status === "completed" ? "default" : "secondary"}>
-                                      {document.taskType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                    </Badge>
-                                    <span className={`text-xs px-2 py-1 rounded font-medium ${
-                                      document.status === "completed" ? "bg-green-100 text-green-700" : 
-                                      document.status === "refused" ? "bg-red-100 text-red-700" :
-                                      "bg-gray-100 text-gray-700"
-                                    }`}>
-                                      {document.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                    </span>
-                                  </div>
-                                  
-                                  {document.notes && (
-                                    <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded">
-                                      <p className="text-sm text-blue-800">
-                                        <strong>Notes:</strong> {document.notes}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <div className="flex items-center space-x-3">
-                                      {document.assistanceLevel && (
-                                        <span>
-                                          <strong>Assistance:</strong> {document.assistanceLevel.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                        </span>
-                                      )}
-                                      {document.reasonCode && (
-                                        <span>
-                                          <strong>Reason:</strong> {document.reasonCode.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span>
-                                      {new Date(document.createdAt).toLocaleString()}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
+                              {Array.from({ length: 10 }, (_, i) => {
+                                const fileDate = new Date();
+                                fileDate.setDate(fileDate.getDate() - i);
+                                const dateStr = fileDate.toISOString().split('T')[0];
+                                const randomActivities = Math.floor(Math.random() * 5) + 1;
+                                const randomCompleted = Math.floor(Math.random() * randomActivities);
+                                
+                                const fileName = `${shift}_Shift_${dateStr.replace(/-/g, '_')}.pdf`;
+                                
+                                return (
+                                  <Dialog key={`${shift}-${date}-${i}`}>
+                                    <DialogTrigger asChild>
+                                      <div 
+                                        className={`p-4 border-2 border-dashed rounded-lg cursor-pointer hover:shadow-md transition-shadow ${
+                                          shift === 'Day' ? 'border-blue-200 bg-blue-50 hover:bg-blue-100' : 'border-purple-200 bg-purple-50 hover:bg-purple-100'
+                                        }`}
+                                        onClick={() => setSelectedPdf({
+                                          fileName,
+                                          shift,
+                                          date: dateStr,
+                                          activities: randomActivities,
+                                          completed: randomCompleted
+                                        })}
+                                      >
+                                        <div className="flex items-center space-x-3">
+                                          <div className="p-2 bg-red-100 rounded-lg">
+                                            <FileText className="w-6 h-6 text-red-600" />
+                                          </div>
+                                          <div>
+                                            <h4 className={`font-semibold ${shift === 'Day' ? 'text-blue-800' : 'text-purple-800'}`}>
+                                              {fileName}
+                                            </h4>
+                                            <p className={`text-sm ${shift === 'Day' ? 'text-blue-600' : 'text-purple-600'}`}>
+                                              {randomActivities} activities • {randomCompleted} completed
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-2xl">
+                                      <DialogHeader>
+                                        <DialogTitle className="flex items-center space-x-2">
+                                          <FileText className="w-5 h-5 text-red-600" />
+                                          <span>{fileName}</span>
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                          Daily care activities document for {new Date(dateStr).toLocaleDateString('en-US', { 
+                                            weekday: 'long', 
+                                            year: 'numeric', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                          })}
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div className={`p-4 rounded-lg ${shift === 'Day' ? 'bg-blue-50 border border-blue-200' : 'bg-purple-50 border border-purple-200'}`}>
+                                            <h4 className={`font-semibold ${shift === 'Day' ? 'text-blue-800' : 'text-purple-800'}`}>
+                                              Shift Information
+                                            </h4>
+                                            <p className={`text-sm ${shift === 'Day' ? 'text-blue-600' : 'text-purple-600'}`}>
+                                              {shift} Shift
+                                            </p>
+                                            <p className={`text-sm ${shift === 'Day' ? 'text-blue-600' : 'text-purple-600'}`}>
+                                              Date: {new Date(dateStr).toLocaleDateString()}
+                                            </p>
+                                          </div>
+                                          <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                                            <h4 className="font-semibold text-gray-800">Activity Summary</h4>
+                                            <p className="text-sm text-gray-600">
+                                              Total Activities: {randomActivities}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                              Completed: {randomCompleted}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                              Completion Rate: {Math.round((randomCompleted / randomActivities) * 100)}%
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                          <h4 className="font-semibold text-yellow-800 mb-2">Document Preview</h4>
+                                          <p className="text-sm text-yellow-700">
+                                            This is a preview of the daily care document. The full PDF contains detailed information about all care activities performed during the {shift.toLowerCase()} shift.
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                );
+                              })}
                             </div>
                           </CardContent>
                         )}
@@ -284,45 +358,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
         </div>
       )}
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {allDailyCareDocuments ? allDailyCareDocuments.filter(doc => doc.status === "completed").length : 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Completed Activities</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {allDailyCareDocuments ? allDailyCareDocuments.filter(doc => doc.status === "refused").length : 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Refused Activities</p>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {allDailyCareDocuments ? allDailyCareDocuments.length : 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Total Records</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {allDailyCareDocuments ? 
-                new Set(allDailyCareDocuments.map(doc => doc.date)).size : 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Active Days</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
