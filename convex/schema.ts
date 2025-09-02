@@ -1,6 +1,49 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+const TaskStatus = v.union(
+  v.literal("pending"),
+  v.literal("in_progress"),
+  v.literal("completed"),
+  v.literal("partially_completed"),
+  v.literal("not_required"),
+  v.literal("refused"),
+  v.literal("unable"),
+  v.literal("missed"),
+);
+
+const Shift = v.union(v.literal("AM"), v.literal("PM"), v.literal("Night"));
+
+const AssistanceLevel = v.union(
+  v.literal("independent"),
+  v.literal("prompting"),
+  v.literal("supervision"),
+  v.literal("one_carer"),
+  v.literal("two_carers"),
+  v.literal("hoist_or_mechanical"),
+);
+
+const ReasonCode = v.union(
+  v.literal("resident_refused"),
+  v.literal("asleep"),
+  v.literal("off_site"),
+  v.literal("hospital"),
+  v.literal("end_of_life_care"),
+  v.literal("clinical_hold"),
+  v.literal("behavioural_risk"),
+  v.literal("equipment_fault"),
+  v.literal("unsafe_to_proceed"),
+  v.literal("not_in_care_plan"),
+  v.literal("other"),
+);
+
+const Issue = v.object({
+  code: v.string(),
+  description: v.optional(v.string()),
+  severity: v.optional(v.union(v.literal("low"), v.literal("moderate"), v.literal("high"))),
+  bodyMapRef: v.optional(v.string()),
+});
+
 export default defineSchema({
   users: defineTable({
     // Better Auth user data
@@ -278,5 +321,70 @@ export default defineSchema({
     .index("byTeamId", ["teamId"])
     .index("byOrganizationId", ["organizationId"])
     .index("byPoppedOutBy", ["poppedOutByUserId"])
-    .index("byStateModifiedBy", ["stateModifiedByUserId"])
+    .index("byStateModifiedBy", ["stateModifiedByUserId"]),
+
+  // Day-level document
+  personalCareDaily: defineTable({
+    residentId: v.id("residents"),
+    date: v.string(), // "YYYY-MM-DD"
+    shift: v.optional(Shift), // if you log per shift
+
+    status: v.union(
+      v.literal("open"),
+      v.literal("partial"),
+      v.literal("complete"),
+      v.literal("cancelled"),
+    ),
+
+    exceptions: v.optional(
+      v.array(
+        v.object({
+          code: ReasonCode,
+          note: v.optional(v.string()),
+          recordedAt: v.string(), // ISO
+          recordedBy: v.id("users"),
+        })
+      )
+    ),
+
+    createdBy: v.id("users"),
+    createdAt: v.number(), // Date.now()
+    updatedBy: v.optional(v.id("users")),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_resident_date", ["residentId", "date"])
+    .index("by_date", ["date"]),
+
+  // Append-only task "events" (recommended for concurrency & audit)
+  personalCareTaskEvents: defineTable({
+    dailyId: v.id("personalCareDaily"),
+    taskType: v.string(),          // "morning_wash" | "dressed" | "nail_care" | "incontinence" | "hair_brushed" | "bedrails"
+    status: TaskStatus,
+
+    // common fields
+    shift: v.optional(Shift),
+    scheduledFor: v.optional(v.string()),
+    startedAt: v.optional(v.string()),
+    completedAt: v.optional(v.string()),
+    performedBy: v.id("users"),
+    coWorkers: v.optional(v.array(v.id("users"))),
+    assistanceLevel: v.optional(AssistanceLevel),
+    reasonCode: v.optional(ReasonCode),
+    reasonNote: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    attachments: v.optional(v.array(v.id("files"))),
+    links: v.optional(
+      v.object({
+        bmEntryId: v.optional(v.id("bmEntries")),
+        woundEntryId: v.optional(v.id("wounds")),
+        incidentId: v.optional(v.id("incidents")),
+      })
+    ),
+    issues: v.optional(v.array(Issue)),
+
+    // type-specific payload (keep flexible)
+    payload: v.optional(v.any()),
+
+    createdAt: v.number(), // Date.now()
+  }).index("by_daily", ["dailyId"]),
 });

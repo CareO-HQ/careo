@@ -1,10 +1,9 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -12,16 +11,19 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ArrowLeft,
   Activity,
   User,
-  Utensils,
-  Shirt,
-  Bath,
   Bed,
   Home
 } from "lucide-react";
@@ -38,16 +40,62 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     residentId: id as Id<"residents">
   });
 
-  const [personalCare, setPersonalCare] = React.useState({
-    morningWash: false,
-    dressed: false,
-    nailCare: false,
-    incontinence: false,
-    hairBrushed: false,
-    bedrails: false
+  // Get today's date
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+  // State variables
+  const [selectedActivity, setSelectedActivity] = React.useState("");
+  const [selectedStatus, setSelectedStatus] = React.useState("");
+  const [selectedTime, setSelectedTime] = React.useState("");
+  const [notes, setNotes] = React.useState("");
+
+  // Get personal care task statuses for today
+  const personalCareStatuses = useQuery(api.personalCare.getPersonalCareTaskStatuses, {
+    residentId: id as Id<"residents">,
+    date: today,
   });
 
-  const [extraData, setExtraData] = React.useState("");
+  // Mutations
+  const updatePersonalCareTask = useMutation(api.personalCare.updatePersonalCareTask);
+
+  // Define activity options
+  const activityOptions = [
+    { key: "bath", label: "Bath" },
+    { key: "dressed", label: "Dressed" },
+    { key: "brushed", label: "Brushed" },
+  ];
+  const statusOptions = [
+    { key: "done", label: "Done" },
+    { key: "refused", label: "Refused" },
+    { key: "not_present", label: "Not present" },
+    { key: "na", label: "N/A" },
+  ];
+
+  // Handle form submission
+  const handleSubmit = async () => {
+    if (!selectedActivity || !selectedStatus || !selectedTime) return;
+    
+    try {
+      const status = selectedStatus === "done" ? "completed" : "pending";
+      
+      await updatePersonalCareTask({
+        residentId: id as Id<"residents">,
+        date: today,
+        taskType: selectedActivity,
+        status,
+        timePeriod: "morning" as "morning" | "afternoon" | "evening" | "night",
+        notes: notes || undefined,
+      });
+      
+      // Clear form
+      setSelectedActivity("");
+      setSelectedStatus("");
+      setSelectedTime("");
+      setNotes("");
+    } catch (error) {
+      console.error("Error saving personal care task:", error);
+    }
+  };
 
   if (resident === undefined) {
     return (
@@ -83,36 +131,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   const fullName = `${resident.firstName} ${resident.lastName}`;
 
-  const getDependencyIcon = (activity: string) => {
-    switch (activity.toLowerCase()) {
-      case 'mobility':
-        return User;
-      case 'eating':
-        return Utensils;
-      case 'dressing':
-        return Shirt;
-      case 'toileting':
-        return Bath;
-      default:
-        return Activity;
-    }
-  };
-
-  const getDependencyColor = (level: string) => {
-    switch (level) {
-      case 'Independent':
-        return { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700' };
-      case 'Supervision Needed':
-        return { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' };
-      case 'Assistance Needed':
-        return { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' };
-      case 'Fully Dependent':
-        return { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' };
-      default:
-        return { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' };
-    }
-  };
-
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -145,6 +163,14 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               <p className="text-muted-foreground">Care activities & dependencies for {fullName}</p>
             </div>
           </div>
+          <Button 
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/daily-care/documents`)}
+            className="flex items-center space-x-2"
+          >
+            <Bed className="w-4 h-4" />
+            <span>Show All Documents</span>
+          </Button>
         </div>
         <Button 
           variant="outline" 
@@ -165,108 +191,81 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Morning Wash */}
-            <div className="flex items-center space-x-2 p-3 border rounded-lg">
-              <Checkbox 
-                id="morningWash"
-                checked={personalCare.morningWash}
-                onCheckedChange={(checked) => 
-                  setPersonalCare(prev => ({ ...prev, morningWash: !!checked }))
-                }
-              />
-              <Label htmlFor="morningWash" className="font-medium cursor-pointer">
-                Morning Wash
-              </Label>
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left Box - Activity Selection and Time */}
+            <div className="p-4 border rounded-lg space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Select Activity</Label>
+                <Select value={selectedActivity} onValueChange={setSelectedActivity}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose activity..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activityOptions.map((activity) => (
+                      <SelectItem key={activity.key} value={activity.key}>
+                        {activity.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Status</Label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status.key} value={status.key}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Time</Label>
+                <Input
+                  type="time"
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                  placeholder="Select time"
+                />
+              </div>
+              
+              <Button 
+                onClick={handleSubmit}
+                disabled={!selectedActivity || !selectedStatus || !selectedTime}
+                className="w-full"
+              >
+                Save Activity
+              </Button>
             </div>
 
-            {/* Dressed */}
-            <div className="flex items-center space-x-2 p-3 border rounded-lg">
-              <Checkbox 
-                id="dressed"
-                checked={personalCare.dressed}
-                onCheckedChange={(checked) => 
-                  setPersonalCare(prev => ({ ...prev, dressed: !!checked }))
-                }
-              />
-              <Label htmlFor="dressed" className="font-medium cursor-pointer">
-                Dressed
-              </Label>
+            {/* Right Box - Notes and Save */}
+            <div className="p-4 border rounded-lg space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Add Notes</Label>
+                <Input
+                  placeholder="Enter notes..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+              <Button 
+                onClick={handleSubmit}
+                disabled={!selectedActivity || !selectedStatus || !selectedTime}
+                className="w-full"
+              >
+                Save Care Activity
+              </Button>
             </div>
-
-            {/* Nail Care */}
-            <div className="flex items-center space-x-2 p-3 border rounded-lg">
-              <Checkbox 
-                id="nailCare"
-                checked={personalCare.nailCare}
-                onCheckedChange={(checked) => 
-                  setPersonalCare(prev => ({ ...prev, nailCare: !!checked }))
-                }
-              />
-              <Label htmlFor="nailCare" className="font-medium cursor-pointer">
-                Nail Care
-              </Label>
-            </div>
-
-            {/* Incontinence */}
-            <div className="flex items-center space-x-2 p-3 border rounded-lg">
-              <Checkbox 
-                id="incontinence"
-                checked={personalCare.incontinence}
-                onCheckedChange={(checked) => 
-                  setPersonalCare(prev => ({ ...prev, incontinence: !!checked }))
-                }
-              />
-              <Label htmlFor="incontinence" className="font-medium cursor-pointer">
-                Incontinence
-              </Label>
-            </div>
-
-            {/* Hair Brushed */}
-            <div className="flex items-center space-x-2 p-3 border rounded-lg">
-              <Checkbox 
-                id="hairBrushed"
-                checked={personalCare.hairBrushed}
-                onCheckedChange={(checked) => 
-                  setPersonalCare(prev => ({ ...prev, hairBrushed: !!checked }))
-                }
-              />
-              <Label htmlFor="hairBrushed" className="font-medium cursor-pointer">
-                Hair Brushed
-              </Label>
-            </div>
-
-            {/* Bedrails */}
-            <div className="flex items-center space-x-2 p-3 border rounded-lg">
-              <Checkbox 
-                id="bedrails"
-                checked={personalCare.bedrails}
-                onCheckedChange={(checked) => 
-                  setPersonalCare(prev => ({ ...prev, bedrails: !!checked }))
-                }
-              />
-              <Label htmlFor="bedrails" className="font-medium cursor-pointer">
-                Bedrails Checked
-              </Label>
-            </div>
-          </div>
-
-          {/* Extra Data Input */}
-          <div className="mt-6 space-y-2">
-            <Label htmlFor="extraData" className="text-sm font-medium text-gray-700">
-              Additional Notes (Optional)
-            </Label>
-            <Input
-              id="extraData"
-              placeholder="Enter any additional care notes..."
-              value={extraData}
-              onChange={(e) => setExtraData(e.target.value)}
-              className="w-full"
-            />
           </div>
         </CardContent>
       </Card>
-
 
       {/* Care Notes */}
       <Card>
@@ -299,6 +298,36 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardContent>
       </Card>
 
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-green-600">
+              {personalCareStatuses ? Object.values(personalCareStatuses).filter(status => status?.status === "completed").length : 0}
+            </div>
+            <p className="text-sm text-muted-foreground">Care Items Completed</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-blue-600">
+              {activityOptions.length}
+            </div>
+            <p className="text-sm text-muted-foreground">Available Activities</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-purple-600">
+              {resident?.dependencies && typeof resident.dependencies === 'object' ? 
+                Object.keys(resident.dependencies).length : 0}
+            </div>
+            <p className="text-sm text-muted-foreground">Dependencies</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
