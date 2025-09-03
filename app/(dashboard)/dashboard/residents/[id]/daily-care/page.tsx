@@ -97,6 +97,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const todaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
     residentId: id as Id<"residents">,
     date: today,
+    shift: currentShift,
   });
 
   // Mutations
@@ -302,6 +303,27 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </Button>
         </div>
       </div>
+      {/* Care Notes */}
+      <div className="p-3 bg-white border rounded-lg">
+        <div className="flex items-center space-x-2 mb-2">
+          <Bed className="w-4 h-4 text-indigo-600" />
+          <span className="text-sm font-medium">Care Notes</span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <span className="badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Evening shower
+          </span>
+          <span className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+            Independent when possible
+          </span>
+          <span className="badge inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+            Walking frame
+          </span>
+          <span className="badge inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
+            Bed rails
+          </span>
+        </div>
+      </div>
 
       {/* Today's Personal Care */}
       <Card>
@@ -472,52 +494,48 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-            <div className="grid grid-cols-2 sm:flex sm:gap-3 gap-3 w-full sm:w-auto">
-            <div className="space-y-1 flex-1">
-              <Label className="text-xs font-medium">Activity Notes</Label>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Activity Notes</Label>
               <Input
                 placeholder="Enter activity details..."
                 value={activityRecordNotes}
                 onChange={(e) => setActivityRecordNotes(e.target.value)}
-                className="h-8"
+                className="h-9"
               />
             </div>
             
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Staff</Label>
-                <Select value={activityRecordStaff} onValueChange={setActivityRecordStaff}>
-                  <SelectTrigger className="h-8 w-full sm:w-32">
-                    <SelectValue placeholder="Select staff..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {staffOptions.map((staff) => (
-                      <SelectItem key={staff.key} value={staff.key}>
-                        {staff.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Time</Label>
-                <Input
-                  type="time"
-                  value={activityRecordTime}
-                  onChange={(e) => setActivityRecordTime(e.target.value)}
-                  placeholder="Select time"
-                  className="h-8 w-full sm:w-24"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Staff</Label>
+              <Select value={activityRecordStaff} onValueChange={setActivityRecordStaff}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select staff..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffOptions.map((staff) => (
+                    <SelectItem key={staff.key} value={staff.key}>
+                      {staff.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
-        
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Time</Label>
+              <Input
+                type="time"
+                value={activityRecordTime}
+                onChange={(e) => setActivityRecordTime(e.target.value)}
+                placeholder="Select time"
+                className="h-9"
+              />
+            </div>
+            
             <Button 
               onClick={handleActivityRecordSubmit}
               disabled={!activityRecordStaff || !activityRecordTime}
-              className="h-8 text-xs px-4 w-full sm:w-auto"
-              size="sm"
+              className="h-9 px-6"
             >
               Save Record
             </Button>
@@ -525,39 +543,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardContent>
       </Card>
 
-      {/* Care Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Bed className="w-5 h-5 text-indigo-600" />
-            <span>Care Notes & Preferences</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">Personal Preferences</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Prefers shower in the evening</li>
-                <li>• Likes to be independent when possible</li>
-                <li>• Requires verbal encouragement</li>
-              </ul>
-            </div>
-            
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <h4 className="font-medium text-green-800 mb-2">Mobility Aids</h4>
-              <ul className="text-sm text-green-700 space-y-1">
-                <li>• Uses walking frame for mobility</li>
-                <li>• Requires non-slip mat in bathroom</li>
-                <li>• Bed rails for safety</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Today's Daily Report */}
-      {todaysCareData && todaysCareData.tasks.length > 0 && (
+      {todaysCareData && (
         <Card className="border">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center justify-between">
@@ -603,40 +592,46 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               </div>
               <div className="card yellow-card p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <h4 className="title font-semibold text-yellow-800 mb-2">Activity Records</h4>
-                {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length > 0 && (
-                  <div className="mb-3">
-                    <span className="text-sm font-medium text-yellow-700 mr-2">Personal Care Activities:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {todaysCareData.tasks
-                        .filter(task => task.taskType !== 'daily_activity_record')
-                        .map((task) => {
-                          const activity = activityOptions.find(opt => opt.id === task.taskType);
-                          const payload = task.payload as {time?: string; primaryStaff?: string; assistedStaff?: string};
-                          return (
-                            <span key={task._id} className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                              ✓ {activity?.label || task.taskType} {payload?.time && `(${payload.time})`}
-                            </span>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-                {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length > 0 && (
-                  <div>
-                    <span className="text-sm font-medium text-yellow-700 mr-2">Daily Activity Records:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {todaysCareData.tasks
-                        .filter(task => task.taskType === 'daily_activity_record')
-                        .map((task) => {
-                          const payload = task.payload as {time?: string; staff?: string};
-                          return (
-                            <span key={task._id} className="badge blue-badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                              📝 {task.notes || 'Activity'} {payload?.time && `(${payload.time})`}
-                            </span>
-                          );
-                        })}
-                    </div>
-                  </div>
+                {todaysCareData.tasks && todaysCareData.tasks.length > 0 ? (
+                  <>
+                    {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length > 0 && (
+                      <div className="mb-3">
+                        <span className="text-sm font-medium text-yellow-700 mr-2">Personal Care Activities:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {todaysCareData.tasks
+                            .filter(task => task.taskType !== 'daily_activity_record')
+                            .map((task) => {
+                              const activity = activityOptions.find(opt => opt.id === task.taskType);
+                              const payload = task.payload as {time?: string; primaryStaff?: string; assistedStaff?: string};
+                              return (
+                                <span key={task._id} className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                  ✓ {activity?.label || task.taskType} {payload?.time && `(${payload.time})`}
+                                </span>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                    {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-yellow-700 mr-2">Daily Activity Records:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {todaysCareData.tasks
+                            .filter(task => task.taskType === 'daily_activity_record')
+                            .map((task) => {
+                              const payload = task.payload as {time?: string; staff?: string};
+                              return (
+                                <span key={task._id} className="badge blue-badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  📝 {task.notes || 'Activity'} {payload?.time && `(${payload.time})`}
+                                </span>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-yellow-700">No activities recorded yet for this shift.</p>
                 )}
               </div>
             </div>

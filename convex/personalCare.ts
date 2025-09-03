@@ -17,7 +17,7 @@ export const getDailyPersonalCare = query({
       .withIndex("by_resident_date", (q) =>
         q.eq("residentId", args.residentId).eq("date", args.date)
       )
-      .filter((q) => dbShift ? q.eq(q.field("shift"), dbShift) : q.neq(q.field("_id"), ""))
+      .filter((q) => dbShift ? q.eq(q.field("shift"), dbShift) : q.neq(q.field("shift"), null))
       .first();
 
     if (!daily) {
