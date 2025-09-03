@@ -4,6 +4,10 @@ import React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import {
   Card,
   CardContent,
@@ -20,6 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   ArrowLeft,
   Activity,
@@ -43,34 +56,53 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Get today's date
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
 
-  // State variables
-  const [selectedActivity, setSelectedActivity] = React.useState("");
-  const [selectedStatus, setSelectedStatus] = React.useState("");
-  const [selectedTime, setSelectedTime] = React.useState("");
-  const [selectedStaff, setSelectedStaff] = React.useState("");
-  const [notes, setNotes] = React.useState("");
-
-  // Get personal care task statuses for today
-  const personalCareStatuses = useQuery(api.personalCare.getPersonalCareTaskStatuses, {
-    residentId: id as Id<"residents">,
-    date: today,
+  // Form schema
+  const PersonalCareSchema = z.object({
+    activities: z.array(z.string()).refine((value) => value.some((item) => item), {
+      message: "You have to select at least one activity.",
+    }),
+    time: z.string().min(1, "Time is required"),
+    staff: z.string().optional(),
+    assistedStaff: z.string().optional(),
+    notes: z.string().optional(),
   });
+
+  // Form setup
+  const form = useForm<z.infer<typeof PersonalCareSchema>>({
+    resolver: zodResolver(PersonalCareSchema),
+    defaultValues: {
+      activities: [],
+      time: "",
+      staff: "",
+      assistedStaff: "",
+      notes: "",
+    },
+  });
+
+  // Daily Activity Record state variables
+  const [activityRecordStaff, setActivityRecordStaff] = React.useState("");
+  const [activityRecordTime, setActivityRecordTime] = React.useState("");
+  const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
+
 
   // Mutations
   const updatePersonalCareTask = useMutation(api.personalCare.updatePersonalCareTask);
 
   // Define activity options
   const activityOptions = [
-    { key: "bath", label: "Bath" },
-    { key: "dressed", label: "Dressed" },
-    { key: "brushed", label: "Brushed" },
-  ];
-  const statusOptions = [
-    { key: "done", label: "Done" },
-    { key: "refused", label: "Refused" },
-    { key: "not_present", label: "Not present" },
-    { key: "na", label: "N/A" },
-  ];
+    { id: "bath", label: "Bath/Shower" },
+    { id: "dressed", label: "Dressed/Changed Clothes" },
+    { id: "brushed", label: "Teeth Brushed/Dentures Cleaned" },
+    { id: "hair_care", label: "Hair Care/Combed" },
+    { id: "shaved", label: "Shaved" },
+    { id: "nails_care", label: "Nail Care" },
+    { id: "mouth_care", label: "Oral Care/Mouthwash" },
+    { id: "toileting", label: "Toileting" },
+    { id: "continence", label: "Continence Support (Pad Change)" },
+    { id: "skin_care", label: "Skin Care/Creams Applied" },
+    { id: "pressure_relief", label: "Pressure Relief/Position Change" },
+    { id: "Bed_changed", label: "Bed Cover Changed" }
+  ] as const;
   const staffOptions = [
     { key: "john_smith", label: "John Smith" },
     { key: "sarah_jones", label: "Sarah Jones" },
@@ -80,29 +112,49 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   ];
 
   // Handle form submission
-  const handleSubmit = async () => {
-    if (!selectedActivity || !selectedStatus || !selectedTime) return;
+  const onSubmit = async (data: z.infer<typeof PersonalCareSchema>) => {
+    try {
+      // Save each selected activity
+      for (const activity of data.activities) {
+        await updatePersonalCareTask({
+          residentId: id as Id<"residents">,
+          date: today,
+          taskType: activity,
+          status: "completed",
+          timePeriod: "morning" as "morning" | "afternoon" | "evening" | "night",
+          notes: data.notes || undefined,
+        });
+      }
+      
+      // Clear form
+      form.reset();
+      toast.success("Personal care activities saved successfully");
+    } catch (error) {
+      console.error("Error saving personal care task:", error);
+      toast.error("Failed to save personal care activities");
+    }
+  };
+
+  // Handle daily activity record submission
+  const handleActivityRecordSubmit = async () => {
+    if (!activityRecordStaff || !activityRecordTime) return;
     
     try {
-      const status = selectedStatus === "done" ? "completed" : "pending";
-      
       await updatePersonalCareTask({
         residentId: id as Id<"residents">,
         date: today,
-        taskType: selectedActivity,
-        status,
+        taskType: "daily_activity_record",
+        status: "completed",
         timePeriod: "morning" as "morning" | "afternoon" | "evening" | "night",
-        notes: notes || undefined,
+        notes: activityRecordNotes || undefined,
       });
       
       // Clear form
-      setSelectedActivity("");
-      setSelectedStatus("");
-      setSelectedTime("");
-      setSelectedStaff("");
-      setNotes("");
+      setActivityRecordStaff("");
+      setActivityRecordTime("");
+      setActivityRecordNotes("");
     } catch (error) {
-      console.error("Error saving personal care task:", error);
+      console.error("Error saving daily activity record:", error);
     }
   };
 
@@ -158,37 +210,41 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-4 w-full sm:w-auto">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 flex-1">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Activity className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">Daily Care</h1>
-              <p className="text-muted-foreground">Care activities & dependencies for {fullName}</p>
+            <div className="flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold">Daily Care</h1>
+              <p className="text-muted-foreground text-sm sm:text-base">Care activities & dependencies for {fullName}</p>
             </div>
           </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button 
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/daily-care/documents`)}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-2 justify-center"
           >
             <Bed className="w-4 h-4" />
-            <span>Show All Documents</span>
+            <span className="hidden sm:inline">Show All Documents</span>
+            <span className="sm:hidden">Documents</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => router.push(`/dashboard/residents/${id}`)}
+            className="flex items-center space-x-2 justify-center"
+          >
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Resident Page</span>
+            <span className="sm:hidden">Resident</span>
           </Button>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="flex items-center space-x-2"
-        >
-          <Home className="w-4 h-4" />
-          <span>Resident Page</span>
-        </Button>
       </div>
 
       {/* Today's Personal Care */}
@@ -200,83 +256,212 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="flex items-end gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Activity</Label>
-              <Select value={selectedActivity} onValueChange={setSelectedActivity}>
-                <SelectTrigger className="h-8 w-32">
-                  <SelectValue placeholder="Choose..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {activityOptions.map((activity) => (
-                    <SelectItem key={activity.key} value={activity.key}>
-                      {activity.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Status</Label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="h-8 w-28">
-                  <SelectValue placeholder="Status..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status.key} value={status.key}>
-                      {status.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Time</Label>
-              <Input
-                type="time"
-                value={selectedTime}
-                onChange={(e) => setSelectedTime(e.target.value)}
-                placeholder="Select time"
-                className="h-8 w-24"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Activities Section */}
+              <FormField
+                control={form.control}
+                name="activities"
+                render={() => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium">Activities</FormLabel>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 ">
+                      {activityOptions.map((activity) => (
+                        <FormField
+                          key={activity.id}
+                          control={form.control}
+                          name="activities"
+                          render={({ field }) => {
+                            return (
+                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(activity.id)}
+                                    onCheckedChange={(checked) => {
+                                      return checked
+                                        ? field.onChange([...field.value, activity.id])
+                                        : field.onChange(
+                                            field.value?.filter(
+                                              (value) => value !== activity.id
+                                            )
+                                          )
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-xs font-normal cursor-pointer leading-tight">
+                                  {activity.label}
+                                </FormLabel>
+                              </FormItem>
+                            )
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Staff</Label>
-              <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                <SelectTrigger className="h-8 w-32">
-                  <SelectValue placeholder="Staff..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {staffOptions.map((staff) => (
-                    <SelectItem key={staff.key} value={staff.key}>
-                      {staff.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
+
+              {/* Form Controls Row */}
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
+                  <FormField
+                    control={form.control}
+                    name="time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Time</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="time"
+                            className="h-9"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="staff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Staff</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select staff..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {staffOptions.map((staff) => (
+                              <SelectItem key={staff.key} value={staff.key}>
+                                {staff.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="assistedStaff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Staff Assisted (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select assisted staff..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {staffOptions.map((staff) => (
+                              <SelectItem key={staff.key} value={staff.key}>
+                                {staff.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter notes..."
+                          className="h-9"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <Button 
+                  type="submit"
+                  className="h-9 px-6 w-full sm:w-auto"
+                  size="sm"
+                >
+                  Save Activities
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {/* Daily Activity Record */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Activity className="w-5 h-5 text-green-600" />
+            <span>Daily Activity Record</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="grid grid-cols-2 sm:flex sm:gap-3 gap-3 w-full sm:w-auto">
             <div className="space-y-1 flex-1">
-              <Label className="text-xs font-medium">Notes</Label>
+              <Label className="text-xs font-medium">Activity Notes</Label>
               <Input
-                placeholder="Enter notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Enter activity details..."
+                value={activityRecordNotes}
+                onChange={(e) => setActivityRecordNotes(e.target.value)}
                 className="h-8"
               />
             </div>
             
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Staff</Label>
+                <Select value={activityRecordStaff} onValueChange={setActivityRecordStaff}>
+                  <SelectTrigger className="h-8 w-full sm:w-32">
+                    <SelectValue placeholder="Select staff..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {staffOptions.map((staff) => (
+                      <SelectItem key={staff.key} value={staff.key}>
+                        {staff.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Time</Label>
+                <Input
+                  type="time"
+                  value={activityRecordTime}
+                  onChange={(e) => setActivityRecordTime(e.target.value)}
+                  placeholder="Select time"
+                  className="h-8 w-full sm:w-24"
+                />
+              </div>
+            </div>
+            
+        
             <Button 
-              onClick={handleSubmit}
-              disabled={!selectedActivity || !selectedStatus || !selectedTime}
-              className="h-8 text-xs px-4"
+              onClick={handleActivityRecordSubmit}
+              disabled={!activityRecordStaff || !activityRecordTime}
+              className="h-8 text-xs px-4 w-full sm:w-auto"
               size="sm"
             >
-              Save
+              Save Record
             </Button>
           </div>
         </CardContent>
@@ -313,36 +498,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {personalCareStatuses ? Object.values(personalCareStatuses).filter(status => status?.status === "completed").length : 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Care Items Completed</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {activityOptions.length}
-            </div>
-            <p className="text-sm text-muted-foreground">Available Activities</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {resident?.dependencies && typeof resident.dependencies === 'object' ? 
-                Object.keys(resident.dependencies).length : 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Dependencies</p>
-          </CardContent>
-        </Card>
-      </div>
+  
     </div>
   );
 }
