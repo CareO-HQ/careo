@@ -1288,3 +1288,67 @@ export const saveMedicationIntakeComment = mutation({
     return null;
   }
 });
+
+export const getNextMedicationIntakeByResidentId = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.id("residents"),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any())
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Find the next scheduled medication intake for this resident
+    const nextIntake = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("scheduledTime"), now), // Only future intakes
+          q.eq(q.field("state"), "scheduled") // Only scheduled (not completed/missed)
+        )
+      )
+      .order("asc") // Order by scheduled time ascending to get the earliest
+      .first();
+
+    if (!nextIntake) {
+      return null;
+    }
+
+    // Get medication details
+    const medication = await ctx.db.get(nextIntake.medicationId);
+
+    return {
+      ...nextIntake,
+      medication
+    };
+  }
+});

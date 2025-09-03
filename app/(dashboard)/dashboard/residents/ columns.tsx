@@ -2,24 +2,83 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-import { Resident } from "@/types";
-import { IconDotsVertical } from "@tabler/icons-react";
-import { ColumnDef } from "@tanstack/react-table";
-import { ChevronDown, CircleQuestionMark } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { cn, getAge, getColorForBadge } from "@/lib/utils";
+import { Resident } from "@/types";
+import { ColumnDef } from "@tanstack/react-table";
+import { useQuery } from "convex/react";
+import { Clock } from "lucide-react";
+
+// Component for displaying next medication intake
+const NextMedicationCell = ({ residentId }: { residentId: string }) => {
+  const nextIntake = useQuery(
+    api.medication.getNextMedicationIntakeByResidentId,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
+
+  if (nextIntake === undefined) {
+    // Loading state
+    return <Badge variant="outline">Loading...</Badge>;
+  }
+
+  if (!nextIntake) {
+    // No upcoming medication
+    return <Badge variant="outline">No upcoming medication</Badge>;
+  }
+
+  const scheduledDate = new Date(nextIntake.scheduledTime);
+  const now = new Date();
+  const isToday = scheduledDate.toDateString() === now.toDateString();
+  const timeString = scheduledDate.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  console.log("NEXT INTAKE", nextIntake);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="table"
+          className={cn(
+            "flex items-center gap-1 text-primary",
+            isToday && "bg-blue-50 text-blue-700 border-blue-300"
+          )}
+        >
+          <Clock className="w-3 h-3" />
+          {isToday ? `Today ${timeString}` : scheduledDate.toLocaleDateString()}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent className="bg-white border">
+        <div className="flex flex-col gap-1">
+          <p className="font-medium text-sm text-primary">
+            {nextIntake.medication?.name}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {nextIntake.medication?.strength}
+            {nextIntake.medication?.strengthUnit} -{" "}
+            {nextIntake.medication?.dosageForm}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Scheduled: {scheduledDate.toLocaleString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit"
+            })}
+          </p>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+};
 
 export const columns: ColumnDef<Resident>[] = [
   {
@@ -140,7 +199,7 @@ export const columns: ColumnDef<Resident>[] = [
     cell: ({ row }) => {
       const risks = row.original.risks as { risk: string; level?: string }[];
       if (!risks || risks.length === 0) {
-        return <Badge variant="secondary">No risks</Badge>;
+        return <Badge variant="outline">No risks</Badge>;
       }
 
       // Get the higher level risk
@@ -248,7 +307,7 @@ export const columns: ColumnDef<Resident>[] = [
         );
 
         if (activeDeps.length === 0) {
-          return <Badge variant="secondary">Independent</Badge>;
+          return <Badge variant="outline">Independent</Badge>;
         }
 
         return (
@@ -290,30 +349,9 @@ export const columns: ColumnDef<Resident>[] = [
         </div>
       );
     },
-    cell: () => "-" // Leave blank as requested
-  },
-  {
-    id: "actions",
-    cell: () => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
-            size="icon"
-          >
-            <IconDotsVertical />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-32">
-          <DropdownMenuItem>Edit</DropdownMenuItem>
-          <DropdownMenuItem>Make a copy</DropdownMenuItem>
-          <DropdownMenuItem>Favorite</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <NextMedicationCell residentId={resident._id} />;
+    }
   }
 ];

@@ -310,7 +310,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                         <span className="font-medium capitalize">{key}</span>
                         <Badge
                           variant={
-                            value === "Independent" ? "secondary" : "outline"
+                            value === "Independent" ? "outline" : "secondary"
                           }
                           className="text-xs"
                         >
