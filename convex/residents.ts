@@ -150,7 +150,7 @@ export const getById = query({
     residentId: v.id("residents")
   },
   returns: v.union(v.any(), v.null()),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any | null> => {
     const resident = await ctx.db.get(args.residentId);
     if (!resident) return null;
 
@@ -159,9 +159,15 @@ export const getById = query({
       .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
       .collect();
 
+    const residentImage: { url: string | null; storageId: string } | null =
+      await ctx.runQuery(api.files.image.getResidentImageByResidentId, {
+        residentId: resident._id as string
+      });
+
     return {
       ...resident,
-      emergencyContacts
+      emergencyContacts,
+      imageUrl: residentImage?.url || "No image"
     };
   }
 });

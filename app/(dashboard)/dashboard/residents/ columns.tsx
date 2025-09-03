@@ -95,6 +95,8 @@ export const columns: ColumnDef<Resident, unknown>[] = [
       const initials =
         `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
       const age = getAge(resident.dateOfBirth);
+
+      console.log("RESIDENT", resident);
       return (
         <div className="flex items-center gap-2">
           <Avatar className="h-10 w-10">

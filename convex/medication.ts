@@ -298,7 +298,9 @@ export const getActiveByTeamId = query({
     // Include resident details in the medication data
     const medicationWithResident = await Promise.all(
       medication.map(async (medication) => {
-        const resident = medication.residentId ? await ctx.db.get(medication.residentId as Id<"residents">) : null;
+        const resident = medication.residentId
+          ? await ctx.db.get(medication.residentId as Id<"residents">)
+          : null;
         return { ...medication, resident };
       })
     );
@@ -1298,7 +1300,7 @@ export const getNextMedicationIntakeByResidentId = query({
       _id: v.id("medicationIntake"),
       _creationTime: v.number(),
       medicationId: v.id("medication"),
-      residentId: v.id("residents"),
+      residentId: v.string(),
       scheduledTime: v.number(),
       poppedOutAt: v.optional(v.number()),
       poppedOutByUserId: v.optional(v.string()),

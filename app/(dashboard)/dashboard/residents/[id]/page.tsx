@@ -1,40 +1,31 @@
 "use client";
 
-import React from "react";
-import { useQuery } from "convex/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { useQuery } from "convex/react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  ArrowLeft,
-  Phone,
-  Calendar,
-  MapPin,
-  Heart,
   Activity,
-  Pill,
-  ClipboardList,
-  TrendingDown,
-  User,
-  Clock,
+  Ambulance,
+  ArrowLeft,
+  Calendar,
   ChevronRight,
+  ClipboardList,
   FileText,
   Folder,
-  Utensils,
+  Heart,
   Moon,
+  Pill,
   Stethoscope,
+  TrendingDown,
+  User,
   Users,
-  Ambulance
+  Utensils
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import React from "react";
 
 type ResidentPageProps = {
   params: Promise<{ id: string }>;
@@ -47,6 +38,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
+  console.log("RESIDENT", resident);
 
   if (resident === undefined) {
     return (
@@ -90,7 +83,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
   const getHealthConditionsCount = () => {
     if (!resident.healthConditions) return 0;
-    return Array.isArray(resident.healthConditions) ? resident.healthConditions.length : 0;
+    return Array.isArray(resident.healthConditions)
+      ? resident.healthConditions.length
+      : 0;
   };
 
   const getRisksCount = () => {
@@ -99,7 +94,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   };
 
   const getDependenciesCount = () => {
-    if (!resident.dependencies || Array.isArray(resident.dependencies)) return 0;
+    if (!resident.dependencies || Array.isArray(resident.dependencies))
+      return 0;
     return Object.keys(resident.dependencies).length;
   };
 
@@ -112,7 +108,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         </Button>
         <div className="flex items-center space-x-4">
           <Avatar className="w-16 h-16">
-            <AvatarImage src="" alt={fullName} />
+            <AvatarImage src={resident.imageUrl} alt={fullName} />
             <AvatarFallback className="text-xl bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
@@ -120,21 +116,19 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           <div>
             <h1 className="text-3xl font-bold">{fullName}</h1>
             <p className="text-muted-foreground">
-              Room {resident.roomNumber || "N/A"} • NHS: {resident.nhsHealthNumber || "N/A"}
+              Room {resident.roomNumber || "N/A"} • NHS:{" "}
+              {resident.nhsHealthNumber || "N/A"}
             </p>
           </div>
         </div>
       </div>
-
-
-
 
       {/* Main Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Overview Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('overview')}
+          onClick={() => handleCardClick("overview")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -144,7 +138,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Overview</h3>
-                  <p className="text-sm text-muted-foreground">Basic information</p>
+                  <p className="text-sm text-muted-foreground">
+                    Basic information
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -154,7 +150,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Daily Care Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('daily-care')}
+          onClick={() => handleCardClick("daily-care")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -165,7 +161,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 <div>
                   <h3 className="font-semibold">Daily Care</h3>
                   <p className="text-sm text-muted-foreground">
-                    {getDependenciesCount() > 0 ? `${getDependenciesCount()} dependencies` : "Care activities"}
+                    {getDependenciesCount() > 0
+                      ? `${getDependenciesCount()} dependencies`
+                      : "Care activities"}
                   </p>
                 </div>
               </div>
@@ -176,7 +174,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Medication Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('medication')}
+          onClick={() => handleCardClick("medication")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -186,7 +184,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Medication</h3>
-                  <p className="text-sm text-muted-foreground">Prescriptions & schedules</p>
+                  <p className="text-sm text-muted-foreground">
+                    Prescriptions & schedules
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -196,7 +196,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Clinical Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('clinical')}
+          onClick={() => handleCardClick("clinical")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -209,8 +209,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   <p className="text-sm text-muted-foreground">
                     {getHealthConditionsCount() > 0 || getRisksCount() > 0
                       ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
-                      : "Health information"
-                    }
+                      : "Health information"}
                   </p>
                 </div>
               </div>
@@ -221,7 +220,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Incidents & Falls Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('incidents')}
+          onClick={() => handleCardClick("incidents")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -231,7 +230,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Incidents & Falls</h3>
-                  <p className="text-sm text-muted-foreground">Safety records</p>
+                  <p className="text-sm text-muted-foreground">
+                    Safety records
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -241,7 +242,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Additional Info Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('additional')}
+          onClick={() => handleCardClick("additional")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -251,7 +252,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Additional Info</h3>
-                  <p className="text-sm text-muted-foreground">Notes & documents</p>
+                  <p className="text-sm text-muted-foreground">
+                    Notes & documents
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -261,7 +264,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Appointments Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('appointments')}
+          onClick={() => handleCardClick("appointments")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -271,7 +274,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Appointments</h3>
-                  <p className="text-sm text-muted-foreground">Medical appointments</p>
+                  <p className="text-sm text-muted-foreground">
+                    Medical appointments
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -281,7 +286,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Care File Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('care-file')}
+          onClick={() => handleCardClick("care-file")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -291,7 +296,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Care File</h3>
-                  <p className="text-sm text-muted-foreground">Care plan & records</p>
+                  <p className="text-sm text-muted-foreground">
+                    Care plan & records
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -301,7 +308,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Documents Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('documents')}
+          onClick={() => handleCardClick("documents")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -311,7 +318,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Documents</h3>
-                  <p className="text-sm text-muted-foreground">Files & attachments</p>
+                  <p className="text-sm text-muted-foreground">
+                    Files & attachments
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -322,7 +331,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Food & Fluid Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('food-fluid')}
+          onClick={() => handleCardClick("food-fluid")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -332,7 +341,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Food & Fluid</h3>
-                  <p className="text-sm text-muted-foreground">Nutrition & hydration</p>
+                  <p className="text-sm text-muted-foreground">
+                    Nutrition & hydration
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -343,7 +354,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Night Check Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('night-check')}
+          onClick={() => handleCardClick("night-check")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -353,7 +364,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Night Check</h3>
-                  <p className="text-sm text-muted-foreground">Night monitoring</p>
+                  <p className="text-sm text-muted-foreground">
+                    Night monitoring
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -364,7 +377,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Health & Monitoring Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('health-monitoring')}
+          onClick={() => handleCardClick("health-monitoring")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -374,7 +387,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Health & Monitoring</h3>
-                  <p className="text-sm text-muted-foreground">Vital signs & health tracking</p>
+                  <p className="text-sm text-muted-foreground">
+                    Vital signs & health tracking
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -385,7 +400,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Lifestyle & Social Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('lifestyle-social')}
+          onClick={() => handleCardClick("lifestyle-social")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -395,7 +410,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Lifestyle & Social</h3>
-                  <p className="text-sm text-muted-foreground">Activities & relationships</p>
+                  <p className="text-sm text-muted-foreground">
+                    Activities & relationships
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -406,7 +423,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         {/* Hospital Transfer Card */}
         <Card
           className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] group"
-          onClick={() => handleCardClick('hospital-transfer')}
+          onClick={() => handleCardClick("hospital-transfer")}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -416,7 +433,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold">Hospital Transfer</h3>
-                  <p className="text-sm text-muted-foreground">Emergency & transfers</p>
+                  <p className="text-sm text-muted-foreground">
+                    Emergency & transfers
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -424,8 +443,6 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           </CardContent>
         </Card>
       </div>
-
-
     </div>
   );
 }
