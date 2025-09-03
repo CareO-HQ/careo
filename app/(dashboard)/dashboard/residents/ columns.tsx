@@ -69,7 +69,8 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
             {nextIntake.medication?.dosageForm}
           </p>
           <p className="text-sm text-muted-foreground">
-            Scheduled: {scheduledDate.toLocaleString("en-GB", {
+            Scheduled:{" "}
+            {scheduledDate.toLocaleString("en-GB", {
               hour: "2-digit",
               minute: "2-digit"
             })}
@@ -80,7 +81,7 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
   );
 };
 
-export const columns: ColumnDef<Resident>[] = [
+export const columns: ColumnDef<Resident, unknown>[] = [
   {
     accessorKey: "details",
     header: () => {
