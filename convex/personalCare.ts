@@ -1,19 +1,23 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 
 // Query to get daily personal care record for a resident
 export const getDailyPersonalCare = query({
   args: {
     residentId: v.id("residents"),
     date: v.string(), // "YYYY-MM-DD"
+    shift: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const daily = await ctx.db
+    // Convert shift to database format
+    const dbShift = args.shift === "Day" ? "AM" : args.shift === "Night" ? "Night" : undefined;
+    
+    let daily = await ctx.db
       .query("personalCareDaily")
       .withIndex("by_resident_date", (q) =>
         q.eq("residentId", args.residentId).eq("date", args.date)
       )
+      .filter((q) => dbShift ? q.eq(q.field("shift"), dbShift) : q.neq(q.field("_id"), ""))
       .first();
 
     if (!daily) {
@@ -317,6 +321,162 @@ export const addDailyPersonalCareNotes = mutation({
       performedBy: user._id,
       notes: args.notes,
       completedAt: new Date().toISOString(),
+      createdAt: Date.now(),
+    });
+
+    // Update daily record
+    await ctx.db.patch(daily._id, {
+      updatedBy: user._id,
+      updatedAt: Date.now(),
+    });
+
+    return taskEventId;
+  },
+});
+
+// Mutation to create personal care activities with enhanced data
+export const createPersonalCareActivities = mutation({
+  args: {
+    residentId: v.id("residents"),
+    date: v.string(),
+    activities: v.array(v.string()),
+    time: v.string(),
+    staff: v.optional(v.string()),
+    assistedStaff: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    shift: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get or create daily record
+    let daily = await ctx.db
+      .query("personalCareDaily")
+      .withIndex("by_resident_date", (q) =>
+        q.eq("residentId", args.residentId).eq("date", args.date)
+      )
+      .first();
+
+    if (!daily) {
+      const dailyId = await ctx.db.insert("personalCareDaily", {
+        residentId: args.residentId,
+        date: args.date,
+        shift: args.shift === "Day" ? "AM" : "Night",
+        status: "open",
+        createdBy: user._id,
+        createdAt: Date.now(),
+      });
+      daily = await ctx.db.get(dailyId);
+    }
+
+    if (!daily) {
+      throw new Error("Could not create or retrieve daily record");
+    }
+
+    // Create task events for each activity
+    const taskEventIds = [];
+    for (const activity of args.activities) {
+      const taskEventId = await ctx.db.insert("personalCareTaskEvents", {
+        dailyId: daily._id,
+        taskType: activity,
+        status: "completed",
+        performedBy: user._id,
+        notes: args.notes,
+        completedAt: new Date().toISOString(),
+        payload: {
+          time: args.time,
+          primaryStaff: args.staff,
+          assistedStaff: args.assistedStaff,
+        },
+        createdAt: Date.now(),
+      });
+      taskEventIds.push(taskEventId);
+    }
+
+    // Update daily record
+    await ctx.db.patch(daily._id, {
+      updatedBy: user._id,
+      updatedAt: Date.now(),
+    });
+
+    return taskEventIds;
+  },
+});
+
+// Mutation to create daily activity record entry
+export const createDailyActivityRecord = mutation({
+  args: {
+    residentId: v.id("residents"),
+    date: v.string(),
+    time: v.string(),
+    staff: v.string(),
+    notes: v.optional(v.string()),
+    shift: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get or create daily record
+    let daily = await ctx.db
+      .query("personalCareDaily")
+      .withIndex("by_resident_date", (q) =>
+        q.eq("residentId", args.residentId).eq("date", args.date)
+      )
+      .first();
+
+    if (!daily) {
+      const dailyId = await ctx.db.insert("personalCareDaily", {
+        residentId: args.residentId,
+        date: args.date,
+        shift: args.shift === "Day" ? "AM" : "Night",
+        status: "open",
+        createdBy: user._id,
+        createdAt: Date.now(),
+      });
+      daily = await ctx.db.get(dailyId);
+    }
+
+    if (!daily) {
+      throw new Error("Could not create or retrieve daily record");
+    }
+
+    // Create daily activity record task event
+    const taskEventId = await ctx.db.insert("personalCareTaskEvents", {
+      dailyId: daily._id,
+      taskType: "daily_activity_record",
+      status: "completed",
+      performedBy: user._id,
+      notes: args.notes,
+      completedAt: new Date().toISOString(),
+      payload: {
+        time: args.time,
+        staff: args.staff,
+        activityType: "daily_activity_record",
+      },
       createdAt: Date.now(),
     });
 

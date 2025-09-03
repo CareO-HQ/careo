@@ -38,7 +38,9 @@ import {
   Activity,
   User,
   Bed,
-  Home
+
+  Home,
+  Printer
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -53,8 +55,14 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     residentId: id as Id<"residents">
   });
 
-  // Get today's date
+  // Get today's date and shift information
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const currentTime = new Date();
+  const currentHour = currentTime.getHours();
+  
+  // Determine current shift: Day (8 AM - 8 PM) or Night (8 PM - 8 AM)
+  const currentShift = (currentHour >= 8 && currentHour < 20) ? "Day" : "Night";
+  const shiftDisplayName = currentShift === "Day" ? "Daily" : "Night";
 
   // Form schema
   const PersonalCareSchema = z.object({
@@ -85,8 +93,15 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
 
 
+  // Queries
+  const todaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
+    residentId: id as Id<"residents">,
+    date: today,
+  });
+
   // Mutations
-  const updatePersonalCareTask = useMutation(api.personalCare.updatePersonalCareTask);
+  const createPersonalCareActivities = useMutation(api.personalCare.createPersonalCareActivities);
+  const createDailyActivityRecord = useMutation(api.personalCare.createDailyActivityRecord);
 
   // Define activity options
   const activityOptions = [
@@ -114,23 +129,22 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Handle form submission
   const onSubmit = async (data: z.infer<typeof PersonalCareSchema>) => {
     try {
-      // Save each selected activity
-      for (const activity of data.activities) {
-        await updatePersonalCareTask({
-          residentId: id as Id<"residents">,
-          date: today,
-          taskType: activity,
-          status: "completed",
-          timePeriod: "morning" as "morning" | "afternoon" | "evening" | "night",
-          notes: data.notes || undefined,
-        });
-      }
+      await createPersonalCareActivities({
+        residentId: id as Id<"residents">,
+        date: today,
+        activities: data.activities,
+        time: data.time,
+        staff: data.staff,
+        assistedStaff: data.assistedStaff,
+        notes: data.notes,
+        shift: currentShift,
+      });
       
       // Clear form
       form.reset();
       toast.success("Personal care activities saved successfully");
     } catch (error) {
-      console.error("Error saving personal care task:", error);
+      console.error("Error saving personal care activities:", error);
       toast.error("Failed to save personal care activities");
     }
   };
@@ -140,12 +154,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     if (!activityRecordStaff || !activityRecordTime) return;
     
     try {
-      await updatePersonalCareTask({
+      await createDailyActivityRecord({
         residentId: id as Id<"residents">,
         date: today,
-        taskType: "daily_activity_record",
-        status: "completed",
-        timePeriod: "morning" as "morning" | "afternoon" | "evening" | "night",
+        time: activityRecordTime,
+        staff: activityRecordStaff,
         notes: activityRecordNotes || undefined,
       });
       
@@ -153,8 +166,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       setActivityRecordStaff("");
       setActivityRecordTime("");
       setActivityRecordNotes("");
+      toast.success("Daily activity record saved successfully");
     } catch (error) {
       console.error("Error saving daily activity record:", error);
+      toast.error("Failed to save daily activity record");
     }
   };
 
@@ -192,6 +207,47 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   const fullName = `${resident.firstName} ${resident.lastName}`;
 
+  // Handle print functionality
+  const handlePrint = () => {
+    const printContent = document.getElementById('daily-report-content');
+    if (!printContent) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${shiftDisplayName} Report - ${fullName} (${today})</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+            .card { padding: 16px; border-radius: 8px; border: 1px solid; }
+            .blue-card { background-color: #dbeafe; border-color: #bfdbfe; }
+            .gray-card { background-color: #f9fafb; border-color: #e5e7eb; }
+            .yellow-card { background-color: #fef3c7; border-color: #fde68a; }
+            .title { font-weight: bold; margin-bottom: 8px; }
+            .blue-text { color: #1e40af; }
+            .gray-text { color: #374151; }
+            .yellow-text { color: #92400e; }
+            .small-text { font-size: 14px; }
+            .badge { display: inline-block; background-color: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; margin: 2px; font-size: 12px; }
+            .blue-badge { background-color: #dbeafe; color: #1e40af; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>${shiftDisplayName} Report - ${fullName} (${today})</h1>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.print();
+    printWindow.close();
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -265,7 +321,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 render={() => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium">Activities</FormLabel>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 ">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 border rounded-md">
                       {activityOptions.map((activity) => (
                         <FormField
                           key={activity.id}
@@ -288,7 +344,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                                     }}
                                   />
                                 </FormControl>
-                                <FormLabel className="text-xs font-normal cursor-pointer leading-tight">
+                                <FormLabel className="text-xs font-normal cursor-pointer">
                                   {activity.label}
                                 </FormLabel>
                               </FormItem>
@@ -302,9 +358,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 )}
               />
 
-              {/* Form Controls Row */}
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
+              {/* Form Controls */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="time"
@@ -328,7 +384,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                     name="staff"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">Staff</FormLabel>
+                        <FormLabel className="text-sm font-medium">Primary Staff</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-9">
@@ -353,11 +409,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                     name="assistedStaff"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">Staff Assisted (optional)</FormLabel>
+                        <FormLabel className="text-sm font-medium">Assisted By (optional)</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-9">
-                              <SelectValue placeholder="Select assisted staff..." />
+                              <SelectValue placeholder="Select assisting staff..." />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -374,31 +430,33 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter notes..."
-                          className="h-9"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button 
-                  type="submit"
-                  className="h-9 px-6 w-full sm:w-auto"
-                  size="sm"
-                >
-                  Save Activities
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter notes..."
+                            className="h-9"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <Button 
+                    type="submit"
+                    className="h-9 px-6 w-full sm:w-auto"
+                    size="sm"
+                  >
+                    Save Activities
+                  </Button>
+                </div>
               </div>
             </form>
           </Form>
@@ -498,6 +556,93 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardContent>
       </Card>
 
+      {/* Today's Daily Report */}
+      {todaysCareData && todaysCareData.tasks.length > 0 && (
+        <Card className="border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center justify-between">
+              <span>{shiftDisplayName} Report - {fullName} ({today})</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handlePrint}
+                className="h-8 px-3"
+              >
+                <Printer className="w-4 h-4" />
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div id="daily-report-content" className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="card blue-card p-4 rounded-lg bg-blue-50 border border-blue-200">
+                  <h4 className="title font-semibold text-blue-800">Resident Information</h4>
+                  <p className="small-text text-sm text-blue-600">{fullName}</p>
+                  <p className="small-text text-sm text-blue-600">Room: {resident.roomNumber || 'Not assigned'}</p>
+                  <p className="small-text text-sm text-blue-600">
+                    Date: {new Date(today).toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                </div>
+                <div className="card gray-card p-4 rounded-lg bg-gray-50 border border-gray-200">
+                  <h4 className="title font-semibold text-gray-800">Personal Care</h4>
+                  <p className="small-text text-sm text-gray-600">
+                    Total Activities: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length}
+                  </p>
+                  <p className="small-text text-sm text-gray-600">
+                    Completed: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record' && task.status === 'completed').length}
+                  </p>
+                  <p className="small-text text-sm text-gray-600">
+                    Records: {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length}
+                  </p>
+                </div>
+              </div>
+              <div className="card yellow-card p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <h4 className="title font-semibold text-yellow-800 mb-2">Activity Records</h4>
+                {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-sm font-medium text-yellow-700 mr-2">Personal Care Activities:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {todaysCareData.tasks
+                        .filter(task => task.taskType !== 'daily_activity_record')
+                        .map((task) => {
+                          const activity = activityOptions.find(opt => opt.id === task.taskType);
+                          const payload = task.payload as {time?: string; primaryStaff?: string; assistedStaff?: string};
+                          return (
+                            <span key={task._id} className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                              ✓ {activity?.label || task.taskType} {payload?.time && `(${payload.time})`}
+                            </span>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+                {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-yellow-700 mr-2">Daily Activity Records:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {todaysCareData.tasks
+                        .filter(task => task.taskType === 'daily_activity_record')
+                        .map((task) => {
+                          const payload = task.payload as {time?: string; staff?: string};
+                          return (
+                            <span key={task._id} className="badge blue-badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              📝 {task.notes || 'Activity'} {payload?.time && `(${payload.time})`}
+                            </span>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
   
     </div>
   );
