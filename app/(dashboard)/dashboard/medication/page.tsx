@@ -46,7 +46,15 @@ export default function MedicationPage() {
   const markMedicationIntakeAsPoppedOut = useMutation(
     api.medication.markMedicationIntakeAsPoppedOut
   );
-
+  const setWithnessForMedicationIntake = useMutation(
+    api.medication.setWithnessForMedicationIntake
+  );
+  const updateMedicationIntakeStatus = useMutation(
+    api.medication.updateMedicationIntakeStatus
+  );
+  const saveMedicationIntakeComment = useMutation(
+    api.medication.saveMedicationIntakeComment
+  );
   console.log("TEAM WITH MEMBERS", teamWithMembers?.members);
 
   // Filter intakes by selected time (date filtering is handled by the query)
@@ -131,7 +139,10 @@ export default function MedicationPage() {
         <DataTable
           columns={createColumns(
             teamWithMembers?.members || [],
-            markMedicationIntakeAsPoppedOut
+            markMedicationIntakeAsPoppedOut,
+            setWithnessForMedicationIntake,
+            updateMedicationIntakeStatus,
+            saveMedicationIntakeComment
           )}
           data={filteredIntakes}
         />

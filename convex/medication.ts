@@ -331,6 +331,8 @@ export const getMedicationIntakesByTeamId = query({
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
       notes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -442,6 +444,8 @@ export const getTodaysMedicationIntakes = query({
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
       notes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -549,6 +553,8 @@ export const getMedicationIntakesByDate = query({
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
       notes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -656,6 +662,8 @@ export const getUpcomingMedicationIntakes = query({
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
       notes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -1186,5 +1194,161 @@ export const markMedicationIntakeAsPoppedOut = mutation({
     });
 
     return true;
+  }
+});
+
+export const setWithnessForMedicationIntake = mutation({
+  args: {
+    medicationIntakeId: v.id("medicationIntake"),
+    witnessByUserId: v.string()
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const { medicationIntakeId, witnessByUserId } = args;
+    const medicationIntake = await ctx.db.get(medicationIntakeId);
+    if (!medicationIntake) {
+      throw new Error(
+        `Medication intake with ID ${medicationIntakeId} not found`
+      );
+    }
+
+    await ctx.db.patch(medicationIntakeId, {
+      witnessByUserId: witnessByUserId,
+      witnessAt: Date.now()
+    });
+
+    return true;
+  }
+});
+
+export const updateMedicationIntakeStatus = mutation({
+  args: {
+    intakeId: v.id("medicationIntake"),
+    state: v.union(
+      v.literal("scheduled"),
+      v.literal("dispensed"),
+      v.literal("administered"),
+      v.literal("missed"),
+      v.literal("refused"),
+      v.literal("skipped")
+    )
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Check if the intake exists
+    const existingIntake = await ctx.db.get(args.intakeId);
+    if (!existingIntake) {
+      throw new Error(`Medication intake with ID ${args.intakeId} not found`);
+    }
+
+    // Update only the state field
+    await ctx.db.patch(args.intakeId, {
+      state: args.state,
+      updatedAt: Date.now()
+    });
+
+    return null;
+  }
+});
+
+export const saveMedicationIntakeComment = mutation({
+  args: {
+    intakeId: v.id("medicationIntake"),
+    comment: v.string()
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get current user information
+    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
+    if (!userMetadata) {
+      throw new Error("User not found");
+    }
+
+    // Check if the intake exists
+    const existingIntake = await ctx.db.get(args.intakeId);
+    if (!existingIntake) {
+      throw new Error(`Medication intake with ID ${args.intakeId} not found`);
+    }
+
+    // Update the notes field with the comment
+    await ctx.db.patch(args.intakeId, {
+      notes: args.comment,
+      updatedAt: Date.now()
+    });
+
+    return null;
+  }
+});
+
+export const getNextMedicationIntakeByResidentId = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.id("residents"),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any())
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Find the next scheduled medication intake for this resident
+    const nextIntake = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("scheduledTime"), now), // Only future intakes
+          q.eq(q.field("state"), "scheduled") // Only scheduled (not completed/missed)
+        )
+      )
+      .order("asc") // Order by scheduled time ascending to get the earliest
+      .first();
+
+    if (!nextIntake) {
+      return null;
+    }
+
+    // Get medication details
+    const medication = await ctx.db.get(nextIntake.medicationId);
+
+    return {
+      ...nextIntake,
+      medication
+    };
   }
 });
