@@ -22,7 +22,7 @@ async function createMedicationIntakes(
     startDate: number;
     endDate?: number;
     scheduleType: string;
-    residentId: Id<"residents">;
+    residentId?: string;
   },
   organizationId: string,
   teamId: string
@@ -146,7 +146,7 @@ async function createMedicationIntakes(
 
       const intakeRecord = {
         medicationId,
-        residentId: medication.residentId,
+        residentId: medication.residentId!!,
         scheduledTime: correctScheduledDateTime.getTime(),
         state: "scheduled" as const,
         teamId,
@@ -176,7 +176,7 @@ async function createMedicationIntakes(
 
 export const createMedication = mutation({
   args: {
-    residentId: v.id("residents"),
+    residentId: v.optional(v.string()),
     medication: v.object({
       name: v.string(),
       strength: v.string(),
@@ -263,7 +263,7 @@ export const createMedication = mutation({
 
     const medicationData = {
       ...medication,
-      residentId: residentId,
+      ...(residentId && { residentId }),
       createdByUserId: userMetadata.userId,
       organizationId: currentOrganizationId,
       teamId: currentTeamId
@@ -298,7 +298,7 @@ export const getActiveByTeamId = query({
     // Include resident details in the medication data
     const medicationWithResident = await Promise.all(
       medication.map(async (medication) => {
-        const resident = await ctx.db.get(medication.residentId);
+        const resident = medication.residentId ? await ctx.db.get(medication.residentId as Id<"residents">) : null;
         return { ...medication, resident };
       })
     );
@@ -317,7 +317,7 @@ export const getMedicationIntakesByTeamId = query({
       _id: v.id("medicationIntake"),
       _creationTime: v.number(),
       medicationId: v.id("medication"),
-      residentId: v.id("residents"),
+      residentId: v.string(),
       scheduledTime: v.number(),
       poppedOutAt: v.optional(v.number()),
       poppedOutByUserId: v.optional(v.string()),
@@ -365,7 +365,7 @@ export const getMedicationIntakesByTeamId = query({
     const intakesWithDetails = await Promise.all(
       intakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
-        const resident = await ctx.db.get(intake.residentId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
         return { ...intake, medication, resident };
       })
     );
@@ -430,7 +430,7 @@ export const getTodaysMedicationIntakes = query({
       _id: v.id("medicationIntake"),
       _creationTime: v.number(),
       medicationId: v.id("medication"),
-      residentId: v.id("residents"),
+      residentId: v.string(),
       scheduledTime: v.number(),
       poppedOutAt: v.optional(v.number()),
       poppedOutByUserId: v.optional(v.string()),
@@ -498,7 +498,7 @@ export const getTodaysMedicationIntakes = query({
     const intakesWithDetails = await Promise.all(
       todaysIntakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
-        const resident = await ctx.db.get(intake.residentId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
         return { ...intake, medication, resident };
       })
     );
@@ -539,7 +539,7 @@ export const getMedicationIntakesByDate = query({
       _id: v.id("medicationIntake"),
       _creationTime: v.number(),
       medicationId: v.id("medication"),
-      residentId: v.id("residents"),
+      residentId: v.string(),
       scheduledTime: v.number(),
       poppedOutAt: v.optional(v.number()),
       poppedOutByUserId: v.optional(v.string()),
@@ -607,7 +607,7 @@ export const getMedicationIntakesByDate = query({
     const intakesWithDetails = await Promise.all(
       dateIntakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
-        const resident = await ctx.db.get(intake.residentId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
 
         // Get resident image and add imageUrl to resident object
         const residentImage = await ctx.runQuery(
@@ -648,7 +648,7 @@ export const getUpcomingMedicationIntakes = query({
       _id: v.id("medicationIntake"),
       _creationTime: v.number(),
       medicationId: v.id("medication"),
-      residentId: v.id("residents"),
+      residentId: v.string(),
       scheduledTime: v.number(),
       poppedOutAt: v.optional(v.number()),
       poppedOutByUserId: v.optional(v.string()),
@@ -714,7 +714,7 @@ export const getUpcomingMedicationIntakes = query({
     const intakesWithDetails = await Promise.all(
       upcomingIntakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
-        const resident = await ctx.db.get(intake.residentId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
         return { ...intake, medication, resident };
       })
     );
@@ -782,7 +782,7 @@ export const getAllActiveMedications = internalQuery({
         v.literal("completed"),
         v.literal("cancelled")
       ),
-      residentId: v.id("residents"),
+      residentId: v.optional(v.string()),
       createdByUserId: v.string(),
       organizationId: v.string(),
       teamId: v.string()
@@ -860,7 +860,7 @@ export const createInitialMedicationIntakes = internalMutation({
         startDate: medication.startDate,
         endDate: medication.endDate,
         scheduleType: medication.scheduleType,
-        residentId: medication.residentId
+        residentId: medication.residentId!
       },
       args.organizationId,
       args.teamId
@@ -978,7 +978,7 @@ export const createNextDayMedicationIntakes = internalMutation({
 
       const intakeRecord = {
         medicationId: args.medicationId,
-        residentId: medication.residentId,
+        residentId: medication.residentId!,
         scheduledTime: scheduledDateTime.getTime(),
         state: "scheduled" as const,
         teamId: args.teamId,

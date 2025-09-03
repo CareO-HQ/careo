@@ -1,15 +1,22 @@
 "use client";
+
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
-import { PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
+import { CalendarIcon, ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
-
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,7 +24,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage
+  FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,10 +32,11 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import ImageSelector from "@/components/onboarding/profile/ImageSelector";
+import { Calendar } from "@/components/ui/calendar";
 
 interface CreateResidentFormProps {
   onSubmit?: (values: z.infer<typeof CreateResidentSchema>) => void;
@@ -38,21 +46,21 @@ interface CreateResidentFormProps {
 
 export function CreateResidentForm({
   onSubmit: onSubmitProp,
-  onSuccess
+  onSuccess,
 }: CreateResidentFormProps) {
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = useState(false);
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+
   const createResidentMutation = useMutation(api.residents.create);
-  const createEmergencyContactMutation = useMutation(
-    api.residents.createEmergencyContact
-  );
-  const generateUploadUrlMutation = useMutation(
-    api.files.image.generateUploadUrl
-  );
+  const createEmergencyContactMutation = useMutation(api.residents.createEmergencyContact);
+  const generateUploadUrlMutation = useMutation(api.files.image.generateUploadUrl);
   const sendImageMutation = useMutation(api.files.image.sendImage);
 
   type FormType = z.infer<typeof CreateResidentSchema>;
@@ -68,46 +76,43 @@ export function CreateResidentForm({
       roomNumber: "",
       admissionDate: "",
       teamId: "",
+      nhsHealthNumber: "",
       healthConditions: [],
       risks: [],
       dependencies: {
         mobility: undefined,
         eating: undefined,
         dressing: undefined,
-        toileting: undefined
+        toileting: undefined,
       },
       emergencyContacts: [
         {
           name: "",
           phoneNumber: "",
           relationship: "",
-          isPrimary: true
-        }
-      ]
-    }
+          isPrimary: true,
+        },
+      ],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: "emergencyContacts"
+    name: "emergencyContacts",
   });
 
   const {
     fields: healthConditionsFields,
     append: appendHealthCondition,
-    remove: removeHealthCondition
+    remove: removeHealthCondition,
   } = useFieldArray({
     control: form.control,
-    name: "healthConditions"
+    name: "healthConditions",
   });
 
-  const {
-    fields: risksFields,
-    append: appendRisk,
-    remove: removeRisk
-  } = useFieldArray({
+  const { fields: risksFields, append: appendRisk, remove: removeRisk } = useFieldArray({
     control: form.control,
-    name: "risks"
+    name: "risks",
   });
 
   const getTeams = useCallback(() => {
@@ -119,16 +124,13 @@ export function CreateResidentForm({
         {
           onSuccess: ({ data }) => {
             const filteredTeams =
-              data?.filter(
-                (team: { id: string; name: string }) =>
-                  team.name !== activeOrganization?.name
-              ) || [];
+              data?.filter((team: { id: string; name: string }) => team.name !== activeOrganization?.name) || [];
             setTeams(filteredTeams);
           },
           onError: (error) => {
             console.error("Error fetching teams:", error);
             toast.error("Failed to load teams");
-          }
+          },
         }
       );
     });
@@ -137,19 +139,18 @@ export function CreateResidentForm({
   const MAX_CONDITIONS = 10;
   const MAX_RISKS = 10;
   const MAX_CONTACT = 5;
+
   useEffect(() => {
     getTeams();
   }, [getTeams]);
 
-  function onSubmit(values: z.infer<typeof CreateResidentSchema>) {
-    console.log("form value", values);
+  async function onSubmit(values: FormType) {
     startTransition(async () => {
       try {
         if (!activeOrganization?.id || !user?.user?.id) {
           toast.error("Missing organization or user information");
           return;
         }
-        console.log(values);
 
         const residentId = await createResidentMutation({
           firstName: values.firstName,
@@ -160,12 +161,11 @@ export function CreateResidentForm({
           admissionDate: values.admissionDate,
           teamId: values.teamId,
           nhsHealthNumber: values.nhsHealthNumber,
-          healthConditions:
-            values.healthConditions?.map((hc) => hc.condition) || [],
+          healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
           risks: values.risks || [],
           dependencies: values.dependencies,
           organizationId: activeOrganization.id,
-          createdBy: user.user.id
+          createdBy: user.user.id,
         });
 
         if (residentId && values.emergencyContacts) {
@@ -176,13 +176,9 @@ export function CreateResidentForm({
               phoneNumber: contact.phoneNumber,
               relationship: contact.relationship,
               isPrimary: contact.isPrimary || false,
-              organizationId: activeOrganization.id
+              organizationId: activeOrganization.id,
             });
           }
-        }
-
-        if (onSubmitProp) {
-          await onSubmitProp(values);
         }
 
         if (selectedFile) {
@@ -190,13 +186,13 @@ export function CreateResidentForm({
           const result = await fetch(uploadUrl, {
             method: "POST",
             headers: { "Content-Type": selectedFile!.type },
-            body: selectedFile
+            body: selectedFile,
           });
           const { storageId } = await result.json();
           await sendImageMutation({
             storageId,
             type: "resident",
-            residentId
+            residentId,
           });
         }
 
@@ -204,10 +200,8 @@ export function CreateResidentForm({
         form.reset();
         setStep(1);
 
-        // Close the form if callback provided
-        if (onSuccess) {
-          onSuccess();
-        }
+        if (onSuccess) onSuccess();
+        if (onSubmitProp) await onSubmitProp(values);
       } catch (error) {
         toast.error("Error creating resident");
         console.error("Error creating resident:", error);
@@ -225,28 +219,19 @@ export function CreateResidentForm({
         "roomNumber",
         "teamId",
         "admissionDate",
-        "nhsHealthNumber"
+        "nhsHealthNumber",
       ]);
-      if (valid) {
-        setStep(2);
-      } else {
-        toast.error("Please fill all required fields in this step.");
-      }
+      if (valid) setStep(2);
+      else toast.error("Please fill all required fields in this step.");
     } else if (step === 2) {
-      // Step 2 validation - validate all dependency fields are selected
       const valid = await form.trigger([
         "dependencies.mobility",
         "dependencies.eating",
         "dependencies.dressing",
-        "dependencies.toileting"
+        "dependencies.toileting",
       ]);
-      if (valid) {
-        setStep(3);
-      } else {
-        toast.error(
-          "Please select dependency levels for all daily living activities."
-        );
-      }
+      if (valid) setStep(3);
+      else toast.error("Please select dependency levels for all daily living activities.");
     }
   };
 
@@ -256,7 +241,7 @@ export function CreateResidentForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4 w-full max-w-5xl mx-auto"
       >
-        {/* Step 1: personal information*/}
+        {/* Step 1: Personal Info */}
         {step === 1 && (
           <>
             <div className="mb-12">
@@ -269,41 +254,26 @@ export function CreateResidentForm({
                 userInitial={""}
               />
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="firstName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>First Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="John"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="lastName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>Last Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Doe"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="firstName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>First Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="lastName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Last Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Doe" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -311,128 +281,138 @@ export function CreateResidentForm({
                 control={form.control}
                 name="dateOfBirth"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>Date of Birth</FormLabel>
-                    <FormControl>
-                      <Input type="date" disabled={isLoading} {...field} />
-                    </FormControl>
+                  <FormItem className="flex flex-col">
+                    <FormLabel required>Date of Birth</FormLabel>
+                    <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen} modal>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-48 justify-between font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLoading}
+                        >
+                          {field.value
+                            ? new Date(field.value).toLocaleDateString()
+                            : "Select date"}
+                          <ChevronDownIcon />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.toISOString().split("T")[0]);
+                              setDobPopoverOpen(false);
+                            }
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="+1 (555) 123-4567"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
+              <FormField control={form.control} name="phoneNumber" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="+1 (555) 123-4567" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="roomNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>Room Number</FormLabel>
+              <FormField control={form.control} name="roomNumber" render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Room Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="101A" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="teamId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Team/Unit</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                     <FormControl>
-                      <Input
-                        placeholder="101A"
-                        disabled={isLoading}
-                        {...field}
-                      />
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a team" />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="teamId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>Team/Unit</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={isLoading}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a team" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {teams.length > 0 ? (
-                          teams.map((team) => (
-                            <SelectItem key={team.id} value={team.id}>
-                              {team.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                            No teams available
-                          </div>
+                    <SelectContent>
+                      {teams.length ? teams.map(team => (
+                        <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                      )) : <div className="px-2 py-1.5 text-sm text-muted-foreground">No teams available</div>}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField control={form.control} name="nhsHealthNumber" render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>NHS Health & Care Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="A345657" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="admissionDate" render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel required>Admission Date</FormLabel>
+                  <Popover open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-48 justify-between font-normal",
+                          !field.value && "text-muted-foreground"
                         )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                        disabled={isLoading}
+                      >
+                        {field.value
+                          ? new Date(field.value).toLocaleDateString()
+                          : "Select date"}
+                        <ChevronDownIcon />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value ? new Date(field.value) : undefined}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.toISOString().split("T")[0]);
+                            setAdmissionDatePopoverOpen(false);
+                          }
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="nhsHealthNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>NHS Health & Care Number</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="A345657"
-                        type="text"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="admissionDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel isRequired>Admission Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" disabled={isLoading} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
             <div className="w-full flex flex-row justify-end">
-              <Button type="button" onClick={handleContinue}>
-                Continue
-              </Button>
+              <Button type="button" onClick={handleContinue}>Continue</Button>
             </div>
           </>
         )}
+
         {/* Step 2: Health Conditions and Risks */}
         {step === 2 && (
           <div className="space-y-6">
@@ -614,7 +594,7 @@ export function CreateResidentForm({
                   name="dependencies.mobility"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Mobility</FormLabel>
+                      <FormLabel required>Mobility</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -651,7 +631,7 @@ export function CreateResidentForm({
                   name="dependencies.eating"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Eating</FormLabel>
+                      <FormLabel required>Eating</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -688,7 +668,7 @@ export function CreateResidentForm({
                   name="dependencies.dressing"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Dressing</FormLabel>
+                      <FormLabel required>Dressing</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -725,7 +705,7 @@ export function CreateResidentForm({
                   name="dependencies.toileting"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Toileting</FormLabel>
+                      <FormLabel required>Toileting</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -833,7 +813,7 @@ export function CreateResidentForm({
                         name={`emergencyContacts.${index}.name`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel isRequired>Contact Name</FormLabel>
+                            <FormLabel required>Contact Name</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="Jane Doe"
@@ -850,7 +830,7 @@ export function CreateResidentForm({
                         name={`emergencyContacts.${index}.phoneNumber`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel isRequired>Phone Number</FormLabel>
+                            <FormLabel required>Phone Number</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="+1 (555) 987-6543"
@@ -867,7 +847,7 @@ export function CreateResidentForm({
                         name={`emergencyContacts.${index}.relationship`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel isRequired>Relationship</FormLabel>
+                            <FormLabel required>Relationship</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="Daughter"
@@ -935,7 +915,10 @@ export function CreateResidentForm({
             </div>
           </div>
         )}
+
       </form>
     </Form>
   );
 }
+
+
