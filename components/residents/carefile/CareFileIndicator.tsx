@@ -2,7 +2,15 @@ import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/types";
 import { CheckIcon, DownloadIcon, FileIcon } from "lucide-react";
 
-export default function CareFileIndicator({ value }: { value: string }) {
+interface CareFileIndicatorProps {
+  value: string;
+  onClick?: () => void;
+}
+
+export default function CareFileIndicator({
+  value,
+  onClick
+}: CareFileIndicatorProps) {
   //   const status: "todo" | "draft" | "completed" = "todo";
   const status: "todo" | "draft" | "completed" = "completed";
   //   const status = "completed";
@@ -13,6 +21,7 @@ export default function CareFileIndicator({ value }: { value: string }) {
 
   return (
     <div
+      onClick={onClick}
       className={cn(
         "flex flex-row justify-start items-center gap-2 p-1 pr-2 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors text-muted-foreground/70 rounded-md",
         status === "completed" && "text-emerald-500"
