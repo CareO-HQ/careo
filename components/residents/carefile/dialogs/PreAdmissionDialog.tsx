@@ -12,6 +12,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -30,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { preAdmissionSchema } from "@/schemas/residents/care-file/preAdmissionSchema";
 import { Resident } from "@/types";
@@ -117,6 +119,12 @@ export default function PreAdmissionDialog({
           {step === 2 && "Header information"}
           {step === 3 && "About the resident"}
           {step === 4 && "First of kin"}
+          {step === 5 && "Professional contacts"}
+          {step === 6 && "Medical information"}
+          {step === 7 && "Assessment sections"}
+          {step === 8 && "Assessment sections"}
+          {step === 9 && "Assessment sections"}
+          {step === 10 && "Palliative and End of life care"}
         </DialogTitle>
         <DialogDescription>
           {step === 1 &&
@@ -124,6 +132,14 @@ export default function PreAdmissionDialog({
           {step === 2 && "Basic information about the care home"}
           {step === 3 && "Basic resident information"}
           {step === 4 && "First of kin information"}
+          {step === 5 &&
+            "Add information about different professional contacts"}
+          {step === 6 && "Add known allergies and medical history"}
+          {step === 7 && "Add information about the assessment sections"}
+          {step === 8 && "Add information about the assessment sections"}
+          {step === 9 && "Add information about the assessment sections"}
+          {step === 10 &&
+            "Add information about the palliative and end of life care"}
         </DialogDescription>
       </DialogHeader>
       <div className="">
@@ -275,7 +291,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>First Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="John" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -288,7 +304,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Last Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Doe" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -334,7 +350,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Ethnicity</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="White" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -373,7 +389,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Religion</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Catholic" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -431,7 +447,6 @@ export default function PreAdmissionDialog({
                 </div>
               </>
             )}
-            {/* First kin */}
             {step === 4 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
@@ -442,7 +457,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>First Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="John" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -455,7 +470,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Last Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Doe" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -470,7 +485,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Relationship</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Mother" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -483,13 +498,392 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Phone Number</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="+1 (555) 987-6543" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+              </>
+            )}
+            {step === 5 && (
+              <>
+                <div>
+                  <p className="font-semibold mb-2">
+                    Care Manager / Social Worker
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="careManagerName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Care Manager Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="careManagerPhoneNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Phone Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 (555) 987-6543" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold mb-2">District Nurse</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="districtNurseName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>District Nurse Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="districtNursePhoneNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Phone Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 (555) 987-6543" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold mb-2">General Practitioner</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="generalPractitionerName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>
+                            General Practitioner Name
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="generalPractitionerPhoneNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Phone Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 (555) 987-6543" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold mb-2">
+                    Person Providing Healthcare Info
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="providerHealthcareInfoName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="providerHealthcareInfoDesignation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Designation</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nurse" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+            {step === 6 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="allergies"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Known Allergies</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="List of known allergies"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="medicalHistory"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Medical History</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Medical history" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="medicationPrescribed"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Medication Prescribed</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="List of medication prescribed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 7 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="consentCapacityRights"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Consent Capacity Rights</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Consent capacity rights"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Include MCA, DoLs, Guardianship or detention
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="medication"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Medication</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Medication" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mobility"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Mobility</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Mobility" {...field} />
+                      </FormControl>{" "}
+                      <FormDescription>
+                        Refere to current risk assessment
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="nutrition"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Nutrition</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Nutrition" {...field} />
+                      </FormControl>{" "}
+                      <FormDescription>
+                        Include MUST score if known, weight, height, BMI, IDDSI
+                        requirements, diet type and any other relevant
+                        information
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 8 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="continence"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Continence</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Continence" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="hygieneDressing"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Personal Hygiene & Dressing
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Hygiene & Dressing" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="skin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Skin Integrity / Tissue Viability
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Skin Integrity / Tissue Viability"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Include any pressure relieving equipment required
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="cognition"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Cognition</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Cognition" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 9 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="infection"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Infection Control</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Infection Control" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Does the person have a current infection? If required,
+                        complete Infection Prevention and Control Pre-Admission
+                        Assessment
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="breathing"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Breathing</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Breathing" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Include details on prescribed inhalers, nebuliser,
+                        oxygen and possible smoking risk
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="alteredStateOfConsciousness"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Altered State of Consciousness
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Altered State of Consciousness"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Epilepsy, Diabetes, TIA,...
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </>
             )}
           </form>
