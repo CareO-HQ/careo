@@ -27,7 +27,7 @@ export default function CareFilePage() {
   const pathname = path.split("/");
   const residentId = pathname[pathname.length - 2];
 
-  const { data: resident } = useQuery(api.residents.getById, {
+  const resident = useQuery(api.residents.getById, {
     residentId: residentId
       ? (residentId as Id<"residents">)
       : ("skip" as Id<"residents">)
