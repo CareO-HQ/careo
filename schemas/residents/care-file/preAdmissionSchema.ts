@@ -9,7 +9,6 @@ export const preAdmissionSchema = z.object({
 
   // Header information
   consentAcceptedAt: z.number(),
-  consentMarkedBy: z.string(),
   careHomeName: z.string(),
   nhsHealthCareNumber: z.string(),
   userName: z.string(),

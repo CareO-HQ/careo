@@ -402,7 +402,6 @@ export default defineSchema({
     savedAsDraft: v.boolean(),
     // Header information
     consentAcceptedAt: v.number(),
-    consentMarkedBy: v.string(),
     careHomeName: v.string(),
     nhsHealthCareNumber: v.string(),
     userName: v.string(),
