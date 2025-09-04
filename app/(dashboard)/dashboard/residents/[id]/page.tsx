@@ -79,7 +79,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   const handleCardClick = (cardType: string) => {
-    // router.push(`/dashboard/residents/${id}/${cardType}`);
+    router.push(`/dashboard/residents/${id}/${cardType}`);
   };
 
   const getHealthConditionsCount = () => {
