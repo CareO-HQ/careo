@@ -40,6 +40,7 @@ import { format } from "date-fns-tz";
 import { CalendarIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 interface PreAdmissionDialogProps {
@@ -61,6 +62,9 @@ export default function PreAdmissionDialog({
 }: PreAdmissionDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [consentAcceptedAt, setConsentAcceptedAt] = useState(false);
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [plannedDatePopoverOpen, setPlannedDatePopoverOpen] = useState(false);
 
   const firstKin = resident.emergencyContacts?.find(
     (contact) => contact.isPrimary
@@ -68,6 +72,7 @@ export default function PreAdmissionDialog({
 
   const form = useForm<z.infer<typeof preAdmissionSchema>>({
     resolver: zodResolver(preAdmissionSchema),
+    mode: "onChange",
     defaultValues: {
       residentId,
       teamId,
@@ -90,7 +95,57 @@ export default function PreAdmissionDialog({
       kinFirstName: firstKin?.name ?? "",
       kinLastName: "",
       kinRelationship: firstKin?.relationship ?? "",
-      kinPhoneNumber: firstKin?.phoneNumber ?? ""
+      kinPhoneNumber: firstKin?.phoneNumber ?? "",
+      // Professional contacts
+      careManagerName: "",
+      careManagerPhoneNumber: "",
+      districtNurseName: "",
+      districtNursePhoneNumber: "",
+      generalPractitionerName: "",
+      generalPractitionerPhoneNumber: "",
+      providerHealthcareInfoName: "",
+      providerHealthcareInfoDesignation: "",
+      // Medical information
+      allergies: "",
+      medicalHistory: "",
+      medicationPrescribed: "",
+      // Assessment sections
+      consentCapacityRights: "",
+      medication: "",
+      mobility: "",
+      nutrition: "",
+      continence: "",
+      hygieneDressing: "",
+      skin: "",
+      cognition: "",
+      infection: "",
+      breathing: "",
+      alteredStateOfConsciousness: "",
+      // Palliative and End of life care
+      dnacpr: undefined,
+      advancedDecision: undefined,
+      capacity: undefined,
+      advancedCarePlan: undefined,
+      comments: "",
+      // Preferences
+      roomPreferences: "",
+      admissionContact: "",
+      foodPreferences: "",
+      preferedName: "",
+      familyConcerns: "",
+      // Other information
+      otherHealthCareProfessional: "",
+      equipment: "",
+      // Financial
+      attendFinances: undefined,
+      // Additional considerations
+      additionalConsiderations: "",
+      // Outcome
+      outcome: "",
+      plannedAdmissionDate: undefined,
+      // Utils
+      createdAt: new Date().getTime(),
+      createdBy: userName
     }
   });
 
@@ -100,8 +155,131 @@ export default function PreAdmissionDialog({
     console.log(values);
   }
 
-  const handleNext = () => {
-    setStep(step + 1);
+  const handleNext = async () => {
+    let isValid = false;
+
+    if (step === 1) {
+      // For step 1, just check the consent checkbox state
+      if (!consentAcceptedAt) {
+        toast.error("Consent must be accepted to proceed");
+        return;
+      }
+      // If consent is checked, validation passes
+      isValid = true;
+    } else if (step === 2) {
+      const fieldsToValidate = [
+        "careHomeName",
+        "nhsHealthCareNumber",
+        "userName",
+        "jobRole",
+        "date"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 3) {
+      const fieldsToValidate = [
+        "firstName",
+        "lastName",
+        "address",
+        "phoneNumber",
+        "ethnicity",
+        "gender",
+        "religion",
+        "dateOfBirth"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 4) {
+      const fieldsToValidate = [
+        "kinFirstName",
+        "kinLastName",
+        "kinRelationship",
+        "kinPhoneNumber"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 5) {
+      const fieldsToValidate = [
+        "careManagerName",
+        "careManagerPhoneNumber",
+        "districtNurseName",
+        "districtNursePhoneNumber",
+        "generalPractitionerName",
+        "generalPractitionerPhoneNumber",
+        "providerHealthcareInfoName",
+        "providerHealthcareInfoDesignation"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 6) {
+      const fieldsToValidate = [
+        "allergies",
+        "medicalHistory",
+        "medicationPrescribed"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 7) {
+      const fieldsToValidate = [
+        "consentCapacityRights",
+        "medication",
+        "mobility",
+        "nutrition"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 8) {
+      const fieldsToValidate = [
+        "continence",
+        "hygieneDressing",
+        "skin",
+        "cognition"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 9) {
+      const fieldsToValidate = [
+        "infection",
+        "breathing",
+        "alteredStateOfConsciousness"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 10) {
+      const fieldsToValidate = [
+        "dnacpr",
+        "advancedDecision",
+        "capacity",
+        "advancedCarePlan"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 11) {
+      const fieldsToValidate = [
+        "roomPreferences",
+        "admissionContact",
+        "foodPreferences",
+        "preferedName",
+        "familyConcerns"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 12) {
+      const fieldsToValidate = [
+        "otherHealthCareProfessional",
+        "equipment"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 13) {
+      const fieldsToValidate = ["attendFinances"] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 14) {
+      const fieldsToValidate = ["additionalConsiderations"] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 15) {
+      const fieldsToValidate = ["outcome", "plannedAdmissionDate"] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    }
+
+    if (isValid) {
+      if (step === 15) {
+        console.log(form.getValues());
+      } else {
+        setStep(step + 1);
+      }
+    } else {
+      toast.error("Please fill in all required fields correctly");
+    }
   };
 
   const handleBack = () => {
@@ -125,6 +303,11 @@ export default function PreAdmissionDialog({
           {step === 8 && "Assessment sections"}
           {step === 9 && "Assessment sections"}
           {step === 10 && "Palliative and End of life care"}
+          {step === 11 && "Preferences"}
+          {step === 12 && "Other relevant information"}
+          {step === 13 && "Financial information"}
+          {step === 14 && "Additional considerations"}
+          {step === 15 && "Assessment outcome"}
         </DialogTitle>
         <DialogDescription>
           {step === 1 &&
@@ -140,6 +323,11 @@ export default function PreAdmissionDialog({
           {step === 9 && "Add information about the assessment sections"}
           {step === 10 &&
             "Add information about the palliative and end of life care"}
+          {step === 11 && "Add information about personal preferences"}
+          {step === 12 && "Additional information about the resident"}
+          {step === 13 && "Additional information about the resident"}
+          {step === 14 && "Additional information about the resident"}
+          {step === 15 && "Final outcome of the assessment and admission date"}
         </DialogDescription>
       </DialogHeader>
       <div className="">
@@ -242,11 +430,15 @@ export default function PreAdmissionDialog({
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Expected admission date</FormLabel>
-                        <Popover>
+                        <Popover
+                          open={datePopoverOpen}
+                          onOpenChange={setDatePopoverOpen}
+                        >
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
-                                variant={"outline"}
+                                type="button"
+                                variant="outline"
                                 className={cn(
                                   "w-[240px] pl-3 text-left font-normal",
                                   !field.value && "text-muted-foreground"
@@ -262,16 +454,7 @@ export default function PreAdmissionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                if (date) field.onChange(date);
-                              }}
-                              captionLayout="dropdown"
-                            />
+                            <Calendar mode="single" captionLayout="dropdown" />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -402,11 +585,15 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Date of Birth</FormLabel>
                         <FormControl>
-                          <Popover>
+                          <Popover
+                            open={dobPopoverOpen}
+                            onOpenChange={setDobPopoverOpen}
+                          >
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
-                                  variant={"outline"}
+                                  type="button"
+                                  variant="outline"
                                   className={cn(
                                     "w-[240px] pl-3 text-left font-normal",
                                     !field.value && "text-muted-foreground"
@@ -424,6 +611,7 @@ export default function PreAdmissionDialog({
                             <PopoverContent
                               className="w-auto p-0"
                               align="start"
+                              onInteractOutside={(e) => e.preventDefault()}
                             >
                               <Calendar
                                 mode="single"
@@ -432,10 +620,13 @@ export default function PreAdmissionDialog({
                                     ? new Date(field.value)
                                     : undefined
                                 }
-                                onSelect={(date) => {
-                                  if (date) field.onChange(date);
-                                }}
                                 captionLayout="dropdown"
+                                onSelect={(date) => {
+                                  if (date) {
+                                    field.onChange(date);
+                                    setDobPopoverOpen(true);
+                                  }
+                                }}
                               />
                             </PopoverContent>
                           </Popover>
@@ -886,6 +1077,401 @@ export default function PreAdmissionDialog({
                 />
               </>
             )}
+            {step === 10 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="dnacpr"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>DNACPR in place?</FormLabel>
+                        <FormControl>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(value === "true")
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">Yes</SelectItem>
+                              <SelectItem value="false">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="capacity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Has capacity?</FormLabel>
+                        <FormControl>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(value === "true")
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">Yes</SelectItem>
+                              <SelectItem value="false">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <FormField
+                    control={form.control}
+                    name="advancedDecision"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>
+                          Requirements regarding advanced decision?
+                        </FormLabel>
+                        <FormControl>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(value === "true")
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">Yes</SelectItem>
+                              <SelectItem value="false">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="advancedCarePlan"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Advanced Care Plan?</FormLabel>
+                        <FormControl>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(value === "true")
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">Yes</SelectItem>
+                              <SelectItem value="false">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="comments"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Comments</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add details if needed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        If any answer is yes, please provide details.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 11 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="roomPreferences"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        What would you like in your room prior to admission?
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add details if needed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="roomPreferences"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Is there anyone else you would like us to contact about
+                        your admission to the home? List name and contact
+                        details{" "}
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add details if needed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="foodPreferences"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>What are your food likes/dislikes?</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add details if needed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="preferedName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        What do you prefer to be called or known as?
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add details if needed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="familyConcerns"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Do you or your family have any worries or concerns about
+                        moving to the home?
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add details if needed"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 12 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="otherHealthCareProfessional"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Other Health Care Professional Involved in the
+                        resident&apos;s care{" "}
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Tissue viability, Consultant,
+                        Physiotherapist, Dietician, Continence Nurse
+                        Advisor, Palliative Care Specialist, Advocate"
+                          {...field}
+                        />
+                      </FormControl>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="equipment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Equipment required</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Bed rails, Pressure relieving equipment, Hoist, Sling, Walking Aid, oxygen therapy,..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 13 && (
+              <FormField
+                control={form.control}
+                name="attendFinances"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>
+                      Can the person attend to own finances?
+                    </FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {step === 14 && (
+              <FormField
+                control={form.control}
+                name="additionalConsiderations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Are there any additional factors to be considered?{" "}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Level of observation, 1:1 or specialist equipment required"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {step === 15 && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="outcome"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assessment outcome</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="positive">Positive</SelectItem>
+                            <SelectItem value="negative">Negative</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="plannedAdmissionDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Planned admission date</FormLabel>
+                      <Popover
+                        open={plannedDatePopoverOpen}
+                        onOpenChange={setPlannedDatePopoverOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto p-0"
+                          align="start"
+                          onInteractOutside={(e) => e.preventDefault()}
+                        >
+                          <Calendar
+                            mode="single"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            captionLayout="dropdown"
+                            onSelect={(date) => {
+                              if (date) {
+                                field.onChange(date);
+                                setPlannedDatePopoverOpen(true);
+                              }
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
           </form>
         </Form>
       </div>
@@ -893,8 +1479,15 @@ export default function PreAdmissionDialog({
         <Button onClick={handleBack} variant="outline">
           {step === 1 ? "Cancel" : "Back"}
         </Button>
-        <Button onClick={handleNext} disabled={!consentAcceptedAt}>
-          {step === 1 ? "Start Assessment" : "Next"}
+        <Button
+          onClick={handleNext}
+          disabled={step === 1 && !consentAcceptedAt}
+        >
+          {step === 1
+            ? "Start Assessment"
+            : step === 15
+              ? "Save Assessment"
+              : "Next"}
         </Button>
       </DialogFooter>
     </>
