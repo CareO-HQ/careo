@@ -72,7 +72,8 @@ export const getCurrentUser = query({
     const customUserData = await ctx.db.get(userMetadata.userId as Id<"users">);
 
     // Get active team details if activeTeamId exists
-    let activeTeam = null;
+
+    let activeTeam: { id: any; name: any } | null = null;
     if (customUserData?.activeTeamId) {
       const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "team",

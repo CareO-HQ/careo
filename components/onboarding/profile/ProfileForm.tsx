@@ -138,7 +138,7 @@ export default function ProfileForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Name</FormLabel>
+              <FormLabel required>Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="John Doe"
@@ -174,7 +174,7 @@ export default function ProfileForm({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Email</FormLabel>
+              <FormLabel required>Email</FormLabel>
               <FormControl>
                 {/* TODO: This email cant be modified since is the one that the user logged in with */}
                 <Input placeholder="" disabled className="w-full" {...field} />

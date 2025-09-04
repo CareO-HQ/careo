@@ -16,6 +16,7 @@ import { LoginFormSchema } from "@/schemas/auth/LoginFormSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useConvex } from "convex/react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon } from "lucide-react";
+import { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
@@ -70,7 +71,7 @@ export default function LoginForm() {
               return;
             } else {
               if (redirect && token) {
-                router.push(`/${redirect}?token=${token}`);
+                router.push(`/${redirect}?token=${token}` as Route);
                 return;
               } else {
                 router.push("/onboarding");

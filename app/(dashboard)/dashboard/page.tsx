@@ -10,13 +10,11 @@ export default function DashboardPage() {
     await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {
-          router.push("/login"); 
+          router.push("/login");
         }
       }
     });
   };
-
-
 
   return (
     <div className="flex flex-col items-center justify-center h-screen">
