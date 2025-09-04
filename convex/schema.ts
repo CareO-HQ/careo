@@ -399,6 +399,77 @@ export default defineSchema({
     residentId: v.id("residents"),
     teamId: v.string(),
     organizationId: v.string(),
+    savedAsDraft: v.boolean(),
+    // Header information
+    consentAcceptedAt: v.number(),
+    consentMarkedBy: v.string(),
+    careHomeName: v.string(),
+    nhsHealthCareNumber: v.string(),
+    userName: v.string(),
+    jobRole: v.string(),
+    date: v.number(),
+    // Resident information
+    firstName: v.string(),
+    lastName: v.string(),
+    address: v.string(),
+    phoneNumber: v.string(),
+    ethnicity: v.string(),
+    gender: v.union(v.literal("male"), v.literal("female")),
+    religion: v.string(),
+    dateOfBirth: v.string(),
+    // Next of kin
+    kinFirstName: v.string(),
+    kinLastName: v.string(),
+    kinRelationship: v.string(),
+    kinPhoneNumber: v.string(),
+    // Professional contacts
+    careManagerName: v.string(),
+    careManagerPhoneNumber: v.string(),
+    districtNurseName: v.string(),
+    districtNursePhoneNumber: v.string(),
+    generalPractitionerName: v.string(),
+    generalPractitionerPhoneNumber: v.string(),
+    providerHealthcareInfoName: v.string(),
+    providerHealthcareInfoDesignation: v.string(),
+    // Medical information
+    allergies: v.string(),
+    medicalHistory: v.string(),
+    medicationPrescribed: v.string(),
+    // Assessment
+    consentCapacityRights: v.string(),
+    medication: v.string(),
+    mobility: v.string(),
+    nutrition: v.string(),
+    continence: v.string(),
+    hygieneDressing: v.string(),
+    skin: v.string(),
+    cognition: v.string(),
+    infection: v.string(),
+    breathing: v.string(),
+    alteredStateOfConsciousness: v.string(),
+    // Palliative and End of life care
+    dnacpr: v.boolean(),
+    advancedDecision: v.string(), // Dont know if is string or boolean or union
+    capacity: v.string(),
+    advancedCarePlan: v.string(),
+    comments: v.string(),
+    // Preferences
+    roomPreferences: v.string(),
+    admissionContact: v.string(),
+    foodPreferences: v.string(),
+    preferedName: v.string(),
+    familyConcerns: v.string(),
+    // Other information
+    otherHealthCareProfessional: v.string(),
+    equipment: v.string(),
+    // Financial
+    attendFinances: v.boolean(),
+    // Additional considerations
+    additionalConsiderations: v.string(),
+    // Outcome
+    outcome: v.string(), // Dont know if is string or boolean or union
+    plannedAdmissionDate: v.optional(v.number()),
+    // Utils
     createdAt: v.number(),
     createdBy: v.id("users")
   })

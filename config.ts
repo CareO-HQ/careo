@@ -17,5 +17,19 @@ export const config = {
       name: "Evening",
       values: ["22:00", "00:00"]
     }
+  ],
+  careFiles: [
+    {
+      key: "preAdmission",
+      value: "Pre-Admission Assessment Form"
+    },
+    {
+      key: "admission",
+      value: "Admission Assessment Form"
+    },
+    {
+      key: "discharge",
+      value: "Discharge Assessment Form"
+    }
   ]
 };
