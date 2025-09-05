@@ -33,7 +33,7 @@ export default function CareFilePage() {
             Create and manage the care files for the resident.
           </p>
         </div>
-        <Button variant="ghost">
+        <Button variant="ghost" disabled>
           <DownloadIcon />
           Download all files
         </Button>
