@@ -150,8 +150,8 @@ export default function CareFileFolder({
             resident={resident}
           />
         );
-      // case 'admission':
-      //   return <AdmissionDialog />;
+      case "infection-prevention":
+        return <p>AAA</p>;
       // case 'discharge':
       //   return <DischargeDialog />;
       default:

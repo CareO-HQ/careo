@@ -472,5 +472,101 @@ export default defineSchema({
     createdAt: v.number(),
     createdBy: v.id("users"),
     pdfFileId: v.optional(v.id("_storage"))
-  }).index("by_resident", ["residentId"])
+  }).index("by_resident", ["residentId"]),
+
+  infectionPreventionAssessments: defineTable({
+    // Reference to resident and organizational structure
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    // Person's details
+    name: v.string(),
+    dateOfBirth: v.string(),
+    homeAddress: v.string(),
+    assessmentType: v.union(v.literal("Pre-admission"), v.literal("Admission")),
+    informationProvidedBy: v.optional(v.string()),
+    admittedFrom: v.optional(v.string()),
+    consultantGP: v.optional(v.string()),
+    reasonForAdmission: v.optional(v.string()),
+    dateOfAdmission: v.optional(v.string()),
+
+    // Acute Respiratory Illness (ARI)
+    newContinuousCough: v.boolean(),
+    worseningCough: v.boolean(),
+    temperatureHigh: v.boolean(),
+    otherRespiratorySymptoms: v.optional(v.string()),
+    testedForCovid19: v.boolean(),
+    testedForInfluenzaA: v.boolean(),
+    testedForInfluenzaB: v.boolean(),
+    testedForRespiratoryScreen: v.boolean(),
+    influenzaB: v.boolean(),
+    respiratoryScreen: v.boolean(),
+    // Exposure
+    exposureToPatientsCovid: v.boolean(),
+    exposureToStaffCovid: v.boolean(),
+    isolationRequired: v.boolean(),
+    isolationDetails: v.optional(v.string()),
+    furtherTreatmentRequired: v.boolean(),
+
+    // Infective Diarrhoea / Vomiting
+    diarrheaVomitingCurrentSymptoms: v.boolean(),
+    diarrheaVomitingContactWithOthers: v.boolean(),
+    diarrheaVomitingFamilyHistory72h: v.boolean(),
+
+    // Clostridium Difficile
+    clostridiumActive: v.boolean(),
+    clostridiumHistory: v.boolean(),
+    clostridiumStoolCount72h: v.optional(v.string()),
+    clostridiumLastPositiveSpecimenDate: v.optional(v.string()),
+    clostridiumResult: v.optional(v.string()),
+    clostridiumTreatmentReceived: v.optional(v.string()),
+    clostridiumTreatmentComplete: v.optional(v.boolean()),
+    ongoingDetails: v.optional(v.string()),
+    ongoingDateCommenced: v.optional(v.string()),
+    ongoingLengthOfCourse: v.optional(v.string()),
+    ongoingFollowUpRequired: v.optional(v.string()),
+
+    // MRSA / MSSA
+    mrsaMssaColonised: v.boolean(),
+    mrsaMssaInfected: v.boolean(),
+    mrsaMssaLastPositiveSwabDate: v.optional(v.string()),
+    mrsaMssaSitesPositive: v.optional(v.string()),
+    mrsaMssaTreatmentReceived: v.optional(v.string()),
+    mrsaMssaTreatmentComplete: v.optional(v.boolean()),
+    mrsaMssaDetails: v.optional(v.string()),
+    mrsaMssaDateCommenced: v.optional(v.string()),
+    mrsaMssaLengthOfCourse: v.optional(v.string()),
+    mrsaMssaFollowUpRequired: v.optional(v.string()),
+
+    // Multi-drug resistant organisms
+    esbl: v.boolean(),
+    vreGre: v.boolean(),
+    cpe: v.boolean(),
+    otherMultiDrugResistance: v.optional(v.string()),
+    relevantInformationMultiDrugResistance: v.optional(v.string()),
+
+    // Other Information
+    awarenessOfInfection: v.boolean(),
+    lastFluVaccinationDate: v.optional(v.string()),
+
+    // Assessment Completion
+    completedBy: v.string(),
+    jobRole: v.string(),
+    signature: v.string(),
+    completionDate: v.string(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+    savedAsDraft: v.optional(v.boolean()),
+    pdfFileId: v.optional(v.id("_storage"))
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_assessment_type", ["assessmentType"])
+    .index("by_completion_date", ["completionDate"])
 });
