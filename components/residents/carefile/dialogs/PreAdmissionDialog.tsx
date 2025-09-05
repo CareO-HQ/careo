@@ -1476,7 +1476,7 @@ export default function PreAdmissionDialog({
         </Form>
       </div>
       <DialogFooter>
-        <Button onClick={handleBack} variant="outline">
+        <Button onClick={handleBack} variant="outline" disabled={step === 1}>
           {step === 1 ? "Cancel" : "Back"}
         </Button>
         <Button

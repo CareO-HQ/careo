@@ -100,15 +100,15 @@ export default function CareFileFolder({
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col justify-between h-full">
-            <div className="flex flex-col gap-2 px-4">
+            <div className="flex flex-col gap-1 px-4">
               <p className="text-muted-foreground text-sm font-medium">Forms</p>
               {forms?.map((form) => (
                 <div
                   key={form.key}
-                  className="text-sm font-medium flex flex-row items-center gap-2"
+                  className="text-sm font-medium flex flex-row items-center gap-2 py-0.5 cursor-pointer hover:bg-muted/50 hover:text-primary rounded-md group"
                   onClick={() => handleCareFileClick(form.key)}
                 >
-                  <CircleDashedIcon className="h-4 max-w-4 text-muted-foreground/70" />
+                  <CircleDashedIcon className="h-4 max-w-4 text-muted-foreground/70 group-hover:text-primary" />
                   <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
                     {form.value}
                   </p>
