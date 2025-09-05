@@ -14,6 +14,7 @@ import { authClient } from "@/lib/auth-client";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import CareFileFolder from "@/components/residents/carefile/folders/CareFileFolder";
 
 export default function CareFilePage() {
   const careFiles = config.careFiles;
@@ -87,14 +88,25 @@ export default function CareFilePage() {
             Completed
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="all" className="flex flex-col gap-1 mt-2">
-          {careFiles.map((file) => (
+        <TabsContent value="all" className="flex flex-col gap-1 mt-2 w-md">
+          {/* {careFiles.map((file) => (
             <CareFileIndicator
               key={file.key}
               value={file.value}
               onClick={() => handleCareFileClick(file.key)}
             />
-          ))}
+          ))} */}
+          {careFiles.map(
+            (file) =>
+              file.type === "folder" && (
+                <CareFileFolder
+                  key={file.key}
+                  folderName={file.value}
+                  description={file.description}
+                  forms={file.forms}
+                />
+              )
+          )}
         </TabsContent>
         <TabsContent value="to-do">
           Not done the care files for the resident.

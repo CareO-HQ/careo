@@ -20,16 +20,39 @@ export const config = {
   ],
   careFiles: [
     {
+      type: "folder",
       key: "preAdmission",
-      value: "Pre-Admission Assessment Form"
+      value: "Pre-Admission",
+      description:
+        "Pre-Admission Assessment Form and Infection prevention and control pre-admission risk assessment",
+      forms: [
+        {
+          type: "form",
+          key: "preAdmission-form",
+          value: "Pre-Admission Assessment Form",
+          description: "Pre-Admission Assessment Form"
+        },
+        {
+          type: "form",
+          key: "infection-prevention",
+          value:
+            "Infection prevention and control pre-admission risk assessment",
+          description:
+            "Infection prevention and control pre-admission risk assessment"
+        }
+      ]
     },
     {
+      type: "folder",
       key: "admission",
-      value: "Admission Assessment Form"
+      value: "Admission Assessment Form",
+      description: "Admission Assessment Form"
     },
     {
+      type: "folder",
       key: "discharge",
-      value: "Discharge Assessment Form"
+      value: "Discharge Assessment Form",
+      description: "Discharge Assessment Form"
     }
   ]
 };
