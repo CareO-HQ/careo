@@ -352,6 +352,24 @@ export const updatePreAdmissionForm = mutation({
 });
 
 /**
+ * Check if a pre-admission form exists for a resident
+ */
+export const hasPreAdmissionForm = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const form = await ctx.db
+      .query("preAdmissionCareFiles")
+      .filter((q) => q.eq(q.field("residentId"), args.residentId))
+      .first();
+
+    return form !== null;
+  }
+});
+
+/**
  * Delete a pre-admission form
  */
 export const deletePreAdmissionForm = mutation({

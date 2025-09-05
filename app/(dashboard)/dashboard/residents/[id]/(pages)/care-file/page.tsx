@@ -5,9 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { config } from "@/config";
 import { DownloadIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/convex/_generated/api";
 
 export default function CareFilePage() {
   const careFiles = config.careFiles;
+
+  const path = usePathname();
+  const pathname = path.split("/");
+  const residentId = pathname[pathname.length - 2];
+
+  const preAddissionState = useQuery(
+    api.careFiles.preadmission.hasPreAdmissionForm,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
+
+  console.log("PRE-ADMISSION STATE", preAddissionState);
 
   return (
     <div>
@@ -42,6 +59,7 @@ export default function CareFilePage() {
                   folderName={file.value}
                   description={file.description}
                   forms={file.forms}
+                  preAddissionState={preAddissionState}
                 />
               )
           )}

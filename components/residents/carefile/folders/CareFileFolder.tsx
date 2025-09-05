@@ -10,7 +10,12 @@ import {
   SheetTitle,
   SheetTrigger
 } from "@/components/ui/sheet";
-import { CircleDashedIcon, DownloadIcon, FolderIcon } from "lucide-react";
+import {
+  CircleCheckIcon,
+  CircleDashedIcon,
+  DownloadIcon,
+  FolderIcon
+} from "lucide-react";
 import { useState } from "react";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { authClient } from "@/lib/auth-client";
@@ -30,12 +35,14 @@ interface CareFileFolderProps {
         value: string;
       }[]
     | undefined;
+  preAddissionState: boolean | undefined;
 }
 
 export default function CareFileFolder({
   folderName,
   description,
-  forms
+  forms,
+  preAddissionState
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
@@ -105,13 +112,27 @@ export default function CareFileFolder({
               {forms?.map((form) => (
                 <div
                   key={form.key}
-                  className="text-sm font-medium flex flex-row items-center gap-2 py-0.5 cursor-pointer hover:bg-muted/50 hover:text-primary rounded-md group"
+                  className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 cursor-pointer hover:bg-muted/50 hover:text-primary rounded-md group"
                   onClick={() => handleCareFileClick(form.key)}
                 >
-                  <CircleDashedIcon className="h-4 max-w-4 text-muted-foreground/70 group-hover:text-primary" />
-                  <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
-                    {form.value}
-                  </p>
+                  <div className="flex flex-row items-center gap-2">
+                    {preAddissionState && form.key === "preAdmission-form" ? (
+                      <CircleCheckIcon className="h-4 max-w-4 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 max-w-4 text-muted-foreground/70 group-hover:text-primary" />
+                    )}
+                    <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
+                      {form.value}
+                    </p>
+                    {preAddissionState && form.key === "preAdmission-form" && (
+                      <p className="text-xs text-emerald-500 bg-emerald-50 px-1 rounded-md">
+                        Completed
+                      </p>
+                    )}
+                  </div>
+                  {preAddissionState && form.key === "preAdmission-form" && (
+                    <DownloadIcon className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+                  )}
                 </div>
               ))}
               <p className="text-muted-foreground text-sm font-medium mt-10">
