@@ -1,6 +1,12 @@
-import { mutation, query } from "../_generated/server";
+import {
+  mutation,
+  query,
+  internalAction,
+  internalMutation
+} from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 
 /**
  * Submit a pre-admission care file form
@@ -109,6 +115,15 @@ export const submitPreAdmissionForm = mutation({
       createdAt: Date.now(),
       createdBy: user._id
     });
+
+    // Schedule PDF generation after successful save
+    await ctx.scheduler.runAfter(
+      0,
+      internal.careFiles.preadmission.generatePDFAndUpdateRecord,
+      {
+        formId: preAdmissionId
+      }
+    );
 
     return preAdmissionId;
   }
@@ -237,7 +252,7 @@ export const getPreAdmissionFormsByResident = query({
   handler: async (ctx, args) => {
     const forms = await ctx.db
       .query("preAdmissionCareFiles")
-      .filter((q) => q.eq(q.field("residentId"), args.residentId))
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
       .collect();
 
     return forms.map((form) => ({
@@ -362,7 +377,7 @@ export const hasPreAdmissionForm = query({
   handler: async (ctx, args) => {
     const form = await ctx.db
       .query("preAdmissionCareFiles")
-      .filter((q) => q.eq(q.field("residentId"), args.residentId))
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
       .first();
 
     return form !== null;
@@ -387,5 +402,93 @@ export const deletePreAdmissionForm = mutation({
     // Delete the form
     await ctx.db.delete(args.id);
     return null;
+  }
+});
+
+/**
+ * Generate PDF and update the record with the file ID
+ */
+export const generatePDFAndUpdateRecord = internalAction({
+  args: {
+    formId: v.id("preAdmissionCareFiles")
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    try {
+      // We need to determine the base URL for the PDF generation
+      // In a production environment, you would set this as an environment variable
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+      // Call the PDF generation API
+      const pdfResponse = await fetch(`${baseUrl}/api/pdf/pre-admission`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ formId: args.formId })
+      });
+
+      if (!pdfResponse.ok) {
+        throw new Error(`PDF generation failed: ${pdfResponse.statusText}`);
+      }
+
+      // Get the PDF as a buffer
+      const pdfBuffer = await pdfResponse.arrayBuffer();
+
+      // Convert to Blob for Convex storage
+      const pdfBlob = new Blob([pdfBuffer], { type: "application/pdf" });
+
+      // Store the PDF in Convex file storage
+      const storageId = await ctx.storage.store(pdfBlob);
+
+      // Update the form record with the PDF file ID
+      await ctx.runMutation(internal.careFiles.preadmission.updatePDFFileId, {
+        formId: args.formId,
+        pdfFileId: storageId
+      });
+    } catch (error) {
+      console.error("Error generating and saving PDF:", error);
+      // Don't throw here to avoid crashing the entire form submission
+    }
+
+    return null;
+  }
+});
+
+/**
+ * Update a pre-admission form with PDF file ID
+ */
+export const updatePDFFileId = internalMutation({
+  args: {
+    formId: v.id("preAdmissionCareFiles"),
+    pdfFileId: v.id("_storage")
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.formId, {
+      pdfFileId: args.pdfFileId
+    });
+    return null;
+  }
+});
+
+/**
+ * Get PDF URL for a pre-admission form
+ */
+export const getPDFUrl = query({
+  args: {
+    formId: v.id("preAdmissionCareFiles")
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const form = await ctx.db.get(args.formId);
+
+    if (!form || !form.pdfFileId) {
+      return null;
+    }
+
+    const url = await ctx.storage.getUrl(form.pdfFileId);
+    return url;
   }
 });

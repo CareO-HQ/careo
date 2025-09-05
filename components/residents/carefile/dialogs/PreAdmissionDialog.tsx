@@ -154,6 +154,42 @@ export default function PreAdmissionDialog({
     }
   });
 
+  const downloadPDF = async (formId: Id<"preAdmissionCareFiles">) => {
+    try {
+      const response = await fetch("/api/pdf/pre-admission", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ formId })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+
+      // Get the PDF blob
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pre-admission-form-${formId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast.error("Failed to download PDF");
+    }
+  };
+
   function onSubmit(values: z.infer<typeof preAdmissionSchema>) {
     // Do something with the form values.
     // ✅ This will be type-safe and validated.
@@ -170,6 +206,11 @@ export default function PreAdmissionDialog({
         console.log("Form submission successful:", data);
         if (data) {
           toast.success("Pre-admission form submitted successfully");
+
+          // Trigger PDF download after a short delay to allow PDF generation
+          setTimeout(() => {
+            downloadPDF(data);
+          }, 3000);
         } else {
           toast.error("Failed to submit pre-admission form");
         }

@@ -470,6 +470,7 @@ export default defineSchema({
     plannedAdmissionDate: v.optional(v.number()),
     // Utils
     createdAt: v.number(),
-    createdBy: v.id("users")
-  })
+    createdBy: v.id("users"),
+    pdfFileId: v.optional(v.id("_storage"))
+  }).index("by_resident", ["residentId"])
 });

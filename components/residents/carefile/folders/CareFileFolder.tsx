@@ -24,6 +24,7 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { toast } from "sonner";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -59,10 +60,61 @@ export default function CareFileFolder({
       : ("skip" as Id<"residents">)
   });
 
+  const preAdmissionForms = useQuery(
+    api.careFiles.preadmission.getPreAdmissionFormsByResident,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
+
   const handleCareFileClick = (key: string) => {
     console.log("key", key);
     setActiveDialogKey(key);
     setIsDialogOpen(true);
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      // Get the latest pre-admission form for this resident
+      const latestForm = preAdmissionForms?.[0];
+
+      if (!latestForm) {
+        toast.error("No pre-admission form found");
+        return;
+      }
+
+      const response = await fetch("/api/pdf/pre-admission", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ formId: latestForm._id })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+
+      // Get the PDF blob
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pre-admission-form-${latestForm.firstName}-${latestForm.lastName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast.error("Failed to download PDF");
+    }
   };
 
   const renderDialogContent = () => {
@@ -131,7 +183,13 @@ export default function CareFileFolder({
                     )}
                   </div>
                   {preAddissionState && form.key === "preAdmission-form" && (
-                    <DownloadIcon className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+                    <DownloadIcon
+                      className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadPDF();
+                      }}
+                    />
                   )}
                 </div>
               ))}
