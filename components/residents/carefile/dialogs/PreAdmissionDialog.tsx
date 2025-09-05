@@ -38,10 +38,13 @@ import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns-tz";
 import { CalendarIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface PreAdmissionDialogProps {
   teamId: string;
@@ -65,9 +68,14 @@ export default function PreAdmissionDialog({
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [plannedDatePopoverOpen, setPlannedDatePopoverOpen] = useState(false);
+  const [isLoading, startTransition] = useTransition();
 
   const firstKin = resident.emergencyContacts?.find(
     (contact) => contact.isPrimary
+  );
+
+  const submitPreAdmissionFormMutation = useMutation(
+    api.careFiles.preadmission.submitPreAdmissionForm
   );
 
   const form = useForm<z.infer<typeof preAdmissionSchema>>({
@@ -142,17 +150,34 @@ export default function PreAdmissionDialog({
       additionalConsiderations: "",
       // Outcome
       outcome: "",
-      plannedAdmissionDate: undefined,
-      // Utils
-      createdAt: new Date().getTime(),
-      createdBy: userName
+      plannedAdmissionDate: undefined
     }
   });
 
   function onSubmit(values: z.infer<typeof preAdmissionSchema>) {
     // Do something with the form values.
     // ✅ This will be type-safe and validated.
-    console.log(values);
+    console.log("Form submission triggered - values:", values);
+    startTransition(async () => {
+      try {
+        console.log("Attempting to submit form...");
+        const data = await submitPreAdmissionFormMutation({
+          ...values,
+          residentId: residentId as Id<"residents">,
+          teamId,
+          organizationId
+        });
+        console.log("Form submission successful:", data);
+        if (data) {
+          toast.success("Pre-admission form submitted successfully");
+        } else {
+          toast.error("Failed to submit pre-admission form");
+        }
+      } catch (error) {
+        console.error("Error submitting form:", error);
+        toast.error("Error submitting form: " + (error as Error).message);
+      }
+    });
   }
 
   const handleNext = async () => {
@@ -1228,7 +1253,7 @@ export default function PreAdmissionDialog({
                 />
                 <FormField
                   control={form.control}
-                  name="roomPreferences"
+                  name="admissionContact"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
@@ -1476,18 +1501,40 @@ export default function PreAdmissionDialog({
         </Form>
       </div>
       <DialogFooter>
-        <Button onClick={handleBack} variant="outline" disabled={step === 1}>
+        <Button
+          onClick={handleBack}
+          variant="outline"
+          disabled={step === 1 || isLoading}
+        >
           {step === 1 ? "Cancel" : "Back"}
         </Button>
         <Button
-          onClick={handleNext}
-          disabled={step === 1 && !consentAcceptedAt}
+          onClick={
+            step === 15
+              ? () => {
+                  console.log(
+                    "Step 15 button clicked - attempting form submission"
+                  );
+                  console.log("Form errors:", form.formState.errors);
+                  console.log("Form is valid:", form.formState.isValid);
+                  console.log("Form values:", form.getValues());
+
+                  const submitHandler = form.handleSubmit(onSubmit);
+                  console.log("Submit handler created, calling it now...");
+                  submitHandler();
+                }
+              : handleNext
+          }
+          disabled={(step === 1 && !consentAcceptedAt) || isLoading}
+          type={step === 15 ? "submit" : "button"}
         >
-          {step === 1
-            ? "Start Assessment"
-            : step === 15
-              ? "Save Assessment"
-              : "Next"}
+          {isLoading
+            ? "Saving..."
+            : step === 1
+              ? "Start Assessment"
+              : step === 15
+                ? "Save Assessment"
+                : "Next"}
         </Button>
       </DialogFooter>
     </>

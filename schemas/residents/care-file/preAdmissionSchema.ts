@@ -107,11 +107,7 @@ export const preAdmissionSchema = z.object({
 
   // Outcome
   outcome: z.string(),
-  plannedAdmissionDate: z.number().optional(),
-
-  // Utils
-  createdAt: z.number(),
-  createdBy: z.string()
+  plannedAdmissionDate: z.number().optional()
 });
 
 export type PreAdmissionSchema = z.infer<typeof preAdmissionSchema>;

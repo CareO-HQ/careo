@@ -448,9 +448,9 @@ export default defineSchema({
     alteredStateOfConsciousness: v.string(),
     // Palliative and End of life care
     dnacpr: v.boolean(),
-    advancedDecision: v.string(), // Dont know if is string or boolean or union
-    capacity: v.string(),
-    advancedCarePlan: v.string(),
+    advancedDecision: v.boolean(),
+    capacity: v.boolean(),
+    advancedCarePlan: v.boolean(),
     comments: v.string(),
     // Preferences
     roomPreferences: v.string(),
