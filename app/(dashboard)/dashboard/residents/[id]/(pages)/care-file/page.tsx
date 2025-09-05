@@ -24,8 +24,6 @@ export default function CareFilePage() {
     }
   );
 
-  console.log("PRE-ADMISSION STATE", preAddissionState);
-
   return (
     <div>
       <div className="flex flex-row justify-between items-center">

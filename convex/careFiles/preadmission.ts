@@ -246,7 +246,8 @@ export const getPreAdmissionFormsByResident = query({
       firstName: v.string(),
       lastName: v.string(),
       createdAt: v.number(),
-      createdBy: v.id("users")
+      createdBy: v.id("users"),
+      pdfFileId: v.optional(v.id("_storage"))
     })
   ),
   handler: async (ctx, args) => {
@@ -269,7 +270,8 @@ export const getPreAdmissionFormsByResident = query({
       firstName: form.firstName,
       lastName: form.lastName,
       createdAt: form.createdAt,
-      createdBy: form.createdBy
+      createdBy: form.createdBy,
+      pdfFileId: form.pdfFileId
     }));
   }
 });
@@ -415,22 +417,48 @@ export const generatePDFAndUpdateRecord = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     try {
-      // We need to determine the base URL for the PDF generation
-      // In a production environment, you would set this as an environment variable
-      const baseUrl =
-        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      // Get the PDF API URL from environment variables
+      const pdfApiUrl = process.env.PDF_API_URL;
+      const pdfApiToken = process.env.PDF_API_TOKEN;
+
+      // Check if PDF generation is properly configured
+      if (!pdfApiUrl?.startsWith("https://")) {
+        console.warn(
+          "PDF generation disabled: PDF_API_URL not set or not HTTPS. Set PDF_API_URL=https://your-domain.com"
+        );
+        return null;
+      }
+
+      // Prepare headers
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+
+      // Add authentication header if token is available
+      if (pdfApiToken) {
+        headers["Authorization"] = `Bearer ${pdfApiToken}`;
+      }
 
       // Call the PDF generation API
-      const pdfResponse = await fetch(`${baseUrl}/api/pdf/pre-admission`, {
+      console.log("Calling PDF API at:", `${pdfApiUrl}/api/pdf/pre-admission`);
+      const pdfResponse = await fetch(`${pdfApiUrl}/api/pdf/pre-admission`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers,
         body: JSON.stringify({ formId: args.formId })
       });
 
+      console.log(
+        "PDF API response status:",
+        pdfResponse.status,
+        pdfResponse.statusText
+      );
+
       if (!pdfResponse.ok) {
-        throw new Error(`PDF generation failed: ${pdfResponse.statusText}`);
+        const errorText = await pdfResponse.text();
+        console.log("PDF API error response:", errorText);
+        throw new Error(
+          `PDF generation failed: ${pdfResponse.status} ${pdfResponse.statusText} - ${errorText}`
+        );
       }
 
       // Get the PDF as a buffer

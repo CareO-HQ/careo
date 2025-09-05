@@ -67,6 +67,16 @@ export default function CareFileFolder({
     }
   );
 
+  // Check if PDF exists for the latest form
+  const latestForm = preAdmissionForms?.[0];
+  const pdfUrl = useQuery(
+    api.careFiles.preadmission.getPDFUrl,
+    latestForm ? { formId: latestForm._id } : "skip"
+  );
+
+  // Check if we have a PDF file ID (PDF was generated) even if URL is not available yet
+  const hasPdfFileId = latestForm?.pdfFileId != null;
+
   const handleCareFileClick = (key: string) => {
     console.log("key", key);
     setActiveDialogKey(key);
@@ -83,38 +93,48 @@ export default function CareFileFolder({
         return;
       }
 
-      const response = await fetch("/api/pdf/pre-admission", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ formId: latestForm._id })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate PDF");
+      // Check if we have a PDF file ID
+      if (!hasPdfFileId) {
+        toast.error(
+          "PDF is still being generated. Please wait a moment and try again."
+        );
+        return;
       }
 
-      // Get the PDF blob
-      const blob = await response.blob();
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pre-admission-form-${latestForm.firstName}-${latestForm.lastName}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success("PDF downloaded successfully");
+      // Check if PDF URL is available
+      if (pdfUrl) {
+        // Download the PDF from Convex storage
+        await downloadFromUrl(
+          pdfUrl,
+          `pre-admission-form-${latestForm.firstName}-${latestForm.lastName}.pdf`
+        );
+        toast.success("PDF downloaded successfully");
+      } else {
+        toast.error(
+          "PDF file exists but URL is temporarily unavailable. Please refresh the page and try again."
+        );
+      }
     } catch (error) {
       console.error("Error downloading PDF:", error);
       toast.error("Failed to download PDF");
     }
+  };
+
+  const downloadFromUrl = async (url: string, filename: string) => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+
+    // Create download link
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    // Cleanup
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
   };
 
   const renderDialogContent = () => {
@@ -168,29 +188,57 @@ export default function CareFileFolder({
                   onClick={() => handleCareFileClick(form.key)}
                 >
                   <div className="flex flex-row items-center gap-2">
-                    {preAddissionState && form.key === "preAdmission-form" ? (
+                    {preAddissionState &&
+                    form.key === "preAdmission-form" &&
+                    pdfUrl ? (
                       <CircleCheckIcon className="h-4 max-w-4 text-emerald-500" />
+                    ) : preAddissionState &&
+                      form.key === "preAdmission-form" &&
+                      hasPdfFileId ? (
+                      <CircleDashedIcon className="h-4 max-w-4 text-yellow-500" />
+                    ) : preAddissionState &&
+                      form.key === "preAdmission-form" ? (
+                      <CircleDashedIcon className="h-4 max-w-4 text-yellow-500" />
                     ) : (
                       <CircleDashedIcon className="h-4 max-w-4 text-muted-foreground/70 group-hover:text-primary" />
                     )}
                     <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
                       {form.value}
                     </p>
-                    {preAddissionState && form.key === "preAdmission-form" && (
-                      <p className="text-xs text-emerald-500 bg-emerald-50 px-1 rounded-md">
-                        Completed
-                      </p>
-                    )}
+                    {preAddissionState &&
+                      form.key === "preAdmission-form" &&
+                      pdfUrl && (
+                        <p className="text-xs text-emerald-500 bg-emerald-50 px-1 rounded-md">
+                          Completed
+                        </p>
+                      )}
+                    {preAddissionState &&
+                      form.key === "preAdmission-form" &&
+                      hasPdfFileId &&
+                      !pdfUrl && (
+                        <p className="text-xs text-yellow-600 bg-yellow-50 px-1 rounded-md">
+                          PDF Ready (reloading...)
+                        </p>
+                      )}
+                    {preAddissionState &&
+                      form.key === "preAdmission-form" &&
+                      !hasPdfFileId && (
+                        <p className="text-xs text-yellow-600 bg-yellow-50 px-1 rounded-md">
+                          Generating PDF...
+                        </p>
+                      )}
                   </div>
-                  {preAddissionState && form.key === "preAdmission-form" && (
-                    <DownloadIcon
-                      className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadPDF();
-                      }}
-                    />
-                  )}
+                  {preAddissionState &&
+                    form.key === "preAdmission-form" &&
+                    hasPdfFileId && (
+                      <DownloadIcon
+                        className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadPDF();
+                        }}
+                      />
+                    )}
                 </div>
               ))}
               <p className="text-muted-foreground text-sm font-medium mt-10">

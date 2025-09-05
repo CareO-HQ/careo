@@ -88,53 +88,53 @@ export default function PreAdmissionDialog({
       savedAsDraft: false,
       consentAcceptedAt: 0,
       careHomeName,
-      nhsHealthCareNumber: "",
+      nhsHealthCareNumber: "1",
       userName,
-      jobRole: "",
+      jobRole: "1",
       date: new Date().getTime(),
       firstName: resident.firstName ?? "",
       lastName: resident.lastName ?? "",
-      address: "",
+      address: "1",
       phoneNumber: resident.phoneNumber ?? "",
-      ethnicity: "",
+      ethnicity: "1",
       gender: undefined,
-      religion: "",
+      religion: "1",
       dateOfBirth: resident.dateOfBirth ?? "",
       kinFirstName: firstKin?.name ?? "",
-      kinLastName: "",
+      kinLastName: "1",
       kinRelationship: firstKin?.relationship ?? "",
       kinPhoneNumber: firstKin?.phoneNumber ?? "",
       // Professional contacts
-      careManagerName: "",
-      careManagerPhoneNumber: "",
-      districtNurseName: "",
-      districtNursePhoneNumber: "",
-      generalPractitionerName: "",
-      generalPractitionerPhoneNumber: "",
-      providerHealthcareInfoName: "",
-      providerHealthcareInfoDesignation: "",
+      careManagerName: "1",
+      careManagerPhoneNumber: "1",
+      districtNurseName: "1",
+      districtNursePhoneNumber: "1",
+      generalPractitionerName: "1",
+      generalPractitionerPhoneNumber: "1",
+      providerHealthcareInfoName: "1",
+      providerHealthcareInfoDesignation: "1",
       // Medical information
-      allergies: "",
-      medicalHistory: "",
-      medicationPrescribed: "",
+      allergies: "1",
+      medicalHistory: "1",
+      medicationPrescribed: "1",
       // Assessment sections
-      consentCapacityRights: "",
-      medication: "",
-      mobility: "",
-      nutrition: "",
-      continence: "",
-      hygieneDressing: "",
-      skin: "",
-      cognition: "",
-      infection: "",
-      breathing: "",
-      alteredStateOfConsciousness: "",
+      consentCapacityRights: "1",
+      medication: "1",
+      mobility: "1",
+      nutrition: "1",
+      continence: "1",
+      hygieneDressing: "1",
+      skin: "1",
+      cognition: "1",
+      infection: "1",
+      breathing: "1",
+      alteredStateOfConsciousness: "1",
       // Palliative and End of life care
       dnacpr: undefined,
       advancedDecision: undefined,
       capacity: undefined,
       advancedCarePlan: undefined,
-      comments: "",
+      comments: "1",
       // Preferences
       roomPreferences: "",
       admissionContact: "",
@@ -154,41 +154,7 @@ export default function PreAdmissionDialog({
     }
   });
 
-  const downloadPDF = async (formId: Id<"preAdmissionCareFiles">) => {
-    try {
-      const response = await fetch("/api/pdf/pre-admission", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ formId })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate PDF");
-      }
-
-      // Get the PDF blob
-      const blob = await response.blob();
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pre-admission-form-${formId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success("PDF downloaded successfully");
-    } catch (error) {
-      console.error("Error downloading PDF:", error);
-      toast.error("Failed to download PDF");
-    }
-  };
+  // We'll remove this function since we're not downloading immediately anymore
 
   function onSubmit(values: z.infer<typeof preAdmissionSchema>) {
     // Do something with the form values.
@@ -205,12 +171,9 @@ export default function PreAdmissionDialog({
         });
         console.log("Form submission successful:", data);
         if (data) {
-          toast.success("Pre-admission form submitted successfully");
-
-          // Trigger PDF download after a short delay to allow PDF generation
-          setTimeout(() => {
-            downloadPDF(data);
-          }, 3000);
+          toast.success(
+            "Pre-admission form submitted successfully! PDF will be generated and saved to files."
+          );
         } else {
           toast.error("Failed to submit pre-admission form");
         }
