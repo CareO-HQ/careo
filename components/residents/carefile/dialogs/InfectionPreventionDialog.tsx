@@ -121,6 +121,15 @@ export default function InfectionPreventionDialog({
         "testedForRespiratoryScreen"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 3) {
+      const fieldsToValidate = [
+        "exposureToPatientsCovid",
+        "exposureToStaffCovid",
+        "isolationRequired",
+        "isolationDetails",
+        "furtherTreatmentRequired"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
     }
     if (isValid) {
       if (step === 9) {
@@ -569,6 +578,134 @@ export default function InfectionPreventionDialog({
                         placeholder="Other respiratory symptoms"
                         {...field}
                       />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 3 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="exposureToPatientsCovid"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Exposure to Patients with Covid-19?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="exposureToStaffCovid"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Exposure to Staff with Covid-19?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isolationRequired"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Isolation Required?</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isolationDetails"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Isolation Details</FormLabel>
+                      <Textarea placeholder="Isolation Details" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="furtherTreatmentRequired"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Further Treatment Required?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
