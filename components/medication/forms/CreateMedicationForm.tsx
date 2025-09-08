@@ -164,7 +164,7 @@ export default function CreateMedicationForm({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel isRequired>Name</FormLabel>
+                    <FormLabel required>Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Paracetamol" {...field} />
                     </FormControl>
@@ -178,7 +178,7 @@ export default function CreateMedicationForm({
                   name="strength"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Strength</FormLabel>
+                      <FormLabel required>Strength</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -215,7 +215,7 @@ export default function CreateMedicationForm({
                   name="totalCount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Total Count</FormLabel>
+                      <FormLabel required>Total Count</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="100"
@@ -238,7 +238,7 @@ export default function CreateMedicationForm({
                   name="dosageForm"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Dosage Form</FormLabel>
+                      <FormLabel required>Dosage Form</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -268,7 +268,7 @@ export default function CreateMedicationForm({
                   name="route"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Route</FormLabel>
+                      <FormLabel required>Route</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -306,7 +306,7 @@ export default function CreateMedicationForm({
                   name="frequency"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Frequency</FormLabel>
+                      <FormLabel required>Frequency</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -351,7 +351,7 @@ export default function CreateMedicationForm({
                   name="scheduleType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel isRequired>Schedule Type</FormLabel>
+                      <FormLabel required>Schedule Type</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -507,7 +507,7 @@ export default function CreateMedicationForm({
                   name="startDate"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel isRequired>Start date</FormLabel>
+                      <FormLabel required>Start date</FormLabel>
                       <Popover
                         open={startDatePopoverOpen}
                         onOpenChange={setStartDatePopoverOpen}

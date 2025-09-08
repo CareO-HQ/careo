@@ -116,7 +116,7 @@ export default function PersonalDetailsForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Name</FormLabel>
+              <FormLabel required>Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder={isPending ? "Loading..." : "John Doe"}
@@ -133,7 +133,7 @@ export default function PersonalDetailsForm({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Email</FormLabel>
+              <FormLabel required>Email</FormLabel>
               <FormControl>
                 <Input value={field.value} disabled />
               </FormControl>

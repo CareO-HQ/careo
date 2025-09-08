@@ -6,18 +6,27 @@ export const getDailyPersonalCare = query({
   args: {
     residentId: v.id("residents"),
     date: v.string(), // "YYYY-MM-DD"
-    shift: v.optional(v.string()),
+    shift: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     // Convert shift to database format
-    const dbShift = args.shift === "Day" ? "AM" : args.shift === "Night" ? "Night" : undefined;
-    
+    const dbShift =
+      args.shift === "Day"
+        ? "AM"
+        : args.shift === "Night"
+          ? "Night"
+          : undefined;
+
     let daily = await ctx.db
       .query("personalCareDaily")
       .withIndex("by_resident_date", (q) =>
         q.eq("residentId", args.residentId).eq("date", args.date)
       )
-      .filter((q) => dbShift ? q.eq(q.field("shift"), dbShift) : q.neq(q.field("shift"), null))
+      .filter((q) =>
+        dbShift
+          ? q.eq(q.field("shift"), dbShift)
+          : q.neq(q.field("shift"), null)
+      )
       .first();
 
     if (!daily) {
@@ -32,16 +41,16 @@ export const getDailyPersonalCare = query({
 
     return {
       daily,
-      tasks: taskEvents,
+      tasks: taskEvents
     };
-  },
+  }
 });
 
 // Query to get the latest status for each task type for a given day
 export const getPersonalCareTaskStatuses = query({
   args: {
     residentId: v.id("residents"),
-    date: v.string(),
+    date: v.string()
   },
   handler: async (ctx, args) => {
     const daily = await ctx.db
@@ -62,21 +71,24 @@ export const getPersonalCareTaskStatuses = query({
 
     // Group by task type and get the latest status for each
     const taskStatuses: Record<string, any> = {};
-    
+
     taskEvents.forEach((event) => {
-      if (!taskStatuses[event.taskType] || taskStatuses[event.taskType].createdAt < event.createdAt) {
+      if (
+        !taskStatuses[event.taskType] ||
+        taskStatuses[event.taskType].createdAt < event.createdAt
+      ) {
         taskStatuses[event.taskType] = event;
       }
     });
 
     return taskStatuses;
-  },
+  }
 });
 
 // Query to get all personal care records for a resident
 export const getAllPersonalCareRecords = query({
   args: {
-    residentId: v.id("residents"),
+    residentId: v.id("residents")
   },
   handler: async (ctx, args) => {
     // Get all daily records for the resident
@@ -85,7 +97,7 @@ export const getAllPersonalCareRecords = query({
       .filter((q) => q.eq(q.field("residentId"), args.residentId))
       .collect();
 
-    const allRecords = [];
+    const allRecords: any[] = [];
 
     for (const daily of dailyRecords) {
       // Get all task events for this daily record
@@ -100,14 +112,14 @@ export const getAllPersonalCareRecords = query({
           ...event,
           date: daily.date,
           shift: daily.shift,
-          dailyStatus: daily.status,
+          dailyStatus: daily.status
         });
       }
     }
 
     // Sort by creation time, newest first
     return allRecords.sort((a, b) => b.createdAt - a.createdAt);
-  },
+  }
 });
 
 // Mutation to create or update daily personal care record
@@ -115,7 +127,9 @@ export const createDailyPersonalCare = mutation({
   args: {
     residentId: v.id("residents"),
     date: v.string(),
-    shift: v.optional(v.union(v.literal("AM"), v.literal("PM"), v.literal("Night"))),
+    shift: v.optional(
+      v.union(v.literal("AM"), v.literal("PM"), v.literal("Night"))
+    )
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -151,11 +165,11 @@ export const createDailyPersonalCare = mutation({
       shift: args.shift,
       status: "open",
       createdBy: user._id,
-      createdAt: Date.now(),
+      createdAt: Date.now()
     });
 
     return dailyId;
-  },
+  }
 });
 
 // Mutation to update a personal care task status
@@ -172,37 +186,43 @@ export const updatePersonalCareTask = mutation({
       v.literal("not_required"),
       v.literal("refused"),
       v.literal("unable"),
-      v.literal("missed"),
+      v.literal("missed")
     ),
-    timePeriod: v.optional(v.union(
-      v.literal("morning"),
-      v.literal("afternoon"),
-      v.literal("evening"),
-      v.literal("night"),
-    )),
+    timePeriod: v.optional(
+      v.union(
+        v.literal("morning"),
+        v.literal("afternoon"),
+        v.literal("evening"),
+        v.literal("night")
+      )
+    ),
     notes: v.optional(v.string()),
-    assistanceLevel: v.optional(v.union(
-      v.literal("independent"),
-      v.literal("prompting"),
-      v.literal("supervision"),
-      v.literal("one_carer"),
-      v.literal("two_carers"),
-      v.literal("hoist_or_mechanical"),
-    )),
-    reasonCode: v.optional(v.union(
-      v.literal("resident_refused"),
-      v.literal("asleep"),
-      v.literal("off_site"),
-      v.literal("hospital"),
-      v.literal("end_of_life_care"),
-      v.literal("clinical_hold"),
-      v.literal("behavioural_risk"),
-      v.literal("equipment_fault"),
-      v.literal("unsafe_to_proceed"),
-      v.literal("not_in_care_plan"),
-      v.literal("other"),
-    )),
-    reasonNote: v.optional(v.string()),
+    assistanceLevel: v.optional(
+      v.union(
+        v.literal("independent"),
+        v.literal("prompting"),
+        v.literal("supervision"),
+        v.literal("one_carer"),
+        v.literal("two_carers"),
+        v.literal("hoist_or_mechanical")
+      )
+    ),
+    reasonCode: v.optional(
+      v.union(
+        v.literal("resident_refused"),
+        v.literal("asleep"),
+        v.literal("off_site"),
+        v.literal("hospital"),
+        v.literal("end_of_life_care"),
+        v.literal("clinical_hold"),
+        v.literal("behavioural_risk"),
+        v.literal("equipment_fault"),
+        v.literal("unsafe_to_proceed"),
+        v.literal("not_in_care_plan"),
+        v.literal("other")
+      )
+    ),
+    reasonNote: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -233,7 +253,7 @@ export const updatePersonalCareTask = mutation({
         date: args.date,
         status: "open",
         createdBy: user._id,
-        createdAt: Date.now(),
+        createdAt: Date.now()
       });
       daily = await ctx.db.get(dailyId);
     }
@@ -252,20 +272,22 @@ export const updatePersonalCareTask = mutation({
       assistanceLevel: args.assistanceLevel,
       reasonCode: args.reasonCode,
       reasonNote: args.reasonNote,
-      completedAt: args.status === "completed" ? new Date().toISOString() : undefined,
-      startedAt: args.status === "in_progress" ? new Date().toISOString() : undefined,
+      completedAt:
+        args.status === "completed" ? new Date().toISOString() : undefined,
+      startedAt:
+        args.status === "in_progress" ? new Date().toISOString() : undefined,
       payload: args.timePeriod ? { timePeriod: args.timePeriod } : undefined,
-      createdAt: Date.now(),
+      createdAt: Date.now()
     });
 
     // Update daily record's updatedAt and updatedBy
     await ctx.db.patch(daily._id, {
       updatedBy: user._id,
-      updatedAt: Date.now(),
+      updatedAt: Date.now()
     });
 
     return taskEventId;
-  },
+  }
 });
 
 // Mutation to add notes to daily personal care
@@ -273,7 +295,7 @@ export const addDailyPersonalCareNotes = mutation({
   args: {
     residentId: v.id("residents"),
     date: v.string(),
-    notes: v.string(),
+    notes: v.string()
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -304,7 +326,7 @@ export const addDailyPersonalCareNotes = mutation({
         date: args.date,
         status: "open",
         createdBy: user._id,
-        createdAt: Date.now(),
+        createdAt: Date.now()
       });
       daily = await ctx.db.get(dailyId);
     }
@@ -321,17 +343,17 @@ export const addDailyPersonalCareNotes = mutation({
       performedBy: user._id,
       notes: args.notes,
       completedAt: new Date().toISOString(),
-      createdAt: Date.now(),
+      createdAt: Date.now()
     });
 
     // Update daily record
     await ctx.db.patch(daily._id, {
       updatedBy: user._id,
-      updatedAt: Date.now(),
+      updatedAt: Date.now()
     });
 
     return taskEventId;
-  },
+  }
 });
 
 // Mutation to create personal care activities with enhanced data
@@ -344,7 +366,7 @@ export const createPersonalCareActivities = mutation({
     staff: v.optional(v.string()),
     assistedStaff: v.optional(v.string()),
     notes: v.optional(v.string()),
-    shift: v.optional(v.string()),
+    shift: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -376,7 +398,7 @@ export const createPersonalCareActivities = mutation({
         shift: args.shift === "Day" ? "AM" : "Night",
         status: "open",
         createdBy: user._id,
-        createdAt: Date.now(),
+        createdAt: Date.now()
       });
       daily = await ctx.db.get(dailyId);
     }
@@ -386,7 +408,7 @@ export const createPersonalCareActivities = mutation({
     }
 
     // Create task events for each activity
-    const taskEventIds = [];
+    const taskEventIds: any[] = [];
     for (const activity of args.activities) {
       const taskEventId = await ctx.db.insert("personalCareTaskEvents", {
         dailyId: daily._id,
@@ -398,9 +420,9 @@ export const createPersonalCareActivities = mutation({
         payload: {
           time: args.time,
           primaryStaff: args.staff,
-          assistedStaff: args.assistedStaff,
+          assistedStaff: args.assistedStaff
         },
-        createdAt: Date.now(),
+        createdAt: Date.now()
       });
       taskEventIds.push(taskEventId);
     }
@@ -408,11 +430,11 @@ export const createPersonalCareActivities = mutation({
     // Update daily record
     await ctx.db.patch(daily._id, {
       updatedBy: user._id,
-      updatedAt: Date.now(),
+      updatedAt: Date.now()
     });
 
     return taskEventIds;
-  },
+  }
 });
 
 // Mutation to create daily activity record entry
@@ -423,7 +445,7 @@ export const createDailyActivityRecord = mutation({
     time: v.string(),
     staff: v.string(),
     notes: v.optional(v.string()),
-    shift: v.optional(v.string()),
+    shift: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -455,7 +477,7 @@ export const createDailyActivityRecord = mutation({
         shift: args.shift === "Day" ? "AM" : "Night",
         status: "open",
         createdBy: user._id,
-        createdAt: Date.now(),
+        createdAt: Date.now()
       });
       daily = await ctx.db.get(dailyId);
     }
@@ -475,17 +497,17 @@ export const createDailyActivityRecord = mutation({
       payload: {
         time: args.time,
         staff: args.staff,
-        activityType: "daily_activity_record",
+        activityType: "daily_activity_record"
       },
-      createdAt: Date.now(),
+      createdAt: Date.now()
     });
 
     // Update daily record
     await ctx.db.patch(daily._id, {
       updatedBy: user._id,
-      updatedAt: Date.now(),
+      updatedAt: Date.now()
     });
 
     return taskEventId;
-  },
+  }
 });

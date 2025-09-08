@@ -65,7 +65,7 @@ export default function CreateTeamForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Name</FormLabel>
+              <FormLabel required>Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="My Team"

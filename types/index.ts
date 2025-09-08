@@ -33,4 +33,10 @@ export type Resident = {
   dateOfBirth: string;
   admissionDate: string;
   imageUrl: string;
+  emergencyContacts: {
+    name: string;
+    phoneNumber: string;
+    relationship: string;
+    isPrimary: boolean;
+  }[];
 };

@@ -25,6 +25,7 @@ import {
   Users,
   Utensils
 } from "lucide-react";
+import { Route } from "next";
 import { useRouter } from "next/navigation";
 import React from "react";
 
@@ -79,7 +80,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   const handleCardClick = (cardType: string) => {
-    router.push(`/dashboard/residents/${id}/${cardType}`);
+    router.push(`/dashboard/residents/${id}/${cardType}` as Route);
   };
 
   const getHealthConditionsCount = () => {
