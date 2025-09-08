@@ -50,7 +50,7 @@ export default function InfectionPreventionDialog({
   teamId,
   organizationId
 }: InfectionPreventionDialogProps) {
-  const [step, setStep] = useState(2);
+  const [step, setStep] = useState(5);
   const [isLoading, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
@@ -135,6 +135,21 @@ export default function InfectionPreventionDialog({
         "diarrheaVomitingCurrentSymptoms",
         "diarrheaVomitingContactWithOthers",
         "diarrheaVomitingFamilyHistory72h"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 5) {
+      const fieldsToValidate = [
+        "clostridiumActive",
+        "clostridiumHistory",
+        "clostridiumStoolCount72h",
+        "clostridiumLastPositiveSpecimenDate",
+        "clostridiumResult",
+        "clostridiumTreatmentReceived",
+        "clostridiumTreatmentComplete",
+        "ongoingDetails",
+        "ongoingDateCommenced",
+        "ongoingLengthOfCourse",
+        "ongoingFollowUpRequired"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     }
@@ -811,10 +826,244 @@ export default function InfectionPreventionDialog({
             )}
             {step === 5 && (
               <>
+                <FormField
+                  control={form.control}
+                  name="clostridiumActive"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Has the person Active Clostridium Difficile?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="clostridiumHistory"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Has the person a history of Clostridium Difficile?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="clostridiumStoolCount72h"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Number of type 6 or 7 stools in the past 72 hours?
+                      </FormLabel>
+                      <Input placeholder="Number of stools" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="grid grid-cols-2 gap-4">
-
-                  
+                  <FormField
+                    control={form.control}
+                    name="clostridiumLastPositiveSpecimenDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Last Positive Specimen</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" captionLayout="dropdown" />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="clostridiumResult"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Result of Clostridium Difficile?</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="positive">Positive</SelectItem>
+                            <SelectItem value="negative">Negative</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
+                <FormField
+                  control={form.control}
+                  name="clostridiumTreatmentReceived"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Treatment received?</FormLabel>
+                      <Textarea
+                        placeholder="If relevant, treatment received"
+                        {...field}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="clostridiumTreatmentComplete"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Treatment completed?</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ongoingDetails"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ongoing details</FormLabel>
+                      <Textarea placeholder="Ongoing details" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="ongoingDateCommenced"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date commenced</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" captionLayout="dropdown" />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="ongoingLengthOfCourse"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Length of course</FormLabel>
+                        <Input placeholder="Length of course" {...field} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="ongoingFollowUpRequired"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Follow up required</FormLabel>
+                      <Input placeholder="Follow up required" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </>
             )}
           </form>
