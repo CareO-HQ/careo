@@ -25,6 +25,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
+import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -78,7 +79,6 @@ export default function CareFileFolder({
   const hasPdfFileId = latestForm?.pdfFileId != null;
 
   const handleCareFileClick = (key: string) => {
-    console.log("key", key);
     setActiveDialogKey(key);
     setIsDialogOpen(true);
   };
@@ -151,7 +151,13 @@ export default function CareFileFolder({
           />
         );
       case "infection-prevention":
-        return <p>AAA</p>;
+        return (
+          <InfectionPreventionDialog
+            resident={resident}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+          />
+        );
       // case 'discharge':
       //   return <DischargeDialog />;
       default:

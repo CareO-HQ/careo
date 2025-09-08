@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 export const InfectionPreventionAssessmentSchema = z.object({
+  // Metadata
+  residentId: z.string().min(1, "Resident ID is required"),
+  teamId: z.string().min(1, "Team ID is required"),
+  organizationId: z.string().min(1, "Organization ID is required"),
+
   // Person's details
   name: z.string().min(1, "Name is required"),
   dateOfBirth: z.string().min(1, "Date of Birth is required"),
@@ -10,7 +15,7 @@ export const InfectionPreventionAssessmentSchema = z.object({
   admittedFrom: z.string().optional(),
   consultantGP: z.string().optional(),
   reasonForAdmission: z.string().optional(),
-  dateOfAdmission: z.string().optional(),
+  dateOfAdmission: z.number().optional(),
 
   // Acute Respiratory Illness (ARI)
   newContinuousCough: z.boolean(),
@@ -23,19 +28,20 @@ export const InfectionPreventionAssessmentSchema = z.object({
   testedForRespiratoryScreen: z.boolean(),
   influenzaB: z.boolean(),
   respiratoryScreen: z.boolean(),
-  // Exposure
+
+  // 3 Exposure
   exposureToPatientsCovid: z.boolean(),
   exposureToStaffCovid: z.boolean(),
   isolationRequired: z.boolean(),
   isolationDetails: z.string().optional(),
   furtherTreatmentRequired: z.boolean(),
 
-  // Infective Diarrhoea / Vomiting
+  // 4 Infective Diarrhoea / Vomiting
   diarrheaVomitingCurrentSymptoms: z.boolean(),
   diarrheaVomitingContactWithOthers: z.boolean(),
   diarrheaVomitingFamilyHistory72h: z.boolean(),
 
-  // Clostridium Difficile
+  // 5 Clostridium Difficile
   clostridiumActive: z.boolean(),
   clostridiumHistory: z.boolean(),
   clostridiumStoolCount72h: z.string().optional(),
@@ -48,7 +54,7 @@ export const InfectionPreventionAssessmentSchema = z.object({
   ongoingLengthOfCourse: z.string().optional(),
   ongoingFollowUpRequired: z.string().optional(),
 
-  // MRSA / MSSA
+  // 6MRSA / MSSA
   mrsaMssaColonised: z.boolean(),
   mrsaMssaInfected: z.boolean(),
   mrsaMssaLastPositiveSwabDate: z.string().optional(),
@@ -60,18 +66,18 @@ export const InfectionPreventionAssessmentSchema = z.object({
   mrsaMssaLengthOfCourse: z.string().optional(),
   mrsaMssaFollowUpRequired: z.string().optional(),
 
-  // Multi-drug resistant organisms
+  // 7Multi-drug resistant organisms
   esbl: z.boolean(),
   vreGre: z.boolean(),
   cpe: z.boolean(),
   otherMultiDrugResistance: z.string().optional(),
   relevantInformationMultiDrugResistance: z.string().optional(),
 
-  // Other Information
+  // 8 Other Information
   awarenessOfInfection: z.boolean(),
   lastFluVaccinationDate: z.string().optional(),
 
-  // Assessment Completion
+  // 9Assessment Completion
   completedBy: z.string().min(1, "Completed by is required"),
   jobRole: z.string().min(1, "Job role is required"),
   signature: z.string().min(1, "Signature is required"),
