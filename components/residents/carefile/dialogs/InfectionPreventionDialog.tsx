@@ -130,6 +130,13 @@ export default function InfectionPreventionDialog({
         "furtherTreatmentRequired"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 4) {
+      const fieldsToValidate = [
+        "diarrheaVomitingCurrentSymptoms",
+        "diarrheaVomitingContactWithOthers",
+        "diarrheaVomitingFamilyHistory72h"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
     }
     if (isValid) {
       if (step === 9) {
@@ -706,6 +713,96 @@ export default function InfectionPreventionDialog({
                           <SelectItem value="false">No</SelectItem>
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 4 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="diarrheaVomitingCurrentSymptoms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Current symptoms of diarrhea and vomiting?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="diarrheaVomitingContactWithOthers"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Contact with others?</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="diarrheaVomitingFamilyHistory72h"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        Family history of diarrhea and vomiting in the last 72
+                        hours?
+                      </FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
                       <FormMessage />
                     </FormItem>
                   )}
