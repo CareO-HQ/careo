@@ -45,7 +45,7 @@ export const InfectionPreventionAssessmentSchema = z.object({
   clostridiumActive: z.boolean(),
   clostridiumHistory: z.boolean(),
   clostridiumStoolCount72h: z.string().optional(),
-  clostridiumLastPositiveSpecimenDate: z.string().optional(),
+  clostridiumLastPositiveSpecimenDate: z.number().optional(),
   clostridiumResult: z.string().optional(),
   clostridiumTreatmentReceived: z.string().optional(),
   clostridiumTreatmentComplete: z.boolean().optional(),
