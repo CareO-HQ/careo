@@ -707,269 +707,250 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
 
       {/* Diet Information Display */}
       {existingDiet && (
-        <Card className="overflow-hidden border-0 bg-gradient-to-r from-slate-50 to-gray-50 shadow-sm">
-          <CardContent className="p-0">
-            {/* Header */}
-            <div className="bg-white px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center justify-between">
+        <Card className="overflow-hidden border-0 shadow-sm">
+  <CardContent className="p-0">
+    {/* Header */}
+    <div className="bg-white px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+            <Utensils className="w-4 h-4 text-amber-600" />
+          </div>
+          <h3 className="font-semibold text-gray-800">Diet Information</h3>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsDialogOpen(true)}
+          className="h-8 px-3 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+        >
+          Edit
+        </Button>
+      </div>
+    </div>
+
+    {/* Content */}
+    <div className="p-4">
+      {/* Responsive row layout */}
+      <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3">
+        
+        {/* Diet Types */}
+        {((existingDiet.dietTypes && existingDiet.dietTypes.length > 0) || existingDiet.otherDietType || existingDiet.culturalRestrictions) && (
+          <div className="space-y-2 lg:flex-[1_1_260px] min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Diet Types</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {existingDiet.dietTypes && existingDiet.dietTypes.map((diet, index) => (
+                <Badge key={index} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2 py-1 rounded-md">
+                  {diet}
+                </Badge>
+              ))}
+              {existingDiet.otherDietType && (
+                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2 py-1 rounded-md">
+                  {existingDiet.otherDietType}
+                </Badge>
+              )}
+              {existingDiet.culturalRestrictions && (
+                <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs px-2 py-1 rounded-md">
+                  {existingDiet.culturalRestrictions}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Food Allergies */}
+        {existingDiet.allergies && existingDiet.allergies.length > 0 && (
+          <div className="space-y-2 lg:flex-[1_1_220px] min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium">Food Allergies</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {existingDiet.allergies.map((allergyObj, index) => (
+                <Badge key={index} className="bg-red-100 text-red-800 border-red-300 text-xs px-2 py-1 rounded-md font-medium">
+                  {allergyObj.allergy}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Assistance */}
+        {existingDiet.assistanceRequired && (
+          <div className="space-y-2 lg:flex-[1_1_200px] min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Assistance</span>
+            </div>
+            <div>
+              <Badge
+                className={`text-xs px-3 py-1 rounded-md font-medium ${
+                  existingDiet.assistanceRequired === 'yes'
+                    ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                    : 'bg-green-100 text-green-800 border-green-300'
+                }`}
+              >
+                {existingDiet.assistanceRequired === 'yes' ? 'Assistance Required' : 'Independent'}
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {/* Choking Risk */}
+        {existingDiet.chokingRisk && (
+          <div className="space-y-2 lg:flex-[1_1_200px] min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Choking Risk</span>
+            </div>
+            <div>
+              <Badge
+                className={`text-xs px-3 py-1 rounded-md font-medium ${
+                  existingDiet.chokingRisk === 'high'
+                    ? 'bg-red-100 text-red-800 border-red-300'
+                    : existingDiet.chokingRisk === 'medium'
+                    ? 'bg-orange-100 text-orange-800 border-orange-300'
+                    : 'bg-green-100 text-green-800 border-green-300'
+                }`}
+              >
+                {existingDiet.chokingRisk === 'high' ? 'High Risk' :
+                 existingDiet.chokingRisk === 'medium' ? 'Medium Risk' : 'Low Risk'}
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {/* Texture Levels */}
+        {(existingDiet.foodConsistency || existingDiet.fluidConsistency) && (
+          <div className="space-y-2 lg:flex-[2_1_320px] min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Texture Levels</span>
+            </div>
+            <div className="space-y-1.5">
+              {existingDiet.foodConsistency && (
                 <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                    <Utensils className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-800">Diet Information</h3>
+                  <span className="text-xs text-gray-500 w-8">Food:</span>
+                  <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs px-2 py-1 rounded-md">
+                    {existingDiet.foodConsistency === 'level7' && 'Level 7 - Easy Chew'}
+                    {existingDiet.foodConsistency === 'level6' && 'Level 6 - Soft & Bite-sized'}
+                    {existingDiet.foodConsistency === 'level5' && 'Level 5 - Minced & Moist'}
+                    {existingDiet.foodConsistency === 'level4' && 'Level 4 - Pureed'}
+                    {existingDiet.foodConsistency === 'level3' && 'Level 3 - Liquidised'}
+                  </Badge>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDialogOpen(true)}
-                  className="h-8 px-3 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                >
-                  Edit
-                </Button>
-              </div>
+              )}
+              {existingDiet.fluidConsistency && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-500 w-8">Fluid:</span>
+                  <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs px-2 py-1 rounded-md">
+                    {existingDiet.fluidConsistency === 'level0' && 'Level 0 - Thin'}
+                    {existingDiet.fluidConsistency === 'level1' && 'Level 1 - Slightly Thick'}
+                    {existingDiet.fluidConsistency === 'level2' && 'Level 2 - Mildly Thick'}
+                    {existingDiet.fluidConsistency === 'level3' && 'Level 3 - Moderately Thick'}
+                    {existingDiet.fluidConsistency === 'level4' && 'Level 4 - Extremely Thick'}
+                  </Badge>
+                </div>
+              )}
             </div>
+          </div>
+        )}
 
-            {/* Content */}
-            <div className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Left Column */}
-                <div className="space-y-3">
-                  {/* Diet Types */}
-                  {((existingDiet.dietTypes && existingDiet.dietTypes.length > 0) || existingDiet.otherDietType || existingDiet.culturalRestrictions) && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        <span className="text-sm font-medium text-gray-700">Diet Types</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 ml-4">
-                        {existingDiet.dietTypes && existingDiet.dietTypes.map((diet, index) => (
-                          <Badge key={index} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2 py-1 rounded-md">
-                            {diet}
-                          </Badge>
-                        ))}
-                        {existingDiet.otherDietType && (
-                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2 py-1 rounded-md">
-                            {existingDiet.otherDietType}
-                          </Badge>
-                        )}
-                        {existingDiet.culturalRestrictions && (
-                          <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs px-2 py-1 rounded-md">
-                            {existingDiet.culturalRestrictions}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  )}
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
-                  {/* Food Allergies */}
-                  {existingDiet.allergies && existingDiet.allergies.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                        <span className="text-sm font-medium text-red-700">⚠️ Food Allergies</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 ml-4">
-                        {existingDiet.allergies.map((allergyObj, index) => (
-                          <Badge key={index} className="bg-red-100 text-red-800 border-red-300 text-xs px-2 py-1 rounded-md font-medium">
-                            {allergyObj.allergy}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Assistance */}
-                  {existingDiet.assistanceRequired && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${existingDiet.assistanceRequired === 'yes' ? 'bg-indigo-500' : 'bg-green-500'}`}></div>
-                        <span className="text-sm font-medium text-gray-700">Assistance</span>
-                      </div>
-                      <div className="ml-4">
-                        <Badge 
-                          className={`text-xs px-3 py-1 rounded-full font-medium ${
-                            existingDiet.assistanceRequired === 'yes'
-                              ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
-                              : 'bg-green-100 text-green-800 border-green-300'
-                          }`}
-                        >
-                          {existingDiet.assistanceRequired === 'yes' ? '🤝 Assistance Required' : '✅ Independent'}
-                        </Badge>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Column */}
-                <div className="space-y-3">
-                  {/* Choking Risk */}
-                  {existingDiet.chokingRisk && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          existingDiet.chokingRisk === 'high' ? 'bg-red-500' :
-                          existingDiet.chokingRisk === 'medium' ? 'bg-orange-500' : 'bg-green-500'
-                        }`}></div>
-                        <span className="text-sm font-medium text-gray-700">Choking Risk</span>
-                      </div>
-                      <div className="ml-4">
-                        <Badge 
-                          className={`text-xs px-3 py-1 rounded-full font-medium ${
-                            existingDiet.chokingRisk === 'high' 
-                              ? 'bg-red-100 text-red-800 border-red-300'
-                              : existingDiet.chokingRisk === 'medium'
-                              ? 'bg-orange-100 text-orange-800 border-orange-300'
-                              : 'bg-green-100 text-green-800 border-green-300'
-                          }`}
-                        >
-                          {existingDiet.chokingRisk === 'high' ? '🚨 High Risk' :
-                           existingDiet.chokingRisk === 'medium' ? '⚠️ Medium Risk' : '✅ Low Risk'}
-                        </Badge>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Food & Fluid Consistency */}
-                  {(existingDiet.foodConsistency || existingDiet.fluidConsistency) && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 rounded-full bg-teal-500"></div>
-                        <span className="text-sm font-medium text-gray-700">Texture Levels</span>
-                      </div>
-                      <div className="space-y-1.5 ml-4">
-                        {existingDiet.foodConsistency && (
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-gray-500 w-8">Food:</span>
-                            <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs px-2 py-1 rounded-md">
-                              {existingDiet.foodConsistency === 'level7' && '🍎 Level 7 - Easy Chew'}
-                              {existingDiet.foodConsistency === 'level6' && '🥘 Level 6 - Soft & Bite-sized'}
-                              {existingDiet.foodConsistency === 'level5' && '🍲 Level 5 - Minced & Moist'}
-                              {existingDiet.foodConsistency === 'level4' && '🥣 Level 4 - Pureed'}
-                              {existingDiet.foodConsistency === 'level3' && '🥤 Level 3 - Liquidised'}
-                            </Badge>
-                          </div>
-                        )}
-                        {existingDiet.fluidConsistency && (
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-gray-500 w-8">Fluid:</span>
-                            <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs px-2 py-1 rounded-md">
-                              {existingDiet.fluidConsistency === 'level0' && '💧 Level 0 - Thin'}
-                              {existingDiet.fluidConsistency === 'level1' && '🥤 Level 1 - Slightly Thick'}
-                              {existingDiet.fluidConsistency === 'level2' && '🍯 Level 2 - Mildly Thick'}
-                              {existingDiet.fluidConsistency === 'level3' && '🥛 Level 3 - Moderately Thick'}
-                              {existingDiet.fluidConsistency === 'level4' && '🍮 Level 4 - Extremely Thick'}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    
       )}
 
       {/* Food & Fluid Monitoring Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Food Intake Card */}
-        <Card className="border-2 border-yellow-200 bg-yellow-50/30">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center space-x-2">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Utensils className="w-5 h-5 text-yellow-600" />
-              </div>
-              <div>
-                <span className="text-yellow-800">Food Intake</span>
-                <p className="text-sm font-normal text-muted-foreground mt-1">
-                  Track meals and nutritional intake
-                </p>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center py-8">
-              <Utensils className="w-12 h-12 text-yellow-300 mx-auto mb-3" />
-              <p className="text-yellow-700 font-medium mb-2">No food records today</p>
-              <p className="text-sm text-yellow-600 mb-4">Start tracking {fullName}&apos;s food intake</p>
-              <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Food Entry
-              </Button>
-            </div>
-            
-            {/* Quick meal buttons for future implementation */}
-            <div className="border-t pt-4">
-              <p className="text-xs text-muted-foreground mb-2">Quick meal logging:</p>
-              <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">🌅</span>
-                  Breakfast
-                </Button>
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">☀️</span>
-                  Lunch
-                </Button>
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">🌙</span>
-                  Dinner
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Card className="border">
+  <CardHeader className="pb-4">
+    <CardTitle className="flex flex-col">
+      <span className="font-semibold text-gray-900">Food Intake</span>
+      <p className="text-sm font-normal text-gray-500 mt-1">
+        Track meals and nutritional intake
+      </p>
+    </CardTitle>
+  </CardHeader>
+
+  <CardContent className="space-y-4">
+    <div className="text-center py-8">
+      <p className="text-gray-800 font-medium mb-2">No food records today</p>
+      <p className="text-sm text-gray-500 mb-4">
+        Start tracking {fullName}&apos;s food intake
+      </p>
+      <Button className="bg-black hover:bg-gray-800 text-white">
+        <Plus className="w-4 h-4 mr-2" />
+        Add Food Entry
+      </Button>
+    </div>
+
+    {/* Quick meal buttons */}
+    <div className="border-t pt-4">
+      <p className="text-xs text-gray-500 mb-2">Quick meal logging:</p>
+      <div className="grid grid-cols-3 gap-2">
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Breakfast
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Lunch
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Dinner
+        </Button>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
 
         {/* Fluid Intake Card */}
-        <Card className="border-2 border-blue-200 bg-blue-50/30">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center space-x-2">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Droplets className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <span className="text-blue-800">Fluid Intake</span>
-                <p className="text-sm font-normal text-muted-foreground mt-1">
-                  Monitor hydration levels
-                </p>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center py-8">
-              <Droplets className="w-12 h-12 text-blue-300 mx-auto mb-3" />
-              <p className="text-blue-700 font-medium mb-2">No fluid records today</p>
-              <p className="text-sm text-blue-600 mb-4">Start tracking {fullName}&apos;s fluid intake</p>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Fluid Entry
-              </Button>
-            </div>
+        <Card className="border">
+  <CardHeader className="pb-4">
+    <CardTitle className="flex flex-col">
+      <span className="font-semibold text-gray-900">Fluid Intake</span>
+      <p className="text-sm font-normal text-gray-500 mt-1">
+        Monitor hydration levels
+      </p>
+    </CardTitle>
+  </CardHeader>
 
-            {/* Quick fluid type buttons for future implementation */}
-            <div className="border-t pt-4">
-              <p className="text-xs text-muted-foreground mb-2">Common fluids:</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">💧</span>
-                  Water
-                </Button>
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">☕</span>
-                  Tea/Coffee
-                </Button>
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">🥤</span>
-                  Juice
-                </Button>
-                <Button variant="outline" size="sm" className="text-xs">
-                  <span className="mr-1">🥛</span>
-                  Milk
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  <CardContent className="space-y-4">
+    <div className="text-center py-8">
+      <p className="text-gray-800 font-medium mb-2">No fluid records today</p>
+      <p className="text-sm text-gray-500 mb-4">
+        Start tracking {fullName}&apos;s fluid intake
+      </p>
+      <Button className="bg-black hover:bg-gray-800 text-white">
+        <Plus className="w-4 h-4 mr-2" />
+        Add Fluid Entry
+      </Button>
+    </div>
+
+    {/* Quick fluid type buttons */}
+    <div className="border-t pt-4">
+      <p className="text-xs text-gray-500 mb-2">Common fluids:</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Water
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Tea / Coffee
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Juice
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs text-gray-700">
+          Milk
+        </Button>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
       </div>
 
       {/* Today's Summary Card */}
