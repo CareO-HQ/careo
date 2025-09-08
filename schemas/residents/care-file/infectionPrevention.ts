@@ -54,7 +54,7 @@ export const InfectionPreventionAssessmentSchema = z.object({
   ongoingLengthOfCourse: z.string().optional(),
   ongoingFollowUpRequired: z.string().optional(),
 
-  // 6MRSA / MSSA
+  // 6 MRSA / MSSA
   mrsaMssaColonised: z.boolean(),
   mrsaMssaInfected: z.boolean(),
   mrsaMssaLastPositiveSwabDate: z.string().optional(),
@@ -66,7 +66,7 @@ export const InfectionPreventionAssessmentSchema = z.object({
   mrsaMssaLengthOfCourse: z.string().optional(),
   mrsaMssaFollowUpRequired: z.string().optional(),
 
-  // 7Multi-drug resistant organisms
+  // 7 Multi-drug resistant organisms
   esbl: z.boolean(),
   vreGre: z.boolean(),
   cpe: z.boolean(),

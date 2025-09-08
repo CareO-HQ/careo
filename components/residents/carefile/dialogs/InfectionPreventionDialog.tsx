@@ -50,7 +50,7 @@ export default function InfectionPreventionDialog({
   teamId,
   organizationId
 }: InfectionPreventionDialogProps) {
-  const [step, setStep] = useState(5);
+  const [step, setStep] = useState(6);
   const [isLoading, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
@@ -83,7 +83,44 @@ export default function InfectionPreventionDialog({
       testedForInfluenzaB: undefined,
       testedForRespiratoryScreen: undefined,
       influenzaB: undefined,
-      respiratoryScreen: undefined
+      respiratoryScreen: undefined,
+
+      // 3. Exposure
+      exposureToPatientsCovid: undefined,
+      exposureToStaffCovid: undefined,
+      isolationRequired: undefined,
+      isolationDetails: "",
+      furtherTreatmentRequired: undefined,
+
+      // 4. Diarrhea and Vomiting
+      diarrheaVomitingCurrentSymptoms: undefined,
+      diarrheaVomitingContactWithOthers: undefined,
+      diarrheaVomitingFamilyHistory72h: undefined,
+
+      // 5. Clostridium Difficile
+      clostridiumActive: undefined,
+      clostridiumHistory: undefined,
+      clostridiumStoolCount72h: "",
+      clostridiumLastPositiveSpecimenDate: undefined,
+      clostridiumResult: "",
+      clostridiumTreatmentReceived: "",
+      clostridiumTreatmentComplete: undefined,
+      ongoingDetails: "",
+      ongoingDateCommenced: "",
+      ongoingLengthOfCourse: "",
+      ongoingFollowUpRequired: "",
+
+      // 6. MRSA / MSSA
+      mrsaMssaColonised: undefined,
+      mrsaMssaInfected: undefined,
+      mrsaMssaLastPositiveSwabDate: "",
+      mrsaMssaSitesPositive: "",
+      mrsaMssaTreatmentReceived: "",
+      mrsaMssaTreatmentComplete: undefined,
+      mrsaMssaDetails: "",
+      mrsaMssaDateCommenced: "",
+      mrsaMssaLengthOfCourse: "",
+      mrsaMssaFollowUpRequired: ""
     }
   });
 
@@ -152,7 +189,22 @@ export default function InfectionPreventionDialog({
         "ongoingFollowUpRequired"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 6) {
+      const fieldsToValidate = [
+        "mrsaMssaColonised",
+        "mrsaMssaInfected",
+        "mrsaMssaLastPositiveSwabDate",
+        "mrsaMssaSitesPositive",
+        "mrsaMssaTreatmentReceived",
+        "mrsaMssaTreatmentComplete",
+        "mrsaMssaDetails",
+        "mrsaMssaDateCommenced",
+        "mrsaMssaLengthOfCourse",
+        "mrsaMssaFollowUpRequired"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
     }
+
     if (isValid) {
       if (step === 9) {
         console.log(form.getValues());
@@ -1064,6 +1116,110 @@ export default function InfectionPreventionDialog({
                     </FormItem>
                   )}
                 />
+              </>
+            )}
+            {step === 6 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="mrsaMssaColonised"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Is the person colonised?</FormLabel>
+                        <Select
+                          onValueChange={(value) =>
+                            field.onChange(value === "true")
+                          }
+                          defaultValue={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="true">Yes</SelectItem>
+                            <SelectItem value="false">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mrsaMssaInfected"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Is the person infected?</FormLabel>
+                        <Select
+                          onValueChange={(value) =>
+                            field.onChange(value === "true")
+                          }
+                          defaultValue={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="true">Yes</SelectItem>
+                            <SelectItem value="false">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mrsaMssaLastPositiveSwabDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Last Positive Swab</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" captionLayout="dropdown" />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mrsaMssaSitesPositive"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sites positive</FormLabel>
+                        <Input placeholder="Sites positive" {...field} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {/* TODO: Seguir por treatment received */}
+                </div>
               </>
             )}
           </form>
