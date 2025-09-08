@@ -387,4 +387,38 @@ export default defineSchema({
 
     createdAt: v.number(), // Date.now()
   }).index("by_daily", ["dailyId"]),
+
+  // Diet information for residents
+  dietInformation: defineTable({
+    residentId: v.id("residents"),
+    dietTypes: v.optional(v.array(v.string())),
+    otherDietType: v.optional(v.string()),
+    culturalRestrictions: v.optional(v.string()),
+    allergies: v.optional(v.array(v.object({
+      allergy: v.string()
+    }))),
+    chokingRisk: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    foodConsistency: v.optional(v.union(
+      v.literal("level7"), // Easy Chew
+      v.literal("level6"), // Soft & Bite-sized  
+      v.literal("level5"), // Minced & Moist
+      v.literal("level4"), // Pureed
+      v.literal("level3")  // Liquidised
+    )),
+    fluidConsistency: v.optional(v.union(
+      v.literal("level0"), // Thin
+      v.literal("level1"), // Slightly Thick
+      v.literal("level2"), // Mildly Thick
+      v.literal("level3"), // Moderately Thick
+      v.literal("level4")  // Extremely Thick
+    )),
+    assistanceRequired: v.optional(v.union(v.literal("yes"), v.literal("no"))),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"]),
 });

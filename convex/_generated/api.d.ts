@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
+import type * as diet from "../diet.js";
 import type * as files_image from "../files/image.js";
 import type * as http from "../http.js";
 import type * as labels from "../labels.js";
@@ -36,6 +37,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   crons: typeof crons;
+  diet: typeof diet;
   "files/image": typeof files_image;
   http: typeof http;
   labels: typeof labels;
