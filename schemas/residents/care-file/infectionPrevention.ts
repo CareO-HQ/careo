@@ -75,11 +75,11 @@ export const InfectionPreventionAssessmentSchema = z.object({
 
   // 8 Other Information
   awarenessOfInfection: z.boolean(),
-  lastFluVaccinationDate: z.string().optional(),
+  lastFluVaccinationDate: z.number().optional(),
 
-  // 9Assessment Completion
+  // 9 Assessment Completion
   completedBy: z.string().min(1, "Completed by is required"),
   jobRole: z.string().min(1, "Job role is required"),
   signature: z.string().min(1, "Signature is required"),
-  completionDate: z.string().min(1, "Date is required")
+  completionDate: z.number().min(1, "Date is required")
 });

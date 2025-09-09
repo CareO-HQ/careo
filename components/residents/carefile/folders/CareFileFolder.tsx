@@ -156,6 +156,7 @@ export default function CareFileFolder({
             resident={resident}
             teamId={activeTeamId}
             organizationId={activeOrg?.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
           />
         );
       // case 'discharge':
