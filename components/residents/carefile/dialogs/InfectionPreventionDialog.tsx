@@ -246,16 +246,16 @@ export default function InfectionPreventionDialog({
         "completionDate"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
+    }
 
-      if (isValid) {
-        if (step === 9) {
-          console.log(form.getValues());
-        } else {
-          setStep(step + 1);
-        }
+    if (isValid) {
+      if (step === 9) {
+        console.log(form.getValues());
       } else {
-        toast.error("Please fill in all required fields correctly");
+        setStep(step + 1);
       }
+    } else {
+      toast.error("Please fill in all required fields correctly");
     }
   };
 
@@ -336,7 +336,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -476,7 +485,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1018,7 +1036,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1129,7 +1156,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1243,7 +1279,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1326,7 +1371,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1533,7 +1587,14 @@ export default function InfectionPreventionDialog({
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" captionLayout="dropdown" />
+                          <Calendar
+                            mode="single"
+                            captionLayout="dropdown"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            onSelect={(date) => field.onChange(date?.getTime())}
+                          />
                         </PopoverContent>
                       </Popover>
                       <FormMessage />
@@ -1604,7 +1665,14 @@ export default function InfectionPreventionDialog({
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" captionLayout="dropdown" />
+                          <Calendar
+                            mode="single"
+                            captionLayout="dropdown"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            onSelect={(date) => field.onChange(date?.getTime())}
+                          />
                         </PopoverContent>
                       </Popover>
                       <FormMessage />
