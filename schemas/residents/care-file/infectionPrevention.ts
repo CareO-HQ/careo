@@ -60,9 +60,9 @@ export const InfectionPreventionAssessmentSchema = z.object({
   mrsaMssaLastPositiveSwabDate: z.string().optional(),
   mrsaMssaSitesPositive: z.string().optional(),
   mrsaMssaTreatmentReceived: z.string().optional(),
-  mrsaMssaTreatmentComplete: z.boolean().optional(),
+  mrsaMssaTreatmentComplete: z.string().optional(),
   mrsaMssaDetails: z.string().optional(),
-  mrsaMssaDateCommenced: z.string().optional(),
+  mrsaMssaDateCommenced: z.number().optional(),
   mrsaMssaLengthOfCourse: z.string().optional(),
   mrsaMssaFollowUpRequired: z.string().optional(),
 
