@@ -17,8 +17,15 @@ export default function CareFilePage() {
   const pathname = path.split("/");
   const residentId = pathname[pathname.length - 2];
 
-  const preAddissionState = useQuery(
+  const preAddmissionState = useQuery(
     api.careFiles.preadmission.hasPreAdmissionForm,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
+
+  const infectionPreventionState = useQuery(
+    api.careFiles.infectionPrevention.hasInfectionPreventionAssessment,
     {
       residentId: residentId as Id<"residents">
     }
@@ -57,7 +64,8 @@ export default function CareFilePage() {
                   folderName={file.value}
                   description={file.description}
                   forms={file.forms}
-                  preAddissionState={preAddissionState}
+                  preAddmissionState={preAddmissionState}
+                  infectionPreventionState={infectionPreventionState}
                 />
               )
           )}

@@ -37,14 +37,16 @@ interface CareFileFolderProps {
         value: string;
       }[]
     | undefined;
-  preAddissionState: boolean | undefined;
+  preAddmissionState: boolean | undefined;
+  infectionPreventionState: boolean | undefined;
 }
 
 export default function CareFileFolder({
   folderName,
   description,
   forms,
-  preAddissionState
+  preAddmissionState,
+  infectionPreventionState
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
@@ -195,15 +197,15 @@ export default function CareFileFolder({
                   onClick={() => handleCareFileClick(form.key)}
                 >
                   <div className="flex flex-row items-center gap-2">
-                    {preAddissionState &&
+                    {preAddmissionState &&
                     form.key === "preAdmission-form" &&
                     pdfUrl ? (
                       <CircleCheckIcon className="h-4 max-w-4 text-emerald-500" />
-                    ) : preAddissionState &&
+                    ) : preAddmissionState &&
                       form.key === "preAdmission-form" &&
                       hasPdfFileId ? (
                       <CircleDashedIcon className="h-4 max-w-4 text-yellow-500" />
-                    ) : preAddissionState &&
+                    ) : preAddmissionState &&
                       form.key === "preAdmission-form" ? (
                       <CircleDashedIcon className="h-4 max-w-4 text-yellow-500" />
                     ) : (
@@ -212,14 +214,14 @@ export default function CareFileFolder({
                     <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
                       {form.value}
                     </p>
-                    {preAddissionState &&
+                    {preAddmissionState &&
                       form.key === "preAdmission-form" &&
                       pdfUrl && (
                         <p className="text-xs text-emerald-500 bg-emerald-50 px-1 rounded-md">
                           Completed
                         </p>
                       )}
-                    {preAddissionState &&
+                    {preAddmissionState &&
                       form.key === "preAdmission-form" &&
                       hasPdfFileId &&
                       !pdfUrl && (
@@ -227,7 +229,7 @@ export default function CareFileFolder({
                           PDF Ready (reloading...)
                         </p>
                       )}
-                    {preAddissionState &&
+                    {preAddmissionState &&
                       form.key === "preAdmission-form" &&
                       !hasPdfFileId && (
                         <p className="text-xs text-yellow-600 bg-yellow-50 px-1 rounded-md">
@@ -235,7 +237,7 @@ export default function CareFileFolder({
                         </p>
                       )}
                   </div>
-                  {preAddissionState &&
+                  {preAddmissionState &&
                     form.key === "preAdmission-form" &&
                     hasPdfFileId && (
                       <DownloadIcon
