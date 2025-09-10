@@ -10,12 +10,7 @@ import {
   SheetTitle,
   SheetTrigger
 } from "@/components/ui/sheet";
-import {
-  CircleCheckIcon,
-  CircleDashedIcon,
-  DownloadIcon,
-  FolderIcon
-} from "lucide-react";
+import { DownloadIcon, FolderIcon } from "lucide-react";
 import { useState } from "react";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { authClient } from "@/lib/auth-client";
@@ -26,6 +21,9 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import { useCareFileForms } from "@/hooks/use-care-file-forms";
+import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
+import { CareFileFormKey } from "@/types/care-files";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -37,16 +35,12 @@ interface CareFileFolderProps {
         value: string;
       }[]
     | undefined;
-  preAddmissionState: boolean | undefined;
-  infectionPreventionState: boolean | undefined;
 }
 
 export default function CareFileFolder({
   folderName,
   description,
-  forms,
-  preAddmissionState,
-  infectionPreventionState
+  forms
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
@@ -56,60 +50,54 @@ export default function CareFileFolder({
 
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[pathname.length - 2];
+  const residentId = pathname[pathname.length - 2] as Id<"residents">;
+
+  // Use our new care file forms hook
+  const { getFormState, canDownloadPdf } = useCareFileForms({ residentId });
+
+  // Get resident data for dialogs
   const resident = useQuery(api.residents.getById, {
-    residentId: residentId
-      ? (residentId as Id<"residents">)
-      : ("skip" as Id<"residents">)
+    residentId: residentId || ("skip" as Id<"residents">)
   });
-
-  const preAdmissionForms = useQuery(
-    api.careFiles.preadmission.getPreAdmissionFormsByResident,
-    {
-      residentId: residentId as Id<"residents">
-    }
-  );
-
-  // Check if PDF exists for the latest form
-  const latestForm = preAdmissionForms?.[0];
-  const pdfUrl = useQuery(
-    api.careFiles.preadmission.getPDFUrl,
-    latestForm ? { formId: latestForm._id } : "skip"
-  );
-
-  // Check if we have a PDF file ID (PDF was generated) even if URL is not available yet
-  const hasPdfFileId = latestForm?.pdfFileId != null;
 
   const handleCareFileClick = (key: string) => {
     setActiveDialogKey(key);
     setIsDialogOpen(true);
   };
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF = async (formKey: CareFileFormKey) => {
     try {
-      // Get the latest pre-admission form for this resident
-      const latestForm = preAdmissionForms?.[0];
+      const formState = getFormState(formKey);
 
-      if (!latestForm) {
-        toast.error("No pre-admission form found");
+      if (!formState.hasData) {
+        toast.error("No form data found");
         return;
       }
 
-      // Check if we have a PDF file ID
-      if (!hasPdfFileId) {
+      if (!canDownloadPdf(formKey)) {
         toast.error(
           "PDF is still being generated. Please wait a moment and try again."
         );
         return;
       }
 
-      // Check if PDF URL is available
-      if (pdfUrl) {
-        // Download the PDF from Convex storage
-        await downloadFromUrl(
-          pdfUrl,
-          `pre-admission-form-${latestForm.firstName}-${latestForm.lastName}.pdf`
-        );
+      if (formState.pdfUrl) {
+        // Generate appropriate filename based on form type
+        const getFileName = (key: CareFileFormKey): string => {
+          const baseName = resident
+            ? `${resident.firstName}-${resident.lastName}`
+            : "form";
+          switch (key) {
+            case "preAdmission-form":
+              return `pre-admission-form-${baseName}.pdf`;
+            case "infection-prevention":
+              return `infection-prevention-assessment-${baseName}.pdf`;
+            default:
+              return `${key}-${baseName}.pdf`;
+          }
+        };
+
+        await downloadFromUrl(formState.pdfUrl, getFileName(formKey));
         toast.success("PDF downloaded successfully");
       } else {
         toast.error(
@@ -190,66 +178,39 @@ export default function CareFileFolder({
           <div className="flex flex-col justify-between h-full">
             <div className="flex flex-col gap-1 px-4">
               <p className="text-muted-foreground text-sm font-medium">Forms</p>
-              {forms?.map((form) => (
-                <div
-                  key={form.key}
-                  className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 cursor-pointer hover:bg-muted/50 hover:text-primary rounded-md group"
-                  onClick={() => handleCareFileClick(form.key)}
-                >
-                  <div className="flex flex-row items-center gap-2">
-                    {preAddmissionState &&
-                    form.key === "preAdmission-form" &&
-                    pdfUrl ? (
-                      <CircleCheckIcon className="h-4 max-w-4 text-emerald-500" />
-                    ) : preAddmissionState &&
-                      form.key === "preAdmission-form" &&
-                      hasPdfFileId ? (
-                      <CircleDashedIcon className="h-4 max-w-4 text-yellow-500" />
-                    ) : preAddmissionState &&
-                      form.key === "preAdmission-form" ? (
-                      <CircleDashedIcon className="h-4 max-w-4 text-yellow-500" />
-                    ) : (
-                      <CircleDashedIcon className="h-4 max-w-4 text-muted-foreground/70 group-hover:text-primary" />
-                    )}
-                    <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
-                      {form.value}
-                    </p>
-                    {preAddmissionState &&
-                      form.key === "preAdmission-form" &&
-                      pdfUrl && (
-                        <p className="text-xs text-emerald-500 bg-emerald-50 px-1 rounded-md">
-                          Completed
-                        </p>
-                      )}
-                    {preAddmissionState &&
-                      form.key === "preAdmission-form" &&
-                      hasPdfFileId &&
-                      !pdfUrl && (
-                        <p className="text-xs text-yellow-600 bg-yellow-50 px-1 rounded-md">
-                          PDF Ready (reloading...)
-                        </p>
-                      )}
-                    {preAddmissionState &&
-                      form.key === "preAdmission-form" &&
-                      !hasPdfFileId && (
-                        <p className="text-xs text-yellow-600 bg-yellow-50 px-1 rounded-md">
-                          Generating PDF...
-                        </p>
-                      )}
-                  </div>
-                  {preAddmissionState &&
-                    form.key === "preAdmission-form" &&
-                    hasPdfFileId && (
+              {forms?.map((form) => {
+                const formKey = form.key as CareFileFormKey;
+                const formState = getFormState(formKey);
+                const showDownload = canDownloadPdf(formKey);
+
+                return (
+                  <div
+                    key={form.key}
+                    className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 cursor-pointer hover:bg-muted/50 hover:text-primary rounded-md group"
+                    onClick={() => handleCareFileClick(form.key)}
+                  >
+                    <div className="flex flex-row items-center gap-2">
+                      <FormStatusIndicator
+                        status={formState.status}
+                        className="h-4 max-w-4"
+                      />
+                      <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
+                        {form.value}
+                      </p>
+                      <FormStatusBadge status={formState.status} />
+                    </div>
+                    {showDownload && (
                       <DownloadIcon
                         className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDownloadPDF();
+                          handleDownloadPDF(formKey);
                         }}
                       />
                     )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
               <p className="text-muted-foreground text-sm font-medium mt-10">
                 Files
               </p>
