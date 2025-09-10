@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -71,6 +71,16 @@ const DietFormSchema = z.object({
   assistanceRequired: z.enum(["yes", "no"]).optional(),
 });
 
+// Food/Fluid Log Form Schema
+const FoodFluidLogSchema = z.object({
+  section: z.enum(["midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"]),
+  typeOfFoodDrink: z.string().min(1, "Please specify the food or drink"),
+  portionServed: z.string().min(1, "Please specify the portion served"),
+  amountEaten: z.enum(["None", "1/4", "1/2", "3/4", "All"]),
+  fluidConsumedMl: z.number().optional().or(z.literal(0)),
+  signature: z.string().min(1, "Signature is required"),
+});
+
 type FoodFluidPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -87,17 +97,43 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     residentId: id as Id<"residents">
   });
 
+  // Get current day food/fluid logs
+  const currentDayLogs = useQuery(api.foodFluidLogs.getCurrentDayLogs, {
+    residentId: id as Id<"residents">
+  });
+
+  // Get food/fluid summary for today
+  const today = new Date().toISOString().split('T')[0];
+  const logSummary = useQuery(api.foodFluidLogs.getFoodFluidSummary, {
+    residentId: id as Id<"residents">,
+    date: today
+  });
+
+  // Get archived logs (limited to recent ones for the records view)
+  const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
+    residentId: id as Id<"residents">,
+    limit: 20
+  });
+
   // Auth data
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
 
   // Mutations
   const createOrUpdateDietMutation = useMutation(api.diet.createOrUpdateDiet);
+  const createFoodFluidLogMutation = useMutation(api.foodFluidLogs.createFoodFluidLog);
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [step, setStep] = React.useState(1);
+  
+  // Food/Fluid Log Dialog state
+  const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
+  const [isLogLoading, setIsLogLoading] = React.useState(false);
+  
+  // Records View Dialog state
+  const [isRecordsDialogOpen, setIsRecordsDialogOpen] = React.useState(false);
 
   // Form setup
   const form = useForm<z.infer<typeof DietFormSchema>>({
@@ -113,6 +149,27 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
       assistanceRequired: undefined,
     },
   });
+
+  // Food/Fluid Log Form setup
+  const logForm = useForm<z.infer<typeof FoodFluidLogSchema>>({
+    resolver: zodResolver(FoodFluidLogSchema),
+    defaultValues: {
+      section: "7am-12pm",
+      typeOfFoodDrink: "",
+      portionServed: "",
+      amountEaten: "All",
+      fluidConsumedMl: undefined,
+      signature: user?.user?.name || "",
+    },
+  });
+
+  // Watch the typeOfFoodDrink field to show/hide fluid input
+  const watchedFoodDrink = useWatch({
+    control: logForm.control,
+    name: "typeOfFoodDrink"
+  });
+
+  const isFluidItem = watchedFoodDrink && ['Water', 'Tea', 'Coffee', 'Juice', 'Milk', 'Soup', 'Smoothie'].includes(watchedFoodDrink);
 
   // Update form when existing diet data is loaded
   React.useEffect(() => {
@@ -183,6 +240,14 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     });
   };
 
+  const getCurrentSection = () => {
+    const hour = new Date().getHours();
+    if (hour >= 0 && hour < 7) return "midnight-7am";
+    if (hour >= 7 && hour < 12) return "7am-12pm";
+    if (hour >= 12 && hour < 17) return "12pm-5pm";
+    return "5pm-midnight";
+  };
+
   const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
     setIsLoading(true);
     try {
@@ -214,6 +279,44 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
       console.error("Error saving diet:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const onFoodFluidLogSubmit = async (values: z.infer<typeof FoodFluidLogSchema>) => {
+    setIsLogLoading(true);
+    try {
+      if (!activeOrganization?.id || !user?.user?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      await createFoodFluidLogMutation({
+        residentId: id as Id<"residents">,
+        section: values.section,
+        typeOfFoodDrink: values.typeOfFoodDrink,
+        portionServed: values.portionServed,
+        amountEaten: values.amountEaten,
+        fluidConsumedMl: values.fluidConsumedMl,
+        signature: values.signature,
+        organizationId: activeOrganization.id,
+        createdBy: user.user.id,
+      });
+      
+      toast.success("Food/fluid entry logged successfully");
+      logForm.reset({
+        section: getCurrentSection(),
+        typeOfFoodDrink: "",
+        portionServed: "",
+        amountEaten: "All",
+        fluidConsumedMl: undefined,
+        signature: user.user.name || "",
+      });
+      setIsFoodFluidDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to log food/fluid entry");
+      console.error("Error logging food/fluid:", error);
+    } finally {
+      setIsLogLoading(false);
     }
   };
 
@@ -696,7 +799,339 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                 </DialogContent>
               </Dialog>
               
-              <Button variant="outline">
+              {/* Food/Fluid Log Dialog */}
+              <Dialog open={isFoodFluidDialogOpen} onOpenChange={setIsFoodFluidDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2">
+                      <Utensils className="w-5 h-5" />
+                      <span>Log Food & Fluid Entry</span>
+                    </DialogTitle>
+                    <DialogDescription>
+                      Record food or fluid intake for {fullName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <Form {...logForm}>
+                    <form onSubmit={logForm.handleSubmit(onFoodFluidLogSubmit)} className="space-y-4">
+                      
+                      {/* Section Selection */}
+                      <FormField
+                        control={logForm.control}
+                        name="section"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Time Section</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select time section" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="midnight-7am">Midnight - 7am</SelectItem>
+                                <SelectItem value="7am-12pm">7am - 12pm</SelectItem>
+                                <SelectItem value="12pm-5pm">12pm - 5pm</SelectItem>
+                                <SelectItem value="5pm-midnight">5pm - Midnight</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Type of Food/Drink */}
+                      <FormField
+                        control={logForm.control}
+                        name="typeOfFoodDrink"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Type of Food/Drink</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Toast, Tea, Chicken, Soup"
+                                disabled={isLogLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Portion Served */}
+                      <FormField
+                        control={logForm.control}
+                        name="portionServed"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Portion Served</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., 1 slice, 2 scoops, 250ml"
+                                disabled={isLogLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Amount Eaten */}
+                      <FormField
+                        control={logForm.control}
+                        name="amountEaten"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Amount Consumed</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select amount consumed" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="None">None</SelectItem>
+                                <SelectItem value="1/4">1/4</SelectItem>
+                                <SelectItem value="1/2">1/2</SelectItem>
+                                <SelectItem value="3/4">3/4</SelectItem>
+                                <SelectItem value="All">All</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Fluid Consumed (ml) - show only for fluid items */}
+                      {isFluidItem && (
+                        <FormField
+                          control={logForm.control}
+                          name="fluidConsumedMl"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Fluid Amount (ml)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="e.g., 150, 250"
+                                  disabled={isLogLoading}
+                                  {...field}
+                                  onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {/* Signature */}
+                      <FormField
+                        control={logForm.control}
+                        name="signature"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Staff Signature</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Staff name/ID"
+                                disabled={isLogLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsFoodFluidDialogOpen(false)}
+                          disabled={isLogLoading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={isLogLoading}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {isLogLoading ? "Logging..." : "Log Entry"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+              
+              {/* Records View Dialog */}
+              <Dialog open={isRecordsDialogOpen} onOpenChange={setIsRecordsDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2">
+                      <Eye className="w-5 h-5" />
+                      <span>Food & Fluid Records - {fullName}</span>
+                    </DialogTitle>
+                    <DialogDescription>
+                      View all current and archived food/fluid intake records
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="flex flex-col space-y-4 max-h-[60vh] overflow-auto">
+                    
+                    {/* Current Day Section */}
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 flex items-center space-x-2">
+                        <span>Today ({today})</span>
+                        <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                          Active
+                        </Badge>
+                      </h3>
+                      
+                      {currentDayLogs && currentDayLogs.length > 0 ? (
+                        <div className="space-y-2">
+                          {currentDayLogs.map((log) => (
+                            <div key={log._id} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3">
+                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {log.section.replace('-', ' - ')}
+                                  </Badge>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${
+                                      log.amountEaten === 'All' ? 'bg-green-100 text-green-800' :
+                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                    }`}
+                                  >
+                                    {log.amountEaten}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Served: {log.portionServed}
+                                  {log.fluidConsumedMl && ` • Fluid: ${log.fluidConsumedMl}ml`}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(log.timestamp).toLocaleTimeString('en-US', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })} by {log.signature}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
+                          No records for today
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Archived Records Section */}
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 flex items-center space-x-2">
+                        <span>Previous Days</span>
+                        <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
+                          Archived
+                        </Badge>
+                      </h3>
+                      
+                      {archivedLogs && archivedLogs.length > 0 ? (
+                        <div className="space-y-3">
+                          {archivedLogs.reduce((acc, log) => {
+                            const date = log.date;
+                            if (!acc[date]) {
+                              acc[date] = [];
+                            }
+                            acc[date].push(log);
+                            return acc;
+                          }, {} as Record<string, typeof archivedLogs>)}
+                          {Object.entries(
+                            archivedLogs.reduce((acc, log) => {
+                              const date = log.date;
+                              if (!acc[date]) {
+                                acc[date] = [];
+                              }
+                              acc[date].push(log);
+                              return acc;
+                            }, {} as Record<string, typeof archivedLogs>)
+                          ).map(([date, logs]) => (
+                            <div key={date} className="border rounded-lg bg-gray-50">
+                              <div className="p-3 border-b bg-gray-100 rounded-t-lg">
+                                <h4 className="font-medium">
+                                  {new Date(date).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })}
+                                </h4>
+                              </div>
+                              <div className="p-3 space-y-2">
+                                {logs.map((log) => (
+                                  <div key={log._id} className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="font-medium text-sm">{log.typeOfFoodDrink}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {log.section.replace('-', ' - ')}
+                                        </Badge>
+                                        <Badge 
+                                          variant="outline" 
+                                          className={`text-xs ${
+                                            log.amountEaten === 'All' ? 'bg-green-100 text-green-800' :
+                                            log.amountEaten === 'None' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                          }`}
+                                        >
+                                          {log.amountEaten}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-xs text-gray-600 mt-1">
+                                        {log.portionServed}
+                                        {log.fluidConsumedMl && ` • ${log.fluidConsumedMl}ml`}
+                                        • {new Date(log.timestamp).toLocaleTimeString('en-US', { 
+                                          hour: '2-digit', 
+                                          minute: '2-digit' 
+                                        })} by {log.signature}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
+                          No archived records found
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsRecordsDialogOpen(false)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
+              <Button 
+                variant="outline"
+                onClick={() => setIsRecordsDialogOpen(true)}
+              >
                 <Eye className="w-4 h-4 mr-2" />
                 See All Records
               </Button>
@@ -863,95 +1298,128 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     
       )}
 
-      {/* Food & Fluid Monitoring Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Food Intake Card */}
-        <Card className="border">
-  <CardHeader className="pb-4">
-    <CardTitle className="flex flex-col">
-      <span className="font-semibold text-gray-900">Food Intake</span>
-      <p className="text-sm font-normal text-gray-500 mt-1">
-        Track meals and nutritional intake
-      </p>
-    </CardTitle>
-  </CardHeader>
+      {/* Food & Fluid Entry Buttons */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Utensils className="w-5 h-5 text-gray-600" />
+            <span>Log Food & Fluid Intake</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button 
+              className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
+              onClick={() => {
+                logForm.setValue("section", getCurrentSection());
+                logForm.setValue("typeOfFoodDrink", "");
+                setIsFoodFluidDialogOpen(true);
+              }}
+            >
+              <Utensils className="w-6 h-6 mr-3" />
+              Log Food Entry
+            </Button>
+            
+            <Button 
+              className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
+              onClick={() => {
+                logForm.setValue("section", getCurrentSection());
+                logForm.setValue("typeOfFoodDrink", "Water");
+                setIsFoodFluidDialogOpen(true);
+              }}
+            >
+              <Droplets className="w-6 h-6 mr-3" />
+              Log Fluid Entry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-  <CardContent className="space-y-4">
-    <div className="text-center py-8">
-      <p className="text-gray-800 font-medium mb-2">No food records today</p>
-      <p className="text-sm text-gray-500 mb-4">
-        Start tracking {fullName}&apos;s food intake
-      </p>
-      <Button className="bg-black hover:bg-gray-800 text-white">
-        <Plus className="w-4 h-4 mr-2" />
-        Add Food Entry
-      </Button>
-    </div>
-
-    {/* Quick meal buttons */}
-    <div className="border-t pt-4">
-      <p className="text-xs text-gray-500 mb-2">Quick meal logging:</p>
-      <div className="grid grid-cols-3 gap-2">
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Breakfast
-        </Button>
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Lunch
-        </Button>
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Dinner
-        </Button>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-
-        {/* Fluid Intake Card */}
-        <Card className="border">
-  <CardHeader className="pb-4">
-    <CardTitle className="flex flex-col">
-      <span className="font-semibold text-gray-900">Fluid Intake</span>
-      <p className="text-sm font-normal text-gray-500 mt-1">
-        Monitor hydration levels
-      </p>
-    </CardTitle>
-  </CardHeader>
-
-  <CardContent className="space-y-4">
-    <div className="text-center py-8">
-      <p className="text-gray-800 font-medium mb-2">No fluid records today</p>
-      <p className="text-sm text-gray-500 mb-4">
-        Start tracking {fullName}&apos;s fluid intake
-      </p>
-      <Button className="bg-black hover:bg-gray-800 text-white">
-        <Plus className="w-4 h-4 mr-2" />
-        Add Fluid Entry
-      </Button>
-    </div>
-
-    {/* Quick fluid type buttons */}
-    <div className="border-t pt-4">
-      <p className="text-xs text-gray-500 mb-2">Common fluids:</p>
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Water
-        </Button>
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Tea / Coffee
-        </Button>
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Juice
-        </Button>
-        <Button variant="outline" size="sm" className="text-xs text-gray-700">
-          Milk
-        </Button>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-      </div>
+      {/* Today's Log History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-gray-600" />
+              <span>Today&apos;s Log History</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                {getCurrentDate()}
+              </Badge>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRecordsDialogOpen(true)}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View All Records
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {currentDayLogs && currentDayLogs.length > 0 ? (
+            <div className="space-y-3">
+              {currentDayLogs
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .map((log) => (
+                <div key={log._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className="flex items-center space-x-2">
+                        {['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? (
+                          <Droplets className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <Utensils className="w-4 h-4 text-orange-600" />
+                        )}
+                        <span className="font-medium">{log.typeOfFoodDrink}</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {log.section.replace('-', ' - ')}
+                      </Badge>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${
+                          log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                          log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                          'bg-yellow-100 text-yellow-800 border-yellow-300'
+                        }`}
+                      >
+                        {log.amountEaten}
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <p>
+                        Portion: {log.portionServed}
+                        {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(log.timestamp).toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })} • Logged by {log.signature}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="flex justify-center mb-4">
+                <div className="p-3 bg-gray-100 rounded-full">
+                  <Clock className="w-8 h-8 text-gray-400" />
+                </div>
+              </div>
+              <p className="text-gray-600 font-medium mb-2">No entries logged today</p>
+              <p className="text-sm text-gray-500">
+                Start tracking {fullName}&apos;s food and fluid intake using the buttons above
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Today's Summary Card */}
       <Card>
@@ -967,15 +1435,27 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-              <div className="text-2xl font-bold text-yellow-600">0</div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {logSummary?.foodEntries ?? 0}
+              </div>
               <p className="text-sm text-yellow-700">Food entries</p>
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">0 ml</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {logSummary?.totalFluidIntakeMl ?? 0} ml
+              </div>
               <p className="text-sm text-blue-700">Fluid intake</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-2xl font-bold text-gray-600">--</div>
+              <div className="text-2xl font-bold text-gray-600">
+                {logSummary?.lastRecorded 
+                  ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })
+                  : "--"
+                }
+              </div>
               <p className="text-sm text-gray-700">Last recorded</p>
             </div>
           </div>

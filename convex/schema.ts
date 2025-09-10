@@ -421,4 +421,29 @@ export default defineSchema({
   })
     .index("byResidentId", ["residentId"])
     .index("byOrganizationId", ["organizationId"]),
+
+  // Food and fluid logs for residents
+  foodFluidLogs: defineTable({
+    residentId: v.id("residents"),
+    timestamp: v.number(), // exact time (Date.now())
+    section: v.string(), // "midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"
+    typeOfFoodDrink: v.string(), // "Tea", "Toast", "Chicken"
+    portionServed: v.string(), // "1 slice", "2 scoops"
+    amountEaten: v.string(), // "None", "1/4", "1/2", "3/4", "All"
+    fluidConsumedMl: v.optional(v.number()), // e.g., 150
+    signature: v.string(), // staff name/id
+    date: v.string(), // "YYYY-MM-DD" for easier querying
+    isArchived: v.optional(v.boolean()), // true if archived at 7am
+    archivedAt: v.optional(v.number()), // timestamp when archived
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byResidentAndDate", ["residentId", "date"])
+    .index("byDateAndArchived", ["date", "isArchived"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("bySection", ["section"])
+    .index("bySignature", ["signature"]),
 });
