@@ -18,7 +18,6 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -34,7 +33,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -44,6 +42,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
   Utensils,
@@ -52,11 +51,8 @@ import {
   Calendar,
   Clock,
   Eye,
-  Trash2,
   Download,
   FileText,
-  Printer,
-  FolderOpen
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -120,11 +116,12 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     date: today
   });
 
-  // Get archived logs (limited to recent ones for the records view)
+  // Get archived logs for records view
   const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
     residentId: id as Id<"residents">,
-    limit: 20
+    limit: 50
   });
+
 
   // Auth data
   const { data: activeOrganization } = authClient.useActiveOrganization();
@@ -137,16 +134,17 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [step, setStep] = React.useState(1);
+  const [currentStep, setCurrentStep] = React.useState(1);
 
   // Food/Fluid Log Dialog state
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
   const [isLogLoading, setIsLogLoading] = React.useState(false);
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
 
-  // Records View Dialog state
+  // Records Dialog state
   const [isRecordsDialogOpen, setIsRecordsDialogOpen] = React.useState(false);
   const [selectedDocument, setSelectedDocument] = React.useState<string | null>(null);
+  const [isViewDocumentOpen, setIsViewDocumentOpen] = React.useState(false);
 
   // Form setup
   const form = useForm<z.infer<typeof DietFormSchema>>({
@@ -256,15 +254,132 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     return "5pm-midnight";
   };
 
-  const downloadReport = () => {
+
+
+  const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
+    setIsLoading(true);
+    try {
+      if (!activeOrganization?.id || !user?.user?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      await createOrUpdateDietMutation({
+        residentId: id as Id<"residents">,
+        dietTypes: values.dietTypes,
+        otherDietType: values.otherDietType,
+        culturalRestrictions: values.culturalRestrictions,
+        allergies: values.allergies,
+        chokingRisk: values.chokingRisk,
+        foodConsistency: values.foodConsistency,
+        fluidConsistency: values.fluidConsistency,
+        assistanceRequired: values.assistanceRequired,
+        organizationId: activeOrganization.id,
+        createdBy: user.user.id,
+      });
+
+      toast.success("Diet information saved successfully");
+      form.reset();
+      setCurrentStep(1);
+      setIsDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to save diet information");
+      console.error("Error saving diet:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const handleDietTypeChange = (dietType: string, checked: boolean) => {
+    const currentDietTypes = form.getValues("dietTypes") || [];
+    if (checked) {
+      form.setValue("dietTypes", [...currentDietTypes, dietType]);
+    } else {
+      form.setValue("dietTypes", currentDietTypes.filter(type => type !== dietType));
+    }
+  };
+
+  // Food/Fluid Log submission
+  const onFoodFluidLogSubmit = async (values: z.infer<typeof FoodFluidLogSchema>) => {
+    setIsLogLoading(true);
+    try {
+      if (!activeOrganization?.id || !user?.user?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      await createFoodFluidLogMutation({
+        residentId: id as Id<"residents">,
+        section: values.section,
+        typeOfFoodDrink: values.typeOfFoodDrink,
+        portionServed: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
+        amountEaten: values.amountEaten,
+        fluidConsumedMl: values.fluidConsumedMl,
+        signature: values.signature,
+        organizationId: activeOrganization.id,
+        createdBy: user.user.id,
+      });
+
+      toast.success("Food/fluid entry logged successfully");
+
+      // Reset form for next entry
+      logForm.reset({
+        section: getCurrentSection(),
+        typeOfFoodDrink: "",
+        portionServed: "",
+        amountEaten: "All",
+        fluidConsumedMl: undefined,
+        signature: user.user.name || "",
+      });
+      
+      setIsFoodFluidDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to log food/fluid entry");
+      console.error("Error logging food/fluid:", error);
+    } finally {
+      setIsLogLoading(false);
+    }
+  };
+
+  // Generate documents by date for records view
+  const generateDocumentsByDate = () => {
+    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
+    const logsByDate = allLogs.reduce((acc, log) => {
+      const date = log.date;
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(log);
+      return acc;
+    }, {} as Record<string, typeof allLogs>);
+
+    return Object.entries(logsByDate)
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+      .map(([date, logs]) => ({
+        id: date,
+        title: new Date(date).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        type: date === today ? 'current' : 'archived',
+        entries: logs.length,
+        foodEntries: logs.filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length,
+        fluidEntries: logs.filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length,
+        totalFluidMl: logs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0),
+        date: date
+      }));
+  };
+
+  // Generate full report with all records
+  const downloadAllRecords = () => {
     const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
 
-    // Generate HTML content for the report
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Food & Fluid Records - ${fullName}</title>
+          <title>Complete Food & Fluid Records - ${fullName}</title>
           <style>
             body { 
               font-family: Arial, sans-serif; 
@@ -322,11 +437,12 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               border-top: 1px solid #ddd; 
               padding-top: 10px; 
             }
+            @media print { body { margin: 0; } }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>Food & Fluid Records Report</h1>
+            <h1>COMPLETE FOOD & FLUID RECORDS</h1>
             <h2>${fullName}</h2>
             <p>Room: ${resident.roomNumber || 'N/A'} | Generated: ${new Date().toLocaleString()}</p>
           </div>
@@ -396,7 +512,8 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
 
           <div class="footer">
             <p>This report was generated from the CareO Food & Fluid Management System</p>
-            <p>Report contains ${allLogs.length} total entries</p>
+            <p>Complete report contains ${allLogs.length} total entries</p>
+            <p>Generated on: ${new Date().toLocaleString()}</p>
           </div>
         </body>
       </html>
@@ -407,120 +524,47 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${fullName.replace(/\s+/g, '_')}_Food_Fluid_Records_${new Date().toISOString().split('T')[0]}.html`;
+    link.download = `${fullName.replace(/\s+/g, '_')}_Complete_Food_Fluid_Records_${new Date().toISOString().split('T')[0]}.html`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    toast.success("Report downloaded successfully!");
+    toast.success("Complete records downloaded successfully!");
   };
 
-  const generateDocumentsByDate = () => {
+  // Generate single day document
+  const downloadSingleDayDocument = (date: string) => {
     const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
-    const logsByDate = allLogs.reduce((acc, log) => {
-      const date = log.date;
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(log);
-      return acc;
-    }, {} as Record<string, typeof allLogs>);
+    const dayLogs = allLogs.filter(log => log.date === date);
 
-    return Object.entries(logsByDate)
-      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-      .map(([date, logs]) => ({
-        id: date,
-        title: new Date(date).toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }),
-        type: date === today ? 'current' : 'archived',
-        entries: logs.length,
-        foodEntries: logs.filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length,
-        fluidEntries: logs.filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length,
-        totalFluidMl: logs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0),
-        date: date
-      }));
-  };
-
-  const generateDocumentHTML = (documentId: string) => {
-    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
-    const documentLogs = allLogs.filter(log => log.date === documentId);
-
-    return `
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Food & Fluid Record - ${new Date(documentId).toLocaleDateString()}</title>
+          <title>Daily Food & Fluid Record - ${new Date(date).toLocaleDateString()}</title>
           <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 20px; 
-              line-height: 1.4;
-            }
-            .header { 
-              text-align: center; 
-              border-bottom: 2px solid #333; 
-              padding-bottom: 15px; 
-              margin-bottom: 20px; 
-            }
-            .resident-info { 
-              background: #f5f5f5; 
-              padding: 10px; 
-              margin-bottom: 20px; 
-              border-radius: 5px; 
-            }
-            table { 
-              width: 100%; 
-              border-collapse: collapse; 
-              margin-bottom: 15px; 
-            }
-            th, td { 
-              border: 1px solid #ddd; 
-              padding: 8px; 
-              text-align: left; 
-              font-size: 12px; 
-            }
-            th { 
-              background-color: #f8f9fa; 
-              font-weight: bold; 
-            }
+            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+            .resident-info { background: #f5f5f5; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
+            .summary { background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+            th { background-color: #f8f9fa; font-weight: bold; }
             .food-entry { background-color: #fff8e7; }
             .fluid-entry { background-color: #e7f3ff; }
             .consumption-all { color: #28a745; font-weight: bold; }
             .consumption-none { color: #dc3545; font-weight: bold; }
             .consumption-partial { color: #fd7e14; font-weight: bold; }
-            .footer { 
-              text-align: center; 
-              margin-top: 30px; 
-              font-size: 10px; 
-              color: #666; 
-              border-top: 1px solid #ddd; 
-              padding-top: 10px; 
-            }
-            .summary { 
-              background: #f8f9fa; 
-              padding: 15px; 
-              margin-bottom: 20px; 
-              border-radius: 5px; 
-            }
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
+            .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #666; border-top: 1px solid #ddd; padding-top: 10px; }
+            @media print { body { margin: 0; } }
           </style>
         </head>
         <body>
           <div class="header">
             <h1>DAILY FOOD & FLUID RECORD</h1>
             <h2>${fullName}</h2>
-            <h3>${new Date(documentId).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })}</h3>
+            <h3>${new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
             <p>Room: ${resident.roomNumber || 'N/A'} | DOB: ${resident.dateOfBirth}</p>
           </div>
 
@@ -529,15 +573,15 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
             Name: ${fullName}<br>
             Room Number: ${resident.roomNumber || 'N/A'}<br>
             Date of Birth: ${resident.dateOfBirth}<br>
-            Record Date: ${new Date(documentId).toLocaleDateString()}
+            Record Date: ${new Date(date).toLocaleDateString()}
           </div>
 
           <div class="summary">
             <strong>Daily Summary:</strong><br>
-            Total Entries: ${documentLogs.length}<br>
-            Food Entries: ${documentLogs.filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length}<br>
-            Fluid Entries: ${documentLogs.filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length}<br>
-            Total Fluid Intake: ${documentLogs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0)} ml
+            Total Entries: ${dayLogs.length}<br>
+            Food Entries: ${dayLogs.filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length}<br>
+            Fluid Entries: ${dayLogs.filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length}<br>
+            Total Fluid Intake: ${dayLogs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0)} ml
           </div>
 
           <table>
@@ -554,7 +598,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               </tr>
             </thead>
             <tbody>
-              ${documentLogs.sort((a, b) => a.timestamp - b.timestamp)
+              ${dayLogs.sort((a, b) => a.timestamp - b.timestamp)
         .map(log => `
                   <tr class="${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? 'fluid-entry' : 'food-entry'}">
                     <td>${new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
@@ -571,40 +615,19 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
           </table>
 
           <div class="footer">
-            <p>This document was generated from the CareO Food & Fluid Management System</p>
+            <p>Generated from CareO Food & Fluid Management System</p>
             <p>Generated: ${new Date().toLocaleString()}</p>
-            <p>Document contains ${documentLogs.length} entries for ${new Date(documentId).toLocaleDateString()}</p>
+            <p>Document contains ${dayLogs.length} entries for ${new Date(date).toLocaleDateString()}</p>
           </div>
         </body>
       </html>
     `;
-  };
 
-  const viewDocument = (documentId: string) => {
-    setSelectedDocument(documentId);
-  };
-
-  const printDocument = (documentId: string) => {
-    const htmlContent = generateDocumentHTML(documentId);
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-      }, 250);
-      toast.success("Document opened for printing");
-    }
-  };
-
-  const downloadDocument = (documentId: string) => {
-    const htmlContent = generateDocumentHTML(documentId);
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${fullName.replace(/\s+/g, '_')}_Food_Fluid_${documentId}.html`;
+    link.download = `${fullName.replace(/\s+/g, '_')}_Food_Fluid_${date}.html`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -612,119 +635,17 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     toast.success("Document downloaded successfully!");
   };
 
-  const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
-    setIsLoading(true);
-    try {
-      if (!activeOrganization?.id || !user?.user?.id) {
-        toast.error("Missing organization or user information");
-        return;
-      }
-
-      await createOrUpdateDietMutation({
-        residentId: id as Id<"residents">,
-        dietTypes: values.dietTypes,
-        otherDietType: values.otherDietType,
-        culturalRestrictions: values.culturalRestrictions,
-        allergies: values.allergies,
-        chokingRisk: values.chokingRisk,
-        foodConsistency: values.foodConsistency,
-        fluidConsistency: values.fluidConsistency,
-        assistanceRequired: values.assistanceRequired,
-        organizationId: activeOrganization.id,
-        createdBy: user.user.id,
-      });
-
-      toast.success("Diet information saved successfully");
-      form.reset();
-      setStep(1);
-      setIsDialogOpen(false);
-    } catch (error) {
-      toast.error("Failed to save diet information");
-      console.error("Error saving diet:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  // Handle viewing a document
+  const viewDocument = (date: string) => {
+    setSelectedDocument(date);
+    setIsViewDocumentOpen(true);
   };
 
-  const onFoodFluidLogSubmit = async (values: z.infer<typeof FoodFluidLogSchema>) => {
-    setIsLogLoading(true);
-    try {
-      if (!activeOrganization?.id || !user?.user?.id) {
-        toast.error("Missing organization or user information");
-        return;
-      }
-
-      // Validate that we're not trying to log entries too far in the past
-      const selectedSection = values.section;
-
-      // Basic time section validation (allowing some flexibility)
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-      // Allow logging for current day and previous day (for night shift coverage)
-      if (now.getTime() - todayStart.getTime() < 2 * 60 * 60 * 1000) { // Before 2 AM
-        // Allow logging previous day's evening entries
-        if (!["5pm-midnight", "midnight-7am"].includes(selectedSection)) {
-          toast.error("Only evening and night entries can be logged at this time");
-          return;
-        }
-      }
-
-      await createFoodFluidLogMutation({
-        residentId: id as Id<"residents">,
-        section: values.section,
-        typeOfFoodDrink: values.typeOfFoodDrink,
-        portionServed: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
-        amountEaten: values.amountEaten,
-        fluidConsumedMl: values.fluidConsumedMl,
-        signature: values.signature,
-        organizationId: activeOrganization.id,
-        createdBy: user.user.id,
-      });
-
-      toast.success("Food/fluid entry logged successfully");
-
-      // Auto-set the section based on current time for next entry
-      const nextSection = getCurrentSection();
-
-      logForm.reset({
-        section: nextSection,
-        typeOfFoodDrink: "",
-        portionServed: "",
-        amountEaten: "All",
-        fluidConsumedMl: undefined,
-        signature: user.user.name || "",
-      });
-      setIsFoodFluidDialogOpen(false);
-    } catch (error) {
-      toast.error("Failed to log food/fluid entry");
-      console.error("Error logging food/fluid:", error);
-    } finally {
-      setIsLogLoading(false);
-    }
-  };
-
-  const handleContinue = async () => {
-    if (step === 1) {
-      // Validate step 1 fields
-      const valid = await form.trigger(["dietTypes", "otherDietType", "culturalRestrictions", "allergies"]);
-      if (valid) setStep(2);
-      else toast.error("Please fill the required fields in this step.");
-    } else if (step === 2) {
-      // Validate step 2 fields  
-      const valid = await form.trigger(["chokingRisk", "foodConsistency", "fluidConsistency"]);
-      if (valid) setStep(3);
-      else toast.error("Please select the required options in this step.");
-    }
-  };
-
-  const handleDietTypeChange = (dietType: string, checked: boolean) => {
-    const currentDietTypes = form.getValues("dietTypes") || [];
-    if (checked) {
-      form.setValue("dietTypes", [...currentDietTypes, dietType]);
-    } else {
-      form.setValue("dietTypes", currentDietTypes.filter(type => type !== dietType));
-    }
+  // Get logs for selected document
+  const getSelectedDocumentLogs = () => {
+    if (!selectedDocument) return [];
+    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
+    return allLogs.filter(log => log.date === selectedDocument).sort((a, b) => a.timestamp - b.timestamp);
   };
 
   return (
@@ -863,7 +784,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Diet Types */}
-          {(existingDiet.dietTypes?.length > 0 ||
+          {(existingDiet.dietTypes && existingDiet.dietTypes.length > 0 ||
             existingDiet.otherDietType ||
             existingDiet.culturalRestrictions) && (
             <div>
@@ -891,13 +812,13 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
           )}
 
           {/* Allergies */}
-          {existingDiet.allergies?.length > 0 && (
+          {existingDiet.allergies && existingDiet.allergies.length > 0 && (
             <div>
               <p className="text-[11px] font-medium text-gray-500 mb-1">
                 Allergies
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {existingDiet.allergies.map((a, i) => (
+                {existingDiet.allergies?.map((a, i) => (
                   <Badge key={i} className="bg-red-100 text-red-800 border-red-300 text-xs">
                     {a.allergy}
                   </Badge>
@@ -1042,15 +963,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
                 {new Date().toLocaleDateString()}
               </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsRecordsDialogOpen(true)}
-                className="self-start"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View All Records
-              </Button>
+         
             </div>
           </CardTitle>
 
@@ -1191,6 +1104,794 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Diet Dialog - Multi-Step */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) setCurrentStep(1);
+      }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Diet Information for {fullName}</DialogTitle>
+            <DialogDescription>
+              Step {currentStep} of 4: {currentStep === 1 ? 'Diet Types & Preferences' : currentStep === 2 ? 'Allergies & Restrictions' : currentStep === 3 ? 'Consistency Levels' : 'Assistance Requirements'}
+            </DialogDescription>
+          </DialogHeader>
+          
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Step 1: Diet Types & Preferences */}
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <FormLabel className="text-sm font-medium">Diet Types</FormLabel>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        'Regular Diet',
+                        'Vegetarian',
+                        'Vegan',
+                        'Kosher',
+                        'Halal',
+                        'Diabetic',
+                        'Low Sodium',
+                        'Gluten-Free',
+                        'Dairy-Free',
+                        'Soft Diet',
+                        'Pureed Diet',
+                        'Liquid Diet'
+                      ].map((dietType) => (
+                        <div key={dietType} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={dietType}
+                            checked={form.watch('dietTypes')?.includes(dietType) || false}
+                            onCheckedChange={(checked) => handleDietTypeChange(dietType, checked as boolean)}
+                          />
+                          <label
+                            htmlFor={dietType}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            {dietType}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="otherDietType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Other Diet Type</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Specify other dietary requirements..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="culturalRestrictions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cultural/Religious Restrictions</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., No pork, No beef, etc." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Step 2: Allergies & Restrictions */}
+              {currentStep === 2 && (
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <FormLabel>Allergies</FormLabel>
+                    {allergyFields.map((field, index) => (
+                      <div key={field.id} className="flex items-center space-x-2">
+                        <FormField
+                          control={form.control}
+                          name={`allergies.${index}.allergy`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormControl>
+                                <Input placeholder="Enter allergy..." {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeAllergy(index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    {allergyFields.length < MAX_ALLERGIES && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => appendAllergy({ allergy: "" })}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Allergy
+                      </Button>
+                    )}
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="chokingRisk"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Choking Risk Level</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select choking risk level..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Step 3: Consistency Levels */}
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="foodConsistency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Food Consistency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select food consistency level..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="level7">Level 7 - Easy Chew</SelectItem>
+                            <SelectItem value="level6">Level 6 - Soft & Bite-sized</SelectItem>
+                            <SelectItem value="level5">Level 5 - Minced & Moist</SelectItem>
+                            <SelectItem value="level4">Level 4 - Pureed</SelectItem>
+                            <SelectItem value="level3">Level 3 - Liquidised</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="fluidConsistency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fluid Consistency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select fluid consistency level..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="level0">Level 0 - Thin</SelectItem>
+                            <SelectItem value="level1">Level 1 - Slightly Thick</SelectItem>
+                            <SelectItem value="level2">Level 2 - Mildly Thick</SelectItem>
+                            <SelectItem value="level3">Level 3 - Moderately Thick</SelectItem>
+                            <SelectItem value="level4">Level 4 - Extremely Thick</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Step 4: Assistance Requirements */}
+              {currentStep === 4 && (
+                <div className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="assistanceRequired"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Assistance Required</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex flex-col space-y-3"
+                          >
+                            <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                              <RadioGroupItem value="yes" id="yes" />
+                              <div>
+                                <label htmlFor="yes" className="text-sm font-medium cursor-pointer">Yes, assistance required</label>
+                                <p className="text-xs text-muted-foreground">Resident needs help with eating and drinking</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                              <RadioGroupItem value="no" id="no" />
+                              <div>
+                                <label htmlFor="no" className="text-sm font-medium cursor-pointer">No, independent</label>
+                                <p className="text-xs text-muted-foreground">Resident can eat and drink independently</p>
+                              </div>
+                            </div>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Summary */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Summary</h4>
+                    <div className="space-y-1 text-sm text-gray-600">
+                      {form.watch('dietTypes')?.length && form.watch('dietTypes')!.length > 0 && (
+                        <p>Diet Types: {form.watch('dietTypes')!.join(', ')}</p>
+                      )}
+                      {form.watch('chokingRisk') && (
+                        <p>Choking Risk: {form.watch('chokingRisk')}</p>
+                      )}
+                      {form.watch('foodConsistency') && (
+                        <p>Food Consistency: {form.watch('foodConsistency')}</p>
+                      )}
+                      {form.watch('fluidConsistency') && (
+                        <p>Fluid Consistency: {form.watch('fluidConsistency')}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between pt-4">
+                <div>
+                  {currentStep > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCurrentStep(currentStep - 1)}
+                    >
+                      Previous
+                    </Button>
+                  )}
+                </div>
+                
+                <div className="flex space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setCurrentStep(1);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  
+                  {currentStep < 4 ? (
+                    <Button
+                      type="button"
+                      onClick={() => setCurrentStep(currentStep + 1)}
+                    >
+                      Next
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={isLoading}>
+                      {isLoading ? "Saving..." : "Save Diet Information"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Food/Fluid Log Dialog */}
+      <Dialog open={isFoodFluidDialogOpen} onOpenChange={setIsFoodFluidDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              Log {entryType === "food" ? "Food" : "Fluid"} Entry for {fullName}
+            </DialogTitle>
+            <DialogDescription>
+              Record {entryType === "food" ? "food consumption" : "fluid intake"} details.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...logForm}>
+            <form onSubmit={logForm.handleSubmit(onFoodFluidLogSubmit)} className="space-y-4">
+              {/* Section */}
+              <FormField
+                control={logForm.control}
+                name="section"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time Section</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select time section..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="midnight-7am">Midnight - 7am</SelectItem>
+                        <SelectItem value="7am-12pm">7am - 12pm</SelectItem>
+                        <SelectItem value="12pm-5pm">12pm - 5pm</SelectItem>
+                        <SelectItem value="5pm-midnight">5pm - Midnight</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Type of Food/Drink */}
+              <FormField
+                control={logForm.control}
+                name="typeOfFoodDrink"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {entryType === "food" ? "Type of Food" : "Type of Fluid"}
+                    </FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder={
+                          entryType === "food" 
+                            ? "e.g., Chicken, Toast, Soup..." 
+                            : "e.g., Water, Tea, Coffee, Juice..."
+                        } 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Portion Served (Food only) */}
+              {entryType === "food" && (
+                <FormField
+                  control={logForm.control}
+                  name="portionServed"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Portion Served</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select portion size..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="1 slice">1 slice</SelectItem>
+                          <SelectItem value="2 slices">2 slices</SelectItem>
+                          <SelectItem value="1 scoop">1 scoop</SelectItem>
+                          <SelectItem value="2 scoops">2 scoops</SelectItem>
+                          <SelectItem value="Small portion">Small portion</SelectItem>
+                          <SelectItem value="Regular portion">Regular portion</SelectItem>
+                          <SelectItem value="Large portion">Large portion</SelectItem>
+                          <SelectItem value="1 cup">1 cup</SelectItem>
+                          <SelectItem value="1 bowl">1 bowl</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Amount Eaten/Consumed */}
+              <FormField
+                control={logForm.control}
+                name="amountEaten"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount Consumed</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select amount consumed..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="None">None</SelectItem>
+                        <SelectItem value="1/4">1/4</SelectItem>
+                        <SelectItem value="1/2">1/2</SelectItem>
+                        <SelectItem value="3/4">3/4</SelectItem>
+                        <SelectItem value="All">All</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Fluid Volume (Fluid only) */}
+              {entryType === "fluid" && (
+                <FormField
+                  control={logForm.control}
+                  name="fluidConsumedMl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Volume (ml)</FormLabel>
+                      <Select 
+                        onValueChange={(value) => field.onChange(parseInt(value))} 
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select volume..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="50">50ml</SelectItem>
+                          <SelectItem value="100">100ml</SelectItem>
+                          <SelectItem value="150">150ml</SelectItem>
+                          <SelectItem value="200">200ml</SelectItem>
+                          <SelectItem value="250">250ml</SelectItem>
+                          <SelectItem value="300">300ml</SelectItem>
+                          <SelectItem value="350">350ml</SelectItem>
+                          <SelectItem value="400">400ml</SelectItem>
+                          <SelectItem value="450">450ml</SelectItem>
+                          <SelectItem value="500">500ml</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Signature */}
+              <FormField
+                control={logForm.control}
+                name="signature"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Staff Signature</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Your name..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Form Actions */}
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsFoodFluidDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isLogLoading}>
+                  {isLogLoading ? "Saving..." : "Log Entry"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Records View Dialog */}
+      <Dialog open={isRecordsDialogOpen} onOpenChange={setIsRecordsDialogOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Food & Fluid Records for {fullName}</DialogTitle>
+            <DialogDescription>
+              View and download daily records organized by date.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Download All Records Button */}
+            <div className="flex justify-between items-center pb-4 border-b">
+              <h3 className="text-lg font-semibold">All Records</h3>
+              <Button onClick={downloadAllRecords} className="bg-green-600 hover:bg-green-700">
+                <Download className="w-4 h-4 mr-2" />
+                Download Complete Report
+              </Button>
+            </div>
+
+            {/* Daily Records List */}
+            <div className="max-h-[400px] overflow-y-auto space-y-3">
+              {generateDocumentsByDate().map((doc) => (
+                <Card key={doc.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-medium">{doc.title}</h4>
+                        </div>
+                        <Badge 
+                          variant="outline" 
+                          className={doc.type === 'current' ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-800 border-gray-300'}
+                        >
+                          {doc.type === 'current' ? 'Today' : 'Archived'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                        <div>
+                          <span className="font-medium">{doc.entries}</span> Total Entries
+                        </div>
+                        <div>
+                          <span className="font-medium">{doc.foodEntries}</span> Food
+                        </div>
+                        <div>
+                          <span className="font-medium">{doc.fluidEntries}</span> Fluid
+                        </div>
+                        <div>
+                          <span className="font-medium">{doc.totalFluidMl}ml</span> Total Fluid
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewDocument(doc.date)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadSingleDayDocument(doc.date)}
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+              
+              {generateDocumentsByDate().length === 0 && (
+                <div className="text-center py-8">
+                  <div className="flex justify-center mb-4">
+                    <div className="p-3 bg-gray-100 rounded-full">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-gray-600 font-medium mb-2">No records found</p>
+                  <p className="text-sm text-gray-500">
+                    Start logging food and fluid entries to generate records
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Dialog Actions */}
+            <div className="flex justify-end pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setIsRecordsDialogOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document View Dialog */}
+      <Dialog open={isViewDocumentOpen} onOpenChange={setIsViewDocumentOpen}>
+        <DialogContent className="sm:max-w-[900px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>
+              Daily Food & Fluid Record - {selectedDocument && new Date(selectedDocument).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric', 
+                month: 'long',
+                day: 'numeric'
+              })}
+            </DialogTitle>
+            <DialogDescription>
+              Detailed view of all food and fluid entries for {fullName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Document Header Info */}
+            {selectedDocument && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Resident:</span>
+                    <p className="text-gray-900">{fullName}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Room:</span>
+                    <p className="text-gray-900">{resident.roomNumber || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Date:</span>
+                    <p className="text-gray-900">{new Date(selectedDocument).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Total Entries:</span>
+                    <p className="text-gray-900">{getSelectedDocumentLogs().length}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Summary Statistics */}
+            {selectedDocument && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {getSelectedDocumentLogs().filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length}
+                    </div>
+                    <p className="text-sm text-orange-700">Food Entries</p>
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {getSelectedDocumentLogs().filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length}
+                    </div>
+                    <p className="text-sm text-blue-700">Fluid Entries</p>
+                  </div>
+                </div>
+                <div className="bg-cyan-50 p-3 rounded-lg border border-cyan-200">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-cyan-600">
+                      {getSelectedDocumentLogs().reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0)}ml
+                    </div>
+                    <p className="text-sm text-cyan-700">Total Fluid</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Records Table */}
+            <div className="max-h-[400px] overflow-y-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Time</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Section</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Type</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Food/Drink</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Portion</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Consumed</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Volume</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Staff</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {getSelectedDocumentLogs().map((log) => {
+                    const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
+                    return (
+                      <tr 
+                        key={log._id} 
+                        className={`hover:bg-gray-50 ${isFluid ? 'bg-blue-25' : 'bg-orange-25'}`}
+                      >
+                        <td className="px-4 py-3 text-gray-900">
+                          {new Date(log.timestamp).toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          <Badge variant="outline" className="text-xs">
+                            {log.section.replace('-', ' - ')}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center space-x-2">
+                            {isFluid ? (
+                              <Droplets className="w-4 h-4 text-blue-600" />
+                            ) : (
+                              <Utensils className="w-4 h-4 text-orange-600" />
+                            )}
+                            <span className="text-gray-700 text-xs">
+                              {isFluid ? 'Fluid' : 'Food'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {log.typeOfFoodDrink}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {log.portionServed || '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge 
+                            className={`text-xs ${
+                              log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                              log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                              'bg-yellow-100 text-yellow-800 border-yellow-300'
+                            }`}
+                          >
+                            {log.amountEaten}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {log.fluidConsumedMl ? `${log.fluidConsumedMl}ml` : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {log.signature}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              
+              {getSelectedDocumentLogs().length === 0 && (
+                <div className="text-center py-8">
+                  <div className="flex justify-center mb-4">
+                    <div className="p-3 bg-gray-100 rounded-full">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-gray-600 font-medium mb-2">No entries found</p>
+                  <p className="text-sm text-gray-500">
+                    No food or fluid entries recorded for this date
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Dialog Actions */}
+            <div className="flex justify-between pt-4 border-t">
+              <div className="flex space-x-2">
+                {selectedDocument && (
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadSingleDayDocument(selectedDocument)}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download This Record
+                  </Button>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setIsViewDocumentOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

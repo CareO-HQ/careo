@@ -20,7 +20,8 @@ crons.daily(
     hourUTC: 7,
     minuteUTC: 0
   },
-  internal.foodFluidLogs.archivePreviousDayLogs
+  internal.foodFluidLogs.archivePreviousDayLogs,
+  {}
 );
 
 export default crons;
