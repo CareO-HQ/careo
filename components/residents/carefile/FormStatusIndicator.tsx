@@ -1,8 +1,4 @@
-import {
-  CircleCheckIcon,
-  CircleDashedIcon,
-  Loader2Icon,
-} from "lucide-react";
+import { CircleCheckIcon, CircleDashedIcon, Loader2Icon } from "lucide-react";
 import { CareFileFormStatus } from "@/types/care-files";
 
 interface FormStatusIndicatorProps {
@@ -24,7 +20,6 @@ export default function FormStatusIndicator({
       );
     case "pdf-ready":
       return <CircleDashedIcon className={`${className} text-yellow-500`} />;
-    case "not-started":
     default:
       return (
         <CircleDashedIcon className={`${className} text-muted-foreground/70`} />
