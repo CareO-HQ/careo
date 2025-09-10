@@ -1,8 +1,7 @@
 export type CareFileFormKey =
   | "preAdmission-form"
   | "infection-prevention"
-  | "admission-form"
-  | "discharge-form";
+  | "new-form";
 
 export type CareFileFormStatus =
   | "not-started"
