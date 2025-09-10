@@ -38,10 +38,13 @@ import {
   Activity,
   User,
   Bed,
-
   Home,
-  Printer
+  Printer,
+  Calendar,
+  StickyNote
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 
 type DailyCarePageProps = {
@@ -207,6 +210,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   }
 
   const fullName = `${resident.firstName} ${resident.lastName}`;
+  const initials = `${resident.firstName[0]}${resident.lastName[0]}`;
 
   // Handle print functionality
   const handlePrint = () => {
@@ -266,64 +270,156 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         <span className="text-foreground">Daily Care</span>
       </div>
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4 w-full sm:w-auto">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center space-x-4 flex-1">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Activity className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold">Daily Care</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">Care activities & dependencies for {fullName}</p>
-            </div>
+      {/* Header with Back Button */}
+      <div className="flex items-center space-x-4 mb-6">
+        <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Activity className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Daily Care</h1>
+            <p className="text-muted-foreground text-sm">Care activities & dependencies</p>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Button 
-            variant="outline"
-            onClick={() => router.push(`/dashboard/residents/${id}/daily-care/documents`)}
-            className="flex items-center space-x-2 justify-center"
-          >
-            <Bed className="w-4 h-4" />
-            <span className="hidden sm:inline">Show All Documents</span>
-            <span className="sm:hidden">Documents</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => router.push(`/dashboard/residents/${id}`)}
-            className="flex items-center space-x-2 justify-center"
-          >
-            <Home className="w-4 h-4" />
-            <span className="hidden sm:inline">Resident Page</span>
-            <span className="sm:hidden">Resident</span>
-          </Button>
-        </div>
       </div>
-      {/* Care Notes */}
-      <div className="p-3 bg-white border rounded-lg">
-        <div className="flex items-center space-x-2 mb-2">
-          <Bed className="w-4 h-4 text-indigo-600" />
-          <span className="text-sm font-medium">Care Notes</span>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          <span className="badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-            Evening shower
-          </span>
-          <span className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-            Independent when possible
-          </span>
-          <span className="badge inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-            Walking frame
-          </span>
-          <span className="badge inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
-            Bed rails
-          </span>
-        </div>
-      </div>
+
+      {/* Resident Info Card - Matching food-fluid pattern */}
+      <Card className="border-0">
+        <CardContent className="p-4">
+          {/* Mobile Layout */}
+          <div className="flex flex-col space-y-4 sm:hidden">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-12 h-12 flex-shrink-0">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    {new Date().toLocaleDateString()}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col space-y-3">
+              <Button 
+                variant="outline" 
+                onClick={() => {/* TODO: Add Care Notes functionality */}}
+                className="w-full"
+              >
+                <StickyNote className="w-4 h-4 mr-2" />
+                Add Care Notes
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => router.push(`/dashboard/residents/${id}/daily-care/documents`)}
+                className="w-full"
+              >
+                <Bed className="w-4 h-4 mr-2" />
+                Show All Documents
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => router.push(`/dashboard/residents/${id}`)}
+                className="w-full"
+              >
+                <Home className="w-4 h-4 mr-2" />
+                Resident Overview
+              </Button>
+            </div>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden sm:flex sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-15 h-15">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold">{fullName}</h3>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    {new Date().toLocaleDateString()}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {/* TODO: Add Care Notes functionality */}}
+                className="flex items-center space-x-2"
+              >
+                <StickyNote className="w-4 h-4" />
+                <span>Add Care Notes</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => router.push(`/dashboard/residents/${id}/daily-care/documents`)}
+                className="flex items-center space-x-2"
+              >
+                <Bed className="w-4 h-4" />
+                <span>Show All Documents</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => router.push(`/dashboard/residents/${id}`)}
+                className="flex items-center space-x-2"
+              >
+                <Home className="w-4 h-4" />
+                <span>Resident Overview</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Care Notes Section - Integrated into the card */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center space-x-2 mb-3">
+              <StickyNote className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-medium">Care Notes</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+                Evening shower
+              </Badge>
+              <Badge className="bg-green-50 text-green-700 border-green-200">
+                Independent when possible
+              </Badge>
+              <Badge className="bg-purple-50 text-purple-700 border-purple-200">
+                Walking frame
+              </Badge>
+              <Badge className="bg-orange-50 text-orange-700 border-orange-200">
+                Bed rails
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Today's Personal Care */}
       <Card>
