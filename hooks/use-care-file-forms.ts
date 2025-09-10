@@ -137,12 +137,35 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     return state.hasPdfFileId === true && !!state.pdfUrl;
   };
 
+  const areAllFormsCompleted = (formKeys: CareFileFormKey[]): boolean => {
+    return formKeys.every((key) => isFormCompleted(key));
+  };
+
+  const getFolderStatus = (formKeys: CareFileFormKey[]): CareFileFormStatus => {
+    if (areAllFormsCompleted(formKeys)) return "completed";
+
+    const hasAnyInProgress = formKeys.some((key) => isFormInProgress(key));
+    if (hasAnyInProgress) return "in-progress";
+
+    const hasAnyData = formKeys.some((key) => getFormState(key).hasData);
+    if (hasAnyData) return "pdf-generating";
+
+    return "not-started";
+  };
+
+  const getCompletedFormsCount = (formKeys: CareFileFormKey[]): number => {
+    return formKeys.filter((key) => isFormCompleted(key)).length;
+  };
+
   return {
     formsState,
     getFormState,
     isFormCompleted,
     isFormInProgress,
     canDownloadPdf,
+    areAllFormsCompleted,
+    getFolderStatus,
+    getCompletedFormsCount,
     // Raw data for backward compatibility or specific needs
     preAdmissionForms,
     infectionPreventionAssessments,

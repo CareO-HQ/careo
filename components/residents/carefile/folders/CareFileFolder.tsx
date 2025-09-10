@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
+import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import { CareFileFormKey } from "@/types/care-files";
 
 interface CareFileFolderProps {
@@ -53,7 +54,20 @@ export default function CareFileFolder({
   const residentId = pathname[pathname.length - 2] as Id<"residents">;
 
   // Use our new care file forms hook
-  const { getFormState, canDownloadPdf } = useCareFileForms({ residentId });
+  const {
+    getFormState,
+    canDownloadPdf,
+    areAllFormsCompleted,
+    getCompletedFormsCount
+  } = useCareFileForms({ residentId });
+
+  // Get form keys for this folder
+  const folderFormKeys = (forms || []).map(
+    (form) => form.key as CareFileFormKey
+  );
+  const allFormsCompleted = areAllFormsCompleted(folderFormKeys);
+  const completedCount = getCompletedFormsCount(folderFormKeys);
+  const totalCount = folderFormKeys.length;
 
   // Get resident data for dialogs
   const resident = useQuery(api.residents.getById, {
@@ -160,19 +174,30 @@ export default function CareFileFolder({
     <div>
       <Sheet>
         <SheetTrigger asChild>
-          <div className="w-full flex flex-row justify-start items-center gap-2 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-1 group">
-            <FolderIcon className="size-4 text-muted-foreground/70 group-hover:text-primary" />
-            <p className="text-primary">{folderName}</p>
-            {forms?.length && (
-              <p className="text-muted-foreground text-xs">
-                {forms?.length} forms
-              </p>
+          <div className="w-full flex flex-row justify-between items-center gap-2 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-1 group">
+            <div className="flex flex-row items-center gap-2">
+              <FolderIcon className="size-4 text-muted-foreground/70 group-hover:text-primary" />
+              <p className="text-primary">{folderName}</p>
+              {forms?.length && (
+                <p className="text-muted-foreground text-xs">
+                  {forms?.length} forms
+                </p>
+              )}
+            </div>
+            {totalCount > 0 && (
+              <FolderProgressIndicator
+                completedCount={completedCount}
+                totalCount={totalCount}
+                className="flex-shrink-0"
+              />
             )}
           </div>
         </SheetTrigger>
         <SheetContent size="lg">
           <SheetHeader>
-            <SheetTitle>{folderName}</SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle>{folderName}</SheetTitle>
+            </div>
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col justify-between h-full">

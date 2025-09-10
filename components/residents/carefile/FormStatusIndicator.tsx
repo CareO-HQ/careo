@@ -20,6 +20,7 @@ export default function FormStatusIndicator({
       );
     case "pdf-ready":
       return <CircleDashedIcon className={`${className} text-yellow-500`} />;
+    case "not-started":
     default:
       return (
         <CircleDashedIcon className={`${className} text-muted-foreground/70`} />
@@ -54,6 +55,7 @@ export function FormStatusBadge({ status }: FormStatusBadgeProps) {
           text: "In Progress",
           className: "text-blue-600 bg-blue-50"
         };
+      case "not-started":
       default:
         return {
           text: "",

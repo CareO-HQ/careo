@@ -5,6 +5,7 @@ export type CareFileFormKey =
   | "discharge-form";
 
 export type CareFileFormStatus =
+  | "not-started"
   | "in-progress"
   | "completed"
   | "pdf-generating"

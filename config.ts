@@ -46,7 +46,15 @@ export const config = {
       type: "folder",
       key: "admission",
       value: "Admission Assessment Form",
-      description: "Admission Assessment Form"
+      description: "Admission Assessment Form",
+      forms: [
+        {
+          type: "form",
+          key: "admission-form",
+          value: "Pre-Admission Assessment Form",
+          description: "Pre-Admission Assessment Form"
+        }
+      ]
     },
     {
       type: "folder",
