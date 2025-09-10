@@ -40,6 +40,9 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 interface InfectionPreventionDialogProps {
   teamId: string;
   organizationId: string;
@@ -55,6 +58,9 @@ export default function InfectionPreventionDialog({
 }: InfectionPreventionDialogProps) {
   const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
+  const submitInfectionPreventionAssessmentMutation = useMutation(
+    api.careFiles.infectionPrevention.submitInfectionPreventionAssessment
+  );
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
     resolver: zodResolver(InfectionPreventionAssessmentSchema),
@@ -85,8 +91,8 @@ export default function InfectionPreventionDialog({
       testedForInfluenzaA: undefined,
       testedForInfluenzaB: undefined,
       testedForRespiratoryScreen: undefined,
-      influenzaB: undefined,
-      respiratoryScreen: undefined,
+      influenzaB: false,
+      respiratoryScreen: false,
 
       // 3. Exposure
       exposureToPatientsCovid: undefined,
@@ -147,9 +153,48 @@ export default function InfectionPreventionDialog({
   function onSubmit(
     values: z.infer<typeof InfectionPreventionAssessmentSchema>
   ) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
     console.log("Form submission triggered - values:", values);
+    startTransition(async () => {
+      try {
+        console.log("Attempting to submit form...");
+
+        // Convert date fields from timestamps to strings for the database
+        const formattedValues = {
+          ...values,
+          residentId: resident._id as Id<"residents">,
+          teamId,
+          organizationId,
+          savedAsDraft: false,
+          dateOfAdmission: values.dateOfAdmission
+            ? new Date(values.dateOfAdmission).toISOString()
+            : undefined,
+          clostridiumLastPositiveSpecimenDate:
+            values.clostridiumLastPositiveSpecimenDate
+              ? new Date(
+                  values.clostridiumLastPositiveSpecimenDate
+                ).toISOString()
+              : undefined,
+          mrsaMssaDateCommenced: values.mrsaMssaDateCommenced
+            ? new Date(values.mrsaMssaDateCommenced).toISOString()
+            : undefined,
+          lastFluVaccinationDate: values.lastFluVaccinationDate
+            ? new Date(values.lastFluVaccinationDate).toISOString()
+            : undefined,
+          completionDate: new Date(values.completionDate).toISOString()
+        };
+
+        const data =
+          await submitInfectionPreventionAssessmentMutation(formattedValues);
+
+        console.log("Assessment submitted successfully:", data);
+        toast.success(
+          "Infection Prevention Assessment submitted successfully!"
+        );
+      } catch (error) {
+        console.error("Error submitting form:", error);
+        toast.error("Failed to submit assessment. Please try again.");
+      }
+    });
   }
 
   const handleNext = async () => {
@@ -1610,7 +1655,7 @@ export default function InfectionPreventionDialog({
                   name="completedBy"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Completed by</FormLabel>
+                      <FormLabel required>Completed by</FormLabel>
                       <Input placeholder="Full name" {...field} />
                       <FormMessage />
                     </FormItem>
@@ -1621,7 +1666,7 @@ export default function InfectionPreventionDialog({
                   name="jobRole"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Job role</FormLabel>
+                      <FormLabel required>Job role</FormLabel>
                       <Input placeholder="Job role" {...field} />
                       <FormMessage />
                     </FormItem>
@@ -1632,7 +1677,7 @@ export default function InfectionPreventionDialog({
                   name="signature"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Signature</FormLabel>
+                      <FormLabel required>Signature</FormLabel>
                       <Input placeholder="Signature" {...field} />
                       <FormMessage />
                     </FormItem>
@@ -1643,7 +1688,7 @@ export default function InfectionPreventionDialog({
                   name="completionDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Completion date</FormLabel>
+                      <FormLabel required>Completion date</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>

@@ -533,7 +533,7 @@ export default defineSchema({
     mrsaMssaLastPositiveSwabDate: v.optional(v.string()),
     mrsaMssaSitesPositive: v.optional(v.string()),
     mrsaMssaTreatmentReceived: v.optional(v.string()),
-    mrsaMssaTreatmentComplete: v.optional(v.boolean()),
+    mrsaMssaTreatmentComplete: v.optional(v.string()),
     mrsaMssaDetails: v.optional(v.string()),
     mrsaMssaDateCommenced: v.optional(v.string()),
     mrsaMssaLengthOfCourse: v.optional(v.string()),
