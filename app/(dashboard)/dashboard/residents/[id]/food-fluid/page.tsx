@@ -138,12 +138,12 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [step, setStep] = React.useState(1);
-  
+
   // Food/Fluid Log Dialog state
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
   const [isLogLoading, setIsLogLoading] = React.useState(false);
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
-  
+
   // Records View Dialog state
   const [isRecordsDialogOpen, setIsRecordsDialogOpen] = React.useState(false);
   const [selectedDocument, setSelectedDocument] = React.useState<string | null>(null);
@@ -258,7 +258,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
 
   const downloadReport = () => {
     const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
-    
+
     // Generate HTML content for the report
     const htmlContent = `
       <!DOCTYPE html>
@@ -336,29 +336,29 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
             Name: ${fullName}<br>
             Room Number: ${resident.roomNumber || 'N/A'}<br>
             Date of Birth: ${resident.dateOfBirth}<br>
-            Report Period: ${allLogs.length > 0 ? 
-              `${new Date(Math.min(...allLogs.map(l => l.timestamp))).toLocaleDateString()} - ${new Date(Math.max(...allLogs.map(l => l.timestamp))).toLocaleDateString()}` 
-              : 'No records available'}
+            Report Period: ${allLogs.length > 0 ?
+        `${new Date(Math.min(...allLogs.map(l => l.timestamp))).toLocaleDateString()} - ${new Date(Math.max(...allLogs.map(l => l.timestamp))).toLocaleDateString()}`
+        : 'No records available'}
           </div>
 
-          ${allLogs.length > 0 ? 
-            Object.entries(
-              allLogs.reduce((acc, log) => {
-                const date = log.date;
-                if (!acc[date]) acc[date] = [];
-                acc[date].push(log);
-                return acc;
-              }, {} as Record<string, typeof allLogs>)
-            ).sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-            .map(([date, logs]: [string, typeof allLogs]) => `
+          ${allLogs.length > 0 ?
+        Object.entries(
+          allLogs.reduce((acc, log) => {
+            const date = log.date;
+            if (!acc[date]) acc[date] = [];
+            acc[date].push(log);
+            return acc;
+          }, {} as Record<string, typeof allLogs>)
+        ).sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+          .map(([date, logs]: [string, typeof allLogs]) => `
               <div class="section">
                 <div class="section-title">
-                  ${new Date(date).toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })} ${date === today ? '(Today)' : '(Archived)'}
+                  ${new Date(date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })} ${date === today ? '(Today)' : '(Archived)'}
                 </div>
                 <table>
                   <thead>
@@ -375,7 +375,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   </thead>
                   <tbody>
                     ${logs.sort((a, b) => a.timestamp - b.timestamp)
-                      .map(log => `
+              .map(log => `
                         <tr class="${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? 'fluid-entry' : 'food-entry'}">
                           <td>${new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
                           <td>${log.section.replace('-', ' - ')}</td>
@@ -390,9 +390,9 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   </tbody>
                 </table>
               </div>
-            `).join('') 
-            : '<div class="section"><p>No food or fluid records found for this resident.</p></div>'
-          }
+            `).join('')
+        : '<div class="section"><p>No food or fluid records found for this resident.</p></div>'
+      }
 
           <div class="footer">
             <p>This report was generated from the CareO Food & Fluid Management System</p>
@@ -412,7 +412,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
+
     toast.success("Report downloaded successfully!");
   };
 
@@ -447,7 +447,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
   const generateDocumentHTML = (documentId: string) => {
     const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
     const documentLogs = allLogs.filter(log => log.date === documentId);
-    
+
     return `
       <!DOCTYPE html>
       <html>
@@ -516,11 +516,11 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
             <h1>DAILY FOOD & FLUID RECORD</h1>
             <h2>${fullName}</h2>
             <h3>${new Date(documentId).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}</h3>
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })}</h3>
             <p>Room: ${resident.roomNumber || 'N/A'} | DOB: ${resident.dateOfBirth}</p>
           </div>
 
@@ -555,7 +555,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
             </thead>
             <tbody>
               ${documentLogs.sort((a, b) => a.timestamp - b.timestamp)
-                .map(log => `
+        .map(log => `
                   <tr class="${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? 'fluid-entry' : 'food-entry'}">
                     <td>${new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
                     <td>${log.section.replace('-', ' - ')}</td>
@@ -633,7 +633,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
         organizationId: activeOrganization.id,
         createdBy: user.user.id,
       });
-      
+
       toast.success("Diet information saved successfully");
       form.reset();
       setStep(1);
@@ -656,11 +656,11 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
 
       // Validate that we're not trying to log entries too far in the past
       const selectedSection = values.section;
-      
+
       // Basic time section validation (allowing some flexibility)
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
+
       // Allow logging for current day and previous day (for night shift coverage)
       if (now.getTime() - todayStart.getTime() < 2 * 60 * 60 * 1000) { // Before 2 AM
         // Allow logging previous day's evening entries
@@ -681,12 +681,12 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
         organizationId: activeOrganization.id,
         createdBy: user.user.id,
       });
-      
+
       toast.success("Food/fluid entry logged successfully");
-      
+
       // Auto-set the section based on current time for next entry
       const nextSection = getCurrentSection();
-      
+
       logForm.reset({
         section: nextSection,
         typeOfFoodDrink: "",
@@ -731,9 +731,9 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => router.push(`/dashboard/residents/${id}`)}
           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
         >
@@ -762,1391 +762,232 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
       </div>
 
       {/* Compact Resident Information Card with Action Buttons */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-2">
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white w-full">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Diet
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center space-x-2">
-                      <Utensils className="w-5 h-5" />
-                      <span>Dietary Requirements & Restrictions</span>
-                    </DialogTitle>
-                    <DialogDescription>
-                      Set up dietary requirements, allergies, and assistance needs for {fullName}
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full max-w-2xl mx-auto">
-                      
-                      {/* Step 1: Diet Types & Allergies */}
-                      {step === 1 && (
-                        <>
-                          {/* Diet Type Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Diet Type</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Select applicable dietary restrictions
-                              </p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              {[
-                                "Low Fat",
-                                "Low Sodium", 
-                                "Coeliac",
-                                "Diabetic",
-                                "Vegetarian",
-                                "Vegan"
-                              ].map((diet) => (
-                                <div key={diet} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={diet}
-                                    checked={(form.watch("dietTypes") || []).includes(diet)}
-                                    onCheckedChange={(checked) => handleDietTypeChange(diet, checked as boolean)}
-                                    disabled={isLoading}
-                                  />
-                                  <label htmlFor={diet} className="text-sm font-normal cursor-pointer">
-                                    {diet}
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id="other"
-                                  checked={(form.watch("dietTypes") || []).includes("Other")}
-                                  onCheckedChange={(checked) => handleDietTypeChange("Other", checked as boolean)}
-                                  disabled={isLoading}
-                                />
-                                <label htmlFor="other" className="text-sm font-normal">Other:</label>
-                              </div>
-                              {(form.watch("dietTypes") || []).includes("Other") && (
-                                <FormField
-                                  control={form.control}
-                                  name="otherDietType"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormControl>
-                                        <Input
-                                          placeholder="Specify other diet type"
-                                          disabled={isLoading}
-                                          {...field}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              )}
-                            </div>
-                            
-                            <FormField
-                              control={form.control}
-                              name="culturalRestrictions"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Cultural Restrictions</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      placeholder="e.g., Halal, Kosher, etc."
-                                      disabled={isLoading}
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          {/* Food Allergy Section */}
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium">Food Allergy or Intolerance</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  Add foods that cause allergies or intolerances
-                                </p>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => appendAllergy({ allergy: "" })}
-                                disabled={
-                                  isLoading ||
-                                  allergyFields.length === MAX_ALLERGIES
-                                }
-                              >
-                                <Plus className="h-4 w-4" />
-                                Add Allergy
-                              </Button>
-                            </div>
-
-                            {allergyFields.length > 0 && (
-                              <div
-                                className={`space-y-3 ${allergyFields.length > 3 ? "max-h-48 overflow-y-auto" : ""}`}
-                              >
-                                {allergyFields.map((field, index) => (
-                                  <div key={field.id} className="flex items-center gap-3">
-                                    <FormField
-                                      control={form.control}
-                                      name={`allergies.${index}.allergy`}
-                                      render={({ field }) => (
-                                        <FormItem className="flex-1">
-                                          <FormControl>
-                                            <Input
-                                              placeholder="e.g., Nuts, Dairy, Shellfish"
-                                              disabled={isLoading}
-                                              {...field}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeAllergy(index)}
-                                      disabled={isLoading}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {allergyFields.length === 0 && (
-                              <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                                No allergies added yet. Click &quot;Add Allergy&quot; to get started.
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="w-full flex flex-row justify-end">
-                            <Button type="button" onClick={handleContinue} disabled={isLoading}>
-                              Continue
-                            </Button>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Step 2: Risk & Consistency Levels */}
-                      {step === 2 && (
-                        <>
-                          {/* Choking Risk Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Choking Risk</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Assess the resident&apos;s choking risk level
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="chokingRisk"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="low" id="low-risk" />
-                                        <label htmlFor="low-risk" className="text-sm cursor-pointer">Low Risk</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="medium" id="medium-risk" />
-                                        <label htmlFor="medium-risk" className="text-sm cursor-pointer">Medium Risk</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="high" id="high-risk" />
-                                        <label htmlFor="high-risk" className="text-sm cursor-pointer">High Risk</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          {/* Food Consistency Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Food Consistency</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Select required food texture level
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="foodConsistency"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level7" id="level7" />
-                                        <label htmlFor="level7" className="text-sm cursor-pointer">Level 7: Easy Chew</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level6" id="level6" />
-                                        <label htmlFor="level6" className="text-sm cursor-pointer">Level 6: Soft & Bite-sized</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level5" id="level5" />
-                                        <label htmlFor="level5" className="text-sm cursor-pointer">Level 5: Minced & Moist</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level4" id="level4" />
-                                        <label htmlFor="level4" className="text-sm cursor-pointer">Level 4: Pureed</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level3" id="level3" />
-                                        <label htmlFor="level3" className="text-sm cursor-pointer">Level 3: Liquidised</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          {/* Fluid Consistency Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Fluid Consistency</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Select required fluid thickness level
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="fluidConsistency"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level0" id="fluid-level0" />
-                                        <label htmlFor="fluid-level0" className="text-sm cursor-pointer">Level 0: Thin</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level1" id="fluid-level1" />
-                                        <label htmlFor="fluid-level1" className="text-sm cursor-pointer">Level 1: Slightly Thick</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level2" id="fluid-level2" />
-                                        <label htmlFor="fluid-level2" className="text-sm cursor-pointer">Level 2: Mildly Thick</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level3" id="fluid-level3" />
-                                        <label htmlFor="fluid-level3" className="text-sm cursor-pointer">Level 3: Moderately Thick</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level4" id="fluid-level4" />
-                                        <label htmlFor="fluid-level4" className="text-sm cursor-pointer">Level 4: Extremely Thick</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          <div className="w-full flex flex-row justify-between">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setStep(1)}
-                              disabled={isLoading}
-                            >
-                              Back
-                            </Button>
-                            <Button type="button" onClick={handleContinue} disabled={isLoading}>
-                              Continue
-                            </Button>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Step 3: Assistance & Review */}
-                      {step === 3 && (
-                        <>
-                          {/* Assistance Required Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Assistance Required</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Does the resident require assistance during meals?
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="assistanceRequired"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="yes" id="assistance-yes" />
-                                        <label htmlFor="assistance-yes" className="text-sm cursor-pointer">Yes - Assistance needed</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="no" id="assistance-no" />
-                                        <label htmlFor="assistance-no" className="text-sm cursor-pointer">No - Independent</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          <div className="flex justify-between">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setStep(2)}
-                              disabled={isLoading}
-                            >
-                              Back
-                            </Button>
-                            <Button
-                              type="submit"
-                              disabled={isLoading}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              {isLoading ? "Saving..." : "Save Diet Information"}
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-              
-              {/* Food/Fluid Log Dialog */}
-              <Dialog open={isFoodFluidDialogOpen} onOpenChange={setIsFoodFluidDialogOpen}>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center space-x-2">
-                      {entryType === "food" ? (
-                        <>
-                          <Utensils className="w-5 h-5 text-orange-600" />
-                          <span>Log Food Entry</span>
-                        </>
-                      ) : (
-                        <>
-                          <Droplets className="w-5 h-5 text-blue-600" />
-                          <span>Log Fluid Entry</span>
-                        </>
-                      )}
-                    </DialogTitle>
-                    <DialogDescription>
-                      Record {entryType} intake for {fullName}
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <Form {...logForm}>
-                    <form onSubmit={logForm.handleSubmit(onFoodFluidLogSubmit)} className="space-y-4">
-                      
-                      {/* Section Selection */}
-                      <FormField
-                        control={logForm.control}
-                        name="section"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Time Section</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select time section" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="midnight-7am">Midnight - 7am</SelectItem>
-                                <SelectItem value="7am-12pm">7am - 12pm</SelectItem>
-                                <SelectItem value="12pm-5pm">12pm - 5pm</SelectItem>
-                                <SelectItem value="5pm-midnight">5pm - Midnight</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Type of Food/Drink */}
-                      <FormField
-                        control={logForm.control}
-                        name="typeOfFoodDrink"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              {entryType === "food" ? "Type of Food" : "Type of Drink"}
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder={
-                                  entryType === "food" 
-                                    ? "e.g., Toast, Chicken, Soup, Sandwich" 
-                                    : "e.g., Water, Tea, Coffee, Juice"
-                                }
-                                disabled={isLogLoading}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Portion Served - only for food entries */}
-                      {entryType === "food" && (
-                        <FormField
-                          control={logForm.control}
-                          name="portionServed"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Portion Served</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select portion size" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="Small portion">Small portion</SelectItem>
-                                  <SelectItem value="Regular portion">Regular portion</SelectItem>
-                                  <SelectItem value="Large portion">Large portion</SelectItem>
-                                  <SelectItem value="1 slice">1 slice</SelectItem>
-                                  <SelectItem value="2 slices">2 slices</SelectItem>
-                                  <SelectItem value="3 slices">3 slices</SelectItem>
-                                  <SelectItem value="1 piece">1 piece</SelectItem>
-                                  <SelectItem value="2 pieces">2 pieces</SelectItem>
-                                  <SelectItem value="3 pieces">3 pieces</SelectItem>
-                                  <SelectItem value="1 scoop">1 scoop</SelectItem>
-                                  <SelectItem value="2 scoops">2 scoops</SelectItem>
-                                  <SelectItem value="3 scoops">3 scoops</SelectItem>
-                                  <SelectItem value="1 spoonful">1 spoonful</SelectItem>
-                                  <SelectItem value="2 spoonfuls">2 spoonfuls</SelectItem>
-                                  <SelectItem value="3 spoonfuls">3 spoonfuls</SelectItem>
-                                  <SelectItem value="1 bowl">1 bowl</SelectItem>
-                                  <SelectItem value="Half bowl">Half bowl</SelectItem>
-                                  <SelectItem value="1 plate">1 plate</SelectItem>
-                                  <SelectItem value="Half plate">Half plate</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-
-                      {/* Amount Eaten */}
-                      <FormField
-                        control={logForm.control}
-                        name="amountEaten"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Amount Consumed</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select amount consumed" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="None">None</SelectItem>
-                                <SelectItem value="1/4">1/4</SelectItem>
-                                <SelectItem value="1/2">1/2</SelectItem>
-                                <SelectItem value="3/4">3/4</SelectItem>
-                                <SelectItem value="All">All</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Fluid Consumed (ml) - show only for fluid entries */}
-                      {entryType === "fluid" && (
-                        <FormField
-                          control={logForm.control}
-                          name="fluidConsumedMl"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Fluid Amount (ml)</FormLabel>
-                              <Select 
-                                onValueChange={(value) => field.onChange(Number(value))} 
-                                value={field.value?.toString() || ""}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select fluid amount" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="50">50 ml</SelectItem>
-                                  <SelectItem value="100">100 ml</SelectItem>
-                                  <SelectItem value="150">150 ml</SelectItem>
-                                  <SelectItem value="200">200 ml</SelectItem>
-                                  <SelectItem value="250">250 ml</SelectItem>
-                                  <SelectItem value="300">300 ml</SelectItem>
-                                  <SelectItem value="350">350 ml</SelectItem>
-                                  <SelectItem value="400">400 ml</SelectItem>
-                                  <SelectItem value="450">450 ml</SelectItem>
-                                  <SelectItem value="500">500 ml</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-
-                      {/* Signature */}
-                      <FormField
-                        control={logForm.control}
-                        name="signature"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Staff Signature</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Staff name/ID"
-                                disabled={isLogLoading}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setIsFoodFluidDialogOpen(false)}
-                          disabled={isLogLoading}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          disabled={isLogLoading}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          {isLogLoading ? "Logging..." : "Log Entry"}
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-              
-              {/* Records View Dialog */}
-              <Dialog open={isRecordsDialogOpen} onOpenChange={(open) => {
-                setIsRecordsDialogOpen(open);
-                if (!open) setSelectedDocument(null);
-              }}>
-                <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        {selectedDocument ? (
-                          <>
-                            <FileText className="w-5 h-5" />
-                            <span>Document Viewer - {new Date(selectedDocument).toLocaleDateString()}</span>
-                          </>
-                        ) : (
-                          <>
-                            <FolderOpen className="w-5 h-5" />
-                            <span>Food & Fluid Documents</span>
-                          </>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        {selectedDocument ? (
-                          <>
-                            <Button
-                              onClick={() => printDocument(selectedDocument)}
-                              variant="outline"
-                              size="sm"
-                            >
-                              <Printer className="w-4 h-4 mr-2" />
-                              Print
-                            </Button>
-                            <Button
-                              onClick={() => downloadDocument(selectedDocument)}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              size="sm"
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </Button>
-                            <Button
-                              onClick={() => setSelectedDocument(null)}
-                              variant="outline"
-                              size="sm"
-                            >
-                              Back to List
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            onClick={downloadReport}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            size="sm"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download All Records
-                          </Button>
-                        )}
-                      </div>
-                    </DialogTitle>
-                    <DialogDescription>
-                      {selectedDocument 
-                        ? `Viewing document for ${fullName} - ${new Date(selectedDocument).toLocaleDateString()}`
-                        : `Available food and fluid intake documents for ${fullName}`
-                      }
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  {selectedDocument ? (
-                    /* Document Viewer */
-                    <div 
-                      className="bg-white border rounded-lg p-6 max-h-[70vh] overflow-auto" 
-                      style={{ fontFamily: 'serif' }}
-                      dangerouslySetInnerHTML={{ 
-                        __html: generateDocumentHTML(selectedDocument).replace(/<html>[\s\S]*?<body>/, '').replace(/<\/body>[\s\S]*?<\/html>/, '') 
-                      }}
-                    />
-                  ) : (
-                    /* Document List */
-                    <div className="max-h-[70vh] overflow-auto">
-                      {(() => {
-                        const documents = generateDocumentsByDate();
-                        
-                        if (documents.length === 0) {
-                          return (
-                            <div className="text-center py-12">
-                              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                              <p className="text-lg text-gray-600 mb-2">No Documents Available</p>
-                              <p className="text-sm text-gray-500">No food or fluid entries have been logged for this resident.</p>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="space-y-2">
-                            {documents.map((doc) => (
-                              <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                                <div className="flex items-center space-x-3">
-                                  <FileText className="w-4 h-4 text-gray-500" />
-                                  <span className="font-medium text-gray-900">
-                                    {new Date(doc.date).toLocaleDateString()}
-                                  </span>
-                                  {doc.type === 'current' && (
-                                    <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                                      Today
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex space-x-2">
-                                  <Button
-                                    onClick={() => viewDocument(doc.id)}
-                                    variant="outline"
-                                    size="sm"
-                                  >
-                                    View
-                                  </Button>
-                                  <Button
-                                    onClick={() => printDocument(doc.id)}
-                                    variant="outline"
-                                    size="sm"
-                                  >
-                                    Print
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-end">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsRecordsDialogOpen(false)}
-                    >
-                      Close
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              
-              <Button 
-                variant="outline"
-                onClick={() => setIsRecordsDialogOpen(true)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                See All Records
-              </Button>
-            </div>
+<Card className="border-0">
+  <CardContent className="p-4">
+    {/* Mobile Layout */}
+    <div className="flex flex-col space-y-4 sm:hidden">
+      <div className="flex items-center space-x-3">
+        <Avatar className="w-12 h-12 flex-shrink-0">
+          <AvatarImage
+            src={resident.imageUrl}
+            alt={fullName}
+            className="border"
+          />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-sm truncate">{fullName}</h3>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+              Room {resident.roomNumber || "N/A"}
+            </Badge>
+            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+              <Calendar className="w-3 h-3 mr-1" />
+              {new Date().toLocaleDateString()}
+            </Badge>
           </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Diet
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center space-x-2">
-                      <Utensils className="w-5 h-5" />
-                      <span>Dietary Requirements & Restrictions</span>
-                    </DialogTitle>
-                    <DialogDescription>
-                      Set up dietary requirements, allergies, and assistance needs for {fullName}
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full max-w-2xl mx-auto">
-                      
-                      {/* Step 1: Diet Types & Allergies */}
-                      {step === 1 && (
-                        <>
-                          {/* Diet Type Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Diet Type</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Select applicable dietary restrictions
-                              </p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              {[
-                                "Low Fat",
-                                "Low Sodium", 
-                                "Coeliac",
-                                "Diabetic",
-                                "Vegetarian",
-                                "Vegan"
-                              ].map((diet) => (
-                                <div key={diet} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={diet}
-                                    checked={(form.watch("dietTypes") || []).includes(diet)}
-                                    onCheckedChange={(checked) => handleDietTypeChange(diet, checked as boolean)}
-                                    disabled={isLoading}
-                                  />
-                                  <label htmlFor={diet} className="text-sm font-normal cursor-pointer">
-                                    {diet}
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id="other"
-                                  checked={(form.watch("dietTypes") || []).includes("Other")}
-                                  onCheckedChange={(checked) => handleDietTypeChange("Other", checked as boolean)}
-                                  disabled={isLoading}
-                                />
-                                <label htmlFor="other" className="text-sm font-normal">Other:</label>
-                              </div>
-                              {(form.watch("dietTypes") || []).includes("Other") && (
-                                <FormField
-                                  control={form.control}
-                                  name="otherDietType"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormControl>
-                                        <Input
-                                          placeholder="Specify other diet type"
-                                          disabled={isLoading}
-                                          {...field}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              )}
-                            </div>
-                            
-                            <FormField
-                              control={form.control}
-                              name="culturalRestrictions"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Cultural Restrictions</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      placeholder="e.g., Halal, Kosher, etc."
-                                      disabled={isLoading}
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          {/* Food Allergy Section */}
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium">Food Allergy or Intolerance</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  Add foods that cause allergies or intolerances
-                                </p>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => appendAllergy({ allergy: "" })}
-                                disabled={
-                                  isLoading ||
-                                  allergyFields.length === MAX_ALLERGIES
-                                }
-                              >
-                                <Plus className="h-4 w-4" />
-                                Add Allergy
-                              </Button>
-                            </div>
-
-                            {allergyFields.length > 0 && (
-                              <div
-                                className={`space-y-3 ${allergyFields.length > 3 ? "max-h-48 overflow-y-auto" : ""}`}
-                              >
-                                {allergyFields.map((field, index) => (
-                                  <div key={field.id} className="flex items-center gap-3">
-                                    <FormField
-                                      control={form.control}
-                                      name={`allergies.${index}.allergy`}
-                                      render={({ field }) => (
-                                        <FormItem className="flex-1">
-                                          <FormControl>
-                                            <Input
-                                              placeholder="e.g., Nuts, Dairy, Shellfish"
-                                              disabled={isLoading}
-                                              {...field}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeAllergy(index)}
-                                      disabled={isLoading}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {allergyFields.length === 0 && (
-                              <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                                No allergies added yet. Click &quot;Add Allergy&quot; to get started.
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="w-full flex flex-row justify-end">
-                            <Button type="button" onClick={handleContinue} disabled={isLoading}>
-                              Continue
-                            </Button>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Step 2: Risk & Consistency Levels */}
-                      {step === 2 && (
-                        <>
-                          {/* Choking Risk Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Choking Risk</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Assess the resident&apos;s choking risk level
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="chokingRisk"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="low" id="low-risk" />
-                                        <label htmlFor="low-risk" className="text-sm cursor-pointer">Low Risk</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="medium" id="medium-risk" />
-                                        <label htmlFor="medium-risk" className="text-sm cursor-pointer">Medium Risk</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="high" id="high-risk" />
-                                        <label htmlFor="high-risk" className="text-sm cursor-pointer">High Risk</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          {/* Food Consistency Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Food Consistency</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Select required food texture level
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="foodConsistency"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level7" id="level7" />
-                                        <label htmlFor="level7" className="text-sm cursor-pointer">Level 7: Easy Chew</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level6" id="level6" />
-                                        <label htmlFor="level6" className="text-sm cursor-pointer">Level 6: Soft & Bite-sized</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level5" id="level5" />
-                                        <label htmlFor="level5" className="text-sm cursor-pointer">Level 5: Minced & Moist</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level4" id="level4" />
-                                        <label htmlFor="level4" className="text-sm cursor-pointer">Level 4: Pureed</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level3" id="level3" />
-                                        <label htmlFor="level3" className="text-sm cursor-pointer">Level 3: Liquidised</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          {/* Fluid Consistency Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Fluid Consistency</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Select required fluid thickness level
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="fluidConsistency"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level0" id="fluid-level0" />
-                                        <label htmlFor="fluid-level0" className="text-sm cursor-pointer">Level 0: Thin</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level1" id="fluid-level1" />
-                                        <label htmlFor="fluid-level1" className="text-sm cursor-pointer">Level 1: Slightly Thick</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level2" id="fluid-level2" />
-                                        <label htmlFor="fluid-level2" className="text-sm cursor-pointer">Level 2: Mildly Thick</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level3" id="fluid-level3" />
-                                        <label htmlFor="fluid-level3" className="text-sm cursor-pointer">Level 3: Moderately Thick</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="level4" id="fluid-level4" />
-                                        <label htmlFor="fluid-level4" className="text-sm cursor-pointer">Level 4: Extremely Thick</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          <div className="w-full flex flex-row justify-between">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setStep(1)}
-                              disabled={isLoading}
-                            >
-                              Back
-                            </Button>
-                            <Button type="button" onClick={handleContinue} disabled={isLoading}>
-                              Continue
-                            </Button>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Step 3: Assistance & Review */}
-                      {step === 3 && (
-                        <>
-                          {/* Assistance Required Section */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-medium">Assistance Required</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Does the resident require assistance during meals?
-                              </p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name="assistanceRequired"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={field.onChange}
-                                      value={field.value}
-                                      disabled={isLoading}
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="yes" id="assistance-yes" />
-                                        <label htmlFor="assistance-yes" className="text-sm cursor-pointer">Yes - Assistance needed</label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="no" id="assistance-no" />
-                                        <label htmlFor="assistance-no" className="text-sm cursor-pointer">No - Independent</label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          <div className="flex justify-between">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setStep(2)}
-                              disabled={isLoading}
-                            >
-                              Back
-                            </Button>
-                            <Button
-                              type="submit"
-                              disabled={isLoading}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              {isLoading ? "Saving..." : "Save Diet Information"}
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-              
-              <Button 
-                variant="outline"
-                onClick={() => setIsRecordsDialogOpen(true)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                See All Records
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Diet Information Display */}
-      {existingDiet && (
-        <Card className="overflow-hidden border-0 shadow-sm">
-  <CardContent className="p-0">
-    {/* Header */}
-    <div className="bg-white px-4 py-3 border-b border-gray-100">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-            <Utensils className="w-4 h-4 text-amber-600" />
-          </div>
-          <h3 className="font-semibold text-gray-800">Diet Information</h3>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
+      </div>
+      <div className="flex flex-col space-y-3">
+        <Button 
+          className="bg-green-600 hover:bg-green-700 text-white w-full"
           onClick={() => setIsDialogOpen(true)}
-          className="h-8 px-3 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
         >
-          Edit
+          <Plus className="w-4 h-4 mr-2" />
+          Add Diet
+        </Button>
+        <Button 
+          variant="outline"
+          onClick={() => setIsRecordsDialogOpen(true)}
+          className="w-full"
+        >
+          <Eye className="w-4 h-4 mr-2" />
+          See All Records
         </Button>
       </div>
     </div>
 
-    {/* Content */}
-    <div className="p-4">
-      {/* Responsive row layout */}
-      <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3">
-        
-        {/* Diet Types */}
-        {((existingDiet.dietTypes && existingDiet.dietTypes.length > 0) || existingDiet.otherDietType || existingDiet.culturalRestrictions) && (
-          <div className="space-y-2 lg:flex-[1_1_260px] min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Diet Types</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {existingDiet.dietTypes && existingDiet.dietTypes.map((diet, index) => (
-                <Badge key={index} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2 py-1 rounded-md">
-                  {diet}
-                </Badge>
-              ))}
-              {existingDiet.otherDietType && (
-                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2 py-1 rounded-md">
-                  {existingDiet.otherDietType}
-                </Badge>
-              )}
-              {existingDiet.culturalRestrictions && (
-                <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs px-2 py-1 rounded-md">
-                  {existingDiet.culturalRestrictions}
-                </Badge>
-              )}
-            </div>
+    {/* Desktop Layout */}
+    <div className="hidden sm:flex sm:items-center sm:justify-between">
+      <div className="flex items-center space-x-3">
+        <Avatar className="w-15 h-15">
+          <AvatarImage
+            src={resident.imageUrl}
+            alt={fullName}
+            className="border"
+          />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <h3 className="font-semibold">{fullName}</h3>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+              Room {resident.roomNumber || "N/A"}
+            </Badge>
+            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+              <Calendar className="w-3 h-3 mr-1" />
+              {new Date().toLocaleDateString()}
+            </Badge>
           </div>
-        )}
-
-        {/* Food Allergies */}
-        {existingDiet.allergies && existingDiet.allergies.length > 0 && (
-          <div className="space-y-2 lg:flex-[1_1_220px] min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">Food Allergies</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {existingDiet.allergies.map((allergyObj, index) => (
-                <Badge key={index} className="bg-red-100 text-red-800 border-red-300 text-xs px-2 py-1 rounded-md font-medium">
-                  {allergyObj.allergy}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Assistance */}
-        {existingDiet.assistanceRequired && (
-          <div className="space-y-2 lg:flex-[1_1_200px] min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Assistance</span>
-            </div>
-            <div>
-              <Badge
-                className={`text-xs px-3 py-1 rounded-md font-medium ${
-                  existingDiet.assistanceRequired === 'yes'
-                    ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
-                    : 'bg-green-100 text-green-800 border-green-300'
-                }`}
-              >
-                {existingDiet.assistanceRequired === 'yes' ? 'Assistance Required' : 'Independent'}
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {/* Choking Risk */}
-        {existingDiet.chokingRisk && (
-          <div className="space-y-2 lg:flex-[1_1_200px] min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Choking Risk</span>
-            </div>
-            <div>
-              <Badge
-                className={`text-xs px-3 py-1 rounded-md font-medium ${
-                  existingDiet.chokingRisk === 'high'
-                    ? 'bg-red-100 text-red-800 border-red-300'
-                    : existingDiet.chokingRisk === 'medium'
-                    ? 'bg-orange-100 text-orange-800 border-orange-300'
-                    : 'bg-green-100 text-green-800 border-green-300'
-                }`}
-              >
-                {existingDiet.chokingRisk === 'high' ? 'High Risk' :
-                 existingDiet.chokingRisk === 'medium' ? 'Medium Risk' : 'Low Risk'}
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {/* Texture Levels */}
-        {(existingDiet.foodConsistency || existingDiet.fluidConsistency) && (
-          <div className="space-y-2 lg:flex-[2_1_320px] min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Texture Levels</span>
-            </div>
-            <div className="space-y-1.5">
-              {existingDiet.foodConsistency && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-500 w-8">Food:</span>
-                  <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs px-2 py-1 rounded-md">
-                    {existingDiet.foodConsistency === 'level7' && 'Level 7 - Easy Chew'}
-                    {existingDiet.foodConsistency === 'level6' && 'Level 6 - Soft & Bite-sized'}
-                    {existingDiet.foodConsistency === 'level5' && 'Level 5 - Minced & Moist'}
-                    {existingDiet.foodConsistency === 'level4' && 'Level 4 - Pureed'}
-                    {existingDiet.foodConsistency === 'level3' && 'Level 3 - Liquidised'}
-                  </Badge>
-                </div>
-              )}
-              {existingDiet.fluidConsistency && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-500 w-8">Fluid:</span>
-                  <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs px-2 py-1 rounded-md">
-                    {existingDiet.fluidConsistency === 'level0' && 'Level 0 - Thin'}
-                    {existingDiet.fluidConsistency === 'level1' && 'Level 1 - Slightly Thick'}
-                    {existingDiet.fluidConsistency === 'level2' && 'Level 2 - Mildly Thick'}
-                    {existingDiet.fluidConsistency === 'level3' && 'Level 3 - Moderately Thick'}
-                    {existingDiet.fluidConsistency === 'level4' && 'Level 4 - Extremely Thick'}
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button 
+          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={() => setIsDialogOpen(true)}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add Diet
+        </Button>
+        <Button 
+          variant="outline"
+          onClick={() => setIsRecordsDialogOpen(true)}
+        >
+          <Eye className="w-4 h-4 mr-2" />
+          See All Records
+        </Button>
       </div>
     </div>
+
+    {/* Diet Information Section */}
+    {existingDiet && (
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="flex items-center space-x-2 mb-3">
+          <Utensils className="w-4 h-4 text-amber-600" />
+          <span className="text-sm font-medium">Diet Information</span>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Diet Types */}
+          {(existingDiet.dietTypes?.length > 0 ||
+            existingDiet.otherDietType ||
+            existingDiet.culturalRestrictions) && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500 mb-1">
+                Diet Types
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {existingDiet.dietTypes?.map((diet, i) => (
+                  <Badge key={i} className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                    {diet}
+                  </Badge>
+                ))}
+                {existingDiet.otherDietType && (
+                  <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                    {existingDiet.otherDietType}
+                  </Badge>
+                )}
+                {existingDiet.culturalRestrictions && (
+                  <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                    {existingDiet.culturalRestrictions}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Allergies */}
+          {existingDiet.allergies?.length > 0 && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500 mb-1">
+                Allergies
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {existingDiet.allergies.map((a, i) => (
+                  <Badge key={i} className="bg-red-100 text-red-800 border-red-300 text-xs">
+                    {a.allergy}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Assistance */}
+          {existingDiet.assistanceRequired && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500 mb-1">
+                Assistance
+              </p>
+              <Badge
+                className={`text-xs ${
+                  existingDiet.assistanceRequired === "yes"
+                    ? "bg-indigo-100 text-indigo-800 border-indigo-300"
+                    : "bg-green-100 text-green-800 border-green-300"
+                }`}
+              >
+                {existingDiet.assistanceRequired === "yes"
+                  ? "Assistance Required"
+                  : "Independent"}
+              </Badge>
+            </div>
+          )}
+
+          {/* Choking Risk */}
+          {existingDiet.chokingRisk && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500 mb-1">
+                Choking Risk
+              </p>
+              <Badge
+                className={`text-xs ${
+                  existingDiet.chokingRisk === "high"
+                    ? "bg-red-100 text-red-800 border-red-300"
+                    : existingDiet.chokingRisk === "medium"
+                    ? "bg-orange-100 text-orange-800 border-orange-300"
+                    : "bg-green-100 text-green-800 border-green-300"
+                }`}
+              >
+                {existingDiet.chokingRisk === "high"
+                  ? "High Risk"
+                  : existingDiet.chokingRisk === "medium"
+                  ? "Medium Risk"
+                  : "Low Risk"}
+              </Badge>
+            </div>
+          )}
+
+          {/* Food Consistency */}
+          {existingDiet.foodConsistency && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500 mb-1">
+                Food Consistency
+              </p>
+              <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs">
+                {existingDiet.foodConsistency === "level7" && "Level 7 - Easy Chew"}
+                {existingDiet.foodConsistency === "level6" && "Level 6 - Soft & Bite-sized"}
+                {existingDiet.foodConsistency === "level5" && "Level 5 - Minced & Moist"}
+                {existingDiet.foodConsistency === "level4" && "Level 4 - Pureed"}
+                {existingDiet.foodConsistency === "level3" && "Level 3 - Liquidised"}
+              </Badge>
+            </div>
+          )}
+
+          {/* Fluid Consistency */}
+          {existingDiet.fluidConsistency && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500 mb-1">
+                Fluid Consistency
+              </p>
+              <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs">
+                {existingDiet.fluidConsistency === "level0" && "Level 0 - Thin"}
+                {existingDiet.fluidConsistency === "level1" && "Level 1 - Slightly Thick"}
+                {existingDiet.fluidConsistency === "level2" && "Level 2 - Mildly Thick"}
+                {existingDiet.fluidConsistency === "level3" && "Level 3 - Moderately Thick"}
+                {existingDiet.fluidConsistency === "level4" && "Level 4 - Extremely Thick"}
+              </Badge>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   </CardContent>
 </Card>
 
 
-    
-      )}
 
       {/* Food & Fluid Entry Buttons */}
       <Card>
@@ -2158,7 +999,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button 
+            <Button
               className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
               onClick={() => {
                 setEntryType("food");
@@ -2171,8 +1012,8 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               <Utensils className="w-6 h-6 mr-3" />
               Log Food Entry
             </Button>
-            
-            <Button 
+
+            <Button
               className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
               onClick={() => {
                 setEntryType("fluid");
@@ -2201,7 +1042,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
                 {new Date().toLocaleDateString()}
               </Badge>
-              <Button 
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsRecordsDialogOpen(true)}
@@ -2212,7 +1053,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               </Button>
             </div>
           </CardTitle>
-          
+
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
@@ -2223,7 +1064,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
                 {getCurrentDate()}
               </Badge>
-              <Button 
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsRecordsDialogOpen(true)}
@@ -2240,48 +1081,47 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               {currentDayLogs
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .map((log) => (
-                <div key={log._id} className="flex items-center justify-between p-4  rounded-md border">
-                  <div className="flex-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                      <div className="flex items-center space-x-2">
-                        {['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? (
-                          <Droplets className="w-4 h-4 text-blue-600" />
-                        ) : (
-                          <Utensils className="w-4 h-4 text-orange-600" />
-                        )}
-                        <span className="font-medium">{log.typeOfFoodDrink}</span>
+                  <div key={log._id} className="flex items-center justify-between p-4  rounded-md border">
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                        <div className="flex items-center space-x-2">
+                          {['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? (
+                            <Droplets className="w-4 h-4 text-blue-600" />
+                          ) : (
+                            <Utensils className="w-4 h-4 text-orange-600" />
+                          )}
+                          <span className="font-medium">{log.typeOfFoodDrink}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {log.section.replace('-', ' - ')}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                                log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                  'bg-yellow-100 text-yellow-800 border-yellow-300'
+                              }`}
+                          >
+                            {log.amountEaten}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {log.section.replace('-', ' - ')}
-                        </Badge>
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${
-                            log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                            log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                            'bg-yellow-100 text-yellow-800 border-yellow-300'
-                          }`}
-                        >
-                          {log.amountEaten}
-                        </Badge>
+                      <div className="text-sm text-gray-600">
+                        <p>
+                          Portion: {log.portionServed}
+                          {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })} • Logged by {log.signature}
+                        </p>
                       </div>
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <p>
-                        Portion: {log.portionServed}
-                        {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(log.timestamp).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })} • Logged by {log.signature}
-                      </p>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -2312,7 +1152,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               {new Date().toLocaleDateString()}
             </Badge>
           </CardTitle>
-          
+
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
             <Clock className="w-5 h-5 text-gray-600" />
@@ -2338,11 +1178,11 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-gray-600">
-                {logSummary?.lastRecorded 
-                  ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })
+                {logSummary?.lastRecorded
+                  ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
                   : "--"
                 }
               </div>
