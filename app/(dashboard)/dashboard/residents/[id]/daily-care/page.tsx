@@ -781,55 +781,145 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardHeader>
         <CardContent>
           {todaysCareData && todaysCareData.tasks.length > 0 ? (
-            <div className="space-y-3">
-              {todaysCareData.tasks
-                .sort((a, b) => b.createdAt - a.createdAt)
-                .map((task) => {
-                  const isActivityRecord = task.taskType === 'daily_activity_record';
-                  const activity = activityOptions.find(opt => opt.id === task.taskType);
-                  const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                  
-                  return (
-                    <div key={task._id} className="flex items-center justify-between p-4 rounded-md border">
-                      <div className="flex-1">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                          <div className="flex items-center space-x-2">
-                            {isActivityRecord ? (
-                              <Activity className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <User className="w-4 h-4 text-blue-600" />
-                            )}
-                            <span className="font-medium">
-                              {isActivityRecord ? 'Daily Activity Record' : activity?.label || task.taskType}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                              {payload?.time && `${payload.time}`}
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-green-100 text-green-800 border-green-300"
-                            >
-                              {task.status === 'completed' ? 'Completed' : task.status}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {task.notes && (
-                            <p className="mb-1">{task.notes}</p>
-                          )}
-                          <p className="text-xs text-gray-500">
-                            {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                          </p>
+            <div className="space-y-6">
+              {/* Personal Care Activities Area */}
+              <div>
+                <div className="flex items-center space-x-2 mb-4">
+                  <User className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-blue-900">Personal Care Activities</h3>
+                </div>
+                {(() => {
+                  const personalCareTasks = todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record') || [];
+                  return personalCareTasks.length > 0 ? (
+                    <div className="space-y-3">
+                      {personalCareTasks
+                        .sort((a, b) => b.createdAt - a.createdAt)
+                        .map((task) => {
+                          const activity = activityOptions.find(opt => opt.id === task.taskType);
+                          const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                          
+                          return (
+                            <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-blue-200 bg-blue-50/50">
+                              <div className="flex-1">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <User className="w-4 h-4 text-blue-600" />
+                                    <span className="font-medium text-blue-900">
+                                      {activity?.label || task.taskType}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className="text-xs bg-white">
+                                      {payload?.time && `${payload.time}`}
+                                    </Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-green-100 text-green-800 border-green-300"
+                                    >
+                                      {task.status === 'completed' ? 'Completed' : task.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-700">
+                                  {task.notes && (
+                                    <p className="mb-1">{task.notes}</p>
+                                  )}
+                                  <p className="text-xs text-gray-600">
+                                    {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 bg-blue-50/30 rounded-lg border border-blue-100">
+                      <div className="flex justify-center mb-3">
+                        <div className="p-2 bg-blue-100 rounded-full">
+                          <User className="w-6 h-6 text-blue-400" />
                         </div>
                       </div>
+                      <p className="text-gray-600 font-medium mb-1 text-sm">No personal care activities logged today</p>
+                      <p className="text-xs text-gray-500">
+                        Click &ldquo;Log Personal Care&rdquo; to record activities
+                      </p>
                     </div>
                   )
-                })}
+                })()}
+              </div>
+
+              {/* Daily Activity Records Area */}
+              <div>
+                <div className="flex items-center space-x-2 mb-4">
+                  <Activity className="w-5 h-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
+                </div>
+                {(() => {
+                  const activityRecordTasks = todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record') || [];
+                  return activityRecordTasks.length > 0 ? (
+                    <div className="space-y-3">
+                      {activityRecordTasks
+                        .sort((a, b) => b.createdAt - a.createdAt)
+                        .map((task) => {
+                          const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                          
+                          return (
+                            <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
+                              <div className="flex-1">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Activity className="w-4 h-4 text-green-600" />
+                                    <span className="font-medium text-green-900">
+                                      Daily Activity Record
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className="text-xs bg-white">
+                                      {payload?.time && `${payload.time}`}
+                                    </Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-green-100 text-green-800 border-green-300"
+                                    >
+                                      {task.status === 'completed' ? 'Completed' : task.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-700">
+                                  {task.notes && (
+                                    <p className="mb-1">{task.notes}</p>
+                                  )}
+                                  <p className="text-xs text-gray-600">
+                                    {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
+                      <div className="flex justify-center mb-3">
+                        <div className="p-2 bg-green-100 rounded-full">
+                          <Activity className="w-6 h-6 text-green-400" />
+                        </div>
+                      </div>
+                      <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records logged today</p>
+                      <p className="text-xs text-gray-500">
+                        Click &ldquo;Log Daily Activity&rdquo; to record activity notes
+                      </p>
+                    </div>
+                  )
+                })()}
+              </div>
             </div>
           ) : (
             <div className="text-center py-8">
