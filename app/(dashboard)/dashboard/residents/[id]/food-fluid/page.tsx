@@ -88,12 +88,8 @@ const FoodFluidLogSchema = z.object({
   path: ["portionServed"]
 });
 
-type FoodFluidPageProps = {
-  params: Promise<{ id: string }>;
-};
-
-export default function FoodFluidPage({ params }: FoodFluidPageProps) {
-  const { id } = React.use(params);
+export default function FoodFluidPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
@@ -117,7 +113,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
   });
 
   // Get archived logs for records view
-  
+
   const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
     residentId: id as Id<"residents">,
     limit: 50
@@ -150,6 +146,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
   // Form setup
   const form = useForm<z.infer<typeof DietFormSchema>>({
     resolver: zodResolver(DietFormSchema),
+    mode: "onSubmit", // Only validate on submit, not onChange
     defaultValues: {
       dietTypes: [],
       otherDietType: "",
@@ -258,6 +255,12 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
 
 
   const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
+    // Prevent submission if not on the final step
+    if (currentStep !== 4) {
+      console.log('Form submission prevented - not on final step. Current step:', currentStep);
+      return;
+    }
+    
     setIsLoading(true);
     try {
       if (!activeOrganization?.id || !user?.user?.id) {
@@ -279,8 +282,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
         createdBy: user.user.id,
       });
 
-      toast.success("Diet information saved successfully");
-      form.reset();
+      toast.success(existingDiet ? "Diet information updated successfully" : "Diet information saved successfully");
       setCurrentStep(1);
       setIsDialogOpen(false);
     } catch (error) {
@@ -333,7 +335,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
         fluidConsumedMl: undefined,
         signature: user.user.name || "",
       });
-      
+
       setIsFoodFluidDialogOpen(false);
     } catch (error) {
       toast.error("Failed to log food/fluid entry");
@@ -684,232 +686,239 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
       </div>
 
       {/* Compact Resident Information Card with Action Buttons */}
-<Card className="border-0">
-  <CardContent className="p-4">
-    {/* Mobile Layout */}
-    <div className="flex flex-col space-y-4 sm:hidden">
-      <div className="flex items-center space-x-3">
-        <Avatar className="w-12 h-12 flex-shrink-0">
-          <AvatarImage
-            src={resident.imageUrl}
-            alt={fullName}
-            className="border"
-          />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-          <div className="flex flex-wrap gap-1 mt-1">
-            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-              Room {resident.roomNumber || "N/A"}
-            </Badge>
-            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-              <Calendar className="w-3 h-3 mr-1" />
-              {new Date().toLocaleDateString()}
-            </Badge>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col space-y-3">
-        <Button 
-          className="bg-green-600 hover:bg-green-700 text-white w-full"
-          onClick={() => setIsDialogOpen(true)}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Diet
-        </Button>
-        <Button 
-          variant="outline"
-          onClick={() => setIsRecordsDialogOpen(true)}
-          className="w-full"
-        >
-          <Eye className="w-4 h-4 mr-2" />
-          See All Records
-        </Button>
-      </div>
-    </div>
-
-    {/* Desktop Layout */}
-    <div className="hidden sm:flex sm:items-center sm:justify-between">
-      <div className="flex items-center space-x-3">
-        <Avatar className="w-15 h-15">
-          <AvatarImage
-            src={resident.imageUrl}
-            alt={fullName}
-            className="border"
-          />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          <h3 className="font-semibold">{fullName}</h3>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-              Room {resident.roomNumber || "N/A"}
-            </Badge>
-            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-              <Calendar className="w-3 h-3 mr-1" />
-              {new Date().toLocaleDateString()}
-            </Badge>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button 
-          className="bg-green-600 hover:bg-green-700 text-white"
-          onClick={() => setIsDialogOpen(true)}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Diet
-        </Button>
-        <Button 
-          variant="outline"
-          onClick={() => setIsRecordsDialogOpen(true)}
-        >
-          <Eye className="w-4 h-4 mr-2" />
-          See All Records
-        </Button>
-      </div>
-    </div>
-
-    {/* Diet Information Section */}
-    {existingDiet && (
-      <div className="mt-4 pt-4 border-t border-gray-100">
-        <div className="flex items-center space-x-2 mb-3">
-          <Utensils className="w-4 h-4 text-amber-600" />
-          <span className="text-sm font-medium">Diet Information</span>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Diet Types */}
-          {(existingDiet.dietTypes && existingDiet.dietTypes.length > 0 ||
-            existingDiet.otherDietType ||
-            existingDiet.culturalRestrictions) && (
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 mb-1">
-                Diet Types
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {existingDiet.dietTypes?.map((diet, i) => (
-                  <Badge key={i} className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                    {diet}
+      <Card className="border-0">
+        <CardContent className="p-4">
+          {/* Mobile Layout */}
+          <div className="flex flex-col space-y-4 sm:hidden">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-12 h-12 flex-shrink-0">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
                   </Badge>
-                ))}
-                {existingDiet.otherDietType && (
-                  <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                    {existingDiet.otherDietType}
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    {new Date().toLocaleDateString()}
                   </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col space-y-3">
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white w-full"
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Diet
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsRecordsDialogOpen(true)}
+                className="w-full"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                See All Records
+              </Button>
+            </div>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden sm:flex sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-15 h-15">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold">{fullName}</h3>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    {new Date().toLocaleDateString()}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Diet
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsRecordsDialogOpen(true)}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                See All Records
+              </Button>
+            </div>
+          </div>
+
+          {/* Diet Information Section */}
+          {existingDiet && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <Utensils className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-medium">Diet Information</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDialogOpen(true)}
+                  className="text-xs"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Edit Diet
+                </Button>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {/* Diet Types */}
+                {(existingDiet.dietTypes && existingDiet.dietTypes.length > 0 ||
+                  existingDiet.otherDietType ||
+                  existingDiet.culturalRestrictions) && (
+                    <div>
+                      <p className="text-[11px] font-medium text-gray-500 mb-1">
+                        Diet Types
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {existingDiet.dietTypes?.map((diet, i) => (
+                          <Badge key={i} className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                            {diet}
+                          </Badge>
+                        ))}
+                        {existingDiet.otherDietType && (
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                            {existingDiet.otherDietType}
+                          </Badge>
+                        )}
+                        {existingDiet.culturalRestrictions && (
+                          <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                            {existingDiet.culturalRestrictions}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Allergies */}
+                {existingDiet.allergies && existingDiet.allergies.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Allergies
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {existingDiet.allergies?.map((a, i) => (
+                        <Badge key={i} className="bg-red-100 text-red-800 border-red-300 text-xs">
+                          {a.allergy}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                {existingDiet.culturalRestrictions && (
-                  <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                    {existingDiet.culturalRestrictions}
-                  </Badge>
+
+                {/* Assistance */}
+                {existingDiet.assistanceRequired && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Assistance
+                    </p>
+                    <Badge
+                      className={`text-xs ${existingDiet.assistanceRequired === "yes"
+                          ? "bg-indigo-100 text-indigo-800 border-indigo-300"
+                          : "bg-green-100 text-green-800 border-green-300"
+                        }`}
+                    >
+                      {existingDiet.assistanceRequired === "yes"
+                        ? "Assistance Required"
+                        : "Independent"}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Choking Risk */}
+                {existingDiet.chokingRisk && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Choking Risk
+                    </p>
+                    <Badge
+                      className={`text-xs ${existingDiet.chokingRisk === "high"
+                          ? "bg-red-100 text-red-800 border-red-300"
+                          : existingDiet.chokingRisk === "medium"
+                            ? "bg-orange-100 text-orange-800 border-orange-300"
+                            : "bg-green-100 text-green-800 border-green-300"
+                        }`}
+                    >
+                      {existingDiet.chokingRisk === "high"
+                        ? "High Risk"
+                        : existingDiet.chokingRisk === "medium"
+                          ? "Medium Risk"
+                          : "Low Risk"}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Food Consistency */}
+                {existingDiet.foodConsistency && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Food Consistency
+                    </p>
+                    <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs">
+                      {existingDiet.foodConsistency === "level7" && "Level 7 - Easy Chew"}
+                      {existingDiet.foodConsistency === "level6" && "Level 6 - Soft & Bite-sized"}
+                      {existingDiet.foodConsistency === "level5" && "Level 5 - Minced & Moist"}
+                      {existingDiet.foodConsistency === "level4" && "Level 4 - Pureed"}
+                      {existingDiet.foodConsistency === "level3" && "Level 3 - Liquidised"}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Fluid Consistency */}
+                {existingDiet.fluidConsistency && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Fluid Consistency
+                    </p>
+                    <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs">
+                      {existingDiet.fluidConsistency === "level0" && "Level 0 - Thin"}
+                      {existingDiet.fluidConsistency === "level1" && "Level 1 - Slightly Thick"}
+                      {existingDiet.fluidConsistency === "level2" && "Level 2 - Mildly Thick"}
+                      {existingDiet.fluidConsistency === "level3" && "Level 3 - Moderately Thick"}
+                      {existingDiet.fluidConsistency === "level4" && "Level 4 - Extremely Thick"}
+                    </Badge>
+                  </div>
                 )}
               </div>
             </div>
           )}
-
-          {/* Allergies */}
-          {existingDiet.allergies && existingDiet.allergies.length > 0 && (
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 mb-1">
-                Allergies
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {existingDiet.allergies?.map((a, i) => (
-                  <Badge key={i} className="bg-red-100 text-red-800 border-red-300 text-xs">
-                    {a.allergy}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Assistance */}
-          {existingDiet.assistanceRequired && (
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 mb-1">
-                Assistance
-              </p>
-              <Badge
-                className={`text-xs ${
-                  existingDiet.assistanceRequired === "yes"
-                    ? "bg-indigo-100 text-indigo-800 border-indigo-300"
-                    : "bg-green-100 text-green-800 border-green-300"
-                }`}
-              >
-                {existingDiet.assistanceRequired === "yes"
-                  ? "Assistance Required"
-                  : "Independent"}
-              </Badge>
-            </div>
-          )}
-
-          {/* Choking Risk */}
-          {existingDiet.chokingRisk && (
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 mb-1">
-                Choking Risk
-              </p>
-              <Badge
-                className={`text-xs ${
-                  existingDiet.chokingRisk === "high"
-                    ? "bg-red-100 text-red-800 border-red-300"
-                    : existingDiet.chokingRisk === "medium"
-                    ? "bg-orange-100 text-orange-800 border-orange-300"
-                    : "bg-green-100 text-green-800 border-green-300"
-                }`}
-              >
-                {existingDiet.chokingRisk === "high"
-                  ? "High Risk"
-                  : existingDiet.chokingRisk === "medium"
-                  ? "Medium Risk"
-                  : "Low Risk"}
-              </Badge>
-            </div>
-          )}
-
-          {/* Food Consistency */}
-          {existingDiet.foodConsistency && (
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 mb-1">
-                Food Consistency
-              </p>
-              <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs">
-                {existingDiet.foodConsistency === "level7" && "Level 7 - Easy Chew"}
-                {existingDiet.foodConsistency === "level6" && "Level 6 - Soft & Bite-sized"}
-                {existingDiet.foodConsistency === "level5" && "Level 5 - Minced & Moist"}
-                {existingDiet.foodConsistency === "level4" && "Level 4 - Pureed"}
-                {existingDiet.foodConsistency === "level3" && "Level 3 - Liquidised"}
-              </Badge>
-            </div>
-          )}
-
-          {/* Fluid Consistency */}
-          {existingDiet.fluidConsistency && (
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 mb-1">
-                Fluid Consistency
-              </p>
-              <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs">
-                {existingDiet.fluidConsistency === "level0" && "Level 0 - Thin"}
-                {existingDiet.fluidConsistency === "level1" && "Level 1 - Slightly Thick"}
-                {existingDiet.fluidConsistency === "level2" && "Level 2 - Mildly Thick"}
-                {existingDiet.fluidConsistency === "level3" && "Level 3 - Moderately Thick"}
-                {existingDiet.fluidConsistency === "level4" && "Level 4 - Extremely Thick"}
-              </Badge>
-            </div>
-          )}
-        </div>
-      </div>
-    )}
-  </CardContent>
-</Card>
-
-
+        </CardContent>
+      </Card>
 
       {/* Food & Fluid Entry Buttons */}
       <Card>
@@ -964,7 +973,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
                 {new Date().toLocaleDateString()}
               </Badge>
-         
+
             </div>
           </CardTitle>
 
@@ -1013,8 +1022,8 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                           <Badge
                             variant="outline"
                             className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                                log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                                  'bg-yellow-100 text-yellow-800 border-yellow-300'
+                              log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                'bg-yellow-100 text-yellow-800 border-yellow-300'
                               }`}
                           >
                             {log.amountEaten}
@@ -1109,19 +1118,60 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
       {/* Add Diet Dialog - Multi-Step */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         setIsDialogOpen(open);
-        if (!open) setCurrentStep(1);
+        if (!open) {
+          setCurrentStep(1);
+          // Reset form to current existing data or defaults when closing
+          if (existingDiet) {
+            form.reset({
+              dietTypes: existingDiet.dietTypes || [],
+              otherDietType: existingDiet.otherDietType || "",
+              culturalRestrictions: existingDiet.culturalRestrictions || "",
+              allergies: existingDiet.allergies || [],
+              chokingRisk: existingDiet.chokingRisk,
+              foodConsistency: existingDiet.foodConsistency,
+              fluidConsistency: existingDiet.fluidConsistency,
+              assistanceRequired: existingDiet.assistanceRequired,
+            });
+          } else {
+            form.reset({
+              dietTypes: [],
+              otherDietType: "",
+              culturalRestrictions: "",
+              allergies: [],
+              chokingRisk: undefined,
+              foodConsistency: undefined,
+              fluidConsistency: undefined,
+              assistanceRequired: undefined,
+            });
+          }
+        }
       }}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Diet Information for {fullName}</DialogTitle>
+            <DialogTitle>{existingDiet ? 'Edit' : 'Add'} Diet Information for {fullName}</DialogTitle>
             <DialogDescription>
               Step {currentStep} of 4: {currentStep === 1 ? 'Diet Types & Preferences' : currentStep === 2 ? 'Allergies & Restrictions' : currentStep === 3 ? 'Consistency Levels' : 'Assistance Requirements'}
             </DialogDescription>
           </DialogHeader>
-          
+
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                // Only submit if we're on the last step
+                if (currentStep === 4) {
+                  form.handleSubmit(onSubmit)(e);
+                }
+              }}
+              onKeyDown={(e) => {
+                // Prevent Enter key from submitting the form unless we're on the final step
+                if (e.key === 'Enter' && currentStep !== 4) {
+                  e.preventDefault();
+                }
+              }}
+              className="space-y-6"
+            >
               {/* Step 1: Diet Types & Preferences */}
               {currentStep === 1 && (
                 <div className="space-y-6">
@@ -1237,7 +1287,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Choking Risk Level</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select choking risk level..." />
@@ -1265,7 +1315,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Food Consistency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select food consistency level..." />
@@ -1290,7 +1340,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Fluid Consistency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select fluid consistency level..." />
@@ -1323,7 +1373,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                             className="flex flex-col space-y-3"
                           >
                             <div className="flex items-center space-x-2 p-3 border rounded-lg">
@@ -1351,18 +1401,25 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="font-medium mb-2">Summary</h4>
                     <div className="space-y-1 text-sm text-gray-600">
-                      {form.watch('dietTypes')?.length && form.watch('dietTypes')!.length > 0 && (
-                        <p>Diet Types: {form.watch('dietTypes')!.join(', ')}</p>
-                      )}
-                      {form.watch('chokingRisk') && (
-                        <p>Choking Risk: {form.watch('chokingRisk')}</p>
-                      )}
-                      {form.watch('foodConsistency') && (
-                        <p>Food Consistency: {form.watch('foodConsistency')}</p>
-                      )}
-                      {form.watch('fluidConsistency') && (
-                        <p>Fluid Consistency: {form.watch('fluidConsistency')}</p>
-                      )}
+                      {(() => {
+                        const formValues = form.watch();
+                        return (
+                          <>
+                            {formValues.dietTypes?.length && formValues.dietTypes.length > 0 && (
+                              <p>Diet Types: {formValues.dietTypes.join(', ')}</p>
+                            )}
+                            {formValues.chokingRisk && (
+                              <p>Choking Risk: {formValues.chokingRisk}</p>
+                            )}
+                            {formValues.foodConsistency && (
+                              <p>Food Consistency: {formValues.foodConsistency}</p>
+                            )}
+                            {formValues.fluidConsistency && (
+                              <p>Fluid Consistency: {formValues.fluidConsistency}</p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1381,19 +1438,18 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                     </Button>
                   )}
                 </div>
-                
+
                 <div className="flex space-x-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       setIsDialogOpen(false);
-                      setCurrentStep(1);
                     }}
                   >
                     Cancel
                   </Button>
-                  
+
                   {currentStep < 4 ? (
                     <Button
                       type="button"
@@ -1403,7 +1459,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                     </Button>
                   ) : (
                     <Button type="submit" disabled={isLoading}>
-                      {isLoading ? "Saving..." : "Save Diet Information"}
+                      {isLoading ? "Saving..." : existingDiet ? "Update Diet Information" : "Save Diet Information"}
                     </Button>
                   )}
                 </div>
@@ -1424,7 +1480,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               Record {entryType === "food" ? "food consumption" : "fluid intake"} details.
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...logForm}>
             <form onSubmit={logForm.handleSubmit(onFoodFluidLogSubmit)} className="space-y-4">
               {/* Section */}
@@ -1462,13 +1518,13 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                       {entryType === "food" ? "Type of Food" : "Type of Fluid"}
                     </FormLabel>
                     <FormControl>
-                      <Input 
+                      <Input
                         placeholder={
-                          entryType === "food" 
-                            ? "e.g., Chicken, Toast, Soup..." 
+                          entryType === "food"
+                            ? "e.g., Chicken, Toast, Soup..."
                             : "e.g., Water, Tea, Coffee, Juice..."
-                        } 
-                        {...field} 
+                        }
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -1542,8 +1598,8 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Volume (ml)</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))} 
+                      <Select
+                        onValueChange={(value) => field.onChange(parseInt(value))}
                         defaultValue={field.value?.toString()}
                       >
                         <FormControl>
@@ -1612,7 +1668,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               View and download daily records organized by date.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {/* Download All Records Button */}
             <div className="flex justify-between items-center pb-4 border-b">
@@ -1634,14 +1690,14 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                           <Calendar className="w-4 h-4 text-blue-600" />
                           <h4 className="font-medium">{doc.title}</h4>
                         </div>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={doc.type === 'current' ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-800 border-gray-300'}
                         >
                           {doc.type === 'current' ? 'Today' : 'Archived'}
                         </Badge>
                       </div>
-                      
+
                       <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                         <div>
                           <span className="font-medium">{doc.entries}</span> Total Entries
@@ -1657,7 +1713,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2 ml-4">
                       <Button
                         variant="outline"
@@ -1679,7 +1735,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   </div>
                 </Card>
               ))}
-              
+
               {generateDocumentsByDate().length === 0 && (
                 <div className="text-center py-8">
                   <div className="flex justify-center mb-4">
@@ -1715,7 +1771,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
             <DialogTitle>
               Daily Food & Fluid Record - {selectedDocument && new Date(selectedDocument).toLocaleDateString('en-US', {
                 weekday: 'long',
-                year: 'numeric', 
+                year: 'numeric',
                 month: 'long',
                 day: 'numeric'
               })}
@@ -1724,7 +1780,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
               Detailed view of all food and fluid entries for {fullName}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {/* Document Header Info */}
             {selectedDocument && (
@@ -1799,14 +1855,14 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   {getSelectedDocumentLogs().map((log) => {
                     const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
                     return (
-                      <tr 
-                        key={log._id} 
+                      <tr
+                        key={log._id}
                         className={`hover:bg-gray-50 ${isFluid ? 'bg-blue-25' : 'bg-orange-25'}`}
                       >
                         <td className="px-4 py-3 text-gray-900">
-                          {new Date(log.timestamp).toLocaleTimeString('en-US', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
+                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
                           })}
                         </td>
                         <td className="px-4 py-3 text-gray-700">
@@ -1833,12 +1889,11 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                           {log.portionServed || '-'}
                         </td>
                         <td className="px-4 py-3">
-                          <Badge 
-                            className={`text-xs ${
-                              log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                              log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                              'bg-yellow-100 text-yellow-800 border-yellow-300'
-                            }`}
+                          <Badge
+                            className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                                log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                  'bg-yellow-100 text-yellow-800 border-yellow-300'
+                              }`}
                           >
                             {log.amountEaten}
                           </Badge>
@@ -1854,7 +1909,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
                   })}
                 </tbody>
               </table>
-              
+
               {getSelectedDocumentLogs().length === 0 && (
                 <div className="text-center py-8">
                   <div className="flex justify-center mb-4">

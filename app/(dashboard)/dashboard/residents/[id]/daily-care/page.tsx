@@ -85,7 +85,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Determine current shift: Day (8 AM - 8 PM) or Night (8 PM - 8 AM)
   const currentShift = (currentHour >= 8 && currentHour < 20) ? "Day" : "Night";
-  const shiftDisplayName = currentShift === "Day" ? "Daily" : "Night";
 
   // Form schema
   const PersonalCareSchema = z.object({
@@ -384,8 +383,28 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Handle print functionality
   const handlePrint = () => {
-    const printContent = document.getElementById('daily-report-content');
-    if (!printContent) return;
+    if (!todaysCareData || !resident) return;
+    
+    // Determine current shift
+    const currentHour = currentTime.getHours();
+    const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
+    const currentShiftName = isCurrentlyDayShift ? 'Day' : 'Night';
+    const currentShiftTime = isCurrentlyDayShift ? '8 AM - 8 PM' : '8 PM - 8 AM';
+    
+    // Filter tasks by current shift
+    const currentShiftActivityRecords = todaysCareData.tasks.filter(task => {
+      if (task.taskType !== 'daily_activity_record') return false;
+      const taskTime = new Date(task.createdAt);
+      const hour = taskTime.getHours();
+      return isCurrentlyDayShift ? (hour >= 8 && hour < 20) : (hour >= 20 || hour < 8);
+    });
+    
+    const currentShiftPersonalCare = todaysCareData.tasks.filter(task => {
+      if (task.taskType === 'daily_activity_record') return false;
+      const taskTime = new Date(task.createdAt);
+      const hour = taskTime.getHours();
+      return isCurrentlyDayShift ? (hour >= 8 && hour < 20) : (hour >= 20 || hour < 8);
+    });
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -394,34 +413,289 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${shiftDisplayName} Report - ${fullName} (${today})</title>
+          <title>${currentShiftName} Shift Report - ${fullName} (${today})</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-            .card { padding: 16px; border-radius: 8px; border: 1px solid; }
-            .blue-card { background-color: #dbeafe; border-color: #bfdbfe; }
-            .gray-card { background-color: #f9fafb; border-color: #e5e7eb; }
-            .yellow-card { background-color: #fef3c7; border-color: #fde68a; }
-            .title { font-weight: bold; margin-bottom: 8px; }
-            .blue-text { color: #1e40af; }
-            .gray-text { color: #374151; }
-            .yellow-text { color: #92400e; }
-            .small-text { font-size: 14px; }
-            .badge { display: inline-block; background-color: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; margin: 2px; font-size: 12px; }
-            .blue-badge { background-color: #dbeafe; color: #1e40af; }
+            @page { size: A4; margin: 20mm; }
             @media print { body { margin: 0; } }
+            body { 
+              font-family: Arial, sans-serif; 
+              line-height: 1.4; 
+              color: #000;
+              margin: 0;
+              padding: 20px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #2563eb;
+              padding-bottom: 15px;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 24px;
+              color: #2563eb;
+              font-weight: bold;
+            }
+            .header h2 {
+              margin: 10px 0 0 0;
+              font-size: 18px;
+              color: #374151;
+              font-weight: 600;
+            }
+            .summary {
+              margin-bottom: 30px;
+              padding: 15px;
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+            }
+            .summary h3 {
+              margin: 0 0 15px 0;
+              color: #1f2937;
+              font-size: 16px;
+              font-weight: 600;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-bottom: 15px;
+            }
+            .summary-item {
+              font-size: 14px;
+            }
+            .summary-label {
+              font-weight: 600;
+              color: #374151;
+              margin-bottom: 5px;
+            }
+            .summary-value {
+              color: #6b7280;
+            }
+            .section {
+              margin-bottom: 30px;
+            }
+            .section-header {
+              display: flex;
+              align-items: center;
+              margin-bottom: 15px;
+              padding-bottom: 8px;
+              border-bottom: 2px solid #10b981;
+            }
+            .section-header.blue {
+              border-bottom-color: #3b82f6;
+            }
+            .section-header h3 {
+              margin: 0;
+              font-size: 18px;
+              font-weight: 600;
+              margin-left: 10px;
+            }
+            .section-header.green h3 {
+              color: #047857;
+            }
+            .section-header.blue h3 {
+              color: #1e40af;
+            }
+            .icon {
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              font-weight: bold;
+              font-size: 12px;
+            }
+            .icon.green {
+              background: #10b981;
+            }
+            .icon.blue {
+              background: #3b82f6;
+            }
+            .activity-item {
+              margin-bottom: 12px;
+              padding: 12px;
+              border: 1px solid #bfdbfe;
+              border-radius: 8px;
+              background: #eff6ff;
+            }
+            .activity-item.green {
+              border-color: #a7f3d0;
+              background: #ecfdf5;
+            }
+            .activity-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 8px;
+            }
+            .activity-title {
+              color: #1e40af;
+              font-size: 14px;
+              font-weight: 600;
+            }
+            .activity-title.green {
+              color: #047857;
+            }
+            .activity-status {
+              background: #22c55e;
+              color: white;
+              padding: 2px 8px;
+              border-radius: 4px;
+              font-size: 10px;
+              font-weight: 600;
+            }
+            .activity-notes {
+              margin-bottom: 8px;
+              font-style: italic;
+              color: #1e40af;
+              font-size: 12px;
+              padding: 5px 0;
+            }
+            .activity-notes.green {
+              color: #047857;
+            }
+            .activity-time {
+              font-size: 10px;
+              color: #6b7280;
+            }
+            .empty-state {
+              text-align: center;
+              padding: 20px;
+              background: #f0f9ff;
+              border: 1px solid #bfdbfe;
+              border-radius: 8px;
+              color: #1e40af;
+            }
+            .empty-state.green {
+              background: #f0fdf4;
+              border-color: #a7f3d0;
+              color: #047857;
+            }
+            .footer {
+              margin-top: 30px;
+              padding-top: 15px;
+              border-top: 2px solid #e5e7eb;
+              font-size: 10px;
+              color: #9ca3af;
+              text-align: center;
+            }
           </style>
         </head>
         <body>
-          <h1>${shiftDisplayName} Report - ${fullName} (${today})</h1>
-          ${printContent.innerHTML}
+          <div class="header">
+            <h1>Daily Care Report</h1>
+            <h2>${fullName}</h2>
+          </div>
+          
+          <div class="summary">
+            <h3>Care Summary</h3>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Date & Shift</div>
+                <div class="summary-value">${new Date(today).toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}</div>
+                <div class="summary-value">${currentShiftName} Shift (${currentShiftTime})</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Activity Summary</div>
+                <div class="summary-value">Personal Care: ${currentShiftPersonalCare.length}</div>
+                <div class="summary-value">Activity Records: ${currentShiftActivityRecords.length}</div>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+              <div>Total Activities: ${currentShiftActivityRecords.length + currentShiftPersonalCare.length}</div>
+              <div>Generated: ${new Date().toLocaleString()}</div>
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="section-header green">
+              <div class="icon green">📋</div>
+              <h3>Daily Activity Records</h3>
+            </div>
+            ${currentShiftActivityRecords.length > 0 ? 
+              currentShiftActivityRecords
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .map((activity, index) => {
+                  const payload = activity.payload as { time?: string; staff?: string };
+                  return `
+                    <div class="activity-item green">
+                      <div class="activity-header">
+                        <div class="activity-title green">${index + 1}. Daily Activity Record</div>
+                        <div class="activity-status">${activity.status}</div>
+                      </div>
+                      ${activity.notes ? `<div class="activity-notes green">${activity.notes}</div>` : ''}
+                      <div class="activity-time">
+                        Recorded: ${new Date(activity.createdAt).toLocaleString()}
+                        ${payload?.staff ? ` • Staff: ${payload.staff}` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')
+              : `
+                <div class="empty-state green">
+                  <div style="font-size: 14px; margin-bottom: 5px;">No daily activity records</div>
+                  <div style="font-size: 11px;">No daily activity records were logged for this ${currentShiftName.toLowerCase()} shift.</div>
+                </div>
+              `
+            }
+          </div>
+
+          <div class="section">
+            <div class="section-header blue">
+              <div class="icon blue">👤</div>
+              <h3>Personal Care Activities</h3>
+            </div>
+            ${currentShiftPersonalCare.length > 0 ? 
+              currentShiftPersonalCare
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .map((activity, index) => {
+                  const payload = activity.payload as { time?: string; primaryStaff?: string; assistedStaff?: string };
+                  return `
+                    <div class="activity-item">
+                      <div class="activity-header">
+                        <div class="activity-title">${index + 1}. ${activity.taskType}</div>
+                        <div class="activity-status">${activity.status}</div>
+                      </div>
+                      ${activity.notes ? `<div class="activity-notes">${activity.notes}</div>` : ''}
+                      <div class="activity-time">
+                        Recorded: ${new Date(activity.createdAt).toLocaleString()}
+                        ${payload?.primaryStaff ? ` • Primary Staff: ${payload.primaryStaff}` : ''}
+                        ${payload?.assistedStaff ? ` • Assisted by: ${payload.assistedStaff}` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')
+              : `
+                <div class="empty-state">
+                  <div style="font-size: 14px; margin-bottom: 5px;">No personal care activities recorded</div>
+                  <div style="font-size: 11px;">No personal care activities were logged for this ${currentShiftName.toLowerCase()} shift.</div>
+                </div>
+              `
+            }
+          </div>
+          
+          <div class="footer">
+            <div style="font-weight: 600; margin-bottom: 5px;">Generated by Care Management System</div>
+            <div>${new Date().toISOString()} • Confidential Care Documentation</div>
+          </div>
         </body>
       </html>
     `);
 
     printWindow.document.close();
-    printWindow.print();
-    printWindow.close();
+    
+    // Auto-trigger print dialog after a short delay
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
   };
 
   return (
@@ -780,147 +1054,180 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {todaysCareData && todaysCareData.tasks.length > 0 ? (
-            <div className="space-y-6">
-              {/* Personal Care Activities Area */}
-              <div>
-                <div className="flex items-center space-x-2 mb-4">
-                  <User className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-blue-900">Personal Care Activities</h3>
-                </div>
-                {(() => {
-                  const personalCareTasks = todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record') || [];
-                  return personalCareTasks.length > 0 ? (
-                    <div className="space-y-3">
-                      {personalCareTasks
-                        .sort((a, b) => b.createdAt - a.createdAt)
-                        .map((task) => {
-                          const activity = activityOptions.find(opt => opt.id === task.taskType);
-                          const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                          
-                          return (
-                            <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-blue-200 bg-blue-50/50">
-                              <div className="flex-1">
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <User className="w-4 h-4 text-blue-600" />
-                                    <span className="font-medium text-blue-900">
-                                      {activity?.label || task.taskType}
-                                    </span>
+          {(() => {
+            // Determine current shift based on current time
+            const currentHour = currentTime.getHours();
+            const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
+            
+            return todaysCareData && todaysCareData.tasks.length > 0 ? (
+              <div id="daily-report-content" className="space-y-6">
+                {/* Daily Activity Records Section - TOP */}
+                <div>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Activity className="w-5 h-5 text-green-600" />
+                    <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
+                  </div>
+                  {(() => {
+                    // Filter current shift activity records
+                    const currentShiftActivityRecords = (todaysCareData.tasks.filter(task => {
+                      if (task.taskType !== 'daily_activity_record') return false;
+                      
+                      const taskTime = new Date(task.createdAt);
+                      const hour = taskTime.getHours();
+                      
+                      // Filter by current shift
+                      if (isCurrentlyDayShift) {
+                        return hour >= 8 && hour < 20; // Day shift
+                      } else {
+                        return hour >= 20 || hour < 8; // Night shift
+                      }
+                    }) || []);
+                    
+                    return currentShiftActivityRecords.length > 0 ? (
+                      <div className="space-y-3">
+                        {currentShiftActivityRecords
+                          .sort((a, b) => b.createdAt - a.createdAt)
+                          .map((task) => {
+                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                            
+                            return (
+                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
+                                <div className="flex-1">
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <Activity className="w-4 h-4 text-green-600" />
+                                      <span className="font-medium text-green-900">
+                                        Daily Activity Record
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge variant="outline" className="text-xs bg-white">
+                                        {payload?.time && `${payload.time}`}
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs bg-green-100 text-green-800 border-green-300"
+                                      >
+                                        {task.status === 'completed' ? 'Completed' : task.status}
+                                      </Badge>
+                                    </div>
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant="outline" className="text-xs bg-white">
-                                      {payload?.time && `${payload.time}`}
-                                    </Badge>
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs bg-green-100 text-green-800 border-green-300"
-                                    >
-                                      {task.status === 'completed' ? 'Completed' : task.status}
-                                    </Badge>
+                                  <div className="text-sm text-gray-700">
+                                    {task.notes && (
+                                      <p className="mb-1">{task.notes}</p>
+                                    )}
+                                    <p className="text-xs text-gray-600">
+                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                    </p>
                                   </div>
-                                </div>
-                                <div className="text-sm text-gray-700">
-                                  {task.notes && (
-                                    <p className="mb-1">{task.notes}</p>
-                                  )}
-                                  <p className="text-xs text-gray-600">
-                                    {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                  </p>
                                 </div>
                               </div>
-                            </div>
-                          )
-                        })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 bg-blue-50/30 rounded-lg border border-blue-100">
-                      <div className="flex justify-center mb-3">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                          <User className="w-6 h-6 text-blue-400" />
-                        </div>
+                            )
+                          })}
                       </div>
-                      <p className="text-gray-600 font-medium mb-1 text-sm">No personal care activities logged today</p>
-                      <p className="text-xs text-gray-500">
-                        Click &ldquo;Log Personal Care&rdquo; to record activities
-                      </p>
-                    </div>
-                  )
-                })()}
-              </div>
+                    ) : (
+                      <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
+                        <div className="flex justify-center mb-3">
+                          <div className="p-2 bg-green-100 rounded-full">
+                            <Activity className="w-6 h-6 text-green-400" />
+                          </div>
+                        </div>
+                        <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records</p>
+                        <p className="text-xs text-gray-500">
+                          No daily activity records logged for current shift
+                        </p>
+                      </div>
+                    )
+                  })()}
+                </div>
 
-              {/* Daily Activity Records Area */}
-              <div>
-                <div className="flex items-center space-x-2 mb-4">
-                  <Activity className="w-5 h-5 text-green-600" />
-                  <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
-                </div>
-                {(() => {
-                  const activityRecordTasks = todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record') || [];
-                  return activityRecordTasks.length > 0 ? (
-                    <div className="space-y-3">
-                      {activityRecordTasks
-                        .sort((a, b) => b.createdAt - a.createdAt)
-                        .map((task) => {
-                          const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                          
-                          return (
-                            <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
-                              <div className="flex-1">
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <Activity className="w-4 h-4 text-green-600" />
-                                    <span className="font-medium text-green-900">
-                                      Daily Activity Record
-                                    </span>
+                {/* Personal Care Activities Section - BOTTOM */}
+                <div>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <User className="w-5 h-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-blue-900">Personal Care Activities</h3>
+                  </div>
+                  {(() => {
+                    // Filter current shift personal care tasks
+                    const currentShiftPersonalCare = (todaysCareData.tasks.filter(task => {
+                      if (task.taskType === 'daily_activity_record') return false;
+                      
+                      const taskTime = new Date(task.createdAt);
+                      const hour = taskTime.getHours();
+                      
+                      // Filter by current shift
+                      if (isCurrentlyDayShift) {
+                        return hour >= 8 && hour < 20; // Day shift
+                      } else {
+                        return hour >= 20 || hour < 8; // Night shift
+                      }
+                    }) || []);
+                    
+                    return currentShiftPersonalCare.length > 0 ? (
+                      <div className="space-y-3">
+                        {currentShiftPersonalCare
+                          .sort((a, b) => b.createdAt - a.createdAt)
+                          .map((task) => {
+                            const activity = activityOptions.find(opt => opt.id === task.taskType);
+                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                            
+                            return (
+                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-blue-200 bg-blue-50/50">
+                                <div className="flex-1">
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <User className="w-4 h-4 text-blue-600" />
+                                      <span className="font-medium text-blue-900">
+                                        {activity?.label || task.taskType}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge variant="outline" className="text-xs bg-white">
+                                        {payload?.time && `${payload.time}`}
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs bg-green-100 text-green-800 border-green-300"
+                                      >
+                                        {task.status === 'completed' ? 'Completed' : task.status}
+                                      </Badge>
+                                    </div>
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant="outline" className="text-xs bg-white">
-                                      {payload?.time && `${payload.time}`}
-                                    </Badge>
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs bg-green-100 text-green-800 border-green-300"
-                                    >
-                                      {task.status === 'completed' ? 'Completed' : task.status}
-                                    </Badge>
+                                  <div className="text-sm text-gray-700">
+                                    {task.notes && (
+                                      <p className="mb-1">{task.notes}</p>
+                                    )}
+                                    <p className="text-xs text-gray-600">
+                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                    </p>
                                   </div>
-                                </div>
-                                <div className="text-sm text-gray-700">
-                                  {task.notes && (
-                                    <p className="mb-1">{task.notes}</p>
-                                  )}
-                                  <p className="text-xs text-gray-600">
-                                    {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                  </p>
                                 </div>
                               </div>
-                            </div>
-                          )
-                        })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
-                      <div className="flex justify-center mb-3">
-                        <div className="p-2 bg-green-100 rounded-full">
-                          <Activity className="w-6 h-6 text-green-400" />
-                        </div>
+                            )
+                          })}
                       </div>
-                      <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records logged today</p>
-                      <p className="text-xs text-gray-500">
-                        Click &ldquo;Log Daily Activity&rdquo; to record activity notes
-                      </p>
-                    </div>
-                  )
-                })()}
+                    ) : (
+                      <div className="text-center py-6 bg-blue-50/30 rounded-lg border border-blue-100">
+                        <div className="flex justify-center mb-3">
+                          <div className="p-2 bg-blue-100 rounded-full">
+                            <User className="w-6 h-6 text-blue-400" />
+                          </div>
+                        </div>
+                        <p className="text-gray-600 font-medium mb-1 text-sm">No personal care activities</p>
+                        <p className="text-xs text-gray-500">
+                          No personal care activities logged for current shift
+                        </p>
+                      </div>
+                    )
+                  })()}
+                </div>
               </div>
-            </div>
           ) : (
             <div className="text-center py-8">
               <div className="flex justify-center mb-4">
@@ -933,7 +1240,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 Start tracking {fullName}&apos;s personal care activities using the buttons above
               </p>
             </div>
-          )}
+          )
+          })()}
         </CardContent>
       </Card>
 
@@ -961,17 +1269,31 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">
-                {todaysCareData?.tasks.filter(task => task.taskType !== 'daily_activity_record').length || 0}
+            <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="text-2xl font-bold text-amber-600">
+                {(() => {
+                  const dayShiftCount = todaysCareData?.tasks.filter(task => {
+                    const taskTime = new Date(task.createdAt);
+                    const hour = taskTime.getHours();
+                    return hour >= 8 && hour < 20;
+                  }).length || 0;
+                  return dayShiftCount;
+                })()}
               </div>
-              <p className="text-sm text-blue-700">Personal Care Activities</p>
+              <p className="text-sm text-amber-700">Day Shift Activities</p>
             </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="text-2xl font-bold text-green-600">
-                {todaysCareData?.tasks.filter(task => task.taskType === 'daily_activity_record').length || 0}
+            <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="text-2xl font-bold text-indigo-600">
+                {(() => {
+                  const nightShiftCount = todaysCareData?.tasks.filter(task => {
+                    const taskTime = new Date(task.createdAt);
+                    const hour = taskTime.getHours();
+                    return hour >= 20 || hour < 8;
+                  }).length || 0;
+                  return nightShiftCount;
+                })()}
               </div>
-              <p className="text-sm text-green-700">Daily Activity Records</p>
+              <p className="text-sm text-indigo-700">Night Shift Activities</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-gray-600">
