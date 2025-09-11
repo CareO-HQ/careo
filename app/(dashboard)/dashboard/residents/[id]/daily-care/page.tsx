@@ -92,7 +92,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       message: "You have to select at least one activity.",
     }),
     time: z.string().min(1, "Time is required"),
-    staff: z.string().optional(),
+    staff: z.string().min(1, "Staff is required"),
     assistedStaff: z.string().optional(),
     notes: z.string().optional(),
   });
@@ -184,7 +184,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     defaultValues: {
       activities: [],
       time: "",
-      staff: user?.user?.name || user?.user?.email?.split('@')[0] || "", // Pre-fill with current user
+      staff: "",
       assistedStaff: "",
       notes: "",
     },
@@ -256,6 +256,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       toast.error("Failed to save personal care activities");
     }
   };
+  
 
   // Handle daily activity record submission
   const handleActivityRecordSubmit = async () => {
@@ -886,7 +887,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Staff</Label>
+              <Label className="text-sm font-medium">Primary Staff</Label>
               <Input
                 value={currentUserName}
                 disabled
