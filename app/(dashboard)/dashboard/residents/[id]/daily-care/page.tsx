@@ -51,7 +51,8 @@ import {
   StickyNote,
   Plus,
   Eye,
-  X
+  X,
+  Clock
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -194,6 +195,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [activityRecordTime, setActivityRecordTime] = React.useState("");
   const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
 
+  // Dialog state management
+  const [isPersonalCareDialogOpen, setIsPersonalCareDialogOpen] = React.useState(false);
+  const [isActivityRecordDialogOpen, setIsActivityRecordDialogOpen] = React.useState(false);
+
   // Update staff fields when user data loads
   React.useEffect(() => {
     if (user?.user) {
@@ -248,8 +253,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         shift: currentShift,
       });
 
-      // Clear form
+      // Clear form and close dialog
       form.reset();
+      setIsPersonalCareDialogOpen(false);
       toast.success("Personal care activities saved successfully");
     } catch (error) {
       console.error("Error saving personal care activities:", error);
@@ -271,9 +277,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         notes: activityRecordNotes || undefined,
       });
 
-      // Clear form (keep current user as staff)
+      // Clear form and close dialog (keep current user as staff)
       setActivityRecordTime("");
       setActivityRecordNotes("");
+      setIsActivityRecordDialogOpen(false);
       toast.success("Daily activity record saved successfully");
     } catch (error) {
       console.error("Error saving daily activity record:", error);
@@ -432,6 +439,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         <span>/</span>
         <span className="text-foreground">Daily Care</span>
       </div>
+
+
 
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
@@ -704,317 +713,192 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardContent>
       </Card>
 
-      {/* Today's Personal Care */}
+      {/* Personal Care Entry Buttons */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <User className="w-5 h-5 text-blue-600" />
-            <span>Today&apos;s Personal Care</span>
+            <span>Personal Care & Daily Activities</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Activities Section */}
-              <FormField
-                control={form.control}
-                name="activities"
-                render={() => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium">Activities</FormLabel>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 border rounded-md">
-                      {activityOptions.map((activity) => (
-                        <FormField
-                          key={activity.id}
-                          control={form.control}
-                          name="activities"
-                          render={({ field }) => {
-                            return (
-                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(activity.id)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? field.onChange([...field.value, activity.id])
-                                        : field.onChange(
-                                          field.value?.filter(
-                                            (value) => value !== activity.id
-                                          )
-                                        )
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-xs font-normal cursor-pointer">
-                                  {activity.label}
-                                </FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Form Controls */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Time</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="time"
-                            className="h-9"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="staff"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Primary Staff</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={currentUserName}
-                            disabled
-                            className="h-9 bg-gray-50 text-gray-600"
-                            placeholder="Current user"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="assistedStaff"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Assisted By (optional)</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder="Select assisting staff..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {otherStaffOptions.length > 0 ? (
-                              otherStaffOptions.map((staff) => (
-                                <SelectItem key={staff.key} value={staff.key}>
-                                  {staff.label}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no_staff" disabled>
-                                No other staff available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter notes..."
-                            className="h-9"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type="submit"
-                    className="h-9 px-6 w-full sm:w-auto"
-                    size="sm"
-                  >
-                    Save Activities
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      {/* Daily Activity Record */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Activity className="w-5 h-5 text-green-600" />
-            <span>Daily Activity Record</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Activity Notes</Label>
-              <Input
-                placeholder="Enter activity details..."
-                value={activityRecordNotes}
-                onChange={(e) => setActivityRecordNotes(e.target.value)}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Primary Staff</Label>
-              <Input
-                value={currentUserName}
-                disabled
-                className="h-9 bg-gray-50 text-gray-600"
-                placeholder="Current user"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Time</Label>
-              <Input
-                type="time"
-                value={activityRecordTime}
-                onChange={(e) => setActivityRecordTime(e.target.value)}
-                placeholder="Select time"
-                className="h-9"
-              />
-            </div>
-
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              onClick={handleActivityRecordSubmit}
-              disabled={!currentUserName || !activityRecordTime}
-              className="h-9 px-6"
+              className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
+              onClick={() => setIsPersonalCareDialogOpen(true)}
             >
-              Save Record
+              <User className="w-6 h-6 mr-3" />
+              Log Personal Care
+            </Button>
+            <Button
+             className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
+              onClick={() => setIsActivityRecordDialogOpen(true)}
+            >
+              <Activity className="w-6 h-6 mr-3" />
+              Log Daily Activity
             </Button>
           </div>
         </CardContent>
       </Card>
 
 
+      {/* Today's Log History */}
+      <Card>
+        <CardHeader>
+          {/* Mobile Layout */}
+          <CardTitle className="block sm:hidden">
+            <div className="flex items-center space-x-2 mb-3">
+              <Clock className="w-5 h-5 text-gray-600" />
+              <span>Today&apos;s Log History</span>
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
+                {new Date().toLocaleDateString()}
+              </Badge>
+            </div>
+          </CardTitle>
 
-      {/* Today's Daily Report */}
-      {
-        todaysCareData && (
-          <Card className="border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium flex items-center justify-between">
-                <span>{shiftDisplayName} Report - {fullName} ({today})</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrint}
-                  className="h-8 px-3"
-                >
-                  <Printer className="w-4 h-4" />
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div id="daily-report-content" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="card blue-card p-4 rounded-lg bg-blue-50 border border-blue-200">
-                    <h4 className="title font-semibold text-blue-800">Resident Information</h4>
-                    <p className="small-text text-sm text-blue-600">{fullName}</p>
-                    <p className="small-text text-sm text-blue-600">Room: {resident.roomNumber || 'Not assigned'}</p>
-                    <p className="small-text text-sm text-blue-600">
-                      Date: {new Date(today).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                  <div className="card gray-card p-4 rounded-lg bg-gray-50 border border-gray-200">
-                    <h4 className="title font-semibold text-gray-800">Personal Care</h4>
-                    <p className="small-text text-sm text-gray-600">
-                      Total Activities: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length}
-                    </p>
-                    <p className="small-text text-sm text-gray-600">
-                      Completed: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record' && task.status === 'completed').length}
-                    </p>
-                    <p className="small-text text-sm text-gray-600">
-                      Records: {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length}
-                    </p>
-                  </div>
-                </div>
-                <div className="card yellow-card p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <h4 className="title font-semibold text-yellow-800 mb-2">Activity Records</h4>
-                  {todaysCareData.tasks && todaysCareData.tasks.length > 0 ? (
-                    <>
-                      {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length > 0 && (
-                        <div className="mb-3">
-                          <span className="text-sm font-medium text-yellow-700 mr-2">Personal Care Activities:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {todaysCareData.tasks
-                              .filter(task => task.taskType !== 'daily_activity_record')
-                              .map((task) => {
-                                const activity = activityOptions.find(opt => opt.id === task.taskType);
-                                const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string };
-                                return (
-                                  <span key={task._id} className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                    ✓ {activity?.label || task.taskType} {payload?.time && `(${payload.time})`}
-                                  </span>
-                                );
-                              })}
+          {/* Desktop Layout */}
+          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-gray-600" />
+              <span>Today&apos;s Log History</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                {new Date().toLocaleDateString()}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrint}
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print Report
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {todaysCareData && todaysCareData.tasks.length > 0 ? (
+            <div className="space-y-3">
+              {todaysCareData.tasks
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .map((task) => {
+                  const isActivityRecord = task.taskType === 'daily_activity_record';
+                  const activity = activityOptions.find(opt => opt.id === task.taskType);
+                  const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                  
+                  return (
+                    <div key={task._id} className="flex items-center justify-between p-4 rounded-md border">
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                          <div className="flex items-center space-x-2">
+                            {isActivityRecord ? (
+                              <Activity className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <User className="w-4 h-4 text-blue-600" />
+                            )}
+                            <span className="font-medium">
+                              {isActivityRecord ? 'Daily Activity Record' : activity?.label || task.taskType}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {payload?.time && `${payload.time}`}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-green-100 text-green-800 border-green-300"
+                            >
+                              {task.status === 'completed' ? 'Completed' : task.status}
+                            </Badge>
                           </div>
                         </div>
-                      )}
-                      {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length > 0 && (
-                        <div>
-                          <span className="text-sm font-medium text-yellow-700 mr-2">Daily Activity Records:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {todaysCareData.tasks
-                              .filter(task => task.taskType === 'daily_activity_record')
-                              .map((task) => {
-                                const payload = task.payload as { time?: string; staff?: string };
-                                return (
-                                  <span key={task._id} className="badge blue-badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                    📝 {task.notes || 'Activity'} {payload?.time && `(${payload.time})`}
-                                  </span>
-                                );
-                              })}
-                          </div>
+                        <div className="text-sm text-gray-600">
+                          {task.notes && (
+                            <p className="mb-1">{task.notes}</p>
+                          )}
+                          <p className="text-xs text-gray-500">
+                            {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                          </p>
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-yellow-700">No activities recorded yet for this shift.</p>
-                  )}
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="flex justify-center mb-4">
+                <div className="p-3 bg-gray-100 rounded-full">
+                  <Clock className="w-8 h-8 text-gray-400" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )
-      }
+              <p className="text-gray-600 font-medium mb-2">No entries logged today</p>
+              <p className="text-sm text-gray-500">
+                Start tracking {fullName}&apos;s personal care activities using the buttons above
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+         {/* Today's Summary Card */}
+         <Card>
+        <CardHeader>
+          {/* Mobile Layout */}
+          <CardTitle className="block sm:hidden">
+            <div className="flex items-center space-x-2 mb-2">
+              <Clock className="w-5 h-5 text-gray-600" />
+              <span>Today&apos;s Summary</span>
+            </div>
+            <Badge variant="outline" className="self-start">
+              {new Date().toLocaleDateString()}
+            </Badge>
+          </CardTitle>
+          {/* Desktop Layout */}
+          <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
+            <Clock className="w-5 h-5 text-gray-600" />
+            <span>Today&apos;s Summary</span>
+            <Badge variant="outline" className="ml-auto">
+              {new Date().toLocaleDateString()}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-2xl font-bold text-blue-600">
+                {todaysCareData?.tasks.filter(task => task.taskType !== 'daily_activity_record').length || 0}
+              </div>
+              <p className="text-sm text-blue-700">Personal Care Activities</p>
+            </div>
+            <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-2xl font-bold text-green-600">
+                {todaysCareData?.tasks.filter(task => task.taskType === 'daily_activity_record').length || 0}
+              </div>
+              <p className="text-sm text-green-700">Daily Activity Records</p>
+            </div>
+            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-2xl font-bold text-gray-600">
+                {todaysCareData?.tasks && todaysCareData.tasks.length > 0
+                  ? new Date(Math.max(...todaysCareData.tasks.map(t => t.createdAt))).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                  : "--"
+                }
+              </div>
+              <p className="text-sm text-gray-700">Last recorded</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
 
       {/* Add Care Notes Dialog */}
       <Dialog open={isCareNotesDialogOpen} onOpenChange={setIsCareNotesDialogOpen}>
@@ -1374,6 +1258,238 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             >
               {deleteLoading ? "Deleting..." : "Delete"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Personal Care Dialog */}
+      <Dialog open={isPersonalCareDialogOpen} onOpenChange={setIsPersonalCareDialogOpen}>
+        <DialogContent className="sm:max-w-[800px]">
+          <DialogHeader>
+            <DialogTitle>Personal Care Activities for {fullName}</DialogTitle>
+            <DialogDescription>
+              Record personal care activities performed for this resident.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Activities Section */}
+              <FormField
+                control={form.control}
+                name="activities"
+                render={() => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium">Activities</FormLabel>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 border rounded-md">
+                      {activityOptions.map((activity) => (
+                        <FormField
+                          key={activity.id}
+                          control={form.control}
+                          name="activities"
+                          render={({ field }) => {
+                            return (
+                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(activity.id)}
+                                    onCheckedChange={(checked) => {
+                                      return checked
+                                        ? field.onChange([...field.value, activity.id])
+                                        : field.onChange(
+                                          field.value?.filter(
+                                            (value) => value !== activity.id
+                                          )
+                                        )
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-xs font-normal cursor-pointer">
+                                  {activity.label}
+                                </FormLabel>
+                              </FormItem>
+                            )
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Form Controls */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Time</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="time"
+                            className="h-9"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="staff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Primary Staff</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={currentUserName}
+                            disabled
+                            className="h-9 bg-gray-50 text-gray-600"
+                            placeholder="Current user"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="assistedStaff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Assisted By (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select assisting staff..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {otherStaffOptions.length > 0 ? (
+                              otherStaffOptions.map((staff) => (
+                                <SelectItem key={staff.key} value={staff.key}>
+                                  {staff.label}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no_staff" disabled>
+                                No other staff available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter notes..."
+                          className="h-9"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsPersonalCareDialogOpen(false);
+                    form.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Save Personal Care Activities
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Daily Activity Record Dialog */}
+      <Dialog open={isActivityRecordDialogOpen} onOpenChange={setIsActivityRecordDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Daily Activity Record for {fullName}</DialogTitle>
+            <DialogDescription>
+              Record daily activity notes for this resident.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Activity Notes</Label>
+              <Input
+                placeholder="Enter activity details..."
+                value={activityRecordNotes}
+                onChange={(e) => setActivityRecordNotes(e.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Primary Staff</Label>
+              <Input
+                value={currentUserName}
+                disabled
+                className="h-9 bg-gray-50 text-gray-600"
+                placeholder="Current user"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Time</Label>
+              <Input
+                type="time"
+                value={activityRecordTime}
+                onChange={(e) => setActivityRecordTime(e.target.value)}
+                placeholder="Select time"
+                className="h-9"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsActivityRecordDialogOpen(false);
+                  setActivityRecordTime("");
+                  setActivityRecordNotes("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleActivityRecordSubmit}
+                disabled={!currentUserName || !activityRecordTime}
+              >
+                Save Daily Activity Record
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
