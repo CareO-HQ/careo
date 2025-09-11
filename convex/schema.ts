@@ -446,4 +446,64 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("bySection", ["section"])
     .index("bySignature", ["signature"]),
+
+  // Quick care notes for residents
+  quickCareNotes: defineTable({
+    residentId: v.id("residents"),
+    category: v.union(
+      // Old categories for backward compatibility
+      v.literal("bed_safety"),
+      v.literal("positioning"),
+      v.literal("mobility"),
+      v.literal("shower"),
+      v.literal("communication"),
+      // New structured categories
+      v.literal("shower_bath"),
+      v.literal("toileting"),
+      v.literal("mobility_positioning"),
+      v.literal("safety_alerts")
+    ),
+    
+    // Shower/Bath Preference fields
+    showerOrBath: v.optional(v.union(v.literal("shower"), v.literal("bath"))),
+    preferredTime: v.optional(v.union(v.literal("morning"), v.literal("afternoon"), v.literal("evening"))),
+    
+    // Toileting Needs fields
+    toiletType: v.optional(v.union(v.literal("toilet"), v.literal("commode"), v.literal("pad"))),
+    assistanceLevel: v.optional(v.union(v.literal("independent"), v.literal("1_staff"), v.literal("2_staff"))),
+    
+    // Mobility & Positioning fields
+    walkingAid: v.optional(v.union(v.literal("frame"), v.literal("stick"), v.literal("wheelchair"), v.literal("none"))),
+    
+    // Communication Needs fields (multiple can be selected)
+    communicationNeeds: v.optional(v.array(v.union(
+      v.literal("hearing_aid"),
+      v.literal("glasses"),
+      v.literal("non_verbal"),
+      v.literal("memory_support")
+    ))),
+    
+    // Safety Alerts fields (multiple can be selected)
+    safetyAlerts: v.optional(v.array(v.union(
+      v.literal("high_falls_risk"),
+      v.literal("no_unattended_bathroom"),
+      v.literal("chair_bed_alarm")
+    ))),
+    
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    isActive: v.optional(v.boolean()), // true by default, can be deactivated
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byCategory", ["category"])
+    .index("byResidentAndCategory", ["residentId", "category"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byActiveStatus", ["isActive"])
+    .index("byCreatedBy", ["createdBy"]),
 });

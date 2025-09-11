@@ -117,6 +117,7 @@ export default function FoodFluidPage({ params }: FoodFluidPageProps) {
   });
 
   // Get archived logs for records view
+  
   const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
     residentId: id as Id<"residents">,
     limit: 50

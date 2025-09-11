@@ -67,7 +67,7 @@ export default function CreateOrgForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Care home name</FormLabel>
+              <FormLabel required>Care home name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Acme Inc."

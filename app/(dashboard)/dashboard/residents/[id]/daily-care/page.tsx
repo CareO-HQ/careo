@@ -4,6 +4,7 @@ import React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -26,6 +27,14 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
   Form,
   FormControl,
   FormField,
@@ -37,13 +46,12 @@ import {
   ArrowLeft,
   Activity,
   User,
-  Bed,
-  Home,
   Printer,
   Calendar,
   StickyNote,
   Plus,
-  Eye
+  Eye,
+  X
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +60,15 @@ import { useRouter } from "next/navigation";
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
 };
+// put this at the very top (after imports)
+
+// Communication Needs Enum + Type
+const CommunicationNeedEnum = z.enum(["hearing_aid", "glasses", "non_verbal", "memory_support"]);
+type CommunicationNeed = z.infer<typeof CommunicationNeedEnum>;
+
+// Safety Alerts Enum + Type
+const SafetyAlertEnum = z.enum(["high_falls_risk", "no_unattended_bathroom", "chair_bed_alarm"]);
+type SafetyAlert = z.infer<typeof SafetyAlertEnum>;
 
 export default function DailyCarePage({ params }: DailyCarePageProps) {
   const { id } = React.use(params);
@@ -79,24 +96,67 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     assistedStaff: z.string().optional(),
     notes: z.string().optional(),
   });
+  type CommunicationNeed = "hearing_aid" | "glasses" | "non_verbal" | "memory_support";
+  type SafetyAlert = "high_falls_risk" | "no_unattended_bathroom" | "chair_bed_alarm";
 
-  // Form setup
-  const form = useForm<z.infer<typeof PersonalCareSchema>>({
-    resolver: zodResolver(PersonalCareSchema),
+  const communicationOptions: { id: CommunicationNeed; label: string }[] = [
+    { id: "hearing_aid", label: "Hearing Aid" },
+    { id: "glasses", label: "Glasses" },
+    { id: "non_verbal", label: "Non-verbal" },
+    { id: "memory_support", label: "Memory Support" },
+  ];
+
+  const safetyOptions: { id: SafetyAlert; label: string }[] = [
+    { id: "high_falls_risk", label: "High Falls Risk" },
+    { id: "no_unattended_bathroom", label: "Do Not Leave Unattended in Bathroom" },
+    { id: "chair_bed_alarm", label: "Chair/Bed Alarm" },
+  ];
+
+  // Care Notes Dialog state
+  const [isCareNotesDialogOpen, setIsCareNotesDialogOpen] = React.useState(false);
+  const [careNotesLoading, setCareNotesLoading] = React.useState(false);
+  
+  // Delete confirmation dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
+  const [noteToDelete, setNoteToDelete] = React.useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = React.useState(false);
+
+  // Care Notes Form Schema
+  // Enums
+
+
+  const CareNotesSchema = z.object({
+    category: z.enum(["shower_bath", "toileting", "mobility_positioning", "communication", "safety_alerts"]),
+  
+    showerOrBath: z.enum(["shower", "bath"]).optional(),
+    preferredTime: z.enum(["morning", "afternoon", "evening"]).optional(),
+    toiletType: z.enum(["toilet", "commode", "pad"]).optional(),
+    assistanceLevel: z.enum(["independent", "1_staff", "2_staff"]).optional(),
+    walkingAid: z.enum(["frame", "stick", "wheelchair", "none"]).optional(),
+  
+    // ✅ strongly typed
+    communicationNeeds: z.array(CommunicationNeedEnum).optional(),
+    safetyAlerts: z.array(SafetyAlertEnum).optional(),
+  
+    priority: z.enum(["low", "medium", "high"]).optional(),
+  });
+  
+
+  // Care Notes Form setup
+  const careNotesForm = useForm<z.infer<typeof CareNotesSchema>>({
+    resolver: zodResolver(CareNotesSchema),
     defaultValues: {
-      activities: [],
-      time: "",
-      staff: "",
-      assistedStaff: "",
-      notes: "",
+      category: "shower_bath",
+      showerOrBath: undefined,
+      preferredTime: undefined,
+      toiletType: undefined,
+      assistanceLevel: undefined,
+      walkingAid: undefined,
+      communicationNeeds: [],
+      safetyAlerts: [],
+      priority: "medium",
     },
   });
-
-  // Daily Activity Record state variables
-  const [activityRecordStaff, setActivityRecordStaff] = React.useState("");
-  const [activityRecordTime, setActivityRecordTime] = React.useState("");
-  const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
-
 
   // Queries
   const todaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
@@ -105,9 +165,48 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     shift: currentShift,
   });
 
+  const quickCareNotes = useQuery(api.quickCareNotes.getQuickCareNotesByResident, {
+    residentId: id as Id<"residents">,
+    activeOnly: true,
+  });
+
+
+  // Get all users for staff selection
+  const allUsers = useQuery(api.user.getAllUsers);
+
+  // Auth data
+  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const { data: user } = authClient.useSession();
+
+  // Form setup - after user data is available
+  const form = useForm<z.infer<typeof PersonalCareSchema>>({
+    resolver: zodResolver(PersonalCareSchema),
+    defaultValues: {
+      activities: [],
+      time: "",
+      staff: user?.user?.name || user?.user?.email?.split('@')[0] || "", // Pre-fill with current user
+      assistedStaff: "",
+      notes: "",
+    },
+  });
+
+  // Daily Activity Record state variables
+  const [activityRecordTime, setActivityRecordTime] = React.useState("");
+  const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
+
+  // Update staff fields when user data loads
+  React.useEffect(() => {
+    if (user?.user) {
+      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
+      form.setValue('staff', staffName);
+    }
+  }, [user, form]);
+
   // Mutations
   const createPersonalCareActivities = useMutation(api.personalCare.createPersonalCareActivities);
   const createDailyActivityRecord = useMutation(api.personalCare.createDailyActivityRecord);
+  const createQuickCareNote = useMutation(api.quickCareNotes.createQuickCareNote);
+  const deleteQuickCareNote = useMutation(api.quickCareNotes.deleteQuickCareNote);
 
   // Define activity options
   const activityOptions = [
@@ -124,13 +223,16 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     { id: "pressure_relief", label: "Pressure Relief/Position Change" },
     { id: "Bed_changed", label: "Bed Cover Changed" }
   ] as const;
-  const staffOptions = [
-    { key: "john_smith", label: "John Smith" },
-    { key: "sarah_jones", label: "Sarah Jones" },
-    { key: "mike_wilson", label: "Mike Wilson" },
-    { key: "emma_brown", label: "Emma Brown" },
-    { key: "david_taylor", label: "David Taylor" },
-  ];
+
+  // Get other staff (excluding current user) for assisted staff dropdown
+  const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => ({
+    key: u.name,
+    label: u.name,
+    email: u.email
+  })) || [];
+
+  // Current user info for primary staff
+  const currentUserName = user?.user?.name || user?.user?.email?.split('@')[0] || "";
 
   // Handle form submission
   const onSubmit = async (data: z.infer<typeof PersonalCareSchema>) => {
@@ -141,7 +243,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         activities: data.activities,
         time: data.time,
         staff: data.staff,
-        assistedStaff: data.assistedStaff,
+        assistedStaff: data.assistedStaff === "none" ? undefined : data.assistedStaff,
         notes: data.notes,
         shift: currentShift,
       });
@@ -157,19 +259,18 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Handle daily activity record submission
   const handleActivityRecordSubmit = async () => {
-    if (!activityRecordStaff || !activityRecordTime) return;
+    if (!currentUserName || !activityRecordTime) return;
 
     try {
       await createDailyActivityRecord({
         residentId: id as Id<"residents">,
         date: today,
         time: activityRecordTime,
-        staff: activityRecordStaff,
+        staff: currentUserName,
         notes: activityRecordNotes || undefined,
       });
 
-      // Clear form
-      setActivityRecordStaff("");
+      // Clear form (keep current user as staff)
       setActivityRecordTime("");
       setActivityRecordNotes("");
       toast.success("Daily activity record saved successfully");
@@ -177,6 +278,65 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       console.error("Error saving daily activity record:", error);
       toast.error("Failed to save daily activity record");
     }
+  };
+
+  // Handle care notes submission
+  const onCareNotesSubmit = async (data: z.infer<typeof CareNotesSchema>) => {
+    if (!user || !activeOrganization) {
+      toast.error("Authentication required");
+      return;
+    }
+
+    setCareNotesLoading(true);
+    try {
+      await createQuickCareNote({
+        residentId: id as Id<"residents">,
+        category: data.category,
+        showerOrBath: data.showerOrBath,
+        preferredTime: data.preferredTime,
+        toiletType: data.toiletType,
+        assistanceLevel: data.assistanceLevel,
+        walkingAid: data.walkingAid,
+        communicationNeeds: data.communicationNeeds,
+        safetyAlerts: data.safetyAlerts,
+        priority: data.priority,
+        organizationId: activeOrganization.id,
+        teamId: activeOrganization.id, // Using organization ID as team ID for now
+        createdBy: user.user.id,
+      });
+
+      toast.success("Care note saved successfully");
+      careNotesForm.reset();
+      setIsCareNotesDialogOpen(false);
+    } catch (error) {
+      console.error("Error saving care note:", error);
+      toast.error("Failed to save care note");
+    } finally {
+      setCareNotesLoading(false);
+    }
+  };
+
+  // Handle delete care note
+  const handleDeleteCareNote = async () => {
+    if (!noteToDelete) return;
+    
+    setDeleteLoading(true);
+    try {
+      await deleteQuickCareNote({ noteId: noteToDelete as Id<"quickCareNotes"> });
+      toast.success("Care note deleted successfully");
+      setDeleteConfirmOpen(false);
+      setNoteToDelete(null);
+    } catch (error) {
+      console.error("Error deleting care note:", error);
+      toast.error("Failed to delete care note");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const confirmDelete = (noteId: string) => {
+    setNoteToDelete(noteId);
+    setDeleteConfirmOpen(true);
   };
 
   if (resident === undefined) {
@@ -320,10 +480,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <div className="flex flex-col space-y-3">
               <Button
                 variant="outline"
-                onClick={() => {/* TODO: Add Care Notes functionality */ }}
+                onClick={() => setIsCareNotesDialogOpen(true)}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
-               <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Add Care Notes
               </Button>
               <Button
@@ -334,7 +494,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 <Eye className="w-4 h-4 mr-2" />
                 See All Records
               </Button>
-        
+
             </div>
           </div>
 
@@ -367,7 +527,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => {/* TODO: Add Care Notes functionality */ }}
+                onClick={() => setIsCareNotesDialogOpen(true)}
                 className="bg-green-600 text-white hover:bg-green-700 hover:text-white "
               >
                 <Plus className="w-4 h-4" />
@@ -382,350 +542,840 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 See All Records
               </Button>
 
-        
 
-          </div>
-        </div>
 
-        {/* Care Notes Section - Integrated into the card */}
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center space-x-2 mb-3">
-            <StickyNote className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-medium">Care Notes</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-200">
-              Evening shower
-            </Badge>
-            <Badge className="bg-green-50 text-green-700 border-green-200">
-              Independent when possible
-            </Badge>
-            <Badge className="bg-purple-50 text-purple-700 border-purple-200">
-              Walking frame
-            </Badge>
-            <Badge className="bg-orange-50 text-orange-700 border-orange-200">
-              Bed rails
-            </Badge>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
-      {/* Today's Personal Care */ }
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <User className="w-5 h-5 text-blue-600" />
-        <span>Today&apos;s Personal Care</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="p-4">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          {/* Activities Section */}
-          <FormField
-            control={form.control}
-            name="activities"
-            render={() => (
-              <FormItem>
-                <FormLabel className="text-sm font-medium">Activities</FormLabel>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 border rounded-md">
-                  {activityOptions.map((activity) => (
-                    <FormField
-                      key={activity.id}
-                      control={form.control}
-                      name="activities"
-                      render={({ field }) => {
-                        return (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(activity.id)}
-                                onCheckedChange={(checked) => {
-                                  return checked
-                                    ? field.onChange([...field.value, activity.id])
-                                    : field.onChange(
-                                      field.value?.filter(
-                                        (value) => value !== activity.id
-                                      )
-                                    )
-                                }}
-                              />
-                            </FormControl>
-                            <FormLabel className="text-xs font-normal cursor-pointer">
-                              {activity.label}
-                            </FormLabel>
-                          </FormItem>
-                        )
-                      }}
-                    />
-                  ))}
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Form Controls */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium">Time</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="time"
-                        className="h-9"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="staff"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium">Primary Staff</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Select staff..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {staffOptions.map((staff) => (
-                          <SelectItem key={staff.key} value={staff.key}>
-                            {staff.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="assistedStaff"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium">Assisted By (optional)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Select assisting staff..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {staffOptions.map((staff) => (
-                          <SelectItem key={staff.key} value={staff.key}>
-                            {staff.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter notes..."
-                        className="h-9"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button
-                type="submit"
-                className="h-9 px-6 w-full sm:w-auto"
-                size="sm"
-              >
-                Save Activities
-              </Button>
             </div>
           </div>
-        </form>
-      </Form>
-    </CardContent>
-  </Card>
 
-  {/* Daily Activity Record */ }
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <Activity className="w-5 h-5 text-green-600" />
-        <span>Daily Activity Record</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="p-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Activity Notes</Label>
-          <Input
-            placeholder="Enter activity details..."
-            value={activityRecordNotes}
-            onChange={(e) => setActivityRecordNotes(e.target.value)}
-            className="h-9"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Staff</Label>
-          <Select value={activityRecordStaff} onValueChange={setActivityRecordStaff}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Select staff..." />
-            </SelectTrigger>
-            <SelectContent>
-              {staffOptions.map((staff) => (
-                <SelectItem key={staff.key} value={staff.key}>
-                  {staff.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Time</Label>
-          <Input
-            type="time"
-            value={activityRecordTime}
-            onChange={(e) => setActivityRecordTime(e.target.value)}
-            placeholder="Select time"
-            className="h-9"
-          />
-        </div>
-
-        <Button
-          onClick={handleActivityRecordSubmit}
-          disabled={!activityRecordStaff || !activityRecordTime}
-          className="h-9 px-6"
-        >
-          Save Record
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-
-
-
-  {/* Today's Daily Report */ }
-  {
-    todaysCareData && (
-      <Card className="border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium flex items-center justify-between">
-            <span>{shiftDisplayName} Report - {fullName} ({today})</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrint}
-              className="h-8 px-3"
-            >
-              <Printer className="w-4 h-4" />
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div id="daily-report-content" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="card blue-card p-4 rounded-lg bg-blue-50 border border-blue-200">
-                <h4 className="title font-semibold text-blue-800">Resident Information</h4>
-                <p className="small-text text-sm text-blue-600">{fullName}</p>
-                <p className="small-text text-sm text-blue-600">Room: {resident.roomNumber || 'Not assigned'}</p>
-                <p className="small-text text-sm text-blue-600">
-                  Date: {new Date(today).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </p>
-              </div>
-              <div className="card gray-card p-4 rounded-lg bg-gray-50 border border-gray-200">
-                <h4 className="title font-semibold text-gray-800">Personal Care</h4>
-                <p className="small-text text-sm text-gray-600">
-                  Total Activities: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length}
-                </p>
-                <p className="small-text text-sm text-gray-600">
-                  Completed: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record' && task.status === 'completed').length}
-                </p>
-                <p className="small-text text-sm text-gray-600">
-                  Records: {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length}
-                </p>
-              </div>
+          {/* Care Notes Section - Badges with close buttons */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center space-x-2 mb-3">
+              <StickyNote className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-medium">Care Notes</span>
             </div>
-            <div className="card yellow-card p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h4 className="title font-semibold text-yellow-800 mb-2">Activity Records</h4>
-              {todaysCareData.tasks && todaysCareData.tasks.length > 0 ? (
-                <>
-                  {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length > 0 && (
-                    <div className="mb-3">
-                      <span className="text-sm font-medium text-yellow-700 mr-2">Personal Care Activities:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {todaysCareData.tasks
-                          .filter(task => task.taskType !== 'daily_activity_record')
-                          .map((task) => {
-                            const activity = activityOptions.find(opt => opt.id === task.taskType);
-                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string };
-                            return (
-                              <span key={task._id} className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                ✓ {activity?.label || task.taskType} {payload?.time && `(${payload.time})`}
-                              </span>
-                            );
-                          })}
+            <div className="flex flex-wrap gap-2">
+              {quickCareNotes && quickCareNotes.length > 0 ? (
+                quickCareNotes.map((note) => {
+                  // Get badge style based on category
+                  const getBadgeStyle = (category: string) => {
+                    switch (category) {
+                      case 'shower_bath':
+                        return 'bg-blue-50 text-blue-700 border-blue-200';
+                      case 'toileting':
+                        return 'bg-green-50 text-green-700 border-green-200';
+                      case 'mobility_positioning':
+                        return 'bg-purple-50 text-purple-700 border-purple-200';
+                      case 'communication':
+                        return 'bg-orange-50 text-orange-700 border-orange-200';
+                      case 'safety_alerts':
+                        return 'bg-red-50 text-red-700 border-red-200';
+                      default:
+                        return 'bg-gray-50 text-gray-700 border-gray-200';
+                    }
+                  };
+
+                  // Get display text based on category and structured data
+                  const getDisplayText = (note: typeof quickCareNotes[0]) => {
+                    const categoryLabels = {
+                      shower_bath: 'Shower/Bath',
+                      toileting: 'Toileting',
+                      mobility_positioning: 'Mobility',
+                      communication: 'Communication',
+                      safety_alerts: 'Safety'
+                    };
+
+                    const category = categoryLabels[note.category as keyof typeof categoryLabels] || note.category;
+
+                    let details = [];
+
+                    if (note.category === 'shower_bath') {
+                      if (note.showerOrBath) details.push(note.showerOrBath === 'shower' ? 'Shower' : 'Bath');
+                      if (note.preferredTime) details.push(note.preferredTime.charAt(0).toUpperCase() + note.preferredTime.slice(1));
+                    }
+
+                    if (note.category === 'toileting') {
+                      if (note.toiletType) details.push(note.toiletType.charAt(0).toUpperCase() + note.toiletType.slice(1));
+                      if (note.assistanceLevel) {
+                        const assistanceLabels = {
+                          independent: 'Independent',
+                          '1_staff': '1 Staff',
+                          '2_staff': '2 Staff'
+                        };
+                        details.push(assistanceLabels[note.assistanceLevel as keyof typeof assistanceLabels]);
+                      }
+                    }
+
+                    if (note.category === 'mobility_positioning' && note.walkingAid) {
+                      const aidLabels = {
+                        frame: 'Walking Frame',
+                        stick: 'Walking Stick',
+                        wheelchair: 'Wheelchair',
+                        none: 'No Aid'
+                      };
+                      details.push(aidLabels[note.walkingAid as keyof typeof aidLabels]);
+                    }
+
+                    if (note.category === 'communication' && note?.communicationNeeds?.length) {
+                      const needLabels = {
+                        hearing_aid: 'Hearing Aid',
+                        glasses: 'Glasses',
+                        non_verbal: 'Non-verbal',
+                        memory_support: 'Memory Support'
+                      };
+                      details = note.communicationNeeds?.map((need: string) =>
+                        needLabels[need as keyof typeof needLabels] || need
+                      );
+                    }
+
+                    if (note.category === 'safety_alerts' && note?.safetyAlerts?.length) {
+                      const alertLabels = {
+                        high_falls_risk: 'Falls Risk',
+                        no_unattended_bathroom: 'No Unattended',
+                        chair_bed_alarm: 'Alarm'
+                      };
+                      details = note.safetyAlerts.map((alert: string) =>
+                        alertLabels[alert as keyof typeof alertLabels] || alert
+                      );
+                    }
+
+                    if (details.length > 0) {
+                      return `${category}: ${details.join(', ')}`;
+                    }
+
+                    return category;
+                  };
+
+                  // Create individual badges for multiple items (communication/safety)
+                  if (note.category === 'communication' && note.communicationNeeds && note.communicationNeeds.length > 1) {
+                    return note.communicationNeeds.map((need: string, index: number) => (
+                      <div key={`${note._id}-${index}`} className="relative group">
+                        <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
+                          Communication: {need.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          {note.priority === 'high' && ' ⚠️'}
+                        </Badge>
+                        <button
+                          onClick={() => confirmDelete(note._id)}
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
                       </div>
-                    </div>
-                  )}
-                  {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length > 0 && (
-                    <div>
-                      <span className="text-sm font-medium text-yellow-700 mr-2">Daily Activity Records:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {todaysCareData.tasks
-                          .filter(task => task.taskType === 'daily_activity_record')
-                          .map((task) => {
-                            const payload = task.payload as { time?: string; staff?: string };
-                            return (
-                              <span key={task._id} className="badge blue-badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                📝 {task.notes || 'Activity'} {payload?.time && `(${payload.time})`}
-                              </span>
-                            );
-                          })}
+                    ));
+                  }
+
+                  if (note.category === 'safety_alerts' && (note.safetyAlerts?.length ?? 0) > 1) {
+                    return (note.safetyAlerts ?? []).map((alert: string, index: number) => (
+                      <div key={`${note._id}-${index}`} className="relative group">
+                        <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
+                          Safety: {alert.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          {note.priority === 'high' && ' ⚠️'}
+                        </Badge>
+                        <button
+                          onClick={() => confirmDelete(note._id)}
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
                       </div>
+                    ));
+                  }
+
+                  return (
+                    <div key={note._id} className="relative group">
+                      <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
+                        {getDisplayText(note)}
+                        {note.priority === 'high' && ' ⚠️'}
+                      </Badge>
+                      <button
+                        onClick={() => confirmDelete(note._id)}
+                        className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
                     </div>
-                  )}
-                </>
+                  );
+                }).flat() // Flatten in case of multiple badges per note
               ) : (
-                <p className="text-sm text-yellow-700">No activities recorded yet for this shift.</p>
+                <p className="text-sm text-muted-foreground">No care notes added yet. Click &ldquo;Add Care Notes&rdquo; to add important care information for this resident.</p>
               )}
             </div>
           </div>
         </CardContent>
       </Card>
-    )
-  }
+
+      {/* Today's Personal Care */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <User className="w-5 h-5 text-blue-600" />
+            <span>Today&apos;s Personal Care</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Activities Section */}
+              <FormField
+                control={form.control}
+                name="activities"
+                render={() => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium">Activities</FormLabel>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 border rounded-md">
+                      {activityOptions.map((activity) => (
+                        <FormField
+                          key={activity.id}
+                          control={form.control}
+                          name="activities"
+                          render={({ field }) => {
+                            return (
+                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(activity.id)}
+                                    onCheckedChange={(checked) => {
+                                      return checked
+                                        ? field.onChange([...field.value, activity.id])
+                                        : field.onChange(
+                                          field.value?.filter(
+                                            (value) => value !== activity.id
+                                          )
+                                        )
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-xs font-normal cursor-pointer">
+                                  {activity.label}
+                                </FormLabel>
+                              </FormItem>
+                            )
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Form Controls */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Time</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="time"
+                            className="h-9"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="staff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Primary Staff</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={currentUserName}
+                            disabled
+                            className="h-9 bg-gray-50 text-gray-600"
+                            placeholder="Current user"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="assistedStaff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Assisted By (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select assisting staff..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {otherStaffOptions.length > 0 ? (
+                              otherStaffOptions.map((staff) => (
+                                <SelectItem key={staff.key} value={staff.key}>
+                                  {staff.label}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no_staff" disabled>
+                                No other staff available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter notes..."
+                            className="h-9"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button
+                    type="submit"
+                    className="h-9 px-6 w-full sm:w-auto"
+                    size="sm"
+                  >
+                    Save Activities
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {/* Daily Activity Record */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Activity className="w-5 h-5 text-green-600" />
+            <span>Daily Activity Record</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Activity Notes</Label>
+              <Input
+                placeholder="Enter activity details..."
+                value={activityRecordNotes}
+                onChange={(e) => setActivityRecordNotes(e.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Staff</Label>
+              <Input
+                value={currentUserName}
+                disabled
+                className="h-9 bg-gray-50 text-gray-600"
+                placeholder="Current user"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Time</Label>
+              <Input
+                type="time"
+                value={activityRecordTime}
+                onChange={(e) => setActivityRecordTime(e.target.value)}
+                placeholder="Select time"
+                className="h-9"
+              />
+            </div>
+
+            <Button
+              onClick={handleActivityRecordSubmit}
+              disabled={!currentUserName || !activityRecordTime}
+              className="h-9 px-6"
+            >
+              Save Record
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+
+
+      {/* Today's Daily Report */}
+      {
+        todaysCareData && (
+          <Card className="border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium flex items-center justify-between">
+                <span>{shiftDisplayName} Report - {fullName} ({today})</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrint}
+                  className="h-8 px-3"
+                >
+                  <Printer className="w-4 h-4" />
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div id="daily-report-content" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="card blue-card p-4 rounded-lg bg-blue-50 border border-blue-200">
+                    <h4 className="title font-semibold text-blue-800">Resident Information</h4>
+                    <p className="small-text text-sm text-blue-600">{fullName}</p>
+                    <p className="small-text text-sm text-blue-600">Room: {resident.roomNumber || 'Not assigned'}</p>
+                    <p className="small-text text-sm text-blue-600">
+                      Date: {new Date(today).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <div className="card gray-card p-4 rounded-lg bg-gray-50 border border-gray-200">
+                    <h4 className="title font-semibold text-gray-800">Personal Care</h4>
+                    <p className="small-text text-sm text-gray-600">
+                      Total Activities: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length}
+                    </p>
+                    <p className="small-text text-sm text-gray-600">
+                      Completed: {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record' && task.status === 'completed').length}
+                    </p>
+                    <p className="small-text text-sm text-gray-600">
+                      Records: {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length}
+                    </p>
+                  </div>
+                </div>
+                <div className="card yellow-card p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="title font-semibold text-yellow-800 mb-2">Activity Records</h4>
+                  {todaysCareData.tasks && todaysCareData.tasks.length > 0 ? (
+                    <>
+                      {todaysCareData.tasks.filter(task => task.taskType !== 'daily_activity_record').length > 0 && (
+                        <div className="mb-3">
+                          <span className="text-sm font-medium text-yellow-700 mr-2">Personal Care Activities:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {todaysCareData.tasks
+                              .filter(task => task.taskType !== 'daily_activity_record')
+                              .map((task) => {
+                                const activity = activityOptions.find(opt => opt.id === task.taskType);
+                                const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string };
+                                return (
+                                  <span key={task._id} className="badge inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                    ✓ {activity?.label || task.taskType} {payload?.time && `(${payload.time})`}
+                                  </span>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                      {todaysCareData.tasks.filter(task => task.taskType === 'daily_activity_record').length > 0 && (
+                        <div>
+                          <span className="text-sm font-medium text-yellow-700 mr-2">Daily Activity Records:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {todaysCareData.tasks
+                              .filter(task => task.taskType === 'daily_activity_record')
+                              .map((task) => {
+                                const payload = task.payload as { time?: string; staff?: string };
+                                return (
+                                  <span key={task._id} className="badge blue-badge inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                    📝 {task.notes || 'Activity'} {payload?.time && `(${payload.time})`}
+                                  </span>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-yellow-700">No activities recorded yet for this shift.</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      }
+
+      {/* Add Care Notes Dialog */}
+      <Dialog open={isCareNotesDialogOpen} onOpenChange={setIsCareNotesDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Care Note for {fullName}</DialogTitle>
+            <DialogDescription>
+              Add a quick care note to help other staff understand the resident&apos;s needs.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...careNotesForm}>
+            <form onSubmit={careNotesForm.handleSubmit(onCareNotesSubmit)} className="space-y-6">
+              {/* Category Selection */}
+              <FormField
+                control={careNotesForm.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Care Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select care category..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="shower_bath">Shower/Bath Preference</SelectItem>
+                        <SelectItem value="toileting">Toileting Needs</SelectItem>
+                        <SelectItem value="mobility_positioning">Mobility & Positioning</SelectItem>
+                        <SelectItem value="communication">Communication Needs</SelectItem>
+                        <SelectItem value="safety_alerts">Safety Alerts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Shower/Bath Preference Fields */}
+              {careNotesForm.watch('category') === 'shower_bath' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
+                  <h4 className="font-medium text-blue-900">Shower/Bath Preferences</h4>
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="showerOrBath"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Shower or Bath</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select preference..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="shower">Shower</SelectItem>
+                            <SelectItem value="bath">Bath</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="preferredTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preferred Time</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select preferred time..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="morning">Morning</SelectItem>
+                            <SelectItem value="afternoon">Afternoon</SelectItem>
+                            <SelectItem value="evening">Evening</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Toileting Needs Fields */}
+              {careNotesForm.watch('category') === 'toileting' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-green-50">
+                  <h4 className="font-medium text-green-900">Toileting Needs</h4>
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="toiletType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Toilet Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select toilet type..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="toilet">Toilet</SelectItem>
+                            <SelectItem value="commode">Commode</SelectItem>
+                            <SelectItem value="pad">Pad</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="assistanceLevel"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Assistance Level</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select assistance level..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="independent">Independent</SelectItem>
+                            <SelectItem value="1_staff">1 Staff</SelectItem>
+                            <SelectItem value="2_staff">2 Staff</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Mobility & Positioning Fields */}
+              {careNotesForm.watch('category') === 'mobility_positioning' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-purple-50">
+                  <h4 className="font-medium text-purple-900">Mobility & Positioning</h4>
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="walkingAid"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Walking Aid</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select walking aid..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="frame">Walking Frame</SelectItem>
+                            <SelectItem value="stick">Walking Stick</SelectItem>
+                            <SelectItem value="wheelchair">Wheelchair</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Communication Needs Fields */}
+              {careNotesForm.watch('category') === 'communication' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
+                  <h4 className="font-medium text-orange-900">Communication Needs</h4>
+                  <p className="text-sm text-orange-700">Select all that apply:</p>
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="communicationNeeds"
+                    render={() => (
+                      <FormItem>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'hearing_aid' as const, label: 'Hearing Aid' },
+                            { id: 'glasses' as const, label: 'Glasses' },
+                            { id: 'non_verbal' as const, label: 'Non-verbal' },
+                            { id: 'memory_support' as const, label: 'Memory Support' }
+                          ].map((item) => (
+                            <FormField
+                              key={item.id}
+                              control={careNotesForm.control}
+                              name="communicationNeeds"
+                              render={({ field }) => {
+                                return (
+                                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(item?.id)}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? field.onChange([...(field.value || []), item.id])
+                                            : field.onChange(field.value?.filter((value) => value !== item.id));
+                                        }}
+                                      />
+
+                                    </FormControl>
+                                    <FormLabel className="text-sm font-normal cursor-pointer">
+                                      {item.label}
+                                    </FormLabel>
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Safety Alerts Fields */}
+              {careNotesForm.watch('category') === 'safety_alerts' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-red-50">
+                  <h4 className="font-medium text-red-900">Safety Alerts</h4>
+                  <p className="text-sm text-red-700">Select all that apply:</p>
+
+                  <FormField
+                    control={careNotesForm.control}
+                    name="safetyAlerts"
+                    render={() => (
+                      <FormItem>
+                        <div className="space-y-2">
+                          {[
+                            { id: 'high_falls_risk' as const, label: 'High Falls Risk' },
+                            { id: 'no_unattended_bathroom' as const, label: 'Do Not Leave Unattended in Bathroom' },
+                            { id: 'chair_bed_alarm' as const, label: 'Chair/Bed Alarm' }
+                          ].map((item) => (
+                            <FormField
+                              key={item.id}
+                              control={careNotesForm.control}
+                              name="safetyAlerts"
+                              render={({ field }) => {
+                                return (
+                                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(item.id)}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? field.onChange([...(field.value || []), item.id])
+                                            : field.onChange(field.value?.filter((value) => value !== item.id));
+                                        }}
+                                      />
+
+
+                                    </FormControl>
+                                    <FormLabel className="text-sm font-normal cursor-pointer">
+                                      {item.label}
+                                    </FormLabel>
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Priority */}
+              <FormField
+                control={careNotesForm.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority Level</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-row space-x-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="low" id="low" />
+                          <label htmlFor="low" className="text-sm font-medium cursor-pointer">Low</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="medium" id="medium" />
+                          <label htmlFor="medium" className="text-sm font-medium cursor-pointer">Medium</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="high" id="high" />
+                          <label htmlFor="high" className="text-sm font-medium cursor-pointer">High</label>
+                        </div>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Form Actions */}
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsCareNotesDialogOpen(false);
+                    careNotesForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={careNotesLoading}>
+                  {careNotesLoading ? "Saving..." : "Save Care Note"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Care Note</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this care note? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setNoteToDelete(null);
+              }}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteCareNote}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div >
   );

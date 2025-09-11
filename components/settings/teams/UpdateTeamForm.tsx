@@ -72,7 +72,7 @@ export default function UpdateTeamForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel isRequired>Name</FormLabel>
+              <FormLabel required>Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Team name"
