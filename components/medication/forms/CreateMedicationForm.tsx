@@ -180,6 +180,7 @@ export default function CreateMedicationForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel required>Strength</FormLabel>
+                      <FormLabel required>Strength</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input

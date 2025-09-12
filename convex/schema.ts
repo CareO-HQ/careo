@@ -9,7 +9,7 @@ const TaskStatus = v.union(
   v.literal("not_required"),
   v.literal("refused"),
   v.literal("unable"),
-  v.literal("missed"),
+  v.literal("missed")
 );
 
 const Shift = v.union(v.literal("AM"), v.literal("PM"), v.literal("Night"));
@@ -20,7 +20,7 @@ const AssistanceLevel = v.union(
   v.literal("supervision"),
   v.literal("one_carer"),
   v.literal("two_carers"),
-  v.literal("hoist_or_mechanical"),
+  v.literal("hoist_or_mechanical")
 );
 
 const ReasonCode = v.union(
@@ -34,15 +34,22 @@ const ReasonCode = v.union(
   v.literal("equipment_fault"),
   v.literal("unsafe_to_proceed"),
   v.literal("not_in_care_plan"),
-  v.literal("other"),
+  v.literal("other")
 );
 
 const Issue = v.object({
   code: v.string(),
   description: v.optional(v.string()),
-  severity: v.optional(v.union(v.literal("low"), v.literal("moderate"), v.literal("high"))),
-  bodyMapRef: v.optional(v.string()),
+  severity: v.optional(
+    v.union(v.literal("low"), v.literal("moderate"), v.literal("high"))
+  ),
+  bodyMapRef: v.optional(v.string())
 });
+
+const CareFileName = v.union(
+  v.literal("pre-admission"),
+  v.literal("admission")
+);
 
 export default defineSchema({
   users: defineTable({
@@ -333,7 +340,7 @@ export default defineSchema({
       v.literal("open"),
       v.literal("partial"),
       v.literal("complete"),
-      v.literal("cancelled"),
+      v.literal("cancelled")
     ),
 
     exceptions: v.optional(
@@ -342,7 +349,7 @@ export default defineSchema({
           code: ReasonCode,
           note: v.optional(v.string()),
           recordedAt: v.string(), // ISO
-          recordedBy: v.id("users"),
+          recordedBy: v.id("users")
         })
       )
     ),
@@ -350,7 +357,7 @@ export default defineSchema({
     createdBy: v.id("users"),
     createdAt: v.number(), // Date.now()
     updatedBy: v.optional(v.id("users")),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_resident_date", ["residentId", "date"])
     .index("by_date", ["date"]),
@@ -358,7 +365,7 @@ export default defineSchema({
   // Append-only task "events" (recommended for concurrency & audit)
   personalCareTaskEvents: defineTable({
     dailyId: v.id("personalCareDaily"),
-    taskType: v.string(),          // "morning_wash" | "dressed" | "nail_care" | "incontinence" | "hair_brushed" | "bedrails"
+    taskType: v.string(), // "morning_wash" | "dressed" | "nail_care" | "incontinence" | "hair_brushed" | "bedrails"
     status: TaskStatus,
 
     // common fields
@@ -377,7 +384,7 @@ export default defineSchema({
       v.object({
         bmEntryId: v.optional(v.id("bmEntries")),
         woundEntryId: v.optional(v.id("wounds")),
-        incidentId: v.optional(v.id("incidents")),
+        incidentId: v.optional(v.id("incidents"))
       })
     ),
     issues: v.optional(v.array(Issue)),
@@ -385,7 +392,7 @@ export default defineSchema({
     // type-specific payload (keep flexible)
     payload: v.optional(v.any()),
 
-    createdAt: v.number(), // Date.now()
+    createdAt: v.number() // Date.now()
   }).index("by_daily", ["dailyId"]),
 
   // Diet information for residents
@@ -506,4 +513,179 @@ export default defineSchema({
     .index("byTeamId", ["teamId"])
     .index("byActiveStatus", ["isActive"])
     .index("byCreatedBy", ["createdBy"]),
+
+  preAdmissionCareFiles: defineTable({
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    savedAsDraft: v.boolean(),
+    // Header information
+    consentAcceptedAt: v.number(),
+    careHomeName: v.string(),
+    nhsHealthCareNumber: v.string(),
+    userName: v.string(),
+    jobRole: v.string(),
+    date: v.number(),
+    // Resident information
+    firstName: v.string(),
+    lastName: v.string(),
+    address: v.string(),
+    phoneNumber: v.string(),
+    ethnicity: v.string(),
+    gender: v.union(v.literal("male"), v.literal("female")),
+    religion: v.string(),
+    dateOfBirth: v.string(),
+    // Next of kin
+    kinFirstName: v.string(),
+    kinLastName: v.string(),
+    kinRelationship: v.string(),
+    kinPhoneNumber: v.string(),
+    // Professional contacts
+    careManagerName: v.string(),
+    careManagerPhoneNumber: v.string(),
+    districtNurseName: v.string(),
+    districtNursePhoneNumber: v.string(),
+    generalPractitionerName: v.string(),
+    generalPractitionerPhoneNumber: v.string(),
+    providerHealthcareInfoName: v.string(),
+    providerHealthcareInfoDesignation: v.string(),
+    // Medical information
+    allergies: v.string(),
+    medicalHistory: v.string(),
+    medicationPrescribed: v.string(),
+    // Assessment
+    consentCapacityRights: v.string(),
+    medication: v.string(),
+    mobility: v.string(),
+    nutrition: v.string(),
+    continence: v.string(),
+    hygieneDressing: v.string(),
+    skin: v.string(),
+    cognition: v.string(),
+    infection: v.string(),
+    breathing: v.string(),
+    alteredStateOfConsciousness: v.string(),
+    // Palliative and End of life care
+    dnacpr: v.boolean(),
+    advancedDecision: v.boolean(),
+    capacity: v.boolean(),
+    advancedCarePlan: v.boolean(),
+    comments: v.string(),
+    // Preferences
+    roomPreferences: v.string(),
+    admissionContact: v.string(),
+    foodPreferences: v.string(),
+    preferedName: v.string(),
+    familyConcerns: v.string(),
+    // Other information
+    otherHealthCareProfessional: v.string(),
+    equipment: v.string(),
+    // Financial
+    attendFinances: v.boolean(),
+    // Additional considerations
+    additionalConsiderations: v.string(),
+    // Outcome
+    outcome: v.string(), // Dont know if is string or boolean or union
+    plannedAdmissionDate: v.optional(v.number()),
+    // Utils
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    pdfFileId: v.optional(v.id("_storage"))
+  }).index("by_resident", ["residentId"]),
+
+  infectionPreventionAssessments: defineTable({
+    // Reference to resident and organizational structure
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    // Person's details
+    name: v.string(),
+    dateOfBirth: v.string(),
+    homeAddress: v.string(),
+    assessmentType: v.union(v.literal("Pre-admission"), v.literal("Admission")),
+    informationProvidedBy: v.optional(v.string()),
+    admittedFrom: v.optional(v.string()),
+    consultantGP: v.optional(v.string()),
+    reasonForAdmission: v.optional(v.string()),
+    dateOfAdmission: v.optional(v.string()),
+
+    // Acute Respiratory Illness (ARI)
+    newContinuousCough: v.boolean(),
+    worseningCough: v.boolean(),
+    temperatureHigh: v.boolean(),
+    otherRespiratorySymptoms: v.optional(v.string()),
+    testedForCovid19: v.boolean(),
+    testedForInfluenzaA: v.boolean(),
+    testedForInfluenzaB: v.boolean(),
+    testedForRespiratoryScreen: v.boolean(),
+    influenzaB: v.boolean(),
+    respiratoryScreen: v.boolean(),
+    // Exposure
+    exposureToPatientsCovid: v.boolean(),
+    exposureToStaffCovid: v.boolean(),
+    isolationRequired: v.boolean(),
+    isolationDetails: v.optional(v.string()),
+    furtherTreatmentRequired: v.boolean(),
+
+    // Infective Diarrhoea / Vomiting
+    diarrheaVomitingCurrentSymptoms: v.boolean(),
+    diarrheaVomitingContactWithOthers: v.boolean(),
+    diarrheaVomitingFamilyHistory72h: v.boolean(),
+
+    // Clostridium Difficile
+    clostridiumActive: v.boolean(),
+    clostridiumHistory: v.boolean(),
+    clostridiumStoolCount72h: v.optional(v.string()),
+    clostridiumLastPositiveSpecimenDate: v.optional(v.string()),
+    clostridiumResult: v.optional(v.string()),
+    clostridiumTreatmentReceived: v.optional(v.string()),
+    clostridiumTreatmentComplete: v.optional(v.boolean()),
+    ongoingDetails: v.optional(v.string()),
+    ongoingDateCommenced: v.optional(v.string()),
+    ongoingLengthOfCourse: v.optional(v.string()),
+    ongoingFollowUpRequired: v.optional(v.string()),
+
+    // MRSA / MSSA
+    mrsaMssaColonised: v.boolean(),
+    mrsaMssaInfected: v.boolean(),
+    mrsaMssaLastPositiveSwabDate: v.optional(v.string()),
+    mrsaMssaSitesPositive: v.optional(v.string()),
+    mrsaMssaTreatmentReceived: v.optional(v.string()),
+    mrsaMssaTreatmentComplete: v.optional(v.boolean()),
+    mrsaMssaDetails: v.optional(v.string()),
+    mrsaMssaDateCommenced: v.optional(v.string()),
+    mrsaMssaLengthOfCourse: v.optional(v.string()),
+    mrsaMssaFollowUpRequired: v.optional(v.string()),
+
+    // Multi-drug resistant organisms
+    esbl: v.boolean(),
+    vreGre: v.boolean(),
+    cpe: v.boolean(),
+    otherMultiDrugResistance: v.optional(v.string()),
+    relevantInformationMultiDrugResistance: v.optional(v.string()),
+
+    // Other Information
+    awarenessOfInfection: v.boolean(),
+    lastFluVaccinationDate: v.optional(v.string()),
+
+    // Assessment Completion
+    completedBy: v.string(),
+    jobRole: v.string(),
+    signature: v.string(),
+    completionDate: v.string(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+    savedAsDraft: v.optional(v.boolean()),
+    pdfFileId: v.optional(v.id("_storage"))
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_assessment_type", ["assessmentType"])
+    .index("by_completion_date", ["completionDate"])
 });

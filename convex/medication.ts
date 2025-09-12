@@ -73,7 +73,7 @@ async function createMedicationIntakes(
     dayIncrement = 30;
   }
 
-  const intakeRecords = [];
+  const intakeRecords: any[] = [];
 
   // Determine the end date for creating intakes
   const endDate = medication.endDate ? new Date(medication.endDate) : null;
