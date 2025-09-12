@@ -13,4 +13,15 @@ crons.daily(
   internal.medication.dailyMedicationCron
 );
 
+crons.daily(
+  "Archive previous day food/fluid logs",
+  {
+    // London time: 07:00 - archive previous day's logs
+    hourUTC: 7,
+    minuteUTC: 0
+  },
+  internal.foodFluidLogs.archivePreviousDayLogs,
+  {}
+);
+
 export default crons;

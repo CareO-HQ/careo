@@ -3,7 +3,8 @@
 import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+
+import { Id, Doc } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -219,7 +220,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           <CardContent>
             {resident.emergencyContacts && resident.emergencyContacts.length > 0 ? (
               <div className="space-y-4">
-                {resident.emergencyContacts.map((contact, index) => (
+                {resident.emergencyContacts.map((contact: Doc<"emergencyContacts">, index: number) => (
                   <div key={index} className="p-4 border rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-gray-900">{contact.name}</h4>

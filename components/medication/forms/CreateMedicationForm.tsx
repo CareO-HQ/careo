@@ -164,6 +164,7 @@ export default function CreateMedicationForm({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
+
                     <FormLabel required>Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Paracetamol" {...field} />
@@ -178,6 +179,7 @@ export default function CreateMedicationForm({
                   name="strength"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel required>Strength</FormLabel>
                       <FormLabel required>Strength</FormLabel>
                       <FormControl>
                         <div className="relative">
@@ -268,6 +270,7 @@ export default function CreateMedicationForm({
                   name="route"
                   render={({ field }) => (
                     <FormItem>
+
                       <FormLabel required>Route</FormLabel>
                       <Select
                         onValueChange={field.onChange}

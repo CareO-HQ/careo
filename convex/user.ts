@@ -92,3 +92,20 @@ export const getUserByEmail = query({
     return user;
   }
 });
+
+// Get all users in the organization (for staff selection)
+export const getAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db
+      .query("users")
+      .filter((q) => q.neq(q.field("name"), undefined))
+      .collect();
+    
+    return users.map(user => ({
+      _id: user._id,
+      name: user.name || user.email.split('@')[0], // Fallback to email prefix if no name
+      email: user.email
+    }));
+  }
+});

@@ -395,6 +395,125 @@ export default defineSchema({
     createdAt: v.number() // Date.now()
   }).index("by_daily", ["dailyId"]),
 
+  // Diet information for residents
+  dietInformation: defineTable({
+    residentId: v.id("residents"),
+    dietTypes: v.optional(v.array(v.string())),
+    otherDietType: v.optional(v.string()),
+    culturalRestrictions: v.optional(v.string()),
+    allergies: v.optional(v.array(v.object({
+      allergy: v.string()
+    }))),
+    chokingRisk: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    foodConsistency: v.optional(v.union(
+      v.literal("level7"), // Easy Chew
+      v.literal("level6"), // Soft & Bite-sized  
+      v.literal("level5"), // Minced & Moist
+      v.literal("level4"), // Pureed
+      v.literal("level3")  // Liquidised
+    )),
+    fluidConsistency: v.optional(v.union(
+      v.literal("level0"), // Thin
+      v.literal("level1"), // Slightly Thick
+      v.literal("level2"), // Mildly Thick
+      v.literal("level3"), // Moderately Thick
+      v.literal("level4")  // Extremely Thick
+    )),
+    assistanceRequired: v.optional(v.union(v.literal("yes"), v.literal("no"))),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"]),
+
+  // Food and fluid logs for residents
+  foodFluidLogs: defineTable({
+    residentId: v.id("residents"),
+    timestamp: v.number(), // exact time (Date.now())
+    section: v.string(), // "midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"
+    typeOfFoodDrink: v.string(), // "Tea", "Toast", "Chicken"
+    portionServed: v.string(), // "1 slice", "2 scoops"
+    amountEaten: v.string(), // "None", "1/4", "1/2", "3/4", "All"
+    fluidConsumedMl: v.optional(v.number()), // e.g., 150
+    signature: v.string(), // staff name/id
+    date: v.string(), // "YYYY-MM-DD" for easier querying
+    isArchived: v.optional(v.boolean()), // true if archived at 7am
+    archivedAt: v.optional(v.number()), // timestamp when archived
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byResidentAndDate", ["residentId", "date"])
+    .index("byDateAndArchived", ["date", "isArchived"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("bySection", ["section"])
+    .index("bySignature", ["signature"]),
+
+  // Quick care notes for residents
+  quickCareNotes: defineTable({
+    residentId: v.id("residents"),
+    category: v.union(
+      // Old categories for backward compatibility
+      v.literal("bed_safety"),
+      v.literal("positioning"),
+      v.literal("mobility"),
+      v.literal("shower"),
+      v.literal("communication"),
+      // New structured categories
+      v.literal("shower_bath"),
+      v.literal("toileting"),
+      v.literal("mobility_positioning"),
+      v.literal("safety_alerts")
+    ),
+    
+    // Shower/Bath Preference fields
+    showerOrBath: v.optional(v.union(v.literal("shower"), v.literal("bath"))),
+    preferredTime: v.optional(v.union(v.literal("morning"), v.literal("afternoon"), v.literal("evening"))),
+    
+    // Toileting Needs fields
+    toiletType: v.optional(v.union(v.literal("toilet"), v.literal("commode"), v.literal("pad"))),
+    assistanceLevel: v.optional(v.union(v.literal("independent"), v.literal("1_staff"), v.literal("2_staff"))),
+    
+    // Mobility & Positioning fields
+    walkingAid: v.optional(v.union(v.literal("frame"), v.literal("stick"), v.literal("wheelchair"), v.literal("none"))),
+    
+    // Communication Needs fields (multiple can be selected)
+    communicationNeeds: v.optional(v.array(v.union(
+      v.literal("hearing_aid"),
+      v.literal("glasses"),
+      v.literal("non_verbal"),
+      v.literal("memory_support")
+    ))),
+    
+    // Safety Alerts fields (multiple can be selected)
+    safetyAlerts: v.optional(v.array(v.union(
+      v.literal("high_falls_risk"),
+      v.literal("no_unattended_bathroom"),
+      v.literal("chair_bed_alarm")
+    ))),
+    
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    isActive: v.optional(v.boolean()), // true by default, can be deactivated
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byCategory", ["category"])
+    .index("byResidentAndCategory", ["residentId", "category"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byActiveStatus", ["isActive"])
+    .index("byCreatedBy", ["createdBy"]),
+
   preAdmissionCareFiles: defineTable({
     residentId: v.id("residents"),
     teamId: v.string(),
