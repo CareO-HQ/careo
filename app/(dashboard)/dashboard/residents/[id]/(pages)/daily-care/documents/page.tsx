@@ -436,16 +436,16 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   const fullName = `${resident.firstName} ${resident.lastName}`;
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
+    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-6xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+        <div className="flex items-center space-x-3 sm:space-x-4">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Daily Care Documents</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold">Daily Care Documents</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               All archived reports for {fullName}
             </p>
           </div>
@@ -453,35 +453,38 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
       </div>
 
       {/* Date Filter */}
-      <div className="flex items-center space-x-4 mb-6">
-        <Popover>
-          <PopoverTrigger asChild>
+      <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-6">
+        <div className="flex items-center space-x-2 sm:space-x-0">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full sm:w-[240px] justify-start text-left font-normal"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                {selectedDate ? selectedDate.toLocaleDateString() : "Select date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+              />
+            </PopoverContent>
+          </Popover>
+          {selectedDate && (
             <Button
-              variant="outline"
-              className="w-[240px] justify-start text-left font-normal"
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedDate(undefined)}
+              className="sm:ml-2"
             >
-              <Calendar className="mr-2 h-4 w-4" />
-              {selectedDate ? selectedDate.toLocaleDateString() : "Select date"}
+              Clear
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-            />
-          </PopoverContent>
-        </Popover>
-        {selectedDate && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedDate(undefined)}
-          >
-            Clear
-          </Button>
-        )}
-        <p className="text-sm text-muted-foreground">
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground text-center sm:text-left">
           {filteredDates?.length || 0} report dates found
         </p>
       </div>
@@ -510,9 +513,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
         <div className="space-y-6">
           {filteredDates.map((date) => (
             <div key={date} className="space-y-3">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
-                <Calendar className="w-5 h-5" />
-                <span>
+              <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center space-x-2">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-sm sm:text-base">
                   {new Date(date).toLocaleDateString("en-US", {
                     weekday: "long",
                     year: "numeric",
@@ -522,37 +525,37 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 </span>
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-4 sm:space-y-0">
                 {/* Day Report Card */}
                 <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-4">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
                       {/* Icon and Text */}
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-amber-50 rounded-md">
                           <Sun className="w-5 h-5 text-amber-600" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-sm">Day Report</h3>
-                          <p className="text-xs text-muted-foreground">8:00 AM - 8:00 PM</p>
-                          <p className="text-xs mt-1 text-green-600">✓ Archived report</p>
+                          <h3 className="font-semibold text-sm sm:text-base">Day Report</h3>
+                          <p className="text-xs sm:text-sm text-muted-foreground">8:00 AM - 8:00 PM</p>
+                          <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p>
                         </div>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 self-end sm:self-center">
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'day')} className="flex items-center text-xs px-2 py-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'day')} className="flex items-center text-xs sm:text-sm px-2 py-1">
                               <Eye className="w-3 h-3 mr-1" />
                               View
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle className="flex items-center space-x-2">
                                 <Sun className="w-5 h-5 text-amber-600" />
-                                <span className="text-base">Day Report - {new Date(date).toLocaleDateString()}</span>
+                                <span className="text-sm sm:text-base">Day Report - {new Date(date).toLocaleDateString()}</span>
                               </DialogTitle>
                               <DialogDescription>
                                 All activities logged from 8:00 AM to 8:00 PM
@@ -568,7 +571,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                   </div>
                                 ) : (
                                   <div className="space-y-3">
-                                    <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                                       <div>
                                         <h4 className="font-medium text-amber-800">Shift Period</h4>
                                         <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
@@ -625,7 +628,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                           </DialogContent>
                         </Dialog>
 
-                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'day')} className="flex items-center text-xs px-2 py-1">
+                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'day')} className="flex items-center text-xs sm:text-sm px-2 py-1">
                           <Download className="w-3 h-3 mr-1" />
                           Download
                         </Button>
@@ -635,34 +638,34 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 </Card>
                 {/* Night Report Card */}
                 <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-4">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
                       {/* Icon and Text */}
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-50 rounded-md">
                           <Moon className="w-5 h-5 text-indigo-600" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-sm">Night Report</h3>
-                          <p className="text-xs text-muted-foreground">8:00 PM - 8:00 AM</p>
-                          <p className="text-xs mt-1 text-green-600">✓ Archived report</p>
+                          <h3 className="font-semibold text-sm sm:text-base">Night Report</h3>
+                          <p className="text-xs sm:text-sm text-muted-foreground">8:00 PM - 8:00 AM</p>
+                          <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p>
                         </div>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 self-end sm:self-center">
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'night')} className="flex items-center text-xs px-2 py-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'night')} className="flex items-center text-xs sm:text-sm px-2 py-1">
                               <Eye className="w-3 h-3 mr-1" />
                               View
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle className="flex items-center space-x-2">
                                 <Moon className="w-5 h-5 text-indigo-600" />
-                                <span className="text-base">Night Report - {new Date(date).toLocaleDateString()}</span>
+                                <span className="text-sm sm:text-base">Night Report - {new Date(date).toLocaleDateString()}</span>
                               </DialogTitle>
                               <DialogDescription>
                                 All activities logged from 8:00 PM to 8:00 AM
@@ -678,7 +681,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                   </div>
                                 ) : (
                                   <div className="space-y-3">
-                                    <div className="grid grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                                       <div>
                                         <h4 className="font-medium text-indigo-800">Shift Period</h4>
                                         <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
@@ -735,7 +738,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                           </DialogContent>
                         </Dialog>
 
-                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'night')} className="flex items-center text-xs px-2 py-1">
+                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'night')} className="flex items-center text-xs sm:text-sm px-2 py-1">
                           <Download className="w-3 h-3 mr-1" />
                           Download
                         </Button>
