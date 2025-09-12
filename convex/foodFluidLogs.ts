@@ -232,3 +232,59 @@ export const getFoodFluidSummary = query({
     };
   },
 });
+
+// Get all available report dates for a resident (both current and archived logs)
+export const getAvailableFoodFluidDates = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  handler: async (ctx, args) => {
+    // Get all food fluid logs for the resident
+    const logs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .collect();
+
+    // Extract unique dates and sort them
+    const dates = [...new Set(logs.map(log => log.date))];
+    return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); // Most recent first
+  }
+});
+
+// Get daily food fluid report for a specific date
+export const getDailyFoodFluidReport = query({
+  args: {
+    residentId: v.id("residents"),
+    date: v.string(), // "YYYY-MM-DD"
+  },
+  handler: async (ctx, args) => {
+    // Get all logs for the specified date (both current and archived)
+    const logs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("byResidentAndDate", (q) => 
+        q.eq("residentId", args.residentId).eq("date", args.date)
+      )
+      .collect();
+
+    if (logs.length === 0) {
+      return { logs: [], reportGenerated: false };
+    }
+
+    // Sort logs by timestamp
+    logs.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      logs: logs,
+      reportGenerated: true,
+      date: args.date,
+      totalEntries: logs.length,
+      foodEntries: logs.filter(log => 
+        log.typeOfFoodDrink && !['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink)
+      ).length,
+      fluidEntries: logs.filter(log => 
+        ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl
+      ).length,
+      totalFluidMl: logs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0)
+    };
+  }
+});
