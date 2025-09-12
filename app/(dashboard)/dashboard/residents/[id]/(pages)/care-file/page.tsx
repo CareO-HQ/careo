@@ -4,12 +4,25 @@ import CareFileFolder from "@/components/residents/carefile/folders/CareFileFold
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { config } from "@/config";
+import { Id } from "@/convex/_generated/dataModel";
+import { useQuery } from "convex/react";
+import { usePathname } from "next/navigation";
 import { DownloadIcon } from "lucide-react";
+import { api } from "@/convex/_generated/api";
 
 export default function CareFilePage() {
   const careFiles = config.careFiles;
 
-  // State management is now handled inside CareFileFolder component
+  const path = usePathname();
+  const pathname = path.split("/");
+  const residentId = pathname[pathname.length - 2] as Id<"residents">;
+
+  const preAddissionState = useQuery(
+    api.careFiles.preadmission.hasPreAdmissionForm,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
 
   return (
     <div>
@@ -44,6 +57,8 @@ export default function CareFilePage() {
                   folderName={file.value}
                   description={file.description}
                   forms={file.forms}
+                  preAddissionState={preAddissionState}
+                  residentId={residentId}
                 />
               )
           )}

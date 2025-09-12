@@ -36,12 +36,16 @@ interface CareFileFolderProps {
         value: string;
       }[]
     | undefined;
+  preAddissionState: boolean | undefined;
+  residentId: Id<"residents">;
 }
 
 export default function CareFileFolder({
   folderName,
   description,
-  forms
+  forms,
+  preAddissionState,
+  residentId
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
@@ -49,9 +53,6 @@ export default function CareFileFolder({
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
 
-  const path = usePathname();
-  const pathname = path.split("/");
-  const residentId = pathname[pathname.length - 2] as Id<"residents">;
 
   // Use our new care file forms hook
   const {

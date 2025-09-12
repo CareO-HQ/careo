@@ -40,8 +40,10 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 export default function CreateMedicationForm({
+  residentId,
   onSuccess
 }: {
+  residentId: Id<"residents">;
   onSuccess: () => void;
 }) {
   const createMedication = useMutation(api.medication.createMedication);
@@ -75,8 +77,7 @@ export default function CreateMedicationForm({
     startTransition(async () => {
       try {
         const medicationId = await createMedication({
-          // TODO: Get residentId from the URL or something once Abi is done with his task
-          residentId: "m5708pq5mgq6q7pqs24p2xeh057ps61v" as Id<"residents">,
+          residentId,
           medication: {
             ...values,
             prescriberName: values.prescriberName as string,
@@ -164,7 +165,6 @@ export default function CreateMedicationForm({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-
                     <FormLabel required>Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Paracetamol" {...field} />
@@ -270,7 +270,6 @@ export default function CreateMedicationForm({
                   name="route"
                   render={({ field }) => (
                     <FormItem>
-
                       <FormLabel required>Route</FormLabel>
                       <Select
                         onValueChange={field.onChange}
