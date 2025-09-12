@@ -112,19 +112,16 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
       ? selectedReportData
       : { activities: [], reportGenerated: false };
 
-    const pdfContent = generatePDFContent({
+    const htmlContent = generatePDFContent({
       resident,
       report: reportToDownload,
       type,
       date
     });
 
-    downloadTextAsPDF(
-      pdfContent,
-      `${resident.firstName}_${resident.lastName}_${type}_report_${date}.pdf`
-    );
+    generatePDFFromHTML(htmlContent);
 
-    toast.success(`${type === 'day' ? 'Day' : 'Night'} report downloaded successfully`);
+    toast.success(`${type === 'day' ? 'Day' : 'Night'} report will open for printing`);
   };
 
   const generatePDFContent = ({
@@ -140,60 +137,268 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   }) => {
     const timeRange = type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM';
     const shiftName = type === 'day' ? 'Day' : 'Night';
+    const completedCount = report.activities?.filter((a: any) => a.status === 'completed').length || 0;
+    const totalActivities = report.activities?.length || 0;
+    const completionRate = totalActivities > 0 ? Math.round((completedCount / totalActivities) * 100) : 0;
 
-    let content = `DAILY CARE REPORT - ${shiftName.toUpperCase()} SHIFT\n\n`;
-    content += `Resident: ${resident.firstName} ${resident.lastName}\n`;
-    content += `Date: ${new Date(date).toLocaleDateString('en-US', {
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    })}\n`;
-    content += `Shift Period: ${timeRange}\n`;
-    content += `Generated: ${new Date().toLocaleString()}\n\n`;
+    });
 
-    content += `SUMMARY\n`;
-    content += `Total Activities: ${report.activities?.length || 0}\n`;
-    const completedCount = report.activities?.filter((a: any) => a.status === 'completed').length || 0;
-    content += `Completed Activities: ${completedCount}\n`;
-    if (report.activities?.length > 0) {
-      content += `Completion Rate: ${Math.round((completedCount / report.activities.length) * 100)}%\n`;
-    }
-    content += `\n`;
+    return `
+      <div class="header">
+        <h1>Daily Care Report - ${shiftName} Shift</h1>
+        <p style="color: #64748B; margin: 0;">${resident.firstName} ${resident.lastName}</p>
+      </div>
 
-    if (report.activities && report.activities.length > 0) {
-      content += `ACTIVITIES LOG\n\n`;
+      <div class="info-grid">
+        <div class="info-box">
+          <h3>Report Date</h3>
+          <p>${formattedDate}</p>
+        </div>
+        <div class="info-box">
+          <h3>Shift Period</h3>
+          <p>${timeRange}</p>
+        </div>
+        <div class="info-box">
+          <h3>Generated</h3>
+          <p>${new Date().toLocaleString()}</p>
+        </div>
+        <div class="info-box">
+          <h3>Report Type</h3>
+          <p>${shiftName} Shift Report</p>
+        </div>
+      </div>
 
-      report.activities.forEach((activity: any, index: number) => {
-        content += `${index + 1}. ${activity.taskType}\n`;
-        content += `   Status: ${activity.status}\n`;
-        if (activity.completedAt) {
-          content += `   Time: ${new Date(activity.completedAt).toLocaleTimeString()}\n`;
+      <div class="summary">
+        <h2>Summary</h2>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="number">${totalActivities}</span>
+            <span class="label">Total Activities</span>
+          </div>
+          <div class="summary-item">
+            <span class="number">${completedCount}</span>
+            <span class="label">Completed</span>
+          </div>
+          <div class="summary-item">
+            <span class="number">${completionRate}%</span>
+            <span class="label">Completion Rate</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="activities">
+        <h2>Activities Log</h2>
+        ${report.activities && report.activities.length > 0 
+          ? report.activities.map((activity: any) => `
+              <div class="activity-item">
+                <div class="activity-content">
+                  <h4>${activity.taskType}</h4>
+                  <div class="time">
+                    ${activity.completedAt 
+                      ? `Completed at: ${new Date(activity.completedAt).toLocaleTimeString()}`
+                      : 'Time: Pending'
+                    }
+                  </div>
+                  ${activity.notes ? `<div class="notes">Notes: ${activity.notes}</div>` : ''}
+                </div>
+                <div class="status-badge status-${activity.status}">
+                  ${activity.status}
+                </div>
+              </div>
+            `).join('')
+          : `
+              <div style="text-align: center; padding: 40px; color: #64748B;">
+                <p>No activities logged for this ${type} shift.</p>
+              </div>
+            `
         }
-        if (activity.notes) {
-          content += `   Notes: ${activity.notes}\n`;
-        }
-        content += `\n`;
-      });
-    } else {
-      content += `No activities logged for this ${type} shift.\n\n`;
-    }
+      </div>
 
-    content += `\nThis report was automatically generated by the Care Management System.`;
-
-    return content;
+      <div class="footer">
+        <p>This report was automatically generated by the Care Management System.</p>
+        <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+      </div>
+    `;
   };
 
-  const downloadTextAsPDF = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.replace('.pdf', '.txt');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+  const generatePDFFromHTML = (content: string) => {
+    // Create a new window for PDF generation
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Generate HTML content for the PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Daily Care Report</title>
+          <style>
+            @media print {
+              @page {
+                size: A4;
+                margin: 2cm;
+              }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #4F46E5;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              color: #4F46E5;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 30px;
+            }
+            .info-box {
+              background: #F8FAFC;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #4F46E5;
+            }
+            .info-box h3 {
+              margin: 0 0 8px 0;
+              color: #4F46E5;
+              font-size: 16px;
+            }
+            .info-box p {
+              margin: 0;
+              font-size: 14px;
+              color: #64748B;
+            }
+            .summary {
+              background: #F0FDF4;
+              border: 1px solid #BBF7D0;
+              border-radius: 8px;
+              padding: 20px;
+              margin-bottom: 30px;
+            }
+            .summary h2 {
+              color: #166534;
+              margin: 0 0 15px 0;
+              font-size: 18px;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 15px;
+            }
+            .summary-item {
+              text-align: center;
+            }
+            .summary-item .number {
+              font-size: 24px;
+              font-weight: bold;
+              color: #166534;
+              display: block;
+            }
+            .summary-item .label {
+              font-size: 12px;
+              color: #065F46;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .activities {
+              margin-top: 30px;
+            }
+            .activities h2 {
+              color: #4F46E5;
+              border-bottom: 1px solid #E2E8F0;
+              padding-bottom: 10px;
+              margin-bottom: 20px;
+            }
+            .activity-item {
+              background: white;
+              border: 1px solid #E2E8F0;
+              border-radius: 8px;
+              padding: 15px;
+              margin-bottom: 15px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+            }
+            .activity-content h4 {
+              margin: 0 0 5px 0;
+              color: #1E293B;
+              font-size: 16px;
+            }
+            .activity-content .time {
+              color: #64748B;
+              font-size: 14px;
+              margin-bottom: 8px;
+            }
+            .activity-content .notes {
+              color: #475569;
+              font-size: 14px;
+              font-style: italic;
+            }
+            .status-badge {
+              padding: 4px 12px;
+              border-radius: 20px;
+              font-size: 12px;
+              font-weight: 500;
+              text-transform: capitalize;
+            }
+            .status-completed {
+              background: #DCFCE7;
+              color: #166534;
+            }
+            .status-pending {
+              background: #FEF3C7;
+              color: #92400E;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #E2E8F0;
+              text-align: center;
+              color: #64748B;
+              font-size: 12px;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          ${content}
+          <div class="no-print" style="text-align: center; margin-top: 30px;">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #4F46E5; color: white; border: none; border-radius: 5px; cursor: pointer;">Print PDF</button>
+            <button onclick="window.close()" style="padding: 10px 20px; background: #6B7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Auto-trigger print dialog
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    };
   };
 
   if (resident === undefined) {
@@ -264,7 +469,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
-              initialFocus
             />
           </PopoverContent>
         </Popover>
