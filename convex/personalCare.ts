@@ -437,6 +437,24 @@ export const createPersonalCareActivities = mutation({
   }
 });
 
+// Query to get all available report dates for a resident
+export const getAvailableReportDates = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  handler: async (ctx, args) => {
+    // Get all daily records for the resident
+    const dailyRecords = await ctx.db
+      .query("personalCareDaily")
+      .filter((q) => q.eq(q.field("residentId"), args.residentId))
+      .collect();
+
+    // Extract unique dates and sort them
+    const dates = [...new Set(dailyRecords.map(record => record.date))];
+    return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); // Most recent first
+  }
+});
+
 // Query to get day/night report
 export const getDayNightReport = query({
   args: {

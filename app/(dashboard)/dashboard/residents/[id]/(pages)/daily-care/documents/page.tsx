@@ -4,16 +4,17 @@ import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
-  Calendar,
   Sun,
   Moon,
   Eye,
   Download,
-  FileText
+  Calendar,
+  Search
 } from "lucide-react";
 import {
   Dialog,
@@ -38,66 +39,71 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     date: string;
     activities: any[];
   } | null>(null);
+  const [dateFilter, setDateFilter] = React.useState<string>("");
 
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
 
-  // Get today's date for current reports
-  const today = new Date().toISOString().split('T')[0];
-  const currentHour = new Date().getHours();
-
-  // Get day report (8 AM - 8 PM logs)
-  const dayReport = useQuery(api.personalCare.getDayNightReport, {
-    residentId: id as Id<"residents">,
-    date: today,
-    reportType: "day"
+  // Get all available report dates for this resident
+  const availableDates = useQuery(api.personalCare.getAvailableReportDates, {
+    residentId: id as Id<"residents">
   });
 
-  // Get night report (8 PM - 8 AM logs)  
-  const nightReport = useQuery(api.personalCare.getDayNightReport, {
-    residentId: id as Id<"residents">,
-    date: today,
-    reportType: "night"
-  });
+  // Get the selected report data when viewing
+  const selectedReportData = useQuery(
+    api.personalCare.getDayNightReport,
+    selectedReport ? {
+      residentId: id as Id<"residents">,
+      date: selectedReport.date,
+      reportType: selectedReport.type
+    } : "skip"
+  );
 
-  const handleViewReport = (type: 'day' | 'night') => {
-    const report = type === 'day' ? dayReport : nightReport;
-    if (report) {
-      setSelectedReport({
-        type,
-        date: today,
-        activities: report.activities || []
-      });
-    }
+  // Filter dates based on search
+  const filteredDates = React.useMemo(() => {
+    if (!availableDates) return [];
+    if (!dateFilter) return availableDates;
+    
+    return availableDates.filter(date => 
+      date.includes(dateFilter) || 
+      new Date(date).toLocaleDateString().includes(dateFilter)
+    );
+  }, [availableDates, dateFilter]);
+
+  const handleViewReport = (date: string, type: 'day' | 'night') => {
+    // Set the selected report state - the dialog will handle loading the data
+    setSelectedReport({
+      type,
+      date,
+      activities: [] // Will be loaded by the useQuery hook
+    });
   };
 
-  const handleDownloadReport = async (type: 'day' | 'night') => {
-    try {
-      const report = type === 'day' ? dayReport : nightReport;
-      if (!report || !resident) {
-        toast.error('No report data available');
-        return;
-      }
-
-      // Generate PDF content
-      const pdfContent = generatePDFContent({
-        resident,
-        report,
-        type,
-        date: today
-      });
-
-      // Create and download PDF
-      downloadTextAsPDF(
-        pdfContent,
-        `${resident.firstName}_${resident.lastName}_${type}_report_${today}.pdf`
-      );
-
-      toast.success(`${type === 'day' ? 'Day' : 'Night'} report downloaded successfully`);
-    } catch {
-      toast.error('Failed to download report');
+  const handleDownloadReport = (date: string, type: 'day' | 'night') => {
+    if (!resident) {
+      toast.error('Resident data not available');
+      return;
     }
+
+    // Use the currently loaded report data if available, otherwise create a mock
+    const reportToDownload = selectedReportData && selectedReport?.date === date && selectedReport?.type === type 
+      ? selectedReportData 
+      : { activities: [], reportGenerated: false };
+
+    const pdfContent = generatePDFContent({
+      resident,
+      report: reportToDownload,
+      type,
+      date
+    });
+
+    downloadTextAsPDF(
+      pdfContent,
+      `${resident.firstName}_${resident.lastName}_${type}_report_${date}.pdf`
+    );
+
+    toast.success(`${type === 'day' ? 'Day' : 'Night'} report downloaded successfully`);
   };
 
   const generatePDFContent = ({
@@ -158,8 +164,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   };
 
   const downloadTextAsPDF = (content: string, filename: string) => {
-    // Simple text-based PDF alternative - create a downloadable text file
-    // In a real implementation, you'd use a library like jsPDF
     const blob = new Blob([content], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -206,302 +210,319 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   const fullName = `${resident.firstName} ${resident.lastName}`;
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-4xl">
+    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div className="flex items-center space-x-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Daily Care Documents</h1>
-              <p className="text-muted-foreground">
-                Day and Night shift reports for {fullName}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold">Daily Care Documents</h1>
+            <p className="text-muted-foreground">
+              All archived reports for {fullName}
+            </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/dashboard/residents/${id}/daily-care`)}
-          className="flex items-center space-x-2"
-        >
-          <Calendar className="w-4 h-4" />
-          <span>Back to Daily Care</span>
-        </Button>
       </div>
 
-      {/* Current Date */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5" />
-            <span>Today&apos;s Reports - {new Date(today).toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric", 
-              month: "long",
-              day: "numeric"
-            })}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Day Report */}
-            <Card className="border-2">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center space-x-2 text-lg">
-                  <Sun className="w-5 h-5 text-amber-600" />
-                  <span>Day Report</span>
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  8:00 AM - 8:00 PM
-                </p>
-              
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {currentHour >= 20 ? (
-                  <p className="text-sm text-green-600 font-medium">
-                    ✓ Report automatically generated at 8:00 PM
-                  </p>
-                ) : (
-                  <p className="text-sm text-blue-600">
-                    Report will be generated at 8:00 PM
-                  </p>
-                )}
-                
-                <div className="flex space-x-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => handleViewReport('day')}
-                        disabled={!dayReport}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center space-x-2">
-                          <Sun className="w-5 h-5 text-amber-600" />
-                          <span>Day Report - {new Date(today).toLocaleDateString()}</span>
-                        </DialogTitle>
-                        <DialogDescription>
-                          All activities logged from 8:00 AM to 8:00 PM
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      <div className="space-y-4">
-                        {selectedReport?.type === 'day' && (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                              <div>
-                                <h4 className="font-medium text-amber-800">Shift Period</h4>
-                                <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-amber-800">Total Activities</h4>
-                                <p className="text-sm text-amber-700">{selectedReport.activities.length}</p>
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-amber-800">Completion Rate</h4>
-                                <p className="text-sm text-amber-700">
-                                  {selectedReport.activities.length > 0 
-                                    ? Math.round((selectedReport.activities.filter(a => a.status === 'completed').length / selectedReport.activities.length) * 100)
-                                    : 0}%
-                                </p>
-                              </div>
-                            </div>
+      {/* Date Filter */}
+      <div className="flex items-center space-x-4 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            placeholder="Search by date (e.g., 2024-01-15 or Jan 15)"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {filteredDates?.length || 0} report dates found
+        </p>
+      </div>
 
-                            <div className="space-y-2">
-                              <h4 className="font-medium">Activities Log</h4>
-                              {selectedReport.activities.length > 0 ? (
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
-                                  {selectedReport.activities.map((activity, index) => (
-                                    <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <p className="font-medium">{activity.taskType}</p>
-                                          <p className="text-sm text-muted-foreground">
-                                            {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                          </p>
-                                          {activity.notes && (
-                                            <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
-                                          )}
-                                        </div>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                          activity.status === 'completed' 
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                          {activity.status}
-                                        </span>
+      {/* Reports List */}
+      {availableDates === undefined ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Loading reports...</p>
+          </div>
+        </div>
+      ) : filteredDates.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-lg font-medium text-muted-foreground mb-2">
+              {dateFilter ? "No reports found for this search" : "No daily care reports found"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {dateFilter ? "Try a different search term" : "Reports will appear here as daily care activities are logged"}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {filteredDates.map((date) => (
+            <div key={date} className="space-y-3">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
+                <Calendar className="w-5 h-5" />
+                <span>
+                  {new Date(date).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric"
+                  })}
+                </span>
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Day Report Card */}
+                <Card className="cursor-pointer shadow-none">
+                  <CardContent className="p-2">
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex flex-col items-start justify-start gap-2">
+                        <div className="p-2 bg-amber-50 rounded-lg">
+                          <Sun className="w-6 h-6 text-amber-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">Day Report</h3>
+                          <p className="text-sm text-muted-foreground">
+                            8:00 AM - 8:00 PM
+                          </p>
+                          <p className="text-xs mt-1 text-green-600">
+                            ✓ Archived report
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewReport(date, 'day')}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center space-x-2">
+                                <Sun className="w-5 h-5 text-amber-600" />
+                                <span>Day Report - {new Date(date).toLocaleDateString()}</span>
+                              </DialogTitle>
+                              <DialogDescription>
+                                All activities logged from 8:00 AM to 8:00 PM
+                              </DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-4">
+                              {selectedReport?.type === 'day' && selectedReport?.date === date && (
+                                selectedReportData === undefined ? (
+                                  <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                      <div>
+                                        <h4 className="font-medium text-amber-800">Shift Period</h4>
+                                        <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-amber-800">Total Activities</h4>
+                                        <p className="text-sm text-amber-700">{selectedReportData?.activities?.length || 0}</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-amber-800">Completion Rate</h4>
+                                        <p className="text-sm text-amber-700">
+                                          {selectedReportData?.activities?.length > 0 
+                                            ? Math.round((selectedReportData.activities.filter((a: any) => a.status === 'completed').length / selectedReportData.activities.length) * 100)
+                                            : 0}%
+                                        </p>
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
+
+                                    <div className="space-y-2">
+                                      <h4 className="font-medium">Activities Log</h4>
+                                      {selectedReportData?.activities && selectedReportData.activities.length > 0 ? (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                          {selectedReportData.activities.map((activity: any, index: number) => (
+                                            <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                              <div className="flex justify-between items-start">
+                                                <div>
+                                                  <p className="font-medium">{activity.taskType}</p>
+                                                  <p className="text-sm text-muted-foreground">
+                                                    {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                  </p>
+                                                  {activity.notes && (
+                                                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                                  )}
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                  activity.status === 'completed' 
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                  {activity.status}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
                               )}
                             </div>
-                          </div>
-                        )}
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <Button 
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDownloadReport(date, 'day')}
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                  
-                  <Button 
-                    variant="default"
-                    className="flex-1"
-                    onClick={() => handleDownloadReport('day')}
-                    disabled={!dayReport}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download PDF
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Night Report */}
-            <Card className="border-2">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center space-x-2 text-lg">
-                  <Moon className="w-5 h-5 text-indigo-600" />
-                  <span>Night Report</span>
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  8:00 PM - 8:00 AM
-                </p>
-              
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {currentHour >= 8 && currentHour < 20 ? (
-                  <p className="text-sm text-green-600 font-medium">
-                    ✓ Report automatically generated at 8:00 AM
-                  </p>
-                ) : (
-                  <p className="text-sm text-indigo-600">
-                    Report will be generated at 8:00 AM
-                  </p>
-                )}
-                
-                <div className="flex space-x-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => handleViewReport('night')}
-                        disabled={!nightReport}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center space-x-2">
-                          <Moon className="w-5 h-5 text-indigo-600" />
-                          <span>Night Report - {new Date(today).toLocaleDateString()}</span>
-                        </DialogTitle>
-                        <DialogDescription>
-                          All activities logged from 8:00 PM to 8:00 AM
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      <div className="space-y-4">
-                        {selectedReport?.type === 'night' && (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                              <div>
-                                <h4 className="font-medium text-indigo-800">Shift Period</h4>
-                                <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-indigo-800">Total Activities</h4>
-                                <p className="text-sm text-indigo-700">{selectedReport.activities.length}</p>
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-indigo-800">Completion Rate</h4>
-                                <p className="text-sm text-indigo-700">
-                                  {selectedReport.activities.length > 0 
-                                    ? Math.round((selectedReport.activities.filter(a => a.status === 'completed').length / selectedReport.activities.length) * 100)
-                                    : 0}%
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <h4 className="font-medium">Activities Log</h4>
-                              {selectedReport.activities.length > 0 ? (
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
-                                  {selectedReport.activities.map((activity, index) => (
-                                    <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <p className="font-medium">{activity.taskType}</p>
-                                          <p className="text-sm text-muted-foreground">
-                                            {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                          </p>
-                                          {activity.notes && (
-                                            <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
-                                          )}
-                                        </div>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                          activity.status === 'completed' 
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                          {activity.status}
-                                        </span>
+                {/* Night Report Card */}
+                <Card className="cursor-pointer shadow-none">
+                  <CardContent className="p-2">
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex flex-col items-start justify-start gap-2">
+                        <div className="p-2 bg-indigo-50 rounded-lg">
+                          <Moon className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">Night Report</h3>
+                          <p className="text-sm text-muted-foreground">
+                            8:00 PM - 8:00 AM
+                          </p>
+                          <p className="text-xs mt-1 text-green-600">
+                            ✓ Archived report
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewReport(date, 'night')}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center space-x-2">
+                                <Moon className="w-5 h-5 text-indigo-600" />
+                                <span>Night Report - {new Date(date).toLocaleDateString()}</span>
+                              </DialogTitle>
+                              <DialogDescription>
+                                All activities logged from 8:00 PM to 8:00 AM
+                              </DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-4">
+                              {selectedReport?.type === 'night' && selectedReport?.date === date && (
+                                selectedReportData === undefined ? (
+                                  <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                      <div>
+                                        <h4 className="font-medium text-indigo-800">Shift Period</h4>
+                                        <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-indigo-800">Total Activities</h4>
+                                        <p className="text-sm text-indigo-700">{selectedReportData?.activities?.length || 0}</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-indigo-800">Completion Rate</h4>
+                                        <p className="text-sm text-indigo-700">
+                                          {selectedReportData?.activities?.length > 0 
+                                            ? Math.round((selectedReportData.activities.filter((a: any) => a.status === 'completed').length / selectedReportData.activities.length) * 100)
+                                            : 0}%
+                                        </p>
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-muted-foreground py-8 text-center">No activities logged for night shift</p>
+
+                                    <div className="space-y-2">
+                                      <h4 className="font-medium">Activities Log</h4>
+                                      {selectedReportData?.activities && selectedReportData.activities.length > 0 ? (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                          {selectedReportData.activities.map((activity: any, index: number) => (
+                                            <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                              <div className="flex justify-between items-start">
+                                                <div>
+                                                  <p className="font-medium">{activity.taskType}</p>
+                                                  <p className="text-sm text-muted-foreground">
+                                                    {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                  </p>
+                                                  {activity.notes && (
+                                                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                                  )}
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                  activity.status === 'completed' 
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                  {activity.status}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-muted-foreground py-8 text-center">No activities logged for night shift</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
                               )}
                             </div>
-                          </div>
-                        )}
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <Button 
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDownloadReport(date, 'night')}
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                  
-                  <Button 
-                    variant="default"
-                    className="flex-1"
-                    onClick={() => handleDownloadReport('night')}
-                    disabled={!nightReport}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download PDF
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Information Card */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="p-4">
-          <h3 className="font-medium text-blue-900 mb-2">How Reports Work</h3>
-          <div className="space-y-1 text-sm text-blue-800">
-            <p>• <strong>Day Report:</strong> Automatically generated at 8:00 PM with all activities from 8:00 AM - 8:00 PM</p>
-            <p>• <strong>Night Report:</strong> Automatically generated at 8:00 AM with all activities from 8:00 PM - 8:00 AM</p>
-            <p>• Reports include all logged care activities, completion status, and staff notes</p>
-          </div>
-        </CardContent>
-      </Card>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
