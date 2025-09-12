@@ -51,7 +51,7 @@ interface PreAdmissionDialogProps {
   residentId: string;
   organizationId: string;
   careHomeName: string;
-  userName: string;
+
   resident: Resident;
 }
 
@@ -60,7 +60,6 @@ export default function PreAdmissionDialog({
   residentId,
   organizationId,
   careHomeName,
-  userName,
   resident
 }: PreAdmissionDialogProps) {
   const [step, setStep] = useState<number>(1);
@@ -89,7 +88,7 @@ export default function PreAdmissionDialog({
       consentAcceptedAt: 0,
       careHomeName,
       nhsHealthCareNumber: "1",
-      userName,
+      userName: resident.firstName + " " + resident.lastName,
       jobRole: "1",
       date: new Date().getTime(),
       firstName: resident.firstName ?? "",

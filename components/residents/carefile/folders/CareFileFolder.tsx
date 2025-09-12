@@ -53,7 +53,6 @@ export default function CareFileFolder({
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
 
-
   // Use our new care file forms hook
   const {
     getFormState,
@@ -151,7 +150,6 @@ export default function CareFileFolder({
             residentId={residentId}
             organizationId={activeOrg?.id ?? ""}
             careHomeName={activeOrg?.name ?? ""}
-            userName={currentUser?.user.name ?? ""}
             resident={resident}
           />
         );
