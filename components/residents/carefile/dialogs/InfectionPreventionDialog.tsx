@@ -9,6 +9,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -39,19 +40,27 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 interface InfectionPreventionDialogProps {
   teamId: string;
   organizationId: string;
   resident: Resident;
+  userName: string;
 }
 
 export default function InfectionPreventionDialog({
   resident,
   teamId,
-  organizationId
+  organizationId,
+  userName
 }: InfectionPreventionDialogProps) {
-  const [step, setStep] = useState(6);
+  const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
+  const submitInfectionPreventionAssessmentMutation = useMutation(
+    api.careFiles.infectionPrevention.submitInfectionPreventionAssessment
+  );
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
     resolver: zodResolver(InfectionPreventionAssessmentSchema),
@@ -82,8 +91,8 @@ export default function InfectionPreventionDialog({
       testedForInfluenzaA: undefined,
       testedForInfluenzaB: undefined,
       testedForRespiratoryScreen: undefined,
-      influenzaB: undefined,
-      respiratoryScreen: undefined,
+      influenzaB: false,
+      respiratoryScreen: false,
 
       // 3. Exposure
       exposureToPatientsCovid: undefined,
@@ -118,18 +127,74 @@ export default function InfectionPreventionDialog({
       mrsaMssaTreatmentReceived: "",
       mrsaMssaTreatmentComplete: undefined,
       mrsaMssaDetails: "",
-      mrsaMssaDateCommenced: "",
+      mrsaMssaDateCommenced: new Date().getTime(),
       mrsaMssaLengthOfCourse: "",
-      mrsaMssaFollowUpRequired: ""
+      mrsaMssaFollowUpRequired: "",
+
+      // 7. Multi-drug resistant organisms
+      esbl: undefined,
+      vreGre: undefined,
+      cpe: undefined,
+      otherMultiDrugResistance: "",
+      relevantInformationMultiDrugResistance: "",
+
+      // 8. Other Information
+      awarenessOfInfection: undefined,
+      lastFluVaccinationDate: new Date().getTime(),
+
+      // 9. Assessment Completion
+      completedBy: userName,
+      jobRole: "",
+      signature: userName,
+      completionDate: new Date().getTime()
     }
   });
 
   function onSubmit(
     values: z.infer<typeof InfectionPreventionAssessmentSchema>
   ) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
     console.log("Form submission triggered - values:", values);
+    startTransition(async () => {
+      try {
+        console.log("Attempting to submit form...");
+
+        // Convert date fields from timestamps to strings for the database
+        const formattedValues = {
+          ...values,
+          residentId: resident._id as Id<"residents">,
+          teamId,
+          organizationId,
+          savedAsDraft: false,
+          dateOfAdmission: values.dateOfAdmission
+            ? new Date(values.dateOfAdmission).toISOString()
+            : undefined,
+          clostridiumLastPositiveSpecimenDate:
+            values.clostridiumLastPositiveSpecimenDate
+              ? new Date(
+                  values.clostridiumLastPositiveSpecimenDate
+                ).toISOString()
+              : undefined,
+          mrsaMssaDateCommenced: values.mrsaMssaDateCommenced
+            ? new Date(values.mrsaMssaDateCommenced).toISOString()
+            : undefined,
+          lastFluVaccinationDate: values.lastFluVaccinationDate
+            ? new Date(values.lastFluVaccinationDate).toISOString()
+            : undefined,
+          completionDate: new Date(values.completionDate).toISOString()
+        };
+
+        const data =
+          await submitInfectionPreventionAssessmentMutation(formattedValues);
+
+        console.log("Assessment submitted successfully:", data);
+        toast.success(
+          "Infection Prevention Assessment submitted successfully!"
+        );
+      } catch (error) {
+        console.error("Error submitting form:", error);
+        toast.error("Failed to submit assessment. Please try again.");
+      }
+    });
   }
 
   const handleNext = async () => {
@@ -201,6 +266,29 @@ export default function InfectionPreventionDialog({
         "mrsaMssaDateCommenced",
         "mrsaMssaLengthOfCourse",
         "mrsaMssaFollowUpRequired"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 7) {
+      const fieldsToValidate = [
+        "esbl",
+        "vreGre",
+        "cpe",
+        "otherMultiDrugResistance",
+        "relevantInformationMultiDrugResistance"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 8) {
+      const fieldsToValidate = [
+        "awarenessOfInfection",
+        "lastFluVaccinationDate"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+    } else if (step === 9) {
+      const fieldsToValidate = [
+        "completedBy",
+        "jobRole",
+        "signature",
+        "completionDate"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     }
@@ -293,7 +381,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -433,7 +530,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -975,7 +1081,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1086,7 +1201,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1200,7 +1324,16 @@ export default function InfectionPreventionDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -1218,9 +1351,380 @@ export default function InfectionPreventionDialog({
                       </FormItem>
                     )}
                   />
-                  {/* TODO: Seguir por treatment received */}
                 </div>
+                <FormField
+                  control={form.control}
+                  name="mrsaMssaTreatmentReceived"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Treatment received</FormLabel>
+                      <Textarea
+                        placeholder="Details of treatment received"
+                        {...field}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mrsaMssaTreatmentComplete"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Treatment completed</FormLabel>
+                      <Textarea placeholder="Treatment completed" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mrsaMssaDetails"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Details</FormLabel>
+                      <Textarea placeholder="Details" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="mrsaMssaDateCommenced"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date commenced</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mrsaMssaLengthOfCourse"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Length of course</FormLabel>
+                        <Input placeholder="Length of course" {...field} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="mrsaMssaFollowUpRequired"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Any follow up required?</FormLabel>
+                      <Textarea
+                        placeholder="Any details of follow up required?"
+                        {...field}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </>
+            )}
+            {step === 7 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="esbl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>History of ESBLs?</FormLabel>
+                        <Select
+                          onValueChange={(value) =>
+                            field.onChange(value === "true")
+                          }
+                          defaultValue={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="true">Yes</SelectItem>
+                            <SelectItem value="false">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="vreGre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>History of VRE/GRE?</FormLabel>
+                        <Select
+                          onValueChange={(value) =>
+                            field.onChange(value === "true")
+                          }
+                          defaultValue={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="true">Yes</SelectItem>
+                            <SelectItem value="false">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="cpe"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>History of CPE?</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="otherMultiDrugResistance"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Other multi-drug resistance</FormLabel>
+                      <Textarea
+                        placeholder="Other multi-drug resistance"
+                        {...field}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="relevantInformationMultiDrugResistance"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Relevant information</FormLabel>
+                      <Textarea placeholder="Relevant information" {...field} />
+                      <FormDescription>
+                        Detail other relevant information including treatment,
+                        planned screening, recent anitbiotic therapy,...
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 8 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="awarenessOfInfection"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Awareness of infection</FormLabel>
+                      <Select
+                        onValueChange={(value) =>
+                          field.onChange(value === "true")
+                        }
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="lastFluVaccinationDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of last flu vaccination</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            captionLayout="dropdown"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            onSelect={(date) => field.onChange(date?.getTime())}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 9 && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="completedBy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Completed by</FormLabel>
+                      <Input placeholder="Full name" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="jobRole"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Job role</FormLabel>
+                      <Input placeholder="Job role" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="signature"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Signature</FormLabel>
+                      <Input placeholder="Signature" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="completionDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Completion date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            captionLayout="dropdown"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            onSelect={(date) => field.onChange(date?.getTime())}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             )}
           </form>
         </Form>

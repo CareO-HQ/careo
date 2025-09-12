@@ -44,15 +44,17 @@ export const config = {
     },
     {
       type: "folder",
-      key: "admission",
-      value: "Admission Assessment Form",
-      description: "Admission Assessment Form"
-    },
-    {
-      type: "folder",
-      key: "discharge",
-      value: "Discharge Assessment Form",
-      description: "Discharge Assessment Form"
+      key: "continence",
+      value: "Continence",
+      description: "Continence Assessment",
+      forms: [
+        {
+          type: "form",
+          key: "blader-bowel-form",
+          value: "Blader & Bowel continence Assessment",
+          description: "Blader & Bowel continence Assessment"
+        }
+      ]
     }
   ]
 };

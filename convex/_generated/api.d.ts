@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as careFiles_infectionPrevention from "../careFiles/infectionPrevention.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
 import type * as crons from "../crons.js";
 import type * as diet from "../diet.js";
@@ -40,6 +41,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  "careFiles/infectionPrevention": typeof careFiles_infectionPrevention;
   "careFiles/preadmission": typeof careFiles_preadmission;
   crons: typeof crons;
   diet: typeof diet;
