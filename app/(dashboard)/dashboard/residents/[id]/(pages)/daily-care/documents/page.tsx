@@ -6,7 +6,6 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
   Popover,
@@ -20,7 +19,6 @@ import {
   Eye,
   Download,
   Calendar,
-  Search
 } from "lucide-react";
 import {
   Dialog,
@@ -83,7 +81,11 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     
     // Filter by calendar selection
     if (selectedDate) {
-      const selectedDateString = selectedDate.toISOString().split('T')[0];
+      // Use local timezone to avoid date shifting issues
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const selectedDateString = `${year}-${month}-${day}`;
       filtered = filtered.filter(date => date === selectedDateString);
     }
     
@@ -343,8 +345,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                            {/* Dialog Content remains largely the same for functionality, 
-               but visual styling should align with the new, simple aesthetic. */}
                             <DialogHeader>
                               <DialogTitle className="flex items-center space-x-2">
                                 <Sun className="w-5 h-5 text-amber-600" />
@@ -354,7 +354,70 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                 All activities logged from 8:00 AM to 8:00 PM
                               </DialogDescription>
                             </DialogHeader>
-                            {/* ... rest of the dialog content ... */}
+                            
+                            <div className="space-y-4">
+                              {selectedReport?.type === 'day' && selectedReport?.date === date && (
+                                selectedReportData === undefined ? (
+                                  <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                      <div>
+                                        <h4 className="font-medium text-amber-800">Shift Period</h4>
+                                        <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-amber-800">Total Activities</h4>
+                                        <p className="text-sm text-amber-700">{selectedReportData?.activities?.length || 0}</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-amber-800">Completion Rate</h4>
+                                        <p className="text-sm text-amber-700">
+                                          {selectedReportData?.activities?.length > 0 
+                                            ? Math.round((selectedReportData.activities.filter((a: any) => a.status === 'completed').length / selectedReportData.activities.length) * 100)
+                                            : 0}%
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <h4 className="font-medium">Activities Log</h4>
+                                      {selectedReportData?.activities && selectedReportData.activities.length > 0 ? (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                          {selectedReportData.activities.map((activity: any, index: number) => (
+                                            <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                              <div className="flex justify-between items-start">
+                                                <div>
+                                                  <p className="font-medium">{activity.taskType}</p>
+                                                  <p className="text-sm text-muted-foreground">
+                                                    {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                  </p>
+                                                  {activity.notes && (
+                                                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                                  )}
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                  activity.status === 'completed' 
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                  {activity.status}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
                           </DialogContent>
                         </Dialog>
 
@@ -392,8 +455,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                            {/* Dialog Content remains the same for functionality, 
-               but visual styling should align with the new, simple aesthetic. */}
                             <DialogHeader>
                               <DialogTitle className="flex items-center space-x-2">
                                 <Moon className="w-5 h-5 text-indigo-600" />
@@ -403,7 +464,70 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                 All activities logged from 8:00 PM to 8:00 AM
                               </DialogDescription>
                             </DialogHeader>
-                            {/* ... rest of the dialog content ... */}
+                            
+                            <div className="space-y-4">
+                              {selectedReport?.type === 'night' && selectedReport?.date === date && (
+                                selectedReportData === undefined ? (
+                                  <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                      <div>
+                                        <h4 className="font-medium text-indigo-800">Shift Period</h4>
+                                        <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-indigo-800">Total Activities</h4>
+                                        <p className="text-sm text-indigo-700">{selectedReportData?.activities?.length || 0}</p>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-medium text-indigo-800">Completion Rate</h4>
+                                        <p className="text-sm text-indigo-700">
+                                          {selectedReportData?.activities?.length > 0 
+                                            ? Math.round((selectedReportData.activities.filter((a: any) => a.status === 'completed').length / selectedReportData.activities.length) * 100)
+                                            : 0}%
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <h4 className="font-medium">Activities Log</h4>
+                                      {selectedReportData?.activities && selectedReportData.activities.length > 0 ? (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                          {selectedReportData.activities.map((activity: any, index: number) => (
+                                            <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                              <div className="flex justify-between items-start">
+                                                <div>
+                                                  <p className="font-medium">{activity.taskType}</p>
+                                                  <p className="text-sm text-muted-foreground">
+                                                    {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                  </p>
+                                                  {activity.notes && (
+                                                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                                  )}
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                  activity.status === 'completed' 
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                  {activity.status}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-muted-foreground py-8 text-center">No activities logged for night shift</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
                           </DialogContent>
                         </Dialog>
 
