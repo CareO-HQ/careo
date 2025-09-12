@@ -11,7 +11,8 @@ export default function ResidentsLayout({
 }>) {
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[pathname.length - 2] as Id<"residents">;
+  const residentsIndex = pathname.indexOf("residents");
+  const residentId = pathname[residentsIndex + 1] as Id<"residents">;
   return (
     <main className="flex flex-col w-full">
       <div className="-mt-5 mb-5">

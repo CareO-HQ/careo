@@ -1064,89 +1064,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 {/* Daily Activity Records Section - TOP */}
                 <div>
                   <div className="flex items-center space-x-2 mb-4">
-                    <Activity className="w-5 h-5 text-green-600" />
-                    <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
-                  </div>
-                  {(() => {
-                    // Filter current shift activity records
-                    const currentShiftActivityRecords = (todaysCareData.tasks.filter(task => {
-                      if (task.taskType !== 'daily_activity_record') return false;
-                      
-                      const taskTime = new Date(task.createdAt);
-                      const hour = taskTime.getHours();
-                      
-                      // Filter by current shift
-                      if (isCurrentlyDayShift) {
-                        return hour >= 8 && hour < 20; // Day shift
-                      } else {
-                        return hour >= 20 || hour < 8; // Night shift
-                      }
-                    }) || []);
-                    
-                    return currentShiftActivityRecords.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentShiftActivityRecords
-                          .sort((a, b) => b.createdAt - a.createdAt)
-                          .map((task) => {
-                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                            
-                            return (
-                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
-                                <div className="flex-1">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                                    <div className="flex items-center space-x-2">
-                                      <Activity className="w-4 h-4 text-green-600" />
-                                      <span className="font-medium text-green-900">
-                                        Daily Activity Record
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className="text-xs bg-white">
-                                        {payload?.time && `${payload.time}`}
-                                      </Badge>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs bg-green-100 text-green-800 border-green-300"
-                                      >
-                                        {task.status === 'completed' ? 'Completed' : task.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    {task.notes && (
-                                      <p className="mb-1">{task.notes}</p>
-                                    )}
-                                    <p className="text-xs text-gray-600">
-                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
-                        <div className="flex justify-center mb-3">
-                          <div className="p-2 bg-green-100 rounded-full">
-                            <Activity className="w-6 h-6 text-green-400" />
-                          </div>
-                        </div>
-                        <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records</p>
-                        <p className="text-xs text-gray-500">
-                          No daily activity records logged for current shift
-                        </p>
-                      </div>
-                    )
-                  })()}
-                </div>
-
-                {/* Personal Care Activities Section - BOTTOM */}
-                <div>
-                  <div className="flex items-center space-x-2 mb-4">
                     <User className="w-5 h-5 text-blue-600" />
                     <h3 className="text-lg font-semibold text-blue-900">Personal Care Activities</h3>
                   </div>
@@ -1227,6 +1144,91 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                     )
                   })()}
                 </div>
+
+                {/* Personal Care Activities Section - BOTTOM */}
+                <div>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Activity className="w-5 h-5 text-green-600" />
+                    <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
+                  </div>
+                  {(() => {
+                    // Filter current shift activity records
+                    const currentShiftActivityRecords = (todaysCareData.tasks.filter(task => {
+                      if (task.taskType !== 'daily_activity_record') return false;
+                      
+                      const taskTime = new Date(task.createdAt);
+                      const hour = taskTime.getHours();
+                      
+                      // Filter by current shift
+                      if (isCurrentlyDayShift) {
+                        return hour >= 8 && hour < 20; // Day shift
+                      } else {
+                        return hour >= 20 || hour < 8; // Night shift
+                      }
+                    }) || []);
+                    
+                    return currentShiftActivityRecords.length > 0 ? (
+                      <div className="space-y-3">
+                        {currentShiftActivityRecords
+                          .sort((a, b) => b.createdAt - a.createdAt)
+                          .map((task) => {
+                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                            
+                            return (
+                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
+                                <div className="flex-1">
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <Activity className="w-4 h-4 text-green-600" />
+                                      <span className="font-medium text-green-900">
+                                        Daily Activity Record
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge variant="outline" className="text-xs bg-white">
+                                        {payload?.time && `${payload.time}`}
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs bg-green-100 text-green-800 border-green-300"
+                                      >
+                                        {task.status === 'completed' ? 'Completed' : task.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-700">
+                                    {task.notes && (
+                                      <p className="mb-1">{task.notes}</p>
+                                    )}
+                                    <p className="text-xs text-gray-600">
+                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
+                        <div className="flex justify-center mb-3">
+                          <div className="p-2 bg-green-100 rounded-full">
+                            <Activity className="w-6 h-6 text-green-400" />
+                          </div>
+                        </div>
+                        <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records</p>
+                        <p className="text-xs text-gray-500">
+                          No daily activity records logged for current shift
+                        </p>
+                      </div>
+                    )
+                  })()}
+                </div>
+
+               
               </div>
           ) : (
             <div className="text-center py-8">

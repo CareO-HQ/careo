@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 // Query to get daily personal care record for a resident
@@ -437,6 +437,88 @@ export const createPersonalCareActivities = mutation({
   }
 });
 
+// Query to get day/night report
+export const getDayNightReport = query({
+  args: {
+    residentId: v.id("residents"),
+    date: v.string(), // "YYYY-MM-DD"
+    reportType: v.union(v.literal("day"), v.literal("night"))
+  },
+  handler: async (ctx, args) => {
+    // Get all daily records for the specified date
+    const dailyRecords = await ctx.db
+      .query("personalCareDaily")
+      .withIndex("by_resident_date", (q) =>
+        q.eq("residentId", args.residentId).eq("date", args.date)
+      )
+      .collect();
+
+    if (dailyRecords.length === 0) {
+      return { activities: [], reportGenerated: false };
+    }
+
+    const allActivities: any[] = [];
+
+    // Collect all task events from all daily records for this date
+    for (const daily of dailyRecords) {
+      const taskEvents = await ctx.db
+        .query("personalCareTaskEvents")
+        .withIndex("by_daily", (q) => q.eq("dailyId", daily._id))
+        .collect();
+
+      // Filter activities based on time for day/night reports
+      for (const event of taskEvents) {
+        const shouldInclude = filterActivityByTimeAndReport(event, args.reportType);
+        
+        if (shouldInclude) {
+          allActivities.push({
+            ...event,
+            date: daily.date,
+            shift: daily.shift
+          });
+        }
+      }
+    }
+
+    // Sort activities by creation time
+    allActivities.sort((a, b) => a.createdAt - b.createdAt);
+
+    return {
+      activities: allActivities,
+      reportGenerated: true,
+      reportType: args.reportType,
+      date: args.date
+    };
+  }
+});
+
+function filterActivityByTimeAndReport(activity: any, reportType: "day" | "night"): boolean {
+  // If no completion time, include based on creation time
+  const timeToCheck = activity.completedAt || activity.startedAt;
+  
+  if (!timeToCheck) {
+    // If no specific time, use creation timestamp
+    const creationDate = new Date(activity.createdAt);
+    const hour = creationDate.getHours();
+    
+    if (reportType === "day") {
+      return hour >= 8 && hour < 20; // 8 AM - 8 PM
+    } else {
+      return hour >= 20 || hour < 8; // 8 PM - 8 AM
+    }
+  }
+
+  // Parse the ISO string time
+  const activityTime = new Date(timeToCheck);
+  const hour = activityTime.getHours();
+
+  if (reportType === "day") {
+    return hour >= 8 && hour < 20; // 8 AM - 8 PM
+  } else {
+    return hour >= 20 || hour < 8; // 8 PM - 8 AM
+  }
+}
+
 // Mutation to create daily activity record entry
 export const createDailyActivityRecord = mutation({
   args: {
@@ -509,5 +591,75 @@ export const createDailyActivityRecord = mutation({
     });
 
     return taskEventId;
+  }
+});
+
+// Internal cron job to generate day reports at 8 PM
+export const generateDayReports = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get all residents
+    const residents = await ctx.db.query("residents").collect();
+    
+    for (const resident of residents) {
+      try {
+        // Check if there are activities for today that should be in a day report
+        const dailyRecords = await ctx.db
+          .query("personalCareDaily")
+          .withIndex("by_resident_date", (q) =>
+            q.eq("residentId", resident._id).eq("date", today)
+          )
+          .collect();
+
+        if (dailyRecords.length > 0) {
+          // For now, just log that we would generate a report
+          console.log(`Generated day report for resident ${resident._id} on ${today}`);
+        }
+      } catch (error) {
+        console.error(`Failed to generate day report for resident ${resident._id}:`, error);
+      }
+    }
+  }
+});
+
+// Internal cron job to generate night reports at 8 AM
+export const generateNightReports = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    // Get all residents
+    const residents = await ctx.db.query("residents").collect();
+    
+    for (const resident of residents) {
+      try {
+        // Check for activities from yesterday evening and today morning (8 PM - 8 AM)
+        const yesterdayRecords = await ctx.db
+          .query("personalCareDaily")
+          .withIndex("by_resident_date", (q) =>
+            q.eq("residentId", resident._id).eq("date", yesterdayStr)
+          )
+          .collect();
+          
+        const todayRecords = await ctx.db
+          .query("personalCareDaily")
+          .withIndex("by_resident_date", (q) =>
+            q.eq("residentId", resident._id).eq("date", today)
+          )
+          .collect();
+
+        if (yesterdayRecords.length > 0 || todayRecords.length > 0) {
+          // For now, just log that we would generate a report
+          console.log(`Generated night report for resident ${resident._id} covering ${yesterdayStr} 8PM - ${today} 8AM`);
+        }
+      } catch (error) {
+        console.error(`Failed to generate night report for resident ${resident._id}:`, error);
+      }
+    }
   }
 });

@@ -24,4 +24,24 @@ crons.daily(
   {}
 );
 
+crons.daily(
+  "Generate night care reports",
+  {
+    // London time: 08:00 - generate night reports (8 PM - 8 AM)
+    hourUTC: 8,
+    minuteUTC: 0
+  },
+  internal.personalCare.generateNightReports
+);
+
+crons.daily(
+  "Generate day care reports", 
+  {
+    // London time: 20:00 - generate day reports (8 AM - 8 PM)
+    hourUTC: 20,
+    minuteUTC: 0
+  },
+  internal.personalCare.generateDayReports
+);
+
 export default crons;

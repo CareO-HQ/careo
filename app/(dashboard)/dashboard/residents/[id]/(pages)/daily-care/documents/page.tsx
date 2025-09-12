@@ -1,433 +1,507 @@
-// "use client";
+"use client";
 
-// import React from "react";
-// import { useQuery } from "convex/react";
-// import { api } from "@/convex/_generated/api";
-// import { Id } from "@/convex/_generated/dataModel";
-// import { Badge } from "@/components/ui/badge";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Button } from "@/components/ui/button";
-// import {
-//   ArrowLeft,
-//   Bed,
-//   Calendar,
-//   ChevronDown,
-//   ChevronRight,
-//   Sun,
-//   Moon,
-//   FileText
-// } from "lucide-react";
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogDescription,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogTrigger
-// } from "@/components/ui/dialog";
-// import { useRouter } from "next/navigation";
+import React from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowLeft,
+  Calendar,
+  Sun,
+  Moon,
+  Eye,
+  Download,
+  FileText
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-// type DocumentsPageProps = {
-//   params: Promise<{ id: string }>;
-// };
+type DocumentsPageProps = {
+  params: Promise<{ id: string }>;
+};
 
-// export default function DocumentsPage({ params }: DocumentsPageProps) {
-//   const { id } = React.use(params);
-//   const router = useRouter();
-//   const [expandedCard, setExpandedCard] = React.useState<string | null>(null);
-//   const [selectedPdf, setSelectedPdf] = React.useState<{
-//     fileName: string;
-//     shift: string;
-//     date: string;
-//     activities: number;
-//     completed: number;
-//   } | null>(null);
+export default function DocumentsPage({ params }: DocumentsPageProps) {
+  const { id } = React.use(params);
+  const router = useRouter();
+  const [selectedReport, setSelectedReport] = React.useState<{
+    type: 'day' | 'night';
+    date: string;
+    activities: any[];
+  } | null>(null);
 
-//   const resident = useQuery(api.residents.getById, {
-//     residentId: id as Id<"residents">
-//   });
+  const resident = useQuery(api.residents.getById, {
+    residentId: id as Id<"residents">
+  });
 
-//   // Get all daily care documents
-//   const allDailyCareDocuments = useQuery(
-//     api.personalCare.getAllPersonalCareRecords,
-//     {
-//       residentId: id as Id<"residents">
-//     }
-//   );
+  // Get today's date for current reports
+  const today = new Date().toISOString().split('T')[0];
+  const currentHour = new Date().getHours();
 
-//   // Group documents by date and shift
-//   const groupedDocuments = React.useMemo(() => {
-//     if (!allDailyCareDocuments) return {};
+  // Get day report (8 AM - 8 PM logs)
+  const dayReport = useQuery(api.personalCare.getDayNightReport, {
+    residentId: id as Id<"residents">,
+    date: today,
+    reportType: "day"
+  });
 
-//     // expect any on the type
-//     const grouped: Record<string, Record<string, any[]>> = {};
+  // Get night report (8 PM - 8 AM logs)  
+  const nightReport = useQuery(api.personalCare.getDayNightReport, {
+    residentId: id as Id<"residents">,
+    date: today,
+    reportType: "night"
+  });
 
-//     allDailyCareDocuments.forEach((doc) => {
-//       const date = doc.date;
-//       const shift = doc.shift || "Day"; // Default to 'Day' if no shift specified
+  const handleViewReport = (type: 'day' | 'night') => {
+    const report = type === 'day' ? dayReport : nightReport;
+    if (report) {
+      setSelectedReport({
+        type,
+        date: today,
+        activities: report.activities || []
+      });
+    }
+  };
 
-//       if (!grouped[date]) {
-//         grouped[date] = {};
-//       }
-//       if (!grouped[date][shift]) {
-//         grouped[date][shift] = [];
-//       }
+  const handleDownloadReport = async (type: 'day' | 'night') => {
+    try {
+      const report = type === 'day' ? dayReport : nightReport;
+      if (!report || !resident) {
+        toast.error('No report data available');
+        return;
+      }
 
-//       grouped[date][shift].push(doc);
-//     });
+      // Generate PDF content
+      const pdfContent = generatePDFContent({
+        resident,
+        report,
+        type,
+        date: today
+      });
 
-//     return grouped;
-//   }, [allDailyCareDocuments]);
+      // Create and download PDF
+      downloadTextAsPDF(
+        pdfContent,
+        `${resident.firstName}_${resident.lastName}_${type}_report_${today}.pdf`
+      );
 
-//   const toggleCardExpansion = (cardId: string) => {
-//     setExpandedCard((prevExpanded) => {
-//       if (prevExpanded === cardId) {
-//         // If clicking the same card, close it
-//         return null;
-//       } else {
-//         // If clicking a different card, open only this one
-//         return cardId;
-//       }
-//     });
-//   };
+      toast.success(`${type === 'day' ? 'Day' : 'Night'} report downloaded successfully`);
+    } catch {
+      toast.error('Failed to download report');
+    }
+  };
 
-//   if (resident === undefined) {
-//     return (
-//       <div className="flex items-center justify-center h-64">
-//         <div className="text-center">
-//           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-//           <p className="mt-2 text-muted-foreground">Loading resident...</p>
-//         </div>
-//       </div>
-//     );
-//   }
+  const generatePDFContent = ({
+    resident,
+    report,
+    type,
+    date
+  }: {
+    resident: any;
+    report: any;
+    type: 'day' | 'night';
+    date: string;
+  }) => {
+    const timeRange = type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM';
+    const shiftName = type === 'day' ? 'Day' : 'Night';
+    
+    let content = `DAILY CARE REPORT - ${shiftName.toUpperCase()} SHIFT\n\n`;
+    content += `Resident: ${resident.firstName} ${resident.lastName}\n`;
+    content += `Date: ${new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })}\n`;
+    content += `Shift Period: ${timeRange}\n`;
+    content += `Generated: ${new Date().toLocaleString()}\n\n`;
+    
+    content += `SUMMARY\n`;
+    content += `Total Activities: ${report.activities?.length || 0}\n`;
+    const completedCount = report.activities?.filter((a: any) => a.status === 'completed').length || 0;
+    content += `Completed Activities: ${completedCount}\n`;
+    if (report.activities?.length > 0) {
+      content += `Completion Rate: ${Math.round((completedCount / report.activities.length) * 100)}%\n`;
+    }
+    content += `\n`;
 
-//   if (resident === null) {
-//     return (
-//       <div className="flex items-center justify-center h-64">
-//         <div className="text-center">
-//           <p className="text-lg font-semibold">Resident not found</p>
-//           <p className="text-muted-foreground">
-//             The resident you&apos;re looking for doesn&apos;t exist.
-//           </p>
-//           <Button
-//             variant="outline"
-//             className="mt-4"
-//             onClick={() => router.back()}
-//           >
-//             <ArrowLeft className="w-4 h-4 mr-2" />
-//             Go Back
-//           </Button>
-//         </div>
-//       </div>
-//     );
-//   }
+    if (report.activities && report.activities.length > 0) {
+      content += `ACTIVITIES LOG\n\n`;
+      
+      report.activities.forEach((activity: any, index: number) => {
+        content += `${index + 1}. ${activity.taskType}\n`;
+        content += `   Status: ${activity.status}\n`;
+        if (activity.completedAt) {
+          content += `   Time: ${new Date(activity.completedAt).toLocaleTimeString()}\n`;
+        }
+        if (activity.notes) {
+          content += `   Notes: ${activity.notes}\n`;
+        }
+        content += `\n`;
+      });
+    } else {
+      content += `No activities logged for this ${type} shift.\n\n`;
+    }
 
-//   const fullName = `${resident.firstName} ${resident.lastName}`;
+    content += `\nThis report was automatically generated by the Care Management System.`;
+    
+    return content;
+  };
 
-//   return (
-//     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-//       {/* Breadcrumb Navigation */}
-//       <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-//         <Button
-//           variant="ghost"
-//           size="sm"
-//           onClick={() => router.push(`/dashboard/residents/${id}`)}
-//           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-//         >
-//           {fullName}
-//         </Button>
-//         <span>/</span>
-//         <Button
-//           variant="ghost"
-//           size="sm"
-//           onClick={() => router.push(`/dashboard/residents/${id}/daily-care`)}
-//           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-//         >
-//           Daily Care
-//         </Button>
-//         <span>/</span>
-//         <span className="text-foreground">All Documents</span>
-//       </div>
+  const downloadTextAsPDF = (content: string, filename: string) => {
+    // Simple text-based PDF alternative - create a downloadable text file
+    // In a real implementation, you'd use a library like jsPDF
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.replace('.pdf', '.txt');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
 
-//       {/* Header */}
-//       <div className="flex items-center justify-between">
-//         <div className="flex items-center space-x-4">
-//           <Button variant="outline" size="icon" onClick={() => router.back()}>
-//             <ArrowLeft className="w-4 h-4" />
-//           </Button>
-//           <div className="flex items-center space-x-4">
-//             <div className="p-2 bg-purple-100 rounded-lg">
-//               <Bed className="w-6 h-6 text-purple-600" />
-//             </div>
-//             <div>
-//               <h1 className="text-2xl font-bold">Daily Care Documents</h1>
-//               <p className="text-muted-foreground">
-//                 All care activities & records for {fullName}
-//               </p>
-//             </div>
-//           </div>
-//         </div>
-//         <Button
-//           variant="outline"
-//           onClick={() => router.push(`/dashboard/residents/${id}/daily-care`)}
-//           className="flex items-center space-x-2"
-//         >
-//           <Calendar className="w-4 h-4" />
-//           <span>Back to Daily Care</span>
-//         </Button>
-//       </div>
+  if (resident === undefined) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+        </div>
+      </div>
+    );
+  }
 
-//       {/* Daily Care Documents Grouped by Date */}
-//       {allDailyCareDocuments === undefined ? (
-//         <div className="flex items-center justify-center py-12">
-//           <div className="text-center">
-//             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-//             <p className="mt-2 text-muted-foreground">Loading documents...</p>
-//           </div>
-//         </div>
-//       ) : Object.keys(groupedDocuments).length === 0 ? (
-//         <Card>
-//           <CardContent className="text-center py-12">
-//             <Bed className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-//             <p className="text-lg font-medium text-muted-foreground mb-2">
-//               No daily care documents found
-//             </p>
-//             <p className="text-sm text-muted-foreground">
-//               Start adding daily care activities to see records here.
-//             </p>
-//           </CardContent>
-//         </Card>
-//       ) : (
-//         <div className="space-y-6">
-//           {Object.entries(groupedDocuments)
-//             .sort(
-//               ([dateA], [dateB]) =>
-//                 new Date(dateB).getTime() - new Date(dateA).getTime()
-//             )
-//             .map(([date, shifts]) => (
-//               <div key={date} className="space-y-3">
-//                 <h2 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
-//                   <Calendar className="w-5 h-5" />
-//                   <span>
-//                     {new Date(date).toLocaleDateString("en-US", {
-//                       weekday: "long",
-//                       year: "numeric",
-//                       month: "long",
-//                       day: "numeric"
-//                     })}
-//                   </span>
-//                 </h2>
+  if (resident === null) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-lg font-semibold">Resident not found</p>
+          <p className="text-muted-foreground">
+            The resident you&apos;re looking for doesn&apos;t exist.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => router.back()}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Go Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-//                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//                   {["Day", "Night"].map((shift) => {
-//                     const documents = shifts[shift] || [];
-//                     const cardId = `${date}-${shift}`;
-//                     const isExpanded = expandedCard === cardId;
-//                     const completedCount = documents.filter(
-//                       (doc) => doc.status === "completed"
-//                     ).length;
-//                     const totalCount = documents.length;
+  const fullName = `${resident.firstName} ${resident.lastName}`;
 
-//                     return (
-//                       <Card
-//                         key={cardId}
-//                         className="cursor-pointer hover:shadow-md transition-shadow"
-//                       >
-//                         <CardHeader
-//                           onClick={() => toggleCardExpansion(cardId)}
-//                           className="pb-3"
-//                         >
-//                           <CardTitle className="flex items-center justify-between">
-//                             <div className="flex items-center space-x-2">
-//                               {shift === "Night" ? (
-//                                 <Moon className="w-5 h-5 text-indigo-600" />
-//                               ) : (
-//                                 <Sun className="w-5 h-5 text-amber-600" />
-//                               )}
-//                               <span className="text-base">{shift} Shift</span>
-//                             </div>
-//                             <div className="flex items-center space-x-2">
-//                               {totalCount === 0 ? (
-//                                 <Badge
-//                                   variant="outline"
-//                                   className="text-gray-500"
-//                                 >
-//                                   10 files
-//                                 </Badge>
-//                               ) : (
-//                                 <Badge
-//                                   variant={
-//                                     completedCount === totalCount
-//                                       ? "default"
-//                                       : "secondary"
-//                                   }
-//                                 >
-//                                   {completedCount}/{totalCount} completed
-//                                 </Badge>
-//                               )}
-//                               {isExpanded ? (
-//                                 <ChevronDown className="w-4 h-4" />
-//                               ) : (
-//                                 <ChevronRight className="w-4 h-4" />
-//                               )}
-//                             </div>
-//                           </CardTitle>
-//                         </CardHeader>
+  return (
+    <div className="container mx-auto p-6 space-y-6 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button variant="outline" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center space-x-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <FileText className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Daily Care Documents</h1>
+              <p className="text-muted-foreground">
+                Day and Night shift reports for {fullName}
+              </p>
+            </div>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/dashboard/residents/${id}/daily-care`)}
+          className="flex items-center space-x-2"
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Back to Daily Care</span>
+        </Button>
+      </div>
 
-//                         {isExpanded && (
-//                           <CardContent className="pt-0">
-//                             <div className="space-y-3">
-//                               {Array.from({ length: 10 }, (_, i) => {
-//                                 const fileDate = new Date();
-//                                 fileDate.setDate(fileDate.getDate() - i);
-//                                 const dateStr = fileDate
-//                                   .toISOString()
-//                                   .split("T")[0];
-//                                 const randomActivities =
-//                                   Math.floor(Math.random() * 5) + 1;
-//                                 const randomCompleted = Math.floor(
-//                                   Math.random() * randomActivities
-//                                 );
+      {/* Current Date */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5" />
+            <span>Today&apos;s Reports - {new Date(today).toLocaleDateString("en-US", {
+              weekday: "long",
+              year: "numeric", 
+              month: "long",
+              day: "numeric"
+            })}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Day Report */}
+            <Card className="border-2">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2 text-lg">
+                  <Sun className="w-5 h-5 text-amber-600" />
+                  <span>Day Report</span>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  8:00 AM - 8:00 PM
+                </p>
+              
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {currentHour >= 20 ? (
+                  <p className="text-sm text-green-600 font-medium">
+                    ✓ Report automatically generated at 8:00 PM
+                  </p>
+                ) : (
+                  <p className="text-sm text-blue-600">
+                    Report will be generated at 8:00 PM
+                  </p>
+                )}
+                
+                <div className="flex space-x-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => handleViewReport('day')}
+                        disabled={!dayReport}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2">
+                          <Sun className="w-5 h-5 text-amber-600" />
+                          <span>Day Report - {new Date(today).toLocaleDateString()}</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                          All activities logged from 8:00 AM to 8:00 PM
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4">
+                        {selectedReport?.type === 'day' && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                              <div>
+                                <h4 className="font-medium text-amber-800">Shift Period</h4>
+                                <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-amber-800">Total Activities</h4>
+                                <p className="text-sm text-amber-700">{selectedReport.activities.length}</p>
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-amber-800">Completion Rate</h4>
+                                <p className="text-sm text-amber-700">
+                                  {selectedReport.activities.length > 0 
+                                    ? Math.round((selectedReport.activities.filter(a => a.status === 'completed').length / selectedReport.activities.length) * 100)
+                                    : 0}%
+                                </p>
+                              </div>
+                            </div>
 
-//                                 const fileName = `${shift}_Shift_${dateStr.replace(/-/g, "_")}.pdf`;
+                            <div className="space-y-2">
+                              <h4 className="font-medium">Activities Log</h4>
+                              {selectedReport.activities.length > 0 ? (
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                  {selectedReport.activities.map((activity, index) => (
+                                    <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <p className="font-medium">{activity.taskType}</p>
+                                          <p className="text-sm text-muted-foreground">
+                                            {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                          </p>
+                                          {activity.notes && (
+                                            <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                          )}
+                                        </div>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          activity.status === 'completed' 
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                          {activity.status}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Button 
+                    variant="default"
+                    className="flex-1"
+                    onClick={() => handleDownloadReport('day')}
+                    disabled={!dayReport}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-//                                 return (
-//                                   <Dialog key={`${shift}-${date}-${i}`}>
-//                                     <DialogTrigger asChild>
-//                                       <div
-//                                         className={`p-4 border-2 border-dashed rounded-lg cursor-pointer hover:shadow-md transition-shadow ${
-//                                           shift === "Day"
-//                                             ? "border-blue-200 bg-blue-50 hover:bg-blue-100"
-//                                             : "border-purple-200 bg-purple-50 hover:bg-purple-100"
-//                                         }`}
-//                                         onClick={() =>
-//                                           setSelectedPdf({
-//                                             fileName,
-//                                             shift,
-//                                             date: dateStr,
-//                                             activities: randomActivities,
-//                                             completed: randomCompleted
-//                                           })
-//                                         }
-//                                       >
-//                                         <div className="flex items-center space-x-3">
-//                                           <div className="p-2 bg-red-100 rounded-lg">
-//                                             <FileText className="w-6 h-6 text-red-600" />
-//                                           </div>
-//                                           <div>
-//                                             <h4
-//                                               className={`font-semibold ${shift === "Day" ? "text-blue-800" : "text-purple-800"}`}
-//                                             >
-//                                               {fileName}
-//                                             </h4>
-//                                             <p
-//                                               className={`text-sm ${shift === "Day" ? "text-blue-600" : "text-purple-600"}`}
-//                                             >
-//                                               {randomActivities} activities •{" "}
-//                                               {randomCompleted} completed
-//                                             </p>
-//                                           </div>
-//                                         </div>
-//                                       </div>
-//                                     </DialogTrigger>
-//                                     <DialogContent className="max-w-2xl">
-//                                       <DialogHeader>
-//                                         <DialogTitle className="flex items-center space-x-2">
-//                                           <FileText className="w-5 h-5 text-red-600" />
-//                                           <span>{fileName}</span>
-//                                         </DialogTitle>
-//                                         <DialogDescription>
-//                                           Daily care activities document for{" "}
-//                                           {new Date(dateStr).toLocaleDateString(
-//                                             "en-US",
-//                                             {
-//                                               weekday: "long",
-//                                               year: "numeric",
-//                                               month: "long",
-//                                               day: "numeric"
-//                                             }
-//                                           )}
-//                                         </DialogDescription>
-//                                       </DialogHeader>
-//                                       <div className="space-y-4">
-//                                         <div className="grid grid-cols-2 gap-4">
-//                                           <div
-//                                             className={`p-4 rounded-lg ${shift === "Day" ? "bg-blue-50 border border-blue-200" : "bg-purple-50 border border-purple-200"}`}
-//                                           >
-//                                             <h4
-//                                               className={`font-semibold ${shift === "Day" ? "text-blue-800" : "text-purple-800"}`}
-//                                             >
-//                                               Shift Information
-//                                             </h4>
-//                                             <p
-//                                               className={`text-sm ${shift === "Day" ? "text-blue-600" : "text-purple-600"}`}
-//                                             >
-//                                               {shift} Shift
-//                                             </p>
-//                                             <p
-//                                               className={`text-sm ${shift === "Day" ? "text-blue-600" : "text-purple-600"}`}
-//                                             >
-//                                               Date:{" "}
-//                                               {new Date(
-//                                                 dateStr
-//                                               ).toLocaleDateString()}
-//                                             </p>
-//                                           </div>
-//                                           <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
-//                                             <h4 className="font-semibold text-gray-800">
-//                                               Activity Summary
-//                                             </h4>
-//                                             <p className="text-sm text-gray-600">
-//                                               Total Activities:{" "}
-//                                               {randomActivities}
-//                                             </p>
-//                                             <p className="text-sm text-gray-600">
-//                                               Completed: {randomCompleted}
-//                                             </p>
-//                                             <p className="text-sm text-gray-600">
-//                                               Completion Rate:{" "}
-//                                               {Math.round(
-//                                                 (randomCompleted /
-//                                                   randomActivities) *
-//                                                   100
-//                                               )}
-//                                               %
-//                                             </p>
-//                                           </div>
-//                                         </div>
-//                                         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-//                                           <h4 className="font-semibold text-yellow-800 mb-2">
-//                                             Document Preview
-//                                           </h4>
-//                                           <p className="text-sm text-yellow-700">
-//                                             This is a preview of the daily care
-//                                             document. The full PDF contains
-//                                             detailed information about all care
-//                                             activities performed during the{" "}
-//                                             {shift.toLowerCase()} shift.
-//                                           </p>
-//                                         </div>
-//                                       </div>
-//                                     </DialogContent>
-//                                   </Dialog>
-//                                 );
-//                               })}
-//                             </div>
-//                           </CardContent>
-//                         )}
-//                       </Card>
-//                     );
-//                   })}
-//                 </div>
-//               </div>
-//             ))}
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
+            {/* Night Report */}
+            <Card className="border-2">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2 text-lg">
+                  <Moon className="w-5 h-5 text-indigo-600" />
+                  <span>Night Report</span>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  8:00 PM - 8:00 AM
+                </p>
+              
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {currentHour >= 8 && currentHour < 20 ? (
+                  <p className="text-sm text-green-600 font-medium">
+                    ✓ Report automatically generated at 8:00 AM
+                  </p>
+                ) : (
+                  <p className="text-sm text-indigo-600">
+                    Report will be generated at 8:00 AM
+                  </p>
+                )}
+                
+                <div className="flex space-x-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => handleViewReport('night')}
+                        disabled={!nightReport}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2">
+                          <Moon className="w-5 h-5 text-indigo-600" />
+                          <span>Night Report - {new Date(today).toLocaleDateString()}</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                          All activities logged from 8:00 PM to 8:00 AM
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4">
+                        {selectedReport?.type === 'night' && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                              <div>
+                                <h4 className="font-medium text-indigo-800">Shift Period</h4>
+                                <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-indigo-800">Total Activities</h4>
+                                <p className="text-sm text-indigo-700">{selectedReport.activities.length}</p>
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-indigo-800">Completion Rate</h4>
+                                <p className="text-sm text-indigo-700">
+                                  {selectedReport.activities.length > 0 
+                                    ? Math.round((selectedReport.activities.filter(a => a.status === 'completed').length / selectedReport.activities.length) * 100)
+                                    : 0}%
+                                </p>
+                              </div>
+                            </div>
 
-export default function Documents() {
-  return <div>Documents</div>;
+                            <div className="space-y-2">
+                              <h4 className="font-medium">Activities Log</h4>
+                              {selectedReport.activities.length > 0 ? (
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                  {selectedReport.activities.map((activity, index) => (
+                                    <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <p className="font-medium">{activity.taskType}</p>
+                                          <p className="text-sm text-muted-foreground">
+                                            {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                          </p>
+                                          {activity.notes && (
+                                            <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                          )}
+                                        </div>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          activity.status === 'completed' 
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                          {activity.status}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground py-8 text-center">No activities logged for night shift</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Button 
+                    variant="default"
+                    className="flex-1"
+                    onClick={() => handleDownloadReport('night')}
+                    disabled={!nightReport}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Information Card */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardContent className="p-4">
+          <h3 className="font-medium text-blue-900 mb-2">How Reports Work</h3>
+          <div className="space-y-1 text-sm text-blue-800">
+            <p>• <strong>Day Report:</strong> Automatically generated at 8:00 PM with all activities from 8:00 AM - 8:00 PM</p>
+            <p>• <strong>Night Report:</strong> Automatically generated at 8:00 AM with all activities from 8:00 PM - 8:00 AM</p>
+            <p>• Reports include all logged care activities, completion status, and staff notes</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
