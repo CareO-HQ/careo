@@ -214,20 +214,26 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const deleteQuickCareNote = useMutation(api.quickCareNotes.deleteQuickCareNote);
 
   // Define activity options
-  const activityOptions = [
-    { id: "bath", label: "Bath/Shower" },
-    { id: "dressed", label: "Dressed/Changed Clothes" },
-    { id: "brushed", label: "Teeth Brushed/Dentures Cleaned" },
-    { id: "hair_care", label: "Hair Care/Combed" },
-    { id: "shaved", label: "Shaved" },
-    { id: "nails_care", label: "Nail Care" },
-    { id: "mouth_care", label: "Oral Care/Mouthwash" },
-    { id: "toileting", label: "Toileting" },
-    { id: "continence", label: "Continence Support (Pad Change)" },
-    { id: "skin_care", label: "Skin Care/Creams Applied" },
-    { id: "pressure_relief", label: "Pressure Relief/Position Change" },
-    { id: "Bed_changed", label: "Bed Cover Changed" }
-  ] as const;
+ // Define activity options
+const activityOptions = [
+  { id: "bath", label: "Bath" },
+  { id: "shower", label: "Shower" },
+  { id: "dressed", label: "Dressed" },
+  { id: "changed", label: "Changed Clothes" },
+  { id: "brushed", label: "Teeth Brushed/Dentures Cleaned" },
+  { id: "hair_care", label: "Hair Combed" },
+  { id: "hair_dried", label: "Hair Dried" },
+  { id: "shaved", label: "Shaved" },
+  { id: "nails_care", label: "Nail Care" },
+  { id: "mouth_care", label: "Oral Care" },
+  { id: "toileting", label: "Toileting" },
+  { id: "continence", label: "Continence Support (Pad Change)" },
+  { id: "skin_care", label: "Skin Care" },
+  { id: "cream_applied", label: "Creams Applied" },
+  { id: "position_change", label: "Position Change" },
+  { id: "Bed_changed", label: "Bed Cover Changed" }
+] as const;
+
 
   // Get other staff (excluding current user) for assisted staff dropdown
   const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => ({
@@ -878,7 +884,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
                     const category = categoryLabels[note.category as keyof typeof categoryLabels] || note.category;
 
-                    let details = [];
+                    let details: string[] = [];
 
                     if (note.category === 'shower_bath') {
                       if (note.showerOrBath) details.push(note.showerOrBath === 'shower' ? 'Shower' : 'Bath');
@@ -951,50 +957,50 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                   // Create individual badges for multiple items (communication/safety)
                   if (note.category === 'communication' && note.communicationNeeds && note.communicationNeeds.length > 1) {
                     return note.communicationNeeds.map((need: string, index: number) => (
-                      <div key={`${note._id}-${index}`} className="relative group">
-                        <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
+                      <div key={`${note._id}-${index}`} className="group">
+                        <Badge className={`${getBadgeStyle(note.category)} pr-8 relative`}>
                           Communication: {need.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                           {note.priority === 'high' && ' ⚠️'}
+                          <button
+                            onClick={() => confirmDelete(note._id)}
+                            className="absolute top-1/2 -translate-y-1/2 right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </Badge>
-                        <button
-                          onClick={() => confirmDelete(note._id)}
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
                       </div>
                     ));
                   }
 
                   if (note.category === 'safety_alerts' && (note.safetyAlerts?.length ?? 0) > 1) {
                     return (note.safetyAlerts ?? []).map((alert: string, index: number) => (
-                      <div key={`${note._id}-${index}`} className="relative group">
-                        <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
+                      <div key={`${note._id}-${index}`} className="group">
+                        <Badge className={`${getBadgeStyle(note.category)} pr-8 relative`}>
                           Safety: {alert.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                           {note.priority === 'high' && ' ⚠️'}
+                          <button
+                            onClick={() => confirmDelete(note._id)}
+                            className="absolute top-1/2 -translate-y-1/2 right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </Badge>
-                        <button
-                          onClick={() => confirmDelete(note._id)}
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
                       </div>
                     ));
                   }
 
                   return (
-                    <div key={note._id} className="relative group">
-                      <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
+                    <div key={note._id} className="group">
+                      <Badge className={`${getBadgeStyle(note.category)} pr-8 relative`}>
                         {getDisplayText(note)}
                         {note.priority === 'high' && ' ⚠️'}
+                        <button
+                          onClick={() => confirmDelete(note._id)}
+                          className="absolute top-0 right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                       </Badge>
-                      <button
-                        onClick={() => confirmDelete(note._id)}
-                        className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
                     </div>
                   );
                 }).flat() // Flatten in case of multiple badges per note
@@ -1113,7 +1119,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                             return (
                               <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-blue-200 bg-blue-50/50">
                                 <div className="flex-1">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                  <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-2">
                                     <div className="flex items-center space-x-2">
                                       <User className="w-4 h-4 text-blue-600" />
                                       <span className="font-medium text-blue-900">
@@ -1133,15 +1139,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                                     </div>
                                   </div>
                                   <div className="text-sm text-gray-700">
-                                    {task.notes && (
-                                      <p className="mb-1">{task.notes}</p>
-                                    )}
-                                    <p className="text-xs text-gray-600">
-                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                    </p>
+                                    <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                      {task.notes && (
+                                        <p className="mb-1 md:mb-0">{task.notes}</p>
+                                      )}
+                                      <p className="text-xs text-gray-600">
+                                        {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -1196,7 +1204,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                             return (
                               <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
                                 <div className="flex-1">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                  <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-2">
                                     <div className="flex items-center space-x-2">
                                       <Activity className="w-4 h-4 text-green-600" />
                                       <span className="font-medium text-green-900">
@@ -1216,15 +1224,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                                     </div>
                                   </div>
                                   <div className="text-sm text-gray-700">
-                                    {task.notes && (
-                                      <p className="mb-1">{task.notes}</p>
-                                    )}
-                                    <p className="text-xs text-gray-600">
-                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                    </p>
+                                    <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                      {task.notes && (
+                                        <p className="mb-1 md:mb-0">{task.notes}</p>
+                                      )}
+                                      <p className="text-xs text-gray-600">
+                                        {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
                               </div>

@@ -272,17 +272,21 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Define activity options
   const activityOptions = [
-    { id: "bath", label: "Bath/Shower" },
-    { id: "dressed", label: "Dressed/Changed Clothes" },
+    { id: "bath", label: "Bath" },
+    { id: "shower", label: "Shower" },
+    { id: "dressed", label: "Dressed" },
+    { id: "changed", label: "Changed Clothes" },
     { id: "brushed", label: "Teeth Brushed/Dentures Cleaned" },
-    { id: "hair_care", label: "Hair Care/Combed" },
+    { id: "hair_care", label: "Hair Combed" },
+    { id: "hair_dried", label: "Hair Dried" },
     { id: "shaved", label: "Shaved" },
     { id: "nails_care", label: "Nail Care" },
-    { id: "mouth_care", label: "Oral Care/Mouthwash" },
+    { id: "mouth_care", label: "Oral Care" },
     { id: "toileting", label: "Toileting" },
     { id: "continence", label: "Continence Support (Pad Change)" },
-    { id: "skin_care", label: "Skin Care/Creams Applied" },
-    { id: "pressure_relief", label: "Pressure Relief/Position Change" },
+    { id: "skin_care", label: "Skin Care" },
+    { id: "cream_applied", label: "Creams Applied" },
+    { id: "position_change", label: "Position Change" },
     { id: "Bed_changed", label: "Bed Cover Changed" }
   ] as const;
 
