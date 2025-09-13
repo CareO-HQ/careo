@@ -32,7 +32,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -98,10 +98,21 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [isCreateAppointmentDialogOpen, setIsCreateAppointmentDialogOpen] = React.useState(false);
   const [createAppointmentLoading, setCreateAppointmentLoading] = React.useState(false);
   
+  // Edit Appointment Dialog state
+  const [isEditAppointmentDialogOpen, setIsEditAppointmentDialogOpen] = React.useState(false);
+  const [editAppointmentLoading, setEditAppointmentLoading] = React.useState(false);
+  const [appointmentToEdit, setAppointmentToEdit] = React.useState<any>(null);
+  
+  // Delete Appointment Dialog state
+  const [isDeleteAppointmentDialogOpen, setIsDeleteAppointmentDialogOpen] = React.useState(false);
+  const [deleteAppointmentLoading, setDeleteAppointmentLoading] = React.useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = React.useState<any>(null);
+  
   // Delete confirmation dialog state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
   const [noteToDelete, setNoteToDelete] = React.useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
+  
 
   // Appointment Notes Form Schema
   // Enums for appointment-specific needs
@@ -187,11 +198,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     },
   });
 
-  // Queries
-  const todaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
-    residentId: id as Id<"residents">,
-    date: today,
-    shift: currentShift,
+  // Edit Appointment Form setup
+  const editAppointmentForm = useForm<z.infer<typeof CreateAppointmentSchema>>({
+    resolver: zodResolver(CreateAppointmentSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      startTime: "",
+      endTime: "",
+      location: "",
+      staffId: "none",
+    },
   });
 
   // Get appointment notes for the resident
@@ -199,6 +216,13 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     residentId: id as Id<"residents">,
     activeOnly: true,
   });
+
+  // Get appointments for the resident
+  const appointments = useQuery(api.appointments.getAppointmentsByResident, {
+    residentId: id as Id<"residents">,
+  });
+  
+  
 
  
 
@@ -243,6 +267,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const createAppointmentNote = useMutation(api.appointmentNotes.createAppointmentNote);
   const deleteAppointmentNote = useMutation(api.appointmentNotes.deleteAppointmentNote);
   const createAppointment = useMutation(api.appointments.createAppointment);
+  const updateAppointment = useMutation(api.appointments.updateAppointment);
+  const deleteAppointment = useMutation(api.appointments.deleteAppointment);
 
   // Define activity options
   const activityOptions = [
@@ -406,6 +432,77 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
+  // Handle edit appointment
+  const handleEditAppointment = (appointment: any) => {
+    setAppointmentToEdit(appointment);
+    editAppointmentForm.setValue("title", appointment.title || "");
+    editAppointmentForm.setValue("description", appointment.description || "");
+    editAppointmentForm.setValue("startTime", appointment.startTime || "");
+    editAppointmentForm.setValue("endTime", appointment.endTime || "");
+    editAppointmentForm.setValue("location", appointment.location || "");
+    editAppointmentForm.setValue("staffId", appointment.staffId || "none");
+    setIsEditAppointmentDialogOpen(true);
+  };
+
+  // Handle edit appointment submission
+  const onEditAppointmentSubmit = async (data: z.infer<typeof CreateAppointmentSchema>) => {
+    if (!user || !appointmentToEdit) {
+      toast.error("Authentication required");
+      return;
+    }
+
+    setEditAppointmentLoading(true);
+    try {
+      await updateAppointment({
+        appointmentId: appointmentToEdit._id,
+        title: data.title,
+        description: data.description,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        location: data.location,
+        staffId: data.staffId === "none" ? undefined : data.staffId,
+        updatedBy: user.user.id,
+      });
+
+      toast.success("Appointment updated successfully");
+      editAppointmentForm.reset();
+      setIsEditAppointmentDialogOpen(false);
+      setAppointmentToEdit(null);
+    } catch (error) {
+      console.error("Error updating appointment:", error);
+      toast.error("Failed to update appointment");
+    } finally {
+      setEditAppointmentLoading(false);
+    }
+  };
+
+  // Handle delete appointment
+  const handleDeleteAppointment = (appointment: any) => {
+    setAppointmentToDelete(appointment);
+    setIsDeleteAppointmentDialogOpen(true);
+  };
+
+  // Confirm delete appointment
+  const confirmDeleteAppointment = async () => {
+    if (!appointmentToDelete) return;
+
+    setDeleteAppointmentLoading(true);
+    try {
+      await deleteAppointment({
+        appointmentId: appointmentToDelete._id,
+      });
+
+      toast.success("Appointment deleted successfully");
+      setIsDeleteAppointmentDialogOpen(false);
+      setAppointmentToDelete(null);
+    } catch (error) {
+      console.error("Error deleting appointment:", error);
+      toast.error("Failed to delete appointment");
+    } finally {
+      setDeleteAppointmentLoading(false);
+    }
+  };
+
 
   if (resident === undefined) {
     return (
@@ -478,7 +575,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         }
         return "Preparation";
       case "preferences":
-        const prefs = [];
+        const prefs: string[] = [];
         if (note.preferredTime) {
           prefs.push(note.preferredTime);
         }
@@ -516,6 +613,39 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         return "bg-red-100 text-red-800 border-red-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  // Helper function to get appointment status color
+  const getAppointmentStatusColor = (status: string) => {
+    switch (status) {
+      case "scheduled":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "completed":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "cancelled":
+        return "bg-red-100 text-red-800 border-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  // Helper function to format appointment date/time
+  const formatAppointmentDateTime = (dateTimeString: string) => {
+    const date = new Date(dateTimeString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const isToday = date.toDateString() === today.toDateString();
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    if (isToday) {
+      return `Today at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (isTomorrow) {
+      return `Tomorrow at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
     }
   };
 
@@ -596,11 +726,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               </Button>
               <Button
                 variant="outline"
-                
+                onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
                 className="w-full"
               >
                 <Eye className="w-4 h-4 mr-2" />
-                See All Records
+                Appointment History
               </Button>
 
             </div>
@@ -643,11 +773,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               </Button>
               <Button
                 variant="outline"
-              
+                onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
                 className="flex items-center space-x-2"
               >
                 <Eye className="w-4 h-4 mr-2" />
-                See All Records
+                Appointment History
               </Button>
 
 
@@ -721,68 +851,102 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
 
 
-         {/* Today's Summary Card */}
+         {/* Appointment List Card */}
          <Card>
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
             <div className="flex items-center space-x-2 mb-2">
-              <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Summary</span>
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <span>Scheduled Appointments</span>
             </div>
             <Badge variant="outline" className="self-start">
-              {new Date().toLocaleDateString()}
+              {appointments?.length || 0} appointments
             </Badge>
           </CardTitle>
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
-            <Clock className="w-5 h-5 text-gray-600" />
-            <span>Today&apos;s Summary</span>
+            <Calendar className="w-5 h-5 text-blue-600" />
+            <span>Scheduled Appointments</span>
             <Badge variant="outline" className="ml-auto">
-              {new Date().toLocaleDateString()}
+              {appointments?.length || 0} appointments
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="text-2xl font-bold text-amber-600">
-                {(() => {
-                  const dayShiftCount = todaysCareData?.tasks.filter(task => {
-                    const taskTime = new Date(task.createdAt);
-                    const hour = taskTime.getHours();
-                    return hour >= 8 && hour < 20;
-                  }).length || 0;
-                  return dayShiftCount;
-                })()}
+          <div className="space-y-4">
+            {appointments && appointments.length > 0 ? (
+              appointments.slice(0, 5).map((appointment) => (
+                <div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-lg bg-gray-50">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">{appointment.title}</h4>
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${getAppointmentStatusColor(appointment.status)}`}
+                        >
+                          {appointment.status}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditAppointment(appointment)}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteAppointment(appointment)}
+                          className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {appointment.description && (
+                      <p className="text-xs text-gray-600">{appointment.description}</p>
+                    )}
+                    
+                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{formatAppointmentDateTime(appointment.startTime)}</span>
+                      </div>
+                      {appointment.location && (
+                        <div className="flex items-center space-x-1">
+                          <span>📍</span>
+                          <span>{appointment.location}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {appointment.staffId && (
+                      <div className="text-xs text-blue-600">
+                        Assigned to: {appointment.staffId}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500">No appointments scheduled</p>
+                <p className="text-xs text-gray-400 mt-1">Create your first appointment using the button above</p>
               </div>
-              <p className="text-sm text-amber-700">Day Shift Activities</p>
-            </div>
-            <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-              <div className="text-2xl font-bold text-indigo-600">
-                {(() => {
-                  const nightShiftCount = todaysCareData?.tasks.filter(task => {
-                    const taskTime = new Date(task.createdAt);
-                    const hour = taskTime.getHours();
-                    return hour >= 20 || hour < 8;
-                  }).length || 0;
-                  return nightShiftCount;
-                })()}
+            )}
+            
+            {appointments && appointments.length > 5 && (
+              <div className="text-center pt-2">
+                <p className="text-xs text-gray-500">
+                  Showing 5 of {appointments.length} appointments
+                </p>
               </div>
-              <p className="text-sm text-indigo-700">Night Shift Activities</p>
-            </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-2xl font-bold text-gray-600">
-                {todaysCareData?.tasks && todaysCareData.tasks.length > 0
-                  ? new Date(Math.max(...todaysCareData.tasks.map(t => t.createdAt))).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })
-                  : "--"
-                }
-              </div>
-              <p className="text-sm text-gray-700">Last recorded</p>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1369,6 +1533,195 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Appointment Dialog */}
+      <Dialog open={isEditAppointmentDialogOpen} onOpenChange={setIsEditAppointmentDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Appointment for {fullName}</DialogTitle>
+            <DialogDescription>
+              Update the appointment details for this resident.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...editAppointmentForm}>
+            <form onSubmit={editAppointmentForm.handleSubmit(onEditAppointmentSubmit)} className="space-y-6">
+              {/* Title */}
+              <FormField
+                control={editAppointmentForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Appointment Title *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Doctor Visit, Physical Therapy"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Description */}
+              <FormField
+                control={editAppointmentForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Additional details about the appointment"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Date and Time */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="startTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Date & Time *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="datetime-local"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="endTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>End Date & Time *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="datetime-local"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Location */}
+              <FormField
+                control={editAppointmentForm.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., General Hospital, Room 205"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Staff Assignment */}
+              <FormField
+                control={editAppointmentForm.control}
+                name="staffId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assigned Staff (optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select staff member..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No staff assigned</SelectItem>
+                        {otherStaffOptions.length > 0 ? (
+                          otherStaffOptions.map((staff) => (
+                            <SelectItem key={staff.key} value={staff.email}>
+                              {staff.label}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no_staff" disabled>
+                            No other staff available
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Form Actions */}
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditAppointmentDialogOpen(false);
+                    editAppointmentForm.reset();
+                    setAppointmentToEdit(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editAppointmentLoading}>
+                  {editAppointmentLoading ? "Updating..." : "Update Appointment"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Appointment Confirmation Dialog */}
+      <Dialog open={isDeleteAppointmentDialogOpen} onOpenChange={setIsDeleteAppointmentDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Appointment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the appointment &quot;{appointmentToDelete?.title}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteAppointmentDialogOpen(false);
+                setAppointmentToDelete(null);
+              }}
+              disabled={deleteAppointmentLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteAppointment}
+              disabled={deleteAppointmentLoading}
+            >
+              {deleteAppointmentLoading ? "Deleting..." : "Delete Appointment"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Create Appointment Dialog */}
       <Dialog open={isCreateAppointmentDialogOpen} onOpenChange={setIsCreateAppointmentDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
@@ -1525,6 +1878,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </Form>
         </DialogContent>
       </Dialog>
+
 
     </div >
   );

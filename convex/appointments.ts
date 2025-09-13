@@ -98,6 +98,41 @@ export const getUpcomingAppointments = query({
   },
 });
 
+// Update appointment
+export const updateAppointment = mutation({
+  args: {
+    appointmentId: v.id("appointments"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    location: v.optional(v.string()),
+    staffId: v.optional(v.string()),
+    status: v.optional(v.union(
+      v.literal("scheduled"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    )),
+    updatedBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { appointmentId, updatedBy, ...updates } = args;
+    
+    const existingAppointment = await ctx.db.get(appointmentId);
+    if (!existingAppointment) {
+      throw new Error("Appointment not found");
+    }
+    
+    await ctx.db.patch(appointmentId, {
+      ...updates,
+      updatedBy,
+      updatedAt: Date.now(),
+    });
+    
+    return await ctx.db.get(appointmentId);
+  },
+});
+
 // Update appointment status
 export const updateAppointmentStatus = mutation({
   args: {
