@@ -466,7 +466,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           {/* Hospital Transfer Card */}
           <Card
             className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("hospital-transfer")}
+            onClick={() => handleCardClick("multidisciplinary-note")}
           >
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
