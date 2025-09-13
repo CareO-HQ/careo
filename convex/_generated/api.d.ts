@@ -9,6 +9,7 @@
  */
 
 import type * as appointmentNotes from "../appointmentNotes.js";
+import type * as appointments from "../appointments.js";
 import type * as auth from "../auth.js";
 import type * as careFiles_infectionPrevention from "../careFiles/infectionPrevention.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
@@ -42,6 +43,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   appointmentNotes: typeof appointmentNotes;
+  appointments: typeof appointments;
   auth: typeof auth;
   "careFiles/infectionPrevention": typeof careFiles_infectionPrevention;
   "careFiles/preadmission": typeof careFiles_preadmission;
