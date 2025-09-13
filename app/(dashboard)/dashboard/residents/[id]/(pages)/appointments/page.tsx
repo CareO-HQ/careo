@@ -45,13 +45,12 @@ import {
 } from "@/components/ui/form";
 import {
   ArrowLeft,
-  Activity,
   Calendar,
   StickyNote,
   Plus,
   Eye,
-  X,
-  Clock
+  Clock,
+  X
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -62,12 +61,6 @@ type DailyCarePageProps = {
 };
 // put this at the very top (after imports)
 
-// Communication Needs Enum + Type
-const CommunicationNeedEnum = z.enum(["hearing_aid", "glasses", "non_verbal", "memory_support"]);
-
-
-// Safety Alerts Enum + Type
-const SafetyAlertEnum = z.enum(["high_falls_risk", "no_unattended_bathroom", "chair_bed_alarm"]);
 
 
 export default function DailyCarePage({ params }: DailyCarePageProps) {
@@ -97,48 +90,49 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   });
 
 
-  // Care Notes Dialog state
-  const [isCareNotesDialogOpen, setIsCareNotesDialogOpen] = React.useState(false);
-  const [careNotesLoading, setCareNotesLoading] = React.useState(false);
+  // Appointment Notes Dialog state
+  const [isAppointmentNotesDialogOpen, setIsAppointmentNotesDialogOpen] = React.useState(false);
+  const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(false);
   
   // Delete confirmation dialog state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
   const [noteToDelete, setNoteToDelete] = React.useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
 
-  // Care Notes Form Schema
-  // Enums
+  // Appointment Notes Form Schema
+  // Enums for appointment-specific needs
+  const TransportationNeedEnum = z.enum(["wheelchair_accessible", "oxygen_support", "medical_equipment", "assistance_required"]);
+  const MedicalNeedEnum = z.enum(["fasting_required", "medication_adjustment", "blood_work", "vitals_check"]);
 
-
-  const CareNotesSchema = z.object({
-    category: z.enum(["shower_bath", "toileting", "mobility_only", "positioning_only", "communication", "safety_alerts"]),
+  const AppointmentNotesSchema = z.object({
+    category: z.enum(["preparation", "preferences", "special_instructions", "transportation", "medical_requirements"]),
   
-    showerOrBath: z.enum(["shower", "bath"]).optional(),
+    preparationTime: z.enum(["30_minutes", "1_hour", "2_hours"]).optional(),
+    preparationNotes: z.string().optional(),
     preferredTime: z.enum(["morning", "afternoon", "evening"]).optional(),
-    toiletType: z.enum(["toilet", "commode", "pad"]).optional(),
-    assistanceLevel: z.enum(["independent", "1_staff", "2_staff"]).optional(),
-    walkingAid: z.enum(["frame", "stick", "wheelchair", "none"]).optional(),
+    transportPreference: z.enum(["wheelchair", "walking_aid", "independent", "stretcher"]).optional(),
+    instructions: z.string().optional(),
   
     // ✅ strongly typed
-    communicationNeeds: z.array(CommunicationNeedEnum).optional(),
-    safetyAlerts: z.array(SafetyAlertEnum).optional(),
+    transportationNeeds: z.array(TransportationNeedEnum).optional(),
+    medicalNeeds: z.array(MedicalNeedEnum).optional(),
   
     priority: z.enum(["low", "medium", "high"]).optional(),
   });
   
 
-  // Care Notes Form setup
-  const careNotesForm = useForm<z.infer<typeof CareNotesSchema>>({
-    resolver: zodResolver(CareNotesSchema),
+  // Appointment Notes Form setup
+  const appointmentNotesForm = useForm<z.infer<typeof AppointmentNotesSchema>>({
+    resolver: zodResolver(AppointmentNotesSchema),
     defaultValues: {
-      category: "shower_bath",
-      showerOrBath: undefined,
+      category: "preparation",
+      preparationTime: undefined,
+      preparationNotes: "",
       preferredTime: undefined,
-      toiletType: undefined,
-      assistanceLevel: undefined,
-      walkingAid: undefined,
-      communicationNeeds: [],
-      safetyAlerts: [],
+      transportPreference: undefined,
+      instructions: "",
+      transportationNeeds: [],
+      medicalNeeds: [],
       priority: "medium",
     },
   });
@@ -148,6 +142,12 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     residentId: id as Id<"residents">,
     date: today,
     shift: currentShift,
+  });
+
+  // Get appointment notes for the resident
+  const appointmentNotes = useQuery(api.appointmentNotes.getAppointmentNotesByResident, {
+    residentId: id as Id<"residents">,
+    activeOnly: true,
   });
 
  
@@ -190,8 +190,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Mutations
   const createPersonalCareActivities = useMutation(api.personalCare.createPersonalCareActivities);
   const createDailyActivityRecord = useMutation(api.personalCare.createDailyActivityRecord);
-  const createQuickCareNote = useMutation(api.quickCareNotes.createQuickCareNote);
-  const deleteQuickCareNote = useMutation(api.quickCareNotes.deleteQuickCareNote);
+  const createAppointmentNote = useMutation(api.appointmentNotes.createAppointmentNote);
+  const deleteAppointmentNote = useMutation(api.appointmentNotes.deleteAppointmentNote);
 
   // Define activity options
   const activityOptions = [
@@ -268,55 +268,55 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
-  // Handle care notes submission
-  const onCareNotesSubmit = async (data: z.infer<typeof CareNotesSchema>) => {
+  // Handle appointment notes submission
+  const onAppointmentNotesSubmit = async (data: z.infer<typeof AppointmentNotesSchema>) => {
     if (!user || !activeOrganization) {
       toast.error("Authentication required");
       return;
     }
 
-    setCareNotesLoading(true);
+    setAppointmentNotesLoading(true);
     try {
-      await createQuickCareNote({
+      await createAppointmentNote({
         residentId: id as Id<"residents">,
         category: data.category,
-        showerOrBath: data.showerOrBath,
+        preparationTime: data.preparationTime,
+        preparationNotes: data.preparationNotes,
         preferredTime: data.preferredTime,
-        toiletType: data.toiletType,
-        assistanceLevel: data.assistanceLevel,
-        walkingAid: data.walkingAid,
-        communicationNeeds: data.communicationNeeds,
-        safetyAlerts: data.safetyAlerts,
+        transportPreference: data.transportPreference,
+        instructions: data.instructions,
+        transportationNeeds: data.transportationNeeds,
+        medicalNeeds: data.medicalNeeds,
         priority: data.priority,
         organizationId: activeOrganization.id,
         teamId: activeOrganization.id, // Using organization ID as team ID for now
         createdBy: user.user.id,
       });
 
-      toast.success("Care note saved successfully");
-      careNotesForm.reset();
-      setIsCareNotesDialogOpen(false);
+      toast.success("Appointment note saved successfully");
+      appointmentNotesForm.reset();
+      setIsAppointmentNotesDialogOpen(false);
     } catch (error) {
-      console.error("Error saving care note:", error);
-      toast.error("Failed to save care note");
+      console.error("Error saving appointment note:", error);
+      toast.error("Failed to save appointment note");
     } finally {
-      setCareNotesLoading(false);
+      setAppointmentNotesLoading(false);
     }
   };
 
-  // Handle delete care note
-  const handleDeleteCareNote = async () => {
+  // Handle delete appointment note
+  const handleDeleteAppointmentNote = async () => {
     if (!noteToDelete) return;
     
     setDeleteLoading(true);
     try {
-      await deleteQuickCareNote({ noteId: noteToDelete as Id<"quickCareNotes"> });
-      toast.success("Care note deleted successfully");
+      await deleteAppointmentNote({ noteId: noteToDelete as Id<"appointmentNotes"> });
+      toast.success("Appointment note deleted successfully");
       setDeleteConfirmOpen(false);
       setNoteToDelete(null);
     } catch (error) {
-      console.error("Error deleting care note:", error);
-      toast.error("Failed to delete care note");
+      console.error("Error deleting appointment note:", error);
+      toast.error("Failed to delete appointment note");
     } finally {
       setDeleteLoading(false);
     }
@@ -357,6 +357,83 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`;
+
+  // Helper function to get readable category names
+  const getCategoryDisplayName = (category: string) => {
+    switch (category) {
+      case "preparation":
+        return "Preparation";
+      case "preferences":
+        return "Preferences";
+      case "special_instructions":
+        return "Special Instructions";
+      case "transportation":
+        return "Transportation";
+      case "medical_requirements":
+        return "Medical Requirements";
+      default:
+        return category;
+    }
+  };
+
+  // Helper function to get display text for notes
+  const getNoteDisplayText = (note: any) => {
+    switch (note.category) {
+      case "special_instructions":
+        return note.instructions || "Special Instructions";
+      case "preparation":
+        if (note.preparationNotes) {
+          return note.preparationNotes;
+        } else if (note.preparationTime) {
+          const timeMap: { [key: string]: string } = {
+            "30_minutes": "30 min prep",
+            "1_hour": "1 hour prep",
+            "2_hours": "2 hours prep"
+          };
+          return timeMap[note.preparationTime] || "Preparation";
+        }
+        return "Preparation";
+      case "preferences":
+        const prefs = [];
+        if (note.preferredTime) {
+          prefs.push(note.preferredTime);
+        }
+        if (note.transportPreference) {
+          prefs.push(note.transportPreference);
+        }
+        return prefs.length > 0 ? prefs.join(", ") : "Preferences";
+      case "transportation":
+        if (note.transportationNeeds && note.transportationNeeds.length > 0) {
+          return note.transportationNeeds.join(", ").replace(/_/g, " ");
+        }
+        return "Transportation";
+      case "medical_requirements":
+        if (note.medicalNeeds && note.medicalNeeds.length > 0) {
+          return note.medicalNeeds.join(", ").replace(/_/g, " ");
+        }
+        return "Medical Requirements";
+      default:
+        return getCategoryDisplayName(note.category);
+    }
+  };
+
+  // Helper function to get category color
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case "preparation":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "preferences":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "special_instructions":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      case "transportation":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "medical_requirements":
+        return "bg-red-100 text-red-800 border-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
 
 
 
@@ -427,11 +504,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <div className="flex flex-col space-y-3">
               <Button
                 variant="outline"
-                onClick={() => setIsCareNotesDialogOpen(true)}
+                onClick={() => setIsAppointmentNotesDialogOpen(true)}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Care Notes
+                Add Appointment Note
               </Button>
               <Button
                 variant="outline"
@@ -474,11 +551,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setIsCareNotesDialogOpen(true)}
+                onClick={() => setIsAppointmentNotesDialogOpen(true)}
                 className="bg-green-600 text-white hover:bg-green-700 hover:text-white "
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Care Notes</span>
+                <span>Add Appointment Note</span>
               </Button>
               <Button
                 variant="outline"
@@ -494,13 +571,47 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
           </div>
 
-          {/* Care Notes Section - Badges with close buttons */}
+          {/* Appointment Notes Section - Badges with close buttons */}
           <div className="mt-4 pt-4 border-t border-gray-100">
             <div className="flex items-center space-x-2 mb-3">
               <StickyNote className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium">more info</span>
+              <span className="text-sm font-medium">Appointment Notes</span>
             </div>
-      
+            
+            {/* Display appointment notes */}
+            <div className="flex flex-wrap gap-2">
+              {appointmentNotes && appointmentNotes.length > 0 ? (
+                appointmentNotes.map((note) => (
+                  <div
+                    key={note._id}
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs border ${getCategoryColor(note.category)}`}
+                  >
+                    <span className="font-medium mr-1">
+                      {getNoteDisplayText(note)}
+                    </span>
+                    {note.priority && note.priority !== 'medium' && (
+                      <span className="text-xs opacity-75 mr-2">
+                        ({note.priority})
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setNoteToDelete(note._id);
+                        setDeleteConfirmOpen(true);
+                      }}
+                      className="ml-1 hover:bg-black hover:bg-opacity-10 rounded-full p-0.5 transition-colors"
+                      aria-label="Delete note"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <span className="text-xs text-gray-500 italic">
+                  No appointment notes yet. Add one using the button above.
+                </span>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -576,38 +687,37 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       </Card>
 
 
-      {/* Add Care Notes Dialog */}
-      <Dialog open={isCareNotesDialogOpen} onOpenChange={setIsCareNotesDialogOpen}>
+      {/* Add Appointment Notes Dialog */}
+      <Dialog open={isAppointmentNotesDialogOpen} onOpenChange={setIsAppointmentNotesDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Add Care Note for {fullName}</DialogTitle>
+            <DialogTitle>Add Appointment Note for {fullName}</DialogTitle>
             <DialogDescription>
-              Add a quick care note to help other staff understand the resident&apos;s needs.
+              Add a quick note about appointment preferences or preparations for this resident.
             </DialogDescription>
           </DialogHeader>
 
-          <Form {...careNotesForm}>
-            <form onSubmit={careNotesForm.handleSubmit(onCareNotesSubmit)} className="space-y-6">
+          <Form {...appointmentNotesForm}>
+            <form onSubmit={appointmentNotesForm.handleSubmit(onAppointmentNotesSubmit)} className="space-y-6">
               {/* Category Selection */}
               <FormField
-                control={careNotesForm.control}
+                control={appointmentNotesForm.control}
                 name="category"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Care Category</FormLabel>
+                    <FormLabel>Appointment Category</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select care category..." />
+                          <SelectValue placeholder="Select appointment category..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="shower_bath">Shower/Bath Preference</SelectItem>
-                        <SelectItem value="toileting">Toileting Needs</SelectItem>
-                        <SelectItem value="mobility_only">Mobility</SelectItem>
-                        <SelectItem value="positioning_only">Positioning</SelectItem>
-                        <SelectItem value="communication">Communication Needs</SelectItem>
-                        <SelectItem value="safety_alerts">Safety Alerts</SelectItem>
+                        <SelectItem value="preparation">Preparation Requirements</SelectItem>
+                        <SelectItem value="preferences">Preferences</SelectItem>
+                        <SelectItem value="special_instructions">Special Instructions</SelectItem>
+                        <SelectItem value="transportation">Transportation</SelectItem>
+                        <SelectItem value="medical_requirements">Medical Requirements</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -615,26 +725,27 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 )}
               />
 
-              {/* Shower/Bath Preference Fields */}
-              {careNotesForm.watch('category') === 'shower_bath' && (
+              {/* Preparation Requirements Fields */}
+              {appointmentNotesForm.watch('category') === 'preparation' && (
                 <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
-                  <h4 className="font-medium text-blue-900">Shower/Bath Preferences</h4>
+                  <h4 className="font-medium text-blue-900">Preparation Requirements</h4>
 
                   <FormField
-                    control={careNotesForm.control}
-                    name="showerOrBath"
+                    control={appointmentNotesForm.control}
+                    name="preparationTime"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Shower or Bath</FormLabel>
+                        <FormLabel>Preparation Time Needed</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select preference..." />
+                              <SelectValue placeholder="Select preparation time..." />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="shower">Shower</SelectItem>
-                            <SelectItem value="bath">Bath</SelectItem>
+                            <SelectItem value="30_minutes">30 minutes</SelectItem>
+                            <SelectItem value="1_hour">1 hour</SelectItem>
+                            <SelectItem value="2_hours">2 hours</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -643,7 +754,31 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                   />
 
                   <FormField
-                    control={careNotesForm.control}
+                    control={appointmentNotesForm.control}
+                    name="preparationNotes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preparation Notes</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter preparation details..."
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Preferences Fields */}
+              {appointmentNotesForm.watch('category') === 'preferences' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-green-50">
+                  <h4 className="font-medium text-green-900">Appointment Preferences</h4>
+
+                  <FormField
+                    control={appointmentNotesForm.control}
                     name="preferredTime"
                     render={({ field }) => (
                       <FormItem>
@@ -664,85 +799,24 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                       </FormItem>
                     )}
                   />
-                </div>
-              )}
-
-              {/* Toileting Needs Fields */}
-              {careNotesForm.watch('category') === 'toileting' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-green-50">
-                  <h4 className="font-medium text-green-900">Toileting Needs</h4>
 
                   <FormField
-                    control={careNotesForm.control}
-                    name="toiletType"
+                    control={appointmentNotesForm.control}
+                    name="transportPreference"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Toilet Type</FormLabel>
+                        <FormLabel>Transport Preference</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select toilet type..." />
+                              <SelectValue placeholder="Select transport preference..." />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="toilet">Toilet</SelectItem>
-                            <SelectItem value="commode">Commode</SelectItem>
-                            <SelectItem value="pad">Pad</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={careNotesForm.control}
-                    name="assistanceLevel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Assistance Level</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select assistance level..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="independent">Independent</SelectItem>
-                            <SelectItem value="1_staff">1 Staff</SelectItem>
-                            <SelectItem value="2_staff">2 Staff</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Mobility & Positioning Fields */}
-              {/* This section is no longer needed as mobility_positioning was split */}
-              {false && (
-                <div className="space-y-4 p-4 border rounded-lg bg-purple-50">
-                  <h4 className="font-medium text-purple-900">Mobility & Positioning</h4>
-
-                  <FormField
-                    control={careNotesForm.control}
-                    name="walkingAid"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Walking Aid</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select walking aid..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="frame">Walking Frame</SelectItem>
-                            <SelectItem value="stick">Walking Stick</SelectItem>
                             <SelectItem value="wheelchair">Wheelchair</SelectItem>
-                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="walking_aid">Walking Aid</SelectItem>
+                            <SelectItem value="independent">Independent</SelectItem>
+                            <SelectItem value="stretcher">Stretcher</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -752,28 +826,52 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 </div>
               )}
 
-              {/* Communication Needs Fields */}
-              {careNotesForm.watch('category') === 'communication' && (
+              {/* Special Instructions Fields */}
+              {appointmentNotesForm.watch('category') === 'special_instructions' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-purple-50">
+                  <h4 className="font-medium text-purple-900">Special Instructions</h4>
+
+                  <FormField
+                    control={appointmentNotesForm.control}
+                    name="instructions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Instructions</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter special instructions..."
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Transportation Fields */}
+              {appointmentNotesForm.watch('category') === 'transportation' && (
                 <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
-                  <h4 className="font-medium text-orange-900">Communication Needs</h4>
+                  <h4 className="font-medium text-orange-900">Transportation Requirements</h4>
                   <p className="text-sm text-orange-700">Select all that apply:</p>
 
                   <FormField
-                    control={careNotesForm.control}
-                    name="communicationNeeds"
+                    control={appointmentNotesForm.control}
+                    name="transportationNeeds"
                     render={() => (
                       <FormItem>
                         <div className="grid grid-cols-2 gap-2">
                           {[
-                            { id: 'hearing_aid' as const, label: 'Hearing Aid' },
-                            { id: 'glasses' as const, label: 'Glasses' },
-                            { id: 'non_verbal' as const, label: 'Non-verbal' },
-                            { id: 'memory_support' as const, label: 'Memory Support' }
+                            { id: 'wheelchair_accessible' as const, label: 'Wheelchair Accessible' },
+                            { id: 'oxygen_support' as const, label: 'Oxygen Support' },
+                            { id: 'medical_equipment' as const, label: 'Medical Equipment' },
+                            { id: 'assistance_required' as const, label: 'Assistance Required' }
                           ].map((item) => (
                             <FormField
                               key={item.id}
-                              control={careNotesForm.control}
-                              name="communicationNeeds"
+                              control={appointmentNotesForm.control}
+                              name="transportationNeeds"
                               render={({ field }) => {
                                 return (
                                   <FormItem className="flex flex-row items-center space-x-2 space-y-0">
@@ -783,10 +881,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                                         onCheckedChange={(checked) => {
                                           return checked
                                             ? field.onChange([...(field.value || []), item.id])
-                                            : field.onChange(field.value?.filter((value) => value !== item.id));
+                                            : field.onChange(field.value?.filter((value: any) => value !== item.id));
                                         }}
                                       />
-
                                     </FormControl>
                                     <FormLabel className="text-sm font-normal cursor-pointer">
                                       {item.label}
@@ -804,27 +901,28 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 </div>
               )}
 
-              {/* Safety Alerts Fields */}
-              {careNotesForm.watch('category') === 'safety_alerts' && (
+              {/* Medical Requirements Fields */}
+              {appointmentNotesForm.watch('category') === 'medical_requirements' && (
                 <div className="space-y-4 p-4 border rounded-lg bg-red-50">
-                  <h4 className="font-medium text-red-900">Safety Alerts</h4>
+                  <h4 className="font-medium text-red-900">Medical Requirements</h4>
                   <p className="text-sm text-red-700">Select all that apply:</p>
 
                   <FormField
-                    control={careNotesForm.control}
-                    name="safetyAlerts"
+                    control={appointmentNotesForm.control}
+                    name="medicalNeeds"
                     render={() => (
                       <FormItem>
                         <div className="space-y-2">
                           {[
-                            { id: 'high_falls_risk' as const, label: 'High Falls Risk' },
-                            { id: 'no_unattended_bathroom' as const, label: 'Do Not Leave Unattended in Bathroom' },
-                            { id: 'chair_bed_alarm' as const, label: 'Chair/Bed Alarm' }
+                            { id: 'fasting_required' as const, label: 'Fasting Required' },
+                            { id: 'medication_adjustment' as const, label: 'Medication Adjustment' },
+                            { id: 'blood_work' as const, label: 'Blood Work' },
+                            { id: 'vitals_check' as const, label: 'Vitals Check' }
                           ].map((item) => (
                             <FormField
                               key={item.id}
-                              control={careNotesForm.control}
-                              name="safetyAlerts"
+                              control={appointmentNotesForm.control}
+                              name="medicalNeeds"
                               render={({ field }) => {
                                 return (
                                   <FormItem className="flex flex-row items-center space-x-2 space-y-0">
@@ -834,11 +932,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                                         onCheckedChange={(checked) => {
                                           return checked
                                             ? field.onChange([...(field.value || []), item.id])
-                                            : field.onChange(field.value?.filter((value) => value !== item.id));
+                                            : field.onChange(field.value?.filter((value: any) => value !== item.id));
                                         }}
                                       />
-
-
                                     </FormControl>
                                     <FormLabel className="text-sm font-normal cursor-pointer">
                                       {item.label}
@@ -858,7 +954,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
               {/* Priority */}
               <FormField
-                control={careNotesForm.control}
+                control={appointmentNotesForm.control}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
@@ -894,14 +990,14 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setIsCareNotesDialogOpen(false);
-                    careNotesForm.reset();
+                    setIsAppointmentNotesDialogOpen(false);
+                    appointmentNotesForm.reset();
                   }}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={careNotesLoading}>
-                  {careNotesLoading ? "Saving..." : "Save Care Note"}
+                <Button type="submit" disabled={appointmentNotesLoading}>
+                  {appointmentNotesLoading ? "Saving..." : "Save Appointment Note"}
                 </Button>
               </div>
             </form>
@@ -913,9 +1009,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Care Note</DialogTitle>
+            <DialogTitle>Delete Appointment Note</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this care note? This action cannot be undone.
+              Are you sure you want to delete this appointment note? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end space-x-2 mt-4">
@@ -931,7 +1027,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </Button>
             <Button
               variant="destructive"
-              onClick={handleDeleteCareNote}
+              onClick={handleDeleteAppointmentNote}
               disabled={deleteLoading}
             >
               {deleteLoading ? "Deleting..." : "Delete"}

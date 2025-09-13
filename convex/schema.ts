@@ -525,6 +525,74 @@ export default defineSchema({
     .index("byActiveStatus", ["isActive"])
     .index("byCreatedBy", ["createdBy"]),
 
+  // Appointment notes for residents
+  appointmentNotes: defineTable({
+    residentId: v.id("residents"),
+    category: v.union(
+      v.literal("preparation"),
+      v.literal("preferences"),
+      v.literal("special_instructions"),
+      v.literal("transportation"),
+      v.literal("medical_requirements")
+    ),
+    
+    // Preparation fields
+    preparationTime: v.optional(v.union(
+      v.literal("30_minutes"),
+      v.literal("1_hour"),
+      v.literal("2_hours")
+    )),
+    preparationNotes: v.optional(v.string()),
+    
+    // Preferences fields
+    preferredTime: v.optional(v.union(
+      v.literal("morning"),
+      v.literal("afternoon"),
+      v.literal("evening")
+    )),
+    transportPreference: v.optional(v.union(
+      v.literal("wheelchair"),
+      v.literal("walking_aid"),
+      v.literal("independent"),
+      v.literal("stretcher")
+    )),
+    
+    // Special instructions
+    instructions: v.optional(v.string()),
+    
+    // Transportation requirements
+    transportationNeeds: v.optional(v.array(v.union(
+      v.literal("wheelchair_accessible"),
+      v.literal("oxygen_support"),
+      v.literal("medical_equipment"),
+      v.literal("assistance_required")
+    ))),
+    
+    // Medical requirements
+    medicalNeeds: v.optional(v.array(v.union(
+      v.literal("fasting_required"),
+      v.literal("medication_adjustment"),
+      v.literal("blood_work"),
+      v.literal("vitals_check")
+    ))),
+    
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    isActive: v.optional(v.boolean()),
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byCategory", ["category"])
+    .index("byResidentAndCategory", ["residentId", "category"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byActiveStatus", ["isActive"])
+    .index("byCreatedBy", ["createdBy"]),
+
   preAdmissionCareFiles: defineTable({
     residentId: v.id("residents"),
     teamId: v.string(),
