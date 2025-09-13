@@ -859,6 +859,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         'Regular Diet',
+                        'Diabetic Diet',
                         'Vegetarian',
                         'Vegan',
                         'Kosher',
