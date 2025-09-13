@@ -464,10 +464,12 @@ export default defineSchema({
       v.literal("mobility"),
       v.literal("shower"),
       v.literal("communication"),
+      v.literal("mobility_positioning"), // Keep for existing records
       // New structured categories
       v.literal("shower_bath"),
       v.literal("toileting"),
-      v.literal("mobility_positioning"),
+      v.literal("mobility_only"),
+      v.literal("positioning_only"),
       v.literal("safety_alerts")
     ),
     
@@ -481,6 +483,15 @@ export default defineSchema({
     
     // Mobility & Positioning fields
     walkingAid: v.optional(v.union(v.literal("frame"), v.literal("stick"), v.literal("wheelchair"), v.literal("none"))),
+    
+    // Positioning frequency field
+    positioningFrequency: v.optional(v.union(
+      v.literal("every_hour"),
+      v.literal("every_2_hours"), 
+      v.literal("every_4_hours"),
+      v.literal("every_5_hours"),
+      v.literal("every_6_hours")
+    )),
     
     // Communication Needs fields (multiple can be selected)
     communicationNeeds: v.optional(v.array(v.union(

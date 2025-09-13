@@ -251,7 +251,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
 
   const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
     // Prevent submission if not on the final step
-    if (currentStep !== 4) {
+    if (currentStep !== 3) {
       console.log('Form submission prevented - not on final step. Current step:', currentStep);
       return;
     }
@@ -841,26 +841,14 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           <DialogHeader>
             <DialogTitle>{existingDiet ? 'Edit' : 'Add'} Diet Information for {fullName}</DialogTitle>
             <DialogDescription>
-              Step {currentStep} of 4: {currentStep === 1 ? 'Diet Types & Preferences' : currentStep === 2 ? 'Allergies & Restrictions' : currentStep === 3 ? 'Consistency Levels' : 'Assistance Requirements'}
+              Step {currentStep} of 3: {currentStep === 1 ? 'Diet Types & Preferences' : currentStep === 2 ? 'Allergies & Consistency Levels' : 'Assistance & Summary'}
             </DialogDescription>
           </DialogHeader>
 
 
           <Form {...form}>
             <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                // Only submit if we're on the last step
-                if (currentStep === 4) {
-                  form.handleSubmit(onSubmit)(e);
-                }
-              }}
-              onKeyDown={(e) => {
-                // Prevent Enter key from submitting the form unless we're on the final step
-                if (e.key === 'Enter' && currentStep !== 4) {
-                  e.preventDefault();
-                }
-              }}
+              onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6"
             >
               {/* Step 1: Diet Types & Preferences */}
@@ -930,7 +918,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                 </div>
               )}
 
-              {/* Step 2: Allergies & Restrictions */}
+              {/* Step 2: Allergies & Consistency Levels */}
               {currentStep === 2 && (
                 <div className="space-y-6">
                   <div className="space-y-3">
@@ -994,12 +982,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                       </FormItem>
                     )}
                   />
-                </div>
-              )}
 
-              {/* Step 3: Consistency Levels */}
-              {currentStep === 3 && (
-                <div className="space-y-6">
                   <FormField
                     control={form.control}
                     name="foodConsistency"
@@ -1052,8 +1035,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                 </div>
               )}
 
-              {/* Step 4: Assistance Requirements */}
-              {currentStep === 4 && (
+              {/* Step 3: Assistance & Summary */}
+              {currentStep === 3 && (
                 <div className="space-y-6">
                   <FormField
                     control={form.control}
@@ -1141,7 +1124,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                     Cancel
                   </Button>
 
-                  {currentStep < 4 ? (
+                  {currentStep < 3 ? (
                     <Button
                       type="button"
                       onClick={() => setCurrentStep(currentStep + 1)}
@@ -1149,7 +1132,14 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                       Next
                     </Button>
                   ) : (
-                    <Button type="submit" disabled={isLoading}>
+                    <Button 
+                      type="button" 
+                      disabled={isLoading}
+                      onClick={() => {
+                        // Only submit when explicitly clicking save
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
                       {isLoading ? "Saving..." : existingDiet ? "Update Diet Information" : "Save Diet Information"}
                     </Button>
                   )}

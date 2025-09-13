@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ClipboardCheck } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -45,8 +46,6 @@ import {
 import {
   ArrowLeft,
   Activity,
-  User,
-  Printer,
   Calendar,
   StickyNote,
   Plus,
@@ -65,11 +64,11 @@ type DailyCarePageProps = {
 
 // Communication Needs Enum + Type
 const CommunicationNeedEnum = z.enum(["hearing_aid", "glasses", "non_verbal", "memory_support"]);
-type CommunicationNeed = z.infer<typeof CommunicationNeedEnum>;
+
 
 // Safety Alerts Enum + Type
 const SafetyAlertEnum = z.enum(["high_falls_risk", "no_unattended_bathroom", "chair_bed_alarm"]);
-type SafetyAlert = z.infer<typeof SafetyAlertEnum>;
+
 
 export default function DailyCarePage({ params }: DailyCarePageProps) {
   const { id } = React.use(params);
@@ -96,21 +95,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     assistedStaff: z.string().optional(),
     notes: z.string().optional(),
   });
-  type CommunicationNeed = "hearing_aid" | "glasses" | "non_verbal" | "memory_support";
-  type SafetyAlert = "high_falls_risk" | "no_unattended_bathroom" | "chair_bed_alarm";
 
-  const communicationOptions: { id: CommunicationNeed; label: string }[] = [
-    { id: "hearing_aid", label: "Hearing Aid" },
-    { id: "glasses", label: "Glasses" },
-    { id: "non_verbal", label: "Non-verbal" },
-    { id: "memory_support", label: "Memory Support" },
-  ];
-
-  const safetyOptions: { id: SafetyAlert; label: string }[] = [
-    { id: "high_falls_risk", label: "High Falls Risk" },
-    { id: "no_unattended_bathroom", label: "Do Not Leave Unattended in Bathroom" },
-    { id: "chair_bed_alarm", label: "Chair/Bed Alarm" },
-  ];
 
   // Care Notes Dialog state
   const [isCareNotesDialogOpen, setIsCareNotesDialogOpen] = React.useState(false);
@@ -133,7 +118,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     toiletType: z.enum(["toilet", "commode", "pad"]).optional(),
     assistanceLevel: z.enum(["independent", "1_staff", "2_staff"]).optional(),
     walkingAid: z.enum(["frame", "stick", "wheelchair", "none"]).optional(),
-    positioningFrequency: z.enum(["every_hour", "every_2_hours", "every_4_hours", "every_5_hours", "every_6_hours"]).optional(),
   
     // ✅ strongly typed
     communicationNeeds: z.array(CommunicationNeedEnum).optional(),
@@ -166,11 +150,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     shift: currentShift,
   });
 
-  const quickCareNotes = useQuery(api.quickCareNotes.getQuickCareNotesByResident, {
-    residentId: id as Id<"residents">,
-    activeOnly: true,
-  });
-
+ 
 
   // Get all users for staff selection
   const allUsers = useQuery(api.user.getAllUsers);
@@ -305,7 +285,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         toiletType: data.toiletType,
         assistanceLevel: data.assistanceLevel,
         walkingAid: data.walkingAid,
-        positioningFrequency: data.positioningFrequency,
         communicationNeeds: data.communicationNeeds,
         safetyAlerts: data.safetyAlerts,
         priority: data.priority,
@@ -343,10 +322,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
-  const confirmDelete = (noteId: string) => {
-    setNoteToDelete(noteId);
-    setDeleteConfirmOpen(true);
-  };
 
   if (resident === undefined) {
     return (
@@ -383,322 +358,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`;
 
-  // Handle print functionality
-  const handlePrint = () => {
-    if (!todaysCareData || !resident) return;
-    
-    // Determine current shift
-    const currentHour = currentTime.getHours();
-    const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
-    const currentShiftName = isCurrentlyDayShift ? 'Day' : 'Night';
-    const currentShiftTime = isCurrentlyDayShift ? '8 AM - 8 PM' : '8 PM - 8 AM';
-    
-    // Filter tasks by current shift
-    const currentShiftActivityRecords = todaysCareData.tasks.filter(task => {
-      if (task.taskType !== 'daily_activity_record') return false;
-      const taskTime = new Date(task.createdAt);
-      const hour = taskTime.getHours();
-      return isCurrentlyDayShift ? (hour >= 8 && hour < 20) : (hour >= 20 || hour < 8);
-    });
-    
-    const currentShiftPersonalCare = todaysCareData.tasks.filter(task => {
-      if (task.taskType === 'daily_activity_record') return false;
-      const taskTime = new Date(task.createdAt);
-      const hour = taskTime.getHours();
-      return isCurrentlyDayShift ? (hour >= 8 && hour < 20) : (hour >= 20 || hour < 8);
-    });
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${currentShiftName} Shift Report - ${fullName} (${today})</title>
-          <style>
-            @page { size: A4; margin: 20mm; }
-            @media print { body { margin: 0; } }
-            body { 
-              font-family: Arial, sans-serif; 
-              line-height: 1.4; 
-              color: #000;
-              margin: 0;
-              padding: 20px;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #2563eb;
-              padding-bottom: 15px;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 24px;
-              color: #2563eb;
-              font-weight: bold;
-            }
-            .header h2 {
-              margin: 10px 0 0 0;
-              font-size: 18px;
-              color: #374151;
-              font-weight: 600;
-            }
-            .summary {
-              margin-bottom: 30px;
-              padding: 15px;
-              background: #f8fafc;
-              border: 1px solid #e2e8f0;
-              border-radius: 8px;
-            }
-            .summary h3 {
-              margin: 0 0 15px 0;
-              color: #1f2937;
-              font-size: 16px;
-              font-weight: 600;
-            }
-            .summary-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              margin-bottom: 15px;
-            }
-            .summary-item {
-              font-size: 14px;
-            }
-            .summary-label {
-              font-weight: 600;
-              color: #374151;
-              margin-bottom: 5px;
-            }
-            .summary-value {
-              color: #6b7280;
-            }
-            .section {
-              margin-bottom: 30px;
-            }
-            .section-header {
-              display: flex;
-              align-items: center;
-              margin-bottom: 15px;
-              padding-bottom: 8px;
-              border-bottom: 2px solid #10b981;
-            }
-            .section-header.blue {
-              border-bottom-color: #3b82f6;
-            }
-            .section-header h3 {
-              margin: 0;
-              font-size: 18px;
-              font-weight: 600;
-              margin-left: 10px;
-            }
-            .section-header.green h3 {
-              color: #047857;
-            }
-            .section-header.blue h3 {
-              color: #1e40af;
-            }
-            .icon {
-              width: 24px;
-              height: 24px;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-              font-size: 12px;
-            }
-            .icon.green {
-              background: #10b981;
-            }
-            .icon.blue {
-              background: #3b82f6;
-            }
-            .activity-item {
-              margin-bottom: 12px;
-              padding: 12px;
-              border: 1px solid #bfdbfe;
-              border-radius: 8px;
-              background: #eff6ff;
-            }
-            .activity-item.green {
-              border-color: #a7f3d0;
-              background: #ecfdf5;
-            }
-            .activity-header {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 8px;
-            }
-            .activity-title {
-              color: #1e40af;
-              font-size: 14px;
-              font-weight: 600;
-            }
-            .activity-title.green {
-              color: #047857;
-            }
-            .activity-status {
-              background: #22c55e;
-              color: white;
-              padding: 2px 8px;
-              border-radius: 4px;
-              font-size: 10px;
-              font-weight: 600;
-            }
-            .activity-notes {
-              margin-bottom: 8px;
-              font-style: italic;
-              color: #1e40af;
-              font-size: 12px;
-              padding: 5px 0;
-            }
-            .activity-notes.green {
-              color: #047857;
-            }
-            .activity-time {
-              font-size: 10px;
-              color: #6b7280;
-            }
-            .empty-state {
-              text-align: center;
-              padding: 20px;
-              background: #f0f9ff;
-              border: 1px solid #bfdbfe;
-              border-radius: 8px;
-              color: #1e40af;
-            }
-            .empty-state.green {
-              background: #f0fdf4;
-              border-color: #a7f3d0;
-              color: #047857;
-            }
-            .footer {
-              margin-top: 30px;
-              padding-top: 15px;
-              border-top: 2px solid #e5e7eb;
-              font-size: 10px;
-              color: #9ca3af;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Daily Care Report</h1>
-            <h2>${fullName}</h2>
-          </div>
-          
-          <div class="summary">
-            <h3>Care Summary</h3>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <div class="summary-label">Date & Shift</div>
-                <div class="summary-value">${new Date(today).toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}</div>
-                <div class="summary-value">${currentShiftName} Shift (${currentShiftTime})</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Activity Summary</div>
-                <div class="summary-value">Personal Care: ${currentShiftPersonalCare.length}</div>
-                <div class="summary-value">Activity Records: ${currentShiftActivityRecords.length}</div>
-              </div>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-              <div>Total Activities: ${currentShiftActivityRecords.length + currentShiftPersonalCare.length}</div>
-              <div>Generated: ${new Date().toLocaleString()}</div>
-            </div>
-          </div>
-          
-          <div class="section">
-            <div class="section-header green">
-              <div class="icon green">📋</div>
-              <h3>Daily Activity Records</h3>
-            </div>
-            ${currentShiftActivityRecords.length > 0 ? 
-              currentShiftActivityRecords
-                .sort((a, b) => b.createdAt - a.createdAt)
-                .map((activity, index) => {
-                  const payload = activity.payload as { time?: string; staff?: string };
-                  return `
-                    <div class="activity-item green">
-                      <div class="activity-header">
-                        <div class="activity-title green">${index + 1}. Daily Activity Record</div>
-                        <div class="activity-status">${activity.status}</div>
-                      </div>
-                      ${activity.notes ? `<div class="activity-notes green">${activity.notes}</div>` : ''}
-                      <div class="activity-time">
-                        Recorded: ${new Date(activity.createdAt).toLocaleString()}
-                        ${payload?.staff ? ` • Staff: ${payload.staff}` : ''}
-                      </div>
-                    </div>
-                  `;
-                }).join('')
-              : `
-                <div class="empty-state green">
-                  <div style="font-size: 14px; margin-bottom: 5px;">No daily activity records</div>
-                  <div style="font-size: 11px;">No daily activity records were logged for this ${currentShiftName.toLowerCase()} shift.</div>
-                </div>
-              `
-            }
-          </div>
-
-          <div class="section">
-            <div class="section-header blue">
-              <div class="icon blue">👤</div>
-              <h3>Personal Care Activities</h3>
-            </div>
-            ${currentShiftPersonalCare.length > 0 ? 
-              currentShiftPersonalCare
-                .sort((a, b) => b.createdAt - a.createdAt)
-                .map((activity, index) => {
-                  const payload = activity.payload as { time?: string; primaryStaff?: string; assistedStaff?: string };
-                  return `
-                    <div class="activity-item">
-                      <div class="activity-header">
-                        <div class="activity-title">${index + 1}. ${activity.taskType}</div>
-                        <div class="activity-status">${activity.status}</div>
-                      </div>
-                      ${activity.notes ? `<div class="activity-notes">${activity.notes}</div>` : ''}
-                      <div class="activity-time">
-                        Recorded: ${new Date(activity.createdAt).toLocaleString()}
-                        ${payload?.primaryStaff ? ` • Primary Staff: ${payload.primaryStaff}` : ''}
-                        ${payload?.assistedStaff ? ` • Assisted by: ${payload.assistedStaff}` : ''}
-                      </div>
-                    </div>
-                  `;
-                }).join('')
-              : `
-                <div class="empty-state">
-                  <div style="font-size: 14px; margin-bottom: 5px;">No personal care activities recorded</div>
-                  <div style="font-size: 11px;">No personal care activities were logged for this ${currentShiftName.toLowerCase()} shift.</div>
-                </div>
-              `
-            }
-          </div>
-          
-          <div class="footer">
-            <div style="font-weight: 600; margin-bottom: 5px;">Generated by Care Management System</div>
-            <div>${new Date().toISOString()} • Confidential Care Documentation</div>
-          </div>
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    
-    // Auto-trigger print dialog after a short delay
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -713,7 +373,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           {fullName}
         </Button>
         <span>/</span>
-        <span className="text-foreground">Daily Care</span>
+        <span className="text-foreground">Appointments</span>
       </div>
 
 
@@ -725,10 +385,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </Button>
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-100 rounded-lg">
-            <Activity className="w-6 h-6 text-blue-600" />
+          <ClipboardCheck className="w-6 h-6 text-blue-600" />
+      
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Daily Care</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
             <p className="text-muted-foreground text-sm">Care activities & dependencies</p>
           </div>
         </div>
@@ -837,434 +498,16 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           <div className="mt-4 pt-4 border-t border-gray-100">
             <div className="flex items-center space-x-2 mb-3">
               <StickyNote className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium">Care Notes</span>
+              <span className="text-sm font-medium">more info</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {quickCareNotes && quickCareNotes.length > 0 ? (
-                quickCareNotes.map((note) => {
-                  // Get badge style based on category
-                  const getBadgeStyle = (category: string) => {
-                    switch (category) {
-                      case 'shower_bath':
-                        return 'bg-blue-50 text-blue-700 border-blue-200';
-                      case 'toileting':
-                        return 'bg-green-50 text-green-700 border-green-200';
-                      case 'mobility_positioning':
-                        return 'bg-purple-50 text-purple-700 border-purple-200';
-                      case 'mobility_only':
-                        return 'bg-purple-50 text-purple-700 border-purple-200';
-                      case 'positioning_only':
-                        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-                      case 'communication':
-                        return 'bg-orange-50 text-orange-700 border-orange-200';
-                      case 'safety_alerts':
-                        return 'bg-red-50 text-red-700 border-red-200';
-                      default:
-                        return 'bg-gray-50 text-gray-700 border-gray-200';
-                    }
-                  };
-
-                  // Get display text based on category and structured data
-                  const getDisplayText = (note: typeof quickCareNotes[0]) => {
-                    const categoryLabels = {
-                      shower_bath: 'Shower/Bath',
-                      toileting: 'Toileting',
-                      mobility_positioning: 'Mobility & Positioning',
-                      mobility_only: 'Mobility',
-                      positioning_only: 'Positioning',
-                      communication: 'Communication',
-                      safety_alerts: 'Safety'
-                    };
-
-                    const category = categoryLabels[note.category as keyof typeof categoryLabels] || note.category;
-
-                    let details = [];
-
-                    if (note.category === 'shower_bath') {
-                      if (note.showerOrBath) details.push(note.showerOrBath === 'shower' ? 'Shower' : 'Bath');
-                      if (note.preferredTime) details.push(note.preferredTime.charAt(0).toUpperCase() + note.preferredTime.slice(1));
-                    }
-
-                    if (note.category === 'toileting') {
-                      if (note.toiletType) details.push(note.toiletType.charAt(0).toUpperCase() + note.toiletType.slice(1));
-                      if (note.assistanceLevel) {
-                        const assistanceLabels = {
-                          independent: 'Independent',
-                          '1_staff': '1 Staff',
-                          '2_staff': '2 Staff'
-                        };
-                        details.push(assistanceLabels[note.assistanceLevel as keyof typeof assistanceLabels]);
-                      }
-                    }
-
-                    if ((note.category === 'mobility_positioning' || note.category === 'mobility_only') && note.walkingAid) {
-                      const aidLabels = {
-                        frame: 'Walking Frame',
-                        stick: 'Walking Stick',
-                        wheelchair: 'Wheelchair',
-                        none: 'No Aid'
-                      };
-                      details.push(aidLabels[note.walkingAid as keyof typeof aidLabels]);
-                    }
-
-                    if ((note.category === 'mobility_positioning' || note.category === 'positioning_only') && note.positioningFrequency) {
-                      const frequencyLabels = {
-                        every_hour: 'Every Hour',
-                        every_2_hours: 'Every 2 Hours',
-                        every_4_hours: 'Every 4 Hours',
-                        every_5_hours: 'Every 5 Hours',
-                        every_6_hours: 'Every 6 Hours'
-                      };
-                      details.push(frequencyLabels[note.positioningFrequency as keyof typeof frequencyLabels]);
-                    }
-
-                    if (note.category === 'communication' && note?.communicationNeeds?.length) {
-                      const needLabels = {
-                        hearing_aid: 'Hearing Aid',
-                        glasses: 'Glasses',
-                        non_verbal: 'Non-verbal',
-                        memory_support: 'Memory Support'
-                      };
-                      details = note.communicationNeeds?.map((need: string) =>
-                        needLabels[need as keyof typeof needLabels] || need
-                      );
-                    }
-
-                    if (note.category === 'safety_alerts' && note?.safetyAlerts?.length) {
-                      const alertLabels = {
-                        high_falls_risk: 'Falls Risk',
-                        no_unattended_bathroom: 'No Unattended',
-                        chair_bed_alarm: 'Alarm'
-                      };
-                      details = note.safetyAlerts.map((alert: string) =>
-                        alertLabels[alert as keyof typeof alertLabels] || alert
-                      );
-                    }
-
-                    if (details.length > 0) {
-                      return `${category}: ${details.join(', ')}`;
-                    }
-
-                    return category;
-                  };
-
-                  // Create individual badges for multiple items (communication/safety)
-                  if (note.category === 'communication' && note.communicationNeeds && note.communicationNeeds.length > 1) {
-                    return note.communicationNeeds.map((need: string, index: number) => (
-                      <div key={`${note._id}-${index}`} className="relative group">
-                        <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
-                          Communication: {need.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                          {note.priority === 'high' && ' ⚠️'}
-                        </Badge>
-                        <button
-                          onClick={() => confirmDelete(note._id)}
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    ));
-                  }
-
-                  if (note.category === 'safety_alerts' && (note.safetyAlerts?.length ?? 0) > 1) {
-                    return (note.safetyAlerts ?? []).map((alert: string, index: number) => (
-                      <div key={`${note._id}-${index}`} className="relative group">
-                        <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
-                          Safety: {alert.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                          {note.priority === 'high' && ' ⚠️'}
-                        </Badge>
-                        <button
-                          onClick={() => confirmDelete(note._id)}
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    ));
-                  }
-
-                  return (
-                    <div key={note._id} className="relative group">
-                      <Badge className={`${getBadgeStyle(note.category)} pr-6`}>
-                        {getDisplayText(note)}
-                        {note.priority === 'high' && ' ⚠️'}
-                      </Badge>
-                      <button
-                        onClick={() => confirmDelete(note._id)}
-                        className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  );
-                }).flat() // Flatten in case of multiple badges per note
-              ) : (
-                <p className="text-sm text-muted-foreground">No care notes added yet. Click &ldquo;Add Care Notes&rdquo; to add important care information for this resident.</p>
-              )}
-            </div>
+      
           </div>
         </CardContent>
       </Card>
 
-      {/* Personal Care Entry Buttons */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <User className="w-5 h-5 text-blue-600" />
-            <span>Personal Care & Daily Activities</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
-              onClick={() => setIsPersonalCareDialogOpen(true)}
-            >
-              <User className="w-6 h-6 mr-3" />
-              Log Personal Care
-            </Button>
-            <Button
-             className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
-              onClick={() => setIsActivityRecordDialogOpen(true)}
-            >
-              <Activity className="w-6 h-6 mr-3" />
-              Log Daily Activity
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  
 
 
-      {/* Today's Log History */}
-      <Card>
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-3">
-              <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
-            </div>
-            <div className="flex flex-col space-y-2">
-              <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
-                {new Date().toLocaleDateString()}
-              </Badge>
-            </div>
-          </CardTitle>
-
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
-                {new Date().toLocaleDateString()}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrint}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print Report
-              </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(() => {
-            // Determine current shift based on current time
-            const currentHour = currentTime.getHours();
-            const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
-            
-            return todaysCareData && todaysCareData.tasks.length > 0 ? (
-              <div id="daily-report-content" className="space-y-6">
-                {/* Daily Activity Records Section - TOP */}
-                <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <User className="w-5 h-5 text-blue-600" />
-                    <h3 className="text-lg font-semibold text-blue-900">Personal Care Activities</h3>
-                  </div>
-                  {(() => {
-                    // Filter current shift personal care tasks
-                    const currentShiftPersonalCare = (todaysCareData.tasks.filter(task => {
-                      if (task.taskType === 'daily_activity_record') return false;
-                      
-                      const taskTime = new Date(task.createdAt);
-                      const hour = taskTime.getHours();
-                      
-                      // Filter by current shift
-                      if (isCurrentlyDayShift) {
-                        return hour >= 8 && hour < 20; // Day shift
-                      } else {
-                        return hour >= 20 || hour < 8; // Night shift
-                      }
-                    }) || []);
-                    
-                    return currentShiftPersonalCare.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentShiftPersonalCare
-                          .sort((a, b) => b.createdAt - a.createdAt)
-                          .map((task) => {
-                            const activity = activityOptions.find(opt => opt.id === task.taskType);
-                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                            
-                            return (
-                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-blue-200 bg-blue-50/50">
-                                <div className="flex-1">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                                    <div className="flex items-center space-x-2">
-                                      <User className="w-4 h-4 text-blue-600" />
-                                      <span className="font-medium text-blue-900">
-                                        {activity?.label || task.taskType}
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className="text-xs bg-white">
-                                        {payload?.time && `${payload.time}`}
-                                      </Badge>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs bg-green-100 text-green-800 border-green-300"
-                                      >
-                                        {task.status === 'completed' ? 'Completed' : task.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    {task.notes && (
-                                      <p className="mb-1">{task.notes}</p>
-                                    )}
-                                    <p className="text-xs text-gray-600">
-                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 bg-blue-50/30 rounded-lg border border-blue-100">
-                        <div className="flex justify-center mb-3">
-                          <div className="p-2 bg-blue-100 rounded-full">
-                            <User className="w-6 h-6 text-blue-400" />
-                          </div>
-                        </div>
-                        <p className="text-gray-600 font-medium mb-1 text-sm">No personal care activities</p>
-                        <p className="text-xs text-gray-500">
-                          No personal care activities logged for current shift
-                        </p>
-                      </div>
-                    )
-                  })()}
-                </div>
-
-                {/* Personal Care Activities Section - BOTTOM */}
-                <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <Activity className="w-5 h-5 text-green-600" />
-                    <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
-                  </div>
-                  {(() => {
-                    // Filter current shift activity records
-                    const currentShiftActivityRecords = (todaysCareData.tasks.filter(task => {
-                      if (task.taskType !== 'daily_activity_record') return false;
-                      
-                      const taskTime = new Date(task.createdAt);
-                      const hour = taskTime.getHours();
-                      
-                      // Filter by current shift
-                      if (isCurrentlyDayShift) {
-                        return hour >= 8 && hour < 20; // Day shift
-                      } else {
-                        return hour >= 20 || hour < 8; // Night shift
-                      }
-                    }) || []);
-                    
-                    return currentShiftActivityRecords.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentShiftActivityRecords
-                          .sort((a, b) => b.createdAt - a.createdAt)
-                          .map((task) => {
-                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                            
-                            return (
-                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
-                                <div className="flex-1">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                                    <div className="flex items-center space-x-2">
-                                      <Activity className="w-4 h-4 text-green-600" />
-                                      <span className="font-medium text-green-900">
-                                        Daily Activity Record
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className="text-xs bg-white">
-                                        {payload?.time && `${payload.time}`}
-                                      </Badge>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs bg-green-100 text-green-800 border-green-300"
-                                      >
-                                        {task.status === 'completed' ? 'Completed' : task.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    {task.notes && (
-                                      <p className="mb-1">{task.notes}</p>
-                                    )}
-                                    <p className="text-xs text-gray-600">
-                                      {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
-                        <div className="flex justify-center mb-3">
-                          <div className="p-2 bg-green-100 rounded-full">
-                            <Activity className="w-6 h-6 text-green-400" />
-                          </div>
-                        </div>
-                        <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records</p>
-                        <p className="text-xs text-gray-500">
-                          No daily activity records logged for current shift
-                        </p>
-                      </div>
-                    )
-                  })()}
-                </div>
-
-               
-              </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="flex justify-center mb-4">
-                <div className="p-3 bg-gray-100 rounded-full">
-                  <Clock className="w-8 h-8 text-gray-400" />
-                </div>
-              </div>
-              <p className="text-gray-600 font-medium mb-2">No entries logged today</p>
-              <p className="text-sm text-gray-500">
-                Start tracking {fullName}&apos;s personal care activities using the buttons above
-              </p>
-            </div>
-          )
-          })()}
-        </CardContent>
-      </Card>
 
          {/* Today's Summary Card */}
          <Card>
@@ -1500,94 +743,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                             <SelectItem value="stick">Walking Stick</SelectItem>
                             <SelectItem value="wheelchair">Wheelchair</SelectItem>
                             <SelectItem value="none">None</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={careNotesForm.control}
-                    name="positioningFrequency"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Positioning Frequency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select positioning frequency..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="every_hour">Every Hour</SelectItem>
-                            <SelectItem value="every_2_hours">Every 2 Hours</SelectItem>
-                            <SelectItem value="every_4_hours">Every 4 Hours</SelectItem>
-                            <SelectItem value="every_5_hours">Every 5 Hours</SelectItem>
-                            <SelectItem value="every_6_hours">Every 6 Hours</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Mobility Only Fields */}
-              {careNotesForm.watch('category') === 'mobility_only' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
-                  <h4 className="font-medium text-blue-900">Mobility</h4>
-
-                  <FormField
-                    control={careNotesForm.control}
-                    name="walkingAid"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Walking Aid</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select walking aid..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="frame">Walking Frame</SelectItem>
-                            <SelectItem value="stick">Walking Stick</SelectItem>
-                            <SelectItem value="wheelchair">Wheelchair</SelectItem>
-                            <SelectItem value="none">None</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Positioning Only Fields */}
-              {careNotesForm.watch('category') === 'positioning_only' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-green-50">
-                  <h4 className="font-medium text-green-900">Positioning</h4>
-
-                  <FormField
-                    control={careNotesForm.control}
-                    name="positioningFrequency"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Positioning Frequency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select positioning frequency..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="every_hour">Every Hour</SelectItem>
-                            <SelectItem value="every_2_hours">Every 2 Hours</SelectItem>
-                            <SelectItem value="every_4_hours">Every 4 Hours</SelectItem>
-                            <SelectItem value="every_5_hours">Every 5 Hours</SelectItem>
-                            <SelectItem value="every_6_hours">Every 6 Hours</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
