@@ -561,32 +561,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </CardContent>
       </Card>
 
-      {/* Incident Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <TrendingDown className="w-5 h-5 text-orange-600" />
-            <span>Incident Management</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              className="h-16 text-lg bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              <Plus className="w-6 h-6 mr-3" />
-              Report New Incident
-            </Button>
-            <Button
-             className="h-16 text-lg bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
-            >
-              <Eye className="w-6 h-6 mr-3" />
-              View Complete History
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Development Notice */}
       <Card className="bg-orange-50 border-orange-200">

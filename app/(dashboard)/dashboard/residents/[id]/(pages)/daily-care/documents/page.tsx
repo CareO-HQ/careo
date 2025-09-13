@@ -55,13 +55,27 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     residentId: id as Id<"residents">
   });
 
-  // Get the selected report data when viewing
+  // Get ALL daily care data (without shift filtering) for the selected date
   const selectedReportData = useQuery(
-    api.personalCare.getDayNightReport,
+    api.personalCare.getDailyPersonalCare,
     selectedReport ? {
       residentId: id as Id<"residents">,
       date: selectedReport.date,
-      reportType: selectedReport.type
+      // Remove shift filtering - get all activities for this date
+    } : "skip"
+  );
+
+  // For night reports, we also need yesterday's data (for 8pm+ activities)
+  const yesterdayReportData = useQuery(
+    api.personalCare.getDailyPersonalCare,
+    selectedReport?.type === 'night' ? {
+      residentId: id as Id<"residents">,
+      date: (() => {
+        const yesterday = new Date(selectedReport.date);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return yesterday.toISOString().split('T')[0];
+      })(),
+      // Remove shift filtering - get all activities for yesterday
     } : "skip"
   );
 
@@ -578,23 +592,41 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                       </div>
                                       <div>
                                         <h4 className="font-medium text-amber-800">Total Activities</h4>
-                                        <p className="text-sm text-amber-700">{selectedReportData?.activities?.length || 0}</p>
+                                        <p className="text-sm text-amber-700">{(() => {
+                                          // Filter day shift activities (8am-8pm)
+                                          const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => {
+                                            const hour = new Date(task.createdAt).getHours();
+                                            return hour >= 8 && hour < 20;
+                                          });
+                                          return dayActivities.length;
+                                        })()}</p>
                                       </div>
                                       <div>
                                         <h4 className="font-medium text-amber-800">Completion Rate</h4>
                                         <p className="text-sm text-amber-700">
-                                          {selectedReportData?.activities?.length > 0 
-                                            ? Math.round((selectedReportData.activities.filter((a: any) => a.status === 'completed').length / selectedReportData.activities.length) * 100)
-                                            : 0}%
+                                          {(() => {
+                                            const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => {
+                                              const hour = new Date(task.createdAt).getHours();
+                                              return hour >= 8 && hour < 20;
+                                            });
+                                            return dayActivities.length > 0 
+                                              ? Math.round((dayActivities.filter((a: any) => a.status === 'completed').length / dayActivities.length) * 100)
+                                              : 0;
+                                          })()}%
                                         </p>
                                       </div>
                                     </div>
 
                                     <div className="space-y-2">
                                       <h4 className="font-medium">Activities Log</h4>
-                                      {selectedReportData?.activities && selectedReportData.activities.length > 0 ? (
-                                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                                          {selectedReportData.activities.map((activity: any, index: number) => (
+                                      {(() => {
+                                        const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => {
+                                          const hour = new Date(task.createdAt).getHours();
+                                          return hour >= 8 && hour < 20;
+                                        });
+                                        return dayActivities.length > 0 ? (
+                                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                                            {dayActivities.map((activity: any, index: number) => (
                                             <div key={index} className="p-3 border border-gray-200 rounded-lg">
                                               <div className="flex justify-between items-start">
                                                 <div>
@@ -617,9 +649,10 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                             </div>
                                           ))}
                                         </div>
-                                      ) : (
-                                        <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
-                                      )}
+                                        ) : (
+                                          <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 )
@@ -680,58 +713,185 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                     <p className="mt-2 text-muted-foreground">Loading report...</p>
                                   </div>
                                 ) : (
-                                  <div className="space-y-3">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                                      <div>
-                                        <h4 className="font-medium text-indigo-800">Shift Period</h4>
-                                        <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-indigo-800">Total Activities</h4>
-                                        <p className="text-sm text-indigo-700">{selectedReportData?.activities?.length || 0}</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-indigo-800">Completion Rate</h4>
-                                        <p className="text-sm text-indigo-700">
-                                          {selectedReportData?.activities?.length > 0 
-                                            ? Math.round((selectedReportData.activities.filter((a: any) => a.status === 'completed').length / selectedReportData.activities.length) * 100)
-                                            : 0}%
-                                        </p>
-                                      </div>
-                                    </div>
+                                  (() => {
+                                    // Enhanced Debug: Log comprehensive data
+                                    console.log('=== NIGHT REPORT DEBUG ===');
+                                    console.log('Selected Date:', selectedReport?.date);
+                                    console.log('Today Report Data:', {
+                                      hasData: !!selectedReportData,
+                                      daily: selectedReportData?.daily,
+                                      taskCount: selectedReportData?.tasks?.length || 0,
+                                      tasks: selectedReportData?.tasks?.map(t => ({
+                                        taskType: t.taskType,
+                                        createdAt: t.createdAt,
+                                        completedAt: t.completedAt,
+                                        createdTime: new Date(t.createdAt).toLocaleString(),
+                                        completedTime: t.completedAt ? new Date(t.completedAt).toLocaleString() : 'N/A',
+                                        createdHour: new Date(t.createdAt).getHours(),
+                                        completedHour: t.completedAt ? new Date(t.completedAt).getHours() : 'N/A'
+                                      }))
+                                    });
+                                    console.log('Yesterday Report Data:', {
+                                      hasData: !!yesterdayReportData,
+                                      daily: yesterdayReportData?.daily,
+                                      taskCount: yesterdayReportData?.tasks?.length || 0,
+                                      tasks: yesterdayReportData?.tasks?.map(t => ({
+                                        taskType: t.taskType,
+                                        createdAt: t.createdAt,
+                                        completedAt: t.completedAt,
+                                        createdTime: new Date(t.createdAt).toLocaleString(),
+                                        completedTime: t.completedAt ? new Date(t.completedAt).toLocaleString() : 'N/A',
+                                        createdHour: new Date(t.createdAt).getHours(),
+                                        completedHour: t.completedAt ? new Date(t.completedAt).getHours() : 'N/A'
+                                      }))
+                                    });
 
-                                    <div className="space-y-2">
-                                      <h4 className="font-medium">Activities Log</h4>
-                                      {selectedReportData?.activities && selectedReportData.activities.length > 0 ? (
-                                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                                          {selectedReportData.activities.map((activity: any, index: number) => (
-                                            <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                                              <div className="flex justify-between items-start">
-                                                <div>
-                                                  <p className="font-medium">{activity.taskType}</p>
-                                                  <p className="text-sm text-muted-foreground">
-                                                    {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                                  </p>
-                                                  {activity.notes && (
-                                                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
-                                                  )}
-                                                </div>
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                  activity.status === 'completed' 
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-yellow-100 text-yellow-800'
-                                                }`}>
-                                                  {activity.status}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          ))}
+                                    // Combine today's and yesterday's data for night shift
+                                    const allNightActivities = [
+                                      ...(selectedReportData?.tasks || []),
+                                      ...(yesterdayReportData?.tasks || [])
+                                    ];
+
+                                    console.log('All combined activities:', allNightActivities.length);
+
+                                    // Enhanced filtering logic for night shift (8pm-8am)
+                                    const nightShiftActivities = allNightActivities.filter(activity => {
+                                      // Use createdAt as primary time reference (it's always present as a number timestamp)
+                                      const timeToCheck = activity.createdAt;
+                                      const activityTime = new Date(timeToCheck);
+                                      const hour = activityTime.getHours();
+                                      
+                                      // Night shift: 8pm (20:00) onwards OR before 8am (08:00)
+                                      const isNightShift = hour >= 20 || hour < 8;
+                                      
+                                      console.log(`Activity ${activity.taskType}:`, {
+                                        createdAt: timeToCheck,
+                                        timeString: activityTime.toLocaleString(),
+                                        hour: hour,
+                                        isNightShift: isNightShift
+                                      });
+                                      
+                                      return isNightShift;
+                                    });
+
+                                    console.log(`Filtered ${nightShiftActivities.length} night shift activities out of ${allNightActivities.length} total`);
+
+                                    // TEMPORARY DEBUG: Show all activities regardless of time filter
+                                    console.log('=== TEMP DEBUG: SHOWING ALL ACTIVITIES ===');
+                                    const debugActivities = allNightActivities; // Use all activities temporarily
+                                    
+                                    // Separate personal care and daily activities
+                                    const personalCareActivities = debugActivities.filter(activity => 
+                                      activity.taskType !== 'daily_activity_record'
+                                    );
+                                    const dailyActivities = debugActivities.filter(activity => 
+                                      activity.taskType === 'daily_activity_record'
+                                    );
+                                    
+                                    console.log('Personal Care Activities:', personalCareActivities.length);
+                                    console.log('Daily Activities:', dailyActivities.length);
+
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                          <div>
+                                            <h4 className="font-medium text-indigo-800">Shift Period</h4>
+                                            <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
+                                          </div>
+                                          <div>
+                                            <h4 className="font-medium text-indigo-800">Total Activities</h4>
+                                            <p className="text-sm text-indigo-700">{debugActivities.length}</p>
+                                          </div>
+                                          <div>
+                                            <h4 className="font-medium text-indigo-800">Completion Rate</h4>
+                                            <p className="text-sm text-indigo-700">
+                                              {debugActivities.length > 0 
+                                                ? Math.round((debugActivities.filter((a: any) => a.status === 'completed').length / debugActivities.length) * 100)
+                                                : 0}%
+                                            </p>
+                                          </div>
                                         </div>
-                                      ) : (
-                                        <p className="text-muted-foreground py-8 text-center">No activities logged for night shift</p>
-                                      )}
-                                    </div>
-                                  </div>
+
+                                        {/* Personal Care Activities Section */}
+                                        <div className="space-y-2">
+                                          <div className="flex items-center space-x-2">
+                                            <div className="w-4 h-4 bg-blue-600 rounded"></div>
+                                            <h4 className="font-medium text-blue-900">Personal Care Activities</h4>
+                                            <span className="text-sm text-muted-foreground">({personalCareActivities.length})</span>
+                                          </div>
+                                          {personalCareActivities.length > 0 ? (
+                                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                              {personalCareActivities
+                                                .sort((a, b) => new Date(b.createdAt || b.completedAt).getTime() - new Date(a.createdAt || a.completedAt).getTime())
+                                                .map((activity: any, index: number) => (
+                                                <div key={index} className="p-3 border border-blue-200 bg-blue-50/30 rounded-lg">
+                                                  <div className="flex justify-between items-start">
+                                                    <div>
+                                                      <p className="font-medium text-blue-900">{activity.taskType}</p>
+                                                      <p className="text-sm text-blue-700">
+                                                        {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                      </p>
+                                                      {activity.notes && (
+                                                        <p className="text-sm text-blue-600 mt-1">{activity.notes}</p>
+                                                      )}
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                      activity.status === 'completed' 
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
+                                                    }`}>
+                                                      {activity.status}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="text-muted-foreground py-4 text-center text-sm">No personal care activities logged for night shift</p>
+                                          )}
+                                        </div>
+
+                                        {/* Night Activities Section */}
+                                        <div className="space-y-2">
+                                          <div className="flex items-center space-x-2">
+                                            <div className="w-4 h-4 bg-green-600 rounded"></div>
+                                            <h4 className="font-medium text-green-900">Night Activities</h4>
+                                            <span className="text-sm text-muted-foreground">({dailyActivities.length})</span>
+                                          </div>
+                                          {dailyActivities.length > 0 ? (
+                                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                              {dailyActivities
+                                                .sort((a, b) => new Date(b.createdAt || b.completedAt).getTime() - new Date(a.createdAt || a.completedAt).getTime())
+                                                .map((activity: any, index: number) => (
+                                                <div key={index} className="p-3 border border-green-200 bg-green-50/30 rounded-lg">
+                                                  <div className="flex justify-between items-start">
+                                                    <div>
+                                                      <p className="font-medium text-green-900">Night Activity Record</p>
+                                                      <p className="text-sm text-green-700">
+                                                        {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                      </p>
+                                                      {activity.notes && (
+                                                        <p className="text-sm text-green-600 mt-1">{activity.notes}</p>
+                                                      )}
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                      activity.status === 'completed' 
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
+                                                    }`}>
+                                                      {activity.status}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="text-muted-foreground py-4 text-center text-sm">No night activities logged for night shift</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()
                                 )
                               )}
                             </div>

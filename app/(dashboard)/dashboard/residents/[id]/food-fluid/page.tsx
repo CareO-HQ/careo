@@ -651,20 +651,19 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
-      {/* Today's Log History */}
+      {/* Today's Food & Fluid History */}
       <Card>
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
             <div className="flex items-center space-x-2 mb-3">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
+              <span>Today&apos;s Food &amp; Fluid History</span>
             </div>
             <div className="flex flex-col space-y-2">
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
                 {new Date().toLocaleDateString()}
               </Badge>
-
             </div>
           </CardTitle>
 
@@ -672,7 +671,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
+              <span>Today&apos;s Food &amp; Fluid History</span>
             </div>
             <div className="flex items-center space-x-2">
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
@@ -690,66 +689,153 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {currentDayLogs && currentDayLogs.length > 0 ? (
-            <div className="space-y-3">
-              {currentDayLogs
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .map((log) => (
-                  <div key={log._id} className="flex items-center justify-between p-4  rounded-md border">
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                        <div className="flex items-center space-x-2">
-                          {['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? (
-                            <Droplets className="w-4 h-4 text-blue-600" />
-                          ) : (
-                            <Utensils className="w-4 h-4 text-orange-600" />
-                          )}
-                          <span className="font-medium">{log.typeOfFoodDrink}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {log.section.replace('-', ' - ')}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                              log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                                'bg-yellow-100 text-yellow-800 border-yellow-300'
-                              }`}
-                          >
-                            {log.amountEaten}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <p>
-                          Portion: {log.portionServed}
-                          {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })} • Logged by {log.signature}
-                        </p>
-                      </div>
+          <div id="food-fluid-history-content" className="space-y-6">
+            {/* Food History Section - TOP */}
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Utensils className="w-5 h-5 text-orange-600" />
+                <h3 className="text-lg font-semibold text-orange-900">Food Intake</h3>
+              </div>
+              {(() => {
+                const foodLogs = currentDayLogs?.filter(log => 
+                  !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)
+                ) || [];
+                
+                return foodLogs.length > 0 ? (
+                  <div className="border border-orange-200 bg-orange-50/30 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {foodLogs
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .map((log, index) => (
+                          <div key={log._id} className={`py-3 ${index !== foodLogs.length - 1 ? 'border-b border-orange-200' : ''}`}>
+                            <div className="flex-1">
+                              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
+                                <div className="flex items-center space-x-2">
+                                  <Utensils className="w-4 h-4 text-orange-600" />
+                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="text-xs bg-white">
+                                    {log.section.replace('-', ' - ')}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                        'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                      }`}
+                                  >
+                                    {log.amountEaten}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                  <p className="mb-1 md:mb-0">
+                                    Portion: {log.portionServed}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })} • Logged by {log.signature}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-orange-100 rounded-full">
+                        <Utensils className="w-8 h-8 text-orange-400" />
+                      </div>
+                    </div>
+                    <p className="text-gray-600 font-medium mb-2">No food entries logged today</p>
+                    <p className="text-sm text-gray-500">
+                      Start tracking {fullName}&apos;s food intake using the food entry button above
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="flex justify-center mb-4">
-                <div className="p-3 bg-gray-100 rounded-full">
-                  <Clock className="w-8 h-8 text-gray-400" />
-                </div>
+
+            {/* Fluid History Section - BOTTOM */}
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Droplets className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-blue-900">Fluid Intake</h3>
               </div>
-              <p className="text-gray-600 font-medium mb-2">No entries logged today</p>
-              <p className="text-sm text-gray-500">
-                Start tracking {fullName}&apos;s food and fluid intake using the buttons above
-              </p>
+              {(() => {
+                const fluidLogs = currentDayLogs?.filter(log => 
+                  ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl
+                ) || [];
+                
+                return fluidLogs.length > 0 ? (
+                  <div className="border border-blue-200 bg-blue-50/30 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {fluidLogs
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .map((log, index) => (
+                          <div key={log._id} className={`py-3 ${index !== fluidLogs.length - 1 ? 'border-b border-blue-200' : ''}`}>
+                            <div className="flex-1">
+                              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
+                                <div className="flex items-center space-x-2">
+                                  <Droplets className="w-4 h-4 text-blue-600" />
+                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="text-xs bg-white">
+                                    {log.section.replace('-', ' - ')}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                        'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                      }`}
+                                  >
+                                    {log.amountEaten}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                  <p className="mb-1 md:mb-0">
+                                    {log.fluidConsumedMl ? `Volume: ${log.fluidConsumedMl}ml` : `Portion: ${log.portionServed}`}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })} • Logged by {log.signature}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-blue-100 rounded-full">
+                        <Droplets className="w-8 h-8 text-blue-400" />
+                      </div>
+                    </div>
+                    <p className="text-gray-600 font-medium mb-2">No fluid entries logged today</p>
+                    <p className="text-sm text-gray-500">
+                      Start tracking {fullName}&apos;s fluid intake using the fluid entry button above
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 

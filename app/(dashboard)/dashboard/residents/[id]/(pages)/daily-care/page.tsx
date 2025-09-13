@@ -85,6 +85,56 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Determine current shift: Day (8 AM - 8 PM) or Night (8 PM - 8 AM)
   const currentShift = (currentHour >= 8 && currentHour < 20) ? "Day" : "Night";
+  const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
+
+  // Queries - Get all data and let frontend handle shift filtering
+  const todaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
+    residentId: id as Id<"residents">,
+    date: today,
+  });
+
+  // For night shift, we also need yesterday's data (for 8pm+ activities)
+  // Always get yesterday's data - we'll filter it in the UI logic
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayString = yesterday.toISOString().split('T')[0];
+  
+  const yesterdaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
+    residentId: id as Id<"residents">,
+    date: yesterdayString,
+  });
+
+  // Debug: Log query results
+  React.useEffect(() => {
+    if (!isCurrentlyDayShift) {
+      console.log('Night shift queries:', {
+        isCurrentlyDayShift,
+        currentHour,
+        todayData: todaysCareData,
+        yesterdayData: yesterdaysCareData,
+        todayDate: today,
+        yesterdayDate: yesterdayString
+      });
+    }
+  }, [todaysCareData, yesterdaysCareData, isCurrentlyDayShift, currentHour, today, yesterdayString]);
+
+  // Combine today's and yesterday's data for complete shift coverage
+  const allTasks = React.useMemo(() => [
+    ...(todaysCareData?.tasks || []),
+    ...(yesterdaysCareData?.tasks || [])
+  ], [todaysCareData?.tasks, yesterdaysCareData?.tasks]);
+
+  // Debug: Log all tasks during night shift
+  React.useEffect(() => {
+    if (!isCurrentlyDayShift && allTasks.length > 0) {
+      console.log('All tasks for night shift:', allTasks.map(task => ({
+        id: task._id,
+        type: task.taskType,
+        createdAt: new Date(task.createdAt).toLocaleString(),
+        hour: new Date(task.createdAt).getHours()
+      })));
+    }
+  }, [allTasks, isCurrentlyDayShift]);
 
   // Form schema
   const PersonalCareSchema = z.object({
@@ -159,12 +209,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     },
   });
 
-  // Queries
-  const todaysCareData = useQuery(api.personalCare.getDailyPersonalCare, {
-    residentId: id as Id<"residents">,
-    date: today,
-    shift: currentShift,
-  });
 
   const quickCareNotes = useQuery(api.quickCareNotes.getQuickCareNotesByResident, {
     residentId: id as Id<"residents">,
@@ -393,21 +437,19 @@ const activityOptions = [
   const handlePrint = () => {
     if (!todaysCareData || !resident) return;
     
-    // Determine current shift
-    const currentHour = currentTime.getHours();
-    const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
+    // Use already defined shift variables
     const currentShiftName = isCurrentlyDayShift ? 'Day' : 'Night';
     const currentShiftTime = isCurrentlyDayShift ? '8 AM - 8 PM' : '8 PM - 8 AM';
     
-    // Filter tasks by current shift
-    const currentShiftActivityRecords = todaysCareData.tasks.filter(task => {
+    // Filter tasks by current shift using allTasks
+    const currentShiftActivityRecords = allTasks.filter(task => {
       if (task.taskType !== 'daily_activity_record') return false;
       const taskTime = new Date(task.createdAt);
       const hour = taskTime.getHours();
       return isCurrentlyDayShift ? (hour >= 8 && hour < 20) : (hour >= 20 || hour < 8);
     });
     
-    const currentShiftPersonalCare = todaysCareData.tasks.filter(task => {
+    const currentShiftPersonalCare = allTasks.filter(task => {
       if (task.taskType === 'daily_activity_record') return false;
       const taskTime = new Date(task.createdAt);
       const hour = taskTime.getHours();
@@ -1034,7 +1076,7 @@ const activityOptions = [
               onClick={() => setIsActivityRecordDialogOpen(true)}
             >
               <Activity className="w-6 h-6 mr-3" />
-              Log Daily Activity
+              {isCurrentlyDayShift ? "Log Daily Activity" : "Log Night Activities"}
             </Button>
           </div>
         </CardContent>
@@ -1048,7 +1090,7 @@ const activityOptions = [
           <CardTitle className="block sm:hidden">
             <div className="flex items-center space-x-2 mb-3">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
+              <span>{isCurrentlyDayShift ? "Today's Log History" : "Tonight's Log History"}</span>
             </div>
             <div className="flex flex-col space-y-2">
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
@@ -1061,7 +1103,7 @@ const activityOptions = [
           <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
+              <span>{isCurrentlyDayShift ? "Today's Log History" : "Tonight's Log History"}</span>
             </div>
             <div className="flex items-center space-x-2">
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
@@ -1080,11 +1122,8 @@ const activityOptions = [
         </CardHeader>
         <CardContent>
           {(() => {
-            // Determine current shift based on current time
-            const currentHour = currentTime.getHours();
-            const isCurrentlyDayShift = currentHour >= 8 && currentHour < 20;
             
-            return todaysCareData && todaysCareData.tasks.length > 0 ? (
+            return allTasks.length > 0 ? (
               <div id="daily-report-content" className="space-y-6">
                 {/* Daily Activity Records Section - TOP */}
                 <div>
@@ -1094,67 +1133,82 @@ const activityOptions = [
                   </div>
                   {(() => {
                     // Filter current shift personal care tasks
-                    const currentShiftPersonalCare = (todaysCareData.tasks.filter(task => {
+                    const currentShiftPersonalCare = (allTasks.filter(task => {
                       if (task.taskType === 'daily_activity_record') return false;
                       
                       const taskTime = new Date(task.createdAt);
                       const hour = taskTime.getHours();
                       
-                      // Filter by current shift
+                      // Simplified filtering: show tasks based on current shift
                       if (isCurrentlyDayShift) {
-                        return hour >= 8 && hour < 20; // Day shift
+                        // Day shift: show tasks from 8am-8pm (any date)
+                        return hour >= 8 && hour < 20;
                       } else {
-                        return hour >= 20 || hour < 8; // Night shift
+                        // Night shift: show tasks from 8pm-8am (any date)
+                        return hour >= 20 || hour < 8;
                       }
                     }) || []);
+
+                    // Debug info (remove after testing)
+                    if (!isCurrentlyDayShift) {
+                      console.log('Night shift debug:', {
+                        allTasksCount: allTasks.length,
+                        personalCareCount: currentShiftPersonalCare.length,
+                        todayTasks: todaysCareData?.tasks?.length || 0,
+                        yesterdayTasks: yesterdaysCareData?.tasks?.length || 0,
+                        currentHour: new Date().getHours()
+                      });
+                    }
                     
                     return currentShiftPersonalCare.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentShiftPersonalCare
-                          .sort((a, b) => b.createdAt - a.createdAt)
-                          .map((task) => {
-                            const activity = activityOptions.find(opt => opt.id === task.taskType);
-                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                            
-                            return (
-                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-blue-200 bg-blue-50/50">
-                                <div className="flex-1">
-                                  <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-2">
-                                    <div className="flex items-center space-x-2">
-                                      <User className="w-4 h-4 text-blue-600" />
-                                      <span className="font-medium text-blue-900">
-                                        {activity?.label || task.taskType}
-                                      </span>
+                      <div className="border border-blue-200 bg-blue-50/30 rounded-lg p-4">
+                        <div className="space-y-3">
+                          {currentShiftPersonalCare
+                            .sort((a, b) => b.createdAt - a.createdAt)
+                            .map((task, index) => {
+                              const activity = activityOptions.find(opt => opt.id === task.taskType);
+                              const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                              
+                              return (
+                                <div key={task._id} className={`flex items-center justify-between py-3 ${index !== currentShiftPersonalCare.length - 1 ? 'border-b border-blue-200' : ''}`}>
+                                  <div className="flex-1">
+                                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
+                                      <div className="flex items-center space-x-2">
+                                        <User className="w-4 h-4 text-blue-600" />
+                                        <span className="font-medium text-blue-900">
+                                          {activity?.label || task.taskType}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="outline" className="text-xs bg-white">
+                                          {payload?.time && `${payload.time}`}
+                                        </Badge>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-green-100 text-green-800 border-green-300"
+                                        >
+                                          {task.status === 'completed' ? 'Completed' : task.status}
+                                        </Badge>
+                                      </div>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className="text-xs bg-white">
-                                        {payload?.time && `${payload.time}`}
-                                      </Badge>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs bg-green-100 text-green-800 border-green-300"
-                                      >
-                                        {task.status === 'completed' ? 'Completed' : task.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    <div className="flex flex-col md:flex-row md:items-center md:gap-3">
-                                      {task.notes && (
-                                        <p className="mb-1 md:mb-0">{task.notes}</p>
-                                      )}
-                                      <p className="text-xs text-gray-600">
-                                        {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                      </p>
+                                    <div className="text-sm text-gray-700">
+                                      <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                        {task.notes && (
+                                          <p className="mb-1 md:mb-0">{task.notes}</p>
+                                        )}
+                                        <p className="text-xs text-gray-600">
+                                          {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                        </div>
                       </div>
                     ) : (
                       <div className="text-center py-6 bg-blue-50/30 rounded-lg border border-blue-100">
@@ -1165,7 +1219,7 @@ const activityOptions = [
                         </div>
                         <p className="text-gray-600 font-medium mb-1 text-sm">No personal care activities</p>
                         <p className="text-xs text-gray-500">
-                          No personal care activities logged for current shift
+                          No personal care activities logged {isCurrentlyDayShift ? "today" : "tonight"}
                         </p>
                       </div>
                     )
@@ -1176,70 +1230,82 @@ const activityOptions = [
                 <div>
                   <div className="flex items-center space-x-2 mb-4">
                     <Activity className="w-5 h-5 text-green-600" />
-                    <h3 className="text-lg font-semibold text-green-900">Daily Activity Records</h3>
+                    <h3 className="text-lg font-semibold text-green-900">{isCurrentlyDayShift ? "Daily Activity Records" : "Night Activities"}</h3>
                   </div>
                   {(() => {
                     // Filter current shift activity records
-                    const currentShiftActivityRecords = (todaysCareData.tasks.filter(task => {
+                    const currentShiftActivityRecords = (allTasks.filter(task => {
                       if (task.taskType !== 'daily_activity_record') return false;
                       
                       const taskTime = new Date(task.createdAt);
                       const hour = taskTime.getHours();
                       
-                      // Filter by current shift
+                      // Simplified filtering: show tasks based on current shift
                       if (isCurrentlyDayShift) {
-                        return hour >= 8 && hour < 20; // Day shift
+                        // Day shift: show tasks from 8am-8pm (any date)
+                        return hour >= 8 && hour < 20;
                       } else {
-                        return hour >= 20 || hour < 8; // Night shift
+                        // Night shift: show tasks from 8pm-8am (any date)
+                        return hour >= 20 || hour < 8;
                       }
                     }) || []);
+
+                    // Debug info (remove after testing)
+                    if (!isCurrentlyDayShift) {
+                      console.log('Night activities debug:', {
+                        activityRecordsCount: currentShiftActivityRecords.length,
+                        allActivityRecords: allTasks.filter(task => task.taskType === 'daily_activity_record').length
+                      });
+                    }
                     
                     return currentShiftActivityRecords.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentShiftActivityRecords
-                          .sort((a, b) => b.createdAt - a.createdAt)
-                          .map((task) => {
-                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
-                            
-                            return (
-                              <div key={task._id} className="flex items-center justify-between p-4 rounded-md border border-green-200 bg-green-50/50">
-                                <div className="flex-1">
-                                  <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-2">
-                                    <div className="flex items-center space-x-2">
-                                      <Activity className="w-4 h-4 text-green-600" />
-                                      <span className="font-medium text-green-900">
-                                        Daily Activity Record
-                                      </span>
+                      <div className="border border-green-200 bg-green-50/30 rounded-lg p-4">
+                        <div className="space-y-3">
+                          {currentShiftActivityRecords
+                            .sort((a, b) => b.createdAt - a.createdAt)
+                            .map((task, index) => {
+                              const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string };
+                              
+                              return (
+                                <div key={task._id} className={`flex items-center justify-between py-3 ${index !== currentShiftActivityRecords.length - 1 ? 'border-b border-green-200' : ''}`}>
+                                  <div className="flex-1">
+                                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
+                                      <div className="flex items-center space-x-2">
+                                        <Activity className="w-4 h-4 text-green-600" />
+                                        <span className="font-medium text-green-900">
+                                          Daily Activity Record
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="outline" className="text-xs bg-white">
+                                          {payload?.time && `${payload.time}`}
+                                        </Badge>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-green-100 text-green-800 border-green-300"
+                                        >
+                                          {task.status === 'completed' ? 'Completed' : task.status}
+                                        </Badge>
+                                      </div>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className="text-xs bg-white">
-                                        {payload?.time && `${payload.time}`}
-                                      </Badge>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs bg-green-100 text-green-800 border-green-300"
-                                      >
-                                        {task.status === 'completed' ? 'Completed' : task.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-700">
-                                    <div className="flex flex-col md:flex-row md:items-center md:gap-3">
-                                      {task.notes && (
-                                        <p className="mb-1 md:mb-0">{task.notes}</p>
-                                      )}
-                                      <p className="text-xs text-gray-600">
-                                        {new Date(task.createdAt).toLocaleTimeString('en-US', {
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
-                                      </p>
+                                    <div className="text-sm text-gray-700">
+                                      <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                        {task.notes && (
+                                          <p className="mb-1 md:mb-0">{task.notes}</p>
+                                        )}
+                                        <p className="text-xs text-gray-600">
+                                          {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })} • Logged by {payload?.primaryStaff || payload?.staff || 'Staff'}
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                        </div>
                       </div>
                     ) : (
                       <div className="text-center py-6 bg-green-50/30 rounded-lg border border-green-100">
@@ -1248,9 +1314,9 @@ const activityOptions = [
                             <Activity className="w-6 h-6 text-green-400" />
                           </div>
                         </div>
-                        <p className="text-gray-600 font-medium mb-1 text-sm">No daily activity records</p>
+                        <p className="text-gray-600 font-medium mb-1 text-sm">{isCurrentlyDayShift ? "No daily activity records" : "No night activities"}</p>
                         <p className="text-xs text-gray-500">
-                          No daily activity records logged for current shift
+                          {isCurrentlyDayShift ? "No daily activity records logged today" : "No night activities logged tonight"}
                         </p>
                       </div>
                     )
@@ -1266,7 +1332,7 @@ const activityOptions = [
                   <Clock className="w-8 h-8 text-gray-400" />
                 </div>
               </div>
-              <p className="text-gray-600 font-medium mb-2">No entries logged today</p>
+              <p className="text-gray-600 font-medium mb-2">{isCurrentlyDayShift ? "No entries logged today" : "No entries logged tonight"}</p>
               <p className="text-sm text-gray-500">
                 Start tracking {fullName}&apos;s personal care activities using the buttons above
               </p>
@@ -1283,7 +1349,7 @@ const activityOptions = [
           <CardTitle className="block sm:hidden">
             <div className="flex items-center space-x-2 mb-2">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Summary</span>
+              <span>{isCurrentlyDayShift ? "Today's Summary" : "Tonight's Summary"}</span>
             </div>
             <Badge variant="outline" className="self-start">
               {new Date().toLocaleDateString()}
@@ -1292,7 +1358,7 @@ const activityOptions = [
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
             <Clock className="w-5 h-5 text-gray-600" />
-            <span>Today&apos;s Summary</span>
+            <span>{isCurrentlyDayShift ? "Today's Summary" : "Tonight's Summary"}</span>
             <Badge variant="outline" className="ml-auto">
               {new Date().toLocaleDateString()}
             </Badge>
@@ -1303,7 +1369,7 @@ const activityOptions = [
             <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
               <div className="text-2xl font-bold text-amber-600">
                 {(() => {
-                  const dayShiftCount = todaysCareData?.tasks.filter(task => {
+                  const dayShiftCount = allTasks.filter(task => {
                     const taskTime = new Date(task.createdAt);
                     const hour = taskTime.getHours();
                     return hour >= 8 && hour < 20;
@@ -1316,7 +1382,7 @@ const activityOptions = [
             <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
               <div className="text-2xl font-bold text-indigo-600">
                 {(() => {
-                  const nightShiftCount = todaysCareData?.tasks.filter(task => {
+                  const nightShiftCount = allTasks.filter(task => {
                     const taskTime = new Date(task.createdAt);
                     const hour = taskTime.getHours();
                     return hour >= 20 || hour < 8;
@@ -1328,8 +1394,8 @@ const activityOptions = [
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-gray-600">
-                {todaysCareData?.tasks && todaysCareData.tasks.length > 0
-                  ? new Date(Math.max(...todaysCareData.tasks.map(t => t.createdAt))).toLocaleTimeString('en-US', {
+                {allTasks.length > 0
+                  ? new Date(Math.max(...allTasks.map(t => t.createdAt))).toLocaleTimeString('en-US', {
                     hour: '2-digit',
                     minute: '2-digit'
                   })
