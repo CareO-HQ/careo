@@ -20,12 +20,11 @@ import { useQuery } from "convex/react";
 import { DownloadIcon, FolderIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import ContinenceDialog from "../dialogs/ContinenceDialog";
+import BladderBowelDialog from "../dialogs/ContinenceDialog";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
-import BladderBowelDialog from "../dialogs/ContinenceDialog";
 
 interface CareFileFolderProps {
   folderName: string;

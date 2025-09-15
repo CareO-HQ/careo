@@ -12,37 +12,37 @@ export const bladderBowelAssessmentSchema = z.object({
   residentName: z.string(),
   dateOfBirth: z.number(),
   bedroomNumber: z.string(),
-  informationObtainedFrom: z.string(),
+  informationObtainedFrom: z.string().min(1, { message: "Required" }),
 
   // Section 2 - Infections
-  hepatitisAB: z.boolean(),
-  bloodBorneVirues: z.boolean(),
-  mrsa: z.boolean(),
-  esbl: z.boolean(),
+  hepatitisAB: z.boolean().optional(),
+  bloodBorneVirues: z.boolean().optional(),
+  mrsa: z.boolean().optional(),
+  esbl: z.boolean().optional(),
   other: z.string().optional(),
 
   // Section 3 - Urinalysis on Admission
-  ph: z.boolean(),
-  nitrates: z.boolean(),
-  protein: z.boolean(),
-  leucocytes: z.boolean(),
-  glucose: z.boolean(),
-  bloodResult: z.boolean(),
+  ph: z.boolean().optional(),
+  nitrates: z.boolean().optional(),
+  protein: z.boolean().optional(),
+  leucocytes: z.boolean().optional(),
+  glucose: z.boolean().optional(),
+  bloodResult: z.boolean().optional(),
   mssuDate: z.number().optional(),
 
   // Section 4 - Prescribed medication
-  antiHypertensives: z.boolean(),
-  antiParkinsonDrugs: z.boolean(),
-  ironSupplement: z.boolean(),
-  laxatives: z.boolean(),
-  diuretics: z.boolean(),
-  histamine: z.boolean(),
-  antiDepressants: z.boolean(),
-  cholinergic: z.boolean(),
-  sedativesHypnotic: z.boolean(),
-  antiPsychotic: z.boolean(),
-  antihistamines: z.boolean(),
-  narcoticAnalgesics: z.boolean(),
+  antiHypertensives: z.boolean().optional(),
+  antiParkinsonDrugs: z.boolean().optional(),
+  ironSupplement: z.boolean().optional(),
+  laxatives: z.boolean().optional(),
+  diuretics: z.boolean().optional(),
+  histamine: z.boolean().optional(),
+  antiDepressants: z.boolean().optional(),
+  cholinergic: z.boolean().optional(),
+  sedativesHypnotic: z.boolean().optional(),
+  antiPsychotic: z.boolean().optional(),
+  antihistamines: z.boolean().optional(),
+  narcoticAnalgesics: z.boolean().optional(),
 
   // Section 5 - Lifestyle
   caffeineMls24h: z.number().optional(),
@@ -57,7 +57,7 @@ export const bladderBowelAssessmentSchema = z.object({
   smoking: z.enum(["SMOKER", "NON-SMOKER", "EX-SMOKER"]),
   weight: z.enum(["NORMAL", "OBESE", "UNDERWEIGHT"]),
   skinCondition: z.enum(["HEALTHY", "RED", "EXCORIATED", "BROKEN"]),
-  constipationHistory: z.boolean(),
+  constipationHistory: z.boolean().optional(),
   mentalState: z.enum([
     "ALERT",
     "CONFUSED",
@@ -65,7 +65,7 @@ export const bladderBowelAssessmentSchema = z.object({
     "COGNITIVELY-IMPAIRED"
   ]),
   mobilityIssues: z.enum(["INDEPENDENT", "ASSISTANCE", "HOISTED"]),
-  historyRecurrentUTIs: z.boolean(),
+  historyRecurrentUTIs: z.boolean().optional(),
 
   // Section 6 - Urinary continence
   incontinence: z.enum([
@@ -80,7 +80,7 @@ export const bladderBowelAssessmentSchema = z.object({
   onset: z.enum(["SUDDEN", "GRADUAL"]),
   duration: z.enum(["LESS-6M", "6M-1Y", "MORE-1Y"]),
   symptompsLastSix: z.enum(["STABLE", "WORSENING", "IMPROVING", "FLUCTUATING"]),
-  physicianConsulted: z.boolean(),
+  physicianConsulted: z.boolean().optional(),
 
   // Section 7 - Bowel pattern
   bowelState: z.enum([
@@ -97,7 +97,7 @@ export const bladderBowelAssessmentSchema = z.object({
   liquidFeeds: z.string(),
   otherFactors: z.string(),
   otherRemedies: z.string(),
-  medicalOfficerConsulted: z.boolean(),
+  medicalOfficerConsulted: z.boolean().optional(),
 
   // Section 8 - Current toileting pattern and products in use
   dayPattern: ToiletingPattern,
@@ -107,35 +107,35 @@ export const bladderBowelAssessmentSchema = z.object({
 
   // Section 9 - Symptoms
   // 9.A (9)
-  leakCoughLaugh: z.boolean(),
-  leakStandingUp: z.boolean(),
-  leakUpstairsDownhill: z.boolean(),
-  passesUrineFrequently: z.boolean(),
-  desirePassUrine: z.boolean(),
-  leaksBeforeToilet: z.boolean(),
-  moreThanTwiceAtNight: z.boolean(),
-  anxiety: z.boolean(),
+  leakCoughLaugh: z.boolean().optional(),
+  leakStandingUp: z.boolean().optional(),
+  leakUpstairsDownhill: z.boolean().optional(),
+  passesUrineFrequently: z.boolean().optional(),
+  desirePassUrine: z.boolean().optional(),
+  leaksBeforeToilet: z.boolean().optional(),
+  moreThanTwiceAtNight: z.boolean().optional(),
+  anxiety: z.boolean().optional(),
   // 9.B (10)
-  difficultyStarting: z.boolean(),
-  hesintancy: z.boolean(),
-  dribbles: z.boolean(),
-  feelsFull: z.boolean(),
-  recurrentTractInfections: z.boolean(),
+  difficultyStarting: z.boolean().optional(),
+  hesintancy: z.boolean().optional(),
+  dribbles: z.boolean().optional(),
+  feelsFull: z.boolean().optional(),
+  recurrentTractInfections: z.boolean().optional(),
   // 9.C (11)
-  limitedMobility: z.boolean(),
-  unableOnTime: z.boolean(),
-  notHoldUrinalOrSeat: z.boolean(),
-  notuseCallBell: z.boolean(),
-  poorVision: z.boolean(),
-  assistedTransfer: z.boolean(),
-  pain: z.boolean(),
+  limitedMobility: z.boolean().optional(),
+  unableOnTime: z.boolean().optional(),
+  notHoldUrinalOrSeat: z.boolean().optional(),
+  notuseCallBell: z.boolean().optional(),
+  poorVision: z.boolean().optional(),
+  assistedTransfer: z.boolean().optional(),
+  pain: z.boolean().optional(),
 
   // Section 12
   // Bladder
-  bladderContinent: z.boolean(),
-  bladderIncontinent: z.boolean(),
+  bladderContinent: z.boolean().optional(),
+  bladderIncontinent: z.boolean().optional(),
   bladderIncontinentType: z.enum(["STRESS", "URGE", "MIXED", "FUNCTIONAL"]),
-  bladderPlanCommenced: z.boolean(),
+  bladderPlanCommenced: z.boolean().optional(),
   bladderReferralRequired: z.enum([
     "DIETICIAN",
     "GP",
@@ -151,10 +151,10 @@ export const bladderBowelAssessmentSchema = z.object({
     "RETENTION-OVERFLOW"
   ]),
   // Bowel
-  bowelContinent: z.boolean(),
-  bowelIncontinent: z.boolean(),
-  bowelPlanCommenced: z.boolean(),
-  bowelRecordCommenced: z.boolean(),
+  bowelContinent: z.boolean().optional(),
+  bowelIncontinent: z.boolean().optional(),
+  bowelPlanCommenced: z.boolean().optional(),
+  bowelRecordCommenced: z.boolean().optional(),
   bowelReferralRequired: z.enum([
     "DIETICIAN",
     "GP",

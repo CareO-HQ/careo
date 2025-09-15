@@ -750,34 +750,34 @@ export default defineSchema({
     informationObtainedFrom: v.string(),
 
     // Section 2 - Infections
-    hepatitisAB: v.boolean(),
-    bloodBorneVirues: v.boolean(),
-    mrsa: v.boolean(),
-    esbl: v.boolean(),
+    hepatitisAB: v.optional(v.boolean()),
+    bloodBorneVirues: v.optional(v.boolean()),
+    mrsa: v.optional(v.boolean()),
+    esbl: v.optional(v.boolean()),
     other: v.optional(v.string()),
 
     // Section 3 - Urinalysis on Admission
-    ph: v.boolean(),
-    nitrates: v.boolean(),
-    protein: v.boolean(),
-    leucocytes: v.boolean(),
-    glucose: v.boolean(),
-    bloodResult: v.boolean(),
+    ph: v.optional(v.boolean()),
+    nitrates: v.optional(v.boolean()),
+    protein: v.optional(v.boolean()),
+    leucocytes: v.optional(v.boolean()),
+    glucose: v.optional(v.boolean()),
+    bloodResult: v.optional(v.boolean()),
     mssuDate: v.optional(v.number()),
 
     // Section 4 - Prescribed medication
-    antiHypertensives: v.boolean(),
-    antiParkinsonDrugs: v.boolean(),
-    ironSupplement: v.boolean(),
-    laxatives: v.boolean(),
-    diuretics: v.boolean(),
-    histamine: v.boolean(),
-    antiDepressants: v.boolean(),
-    cholinergic: v.boolean(),
-    sedativesHypnotic: v.boolean(),
-    antiPsychotic: v.boolean(),
-    antihistamines: v.boolean(),
-    narcoticAnalgesics: v.boolean(),
+    antiHypertensives: v.optional(v.boolean()),
+    antiParkinsonDrugs: v.optional(v.boolean()),
+    ironSupplement: v.optional(v.boolean()),
+    laxatives: v.optional(v.boolean()),
+    diuretics: v.optional(v.boolean()),
+    histamine: v.optional(v.boolean()),
+    antiDepressants: v.optional(v.boolean()),
+    cholinergic: v.optional(v.boolean()),
+    sedativesHypnotic: v.optional(v.boolean()),
+    antiPsychotic: v.optional(v.boolean()),
+    antihistamines: v.optional(v.boolean()),
+    narcoticAnalgesics: v.optional(v.boolean()),
 
     // Section 5 - Lifestyle
     caffeineMls24h: v.optional(v.number()),
@@ -805,7 +805,7 @@ export default defineSchema({
       v.literal("EXCORIATED"),
       v.literal("BROKEN")
     ),
-    constipationHistory: v.boolean(),
+    constipationHistory: v.optional(v.boolean()),
     mentalState: v.union(
       v.literal("ALERT"),
       v.literal("CONFUSED"),
@@ -817,7 +817,7 @@ export default defineSchema({
       v.literal("ASSISTANCE"),
       v.literal("HOISTED")
     ),
-    historyRecurrentUTIs: v.boolean(),
+    historyRecurrentUTIs: v.optional(v.boolean()),
 
     // Section 6 - Urinari continence
     incontinence: v.union(
@@ -845,7 +845,7 @@ export default defineSchema({
       v.literal("IMPROVING"),
       v.literal("FLUCTUATING")
     ),
-    physicianConsulted: v.boolean(),
+    physicianConsulted: v.optional(v.boolean()),
 
     // Section 7 - Bowel pattern
     bowelState: v.union(
@@ -862,7 +862,7 @@ export default defineSchema({
     liquidFeeds: v.string(),
     otherFactors: v.string(),
     otherRemedies: v.string(),
-    medicalOfficerConsulted: v.boolean(),
+    medicalOfficerConsulted: v.optional(v.boolean()),
 
     // Section 8 - Current toileting pattern and products in use
     // TODO: I thinks is only one option.
@@ -873,40 +873,40 @@ export default defineSchema({
 
     // Section 9 - Symptoms
     // 9.A -> If any is true, show to do another plan
-    leakCoughLaugh: v.boolean(),
-    leakStandingUp: v.boolean(),
-    leakUpstairsDownhill: v.boolean(),
-    passesUrineFrequently: v.boolean(),
-    desirePassUrine: v.boolean(),
-    leaksBeforeToilet: v.boolean(),
-    moreThanTwiceAtNight: v.boolean(),
-    anxiety: v.boolean(),
+    leakCoughLaugh: v.optional(v.boolean()),
+    leakStandingUp: v.optional(v.boolean()),
+    leakUpstairsDownhill: v.optional(v.boolean()),
+    passesUrineFrequently: v.optional(v.boolean()),
+    desirePassUrine: v.optional(v.boolean()),
+    leaksBeforeToilet: v.optional(v.boolean()),
+    moreThanTwiceAtNight: v.optional(v.boolean()),
+    anxiety: v.optional(v.boolean()),
     // 9.B ->  If any is true, show to do another plan
-    difficultyStarting: v.boolean(),
-    hesintancy: v.boolean(),
-    dribbles: v.boolean(),
-    feelsFull: v.boolean(),
-    recurrentTractInfections: v.boolean(),
+    difficultyStarting: v.optional(v.boolean()),
+    hesintancy: v.optional(v.boolean()),
+    dribbles: v.optional(v.boolean()),
+    feelsFull: v.optional(v.boolean()),
+    recurrentTractInfections: v.optional(v.boolean()),
     // 9.C ->  If any is true, show to do another plan
-    limitedMobility: v.boolean(),
-    unableOnTime: v.boolean(),
-    notHoldUrinalOrSeat: v.boolean(),
-    notuseCallBell: v.boolean(),
-    poorVision: v.boolean(),
-    assistedTransfer: v.boolean(),
-    pain: v.boolean(),
+    limitedMobility: v.optional(v.boolean()),
+    unableOnTime: v.optional(v.boolean()),
+    notHoldUrinalOrSeat: v.optional(v.boolean()),
+    notuseCallBell: v.optional(v.boolean()),
+    poorVision: v.optional(v.boolean()),
+    assistedTransfer: v.optional(v.boolean()),
+    pain: v.optional(v.boolean()),
 
     // Section 10
     // Bladder
-    bladderContinent: v.boolean(),
-    bladderIncontinent: v.boolean(),
+    bladderContinent: v.optional(v.boolean()),
+    bladderIncontinent: v.optional(v.boolean()),
     bladderIncontinentType: v.union(
       v.literal("STRESS"),
       v.literal("URGE"),
       v.literal("MIXED"),
       v.literal("FUNCTIONAL")
     ),
-    bladderPlanCommenced: v.boolean(),
+    bladderPlanCommenced: v.optional(v.boolean()),
     bladderReferralRequired: v.union(
       v.literal("DIETICIAN"),
       v.literal("GP"),
@@ -922,10 +922,10 @@ export default defineSchema({
       v.literal("RETENTION-OVERFLOW")
     ),
     // Bowel
-    bowelContinent: v.boolean(),
-    bowelIncontinent: v.boolean(),
-    bowelPlanCommenced: v.boolean(),
-    bowelRecordCommenced: v.boolean(),
+    bowelContinent: v.optional(v.boolean()),
+    bowelIncontinent: v.optional(v.boolean()),
+    bowelPlanCommenced: v.optional(v.boolean()),
+    bowelRecordCommenced: v.optional(v.boolean()),
     bowelReferralRequired: v.union(
       v.literal("DIETICIAN"),
       v.literal("GP"),
