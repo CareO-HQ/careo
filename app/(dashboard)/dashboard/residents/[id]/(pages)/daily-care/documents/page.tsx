@@ -19,6 +19,8 @@ import {
   Eye,
   Download,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -30,6 +32,16 @@ import {
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { DateSectionSkeleton, ReportDialogSkeleton } from "@/components/ui/skeleton-loaders";
+import { 
+  formatDateToLocal, 
+  getLocalHour, 
+  isNightShift, 
+  isDayShift,
+  formatTimeTo12Hour,
+  getYesterdayDate,
+  formatDateForDisplay 
+} from "@/lib/date-utils";
 
 type DocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -45,6 +57,10 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   } | null>(null);
   const [dateFilter, setDateFilter] = React.useState<string>("");
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>();
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const itemsPerPage = 10;
 
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
@@ -70,11 +86,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     api.personalCare.getDailyPersonalCare,
     selectedReport?.type === 'night' ? {
       residentId: id as Id<"residents">,
-      date: (() => {
-        const yesterday = new Date(selectedReport.date);
-        yesterday.setDate(yesterday.getDate() - 1);
-        return yesterday.toISOString().split('T')[0];
-      })(),
+      date: getYesterdayDate(selectedReport.date),
       // Remove shift filtering - get all activities for yesterday
     } : "skip"
   );
@@ -95,16 +107,26 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     
     // Filter by calendar selection
     if (selectedDate) {
-      // Use local timezone to avoid date shifting issues
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const selectedDateString = `${year}-${month}-${day}`;
+      const selectedDateString = formatDateToLocal(selectedDate);
       filtered = filtered.filter(date => date === selectedDateString);
     }
     
     return filtered;
   }, [availableDates, dateFilter, selectedDate]);
+
+  // Paginated dates
+  const paginatedDates = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredDates.slice(startIndex, endIndex);
+  }, [filteredDates, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredDates.length / itemsPerPage);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFilter, selectedDate]);
 
   const handleViewReport = (date: string, type: 'day' | 'night') => {
     // Set the selected report state - the dialog will handle loading the data
@@ -505,11 +527,10 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
       {/* Reports List */}
       {availableDates === undefined ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading reports...</p>
-          </div>
+        <div className="space-y-6">
+          {[...Array(3)].map((_, i) => (
+            <DateSectionSkeleton key={i} />
+          ))}
         </div>
       ) : filteredDates.length === 0 ? (
         <Card>
@@ -524,18 +545,14 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {filteredDates.map((date) => (
+        <>
+          <div className="space-y-6">
+            {paginatedDates.map((date) => (
             <div key={date} className="space-y-3">
               <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center space-x-2">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="text-sm sm:text-base">
-                  {new Date(date).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric"
-                  })}
+                  {formatDateForDisplay(date)}
                 </span>
               </h2>
 
@@ -579,10 +596,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             <div className="space-y-4">
                               {selectedReport?.type === 'day' && selectedReport?.date === date && (
                                 selectedReportData === undefined ? (
-                                  <div className="text-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
-                                  </div>
+                                  <ReportDialogSkeleton />
                                 ) : (
                                   <div className="space-y-3">
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
@@ -594,10 +608,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                         <h4 className="font-medium text-amber-800">Total Activities</h4>
                                         <p className="text-sm text-amber-700">{(() => {
                                           // Filter day shift activities (8am-8pm)
-                                          const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => {
-                                            const hour = new Date(task.createdAt).getHours();
-                                            return hour >= 8 && hour < 20;
-                                          });
+                                          const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => 
+                                            isDayShift(task.createdAt)
+                                          );
                                           return dayActivities.length;
                                         })()}</p>
                                       </div>
@@ -605,10 +618,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                         <h4 className="font-medium text-amber-800">Completion Rate</h4>
                                         <p className="text-sm text-amber-700">
                                           {(() => {
-                                            const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => {
-                                              const hour = new Date(task.createdAt).getHours();
-                                              return hour >= 8 && hour < 20;
-                                            });
+                                            const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => 
+                                              isDayShift(task.createdAt)
+                                            );
                                             return dayActivities.length > 0 
                                               ? Math.round((dayActivities.filter((a: any) => a.status === 'completed').length / dayActivities.length) * 100)
                                               : 0;
@@ -620,10 +632,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                     <div className="space-y-2">
                                       <h4 className="font-medium">Activities Log</h4>
                                       {(() => {
-                                        const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => {
-                                          const hour = new Date(task.createdAt).getHours();
-                                          return hour >= 8 && hour < 20;
-                                        });
+                                        const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => 
+                                          isDayShift(task.createdAt)
+                                        );
                                         return dayActivities.length > 0 ? (
                                           <div className="space-y-2 max-h-60 overflow-y-auto">
                                             {dayActivities.map((activity: any, index: number) => (
@@ -708,88 +719,27 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             <div className="space-y-4">
                               {selectedReport?.type === 'night' && selectedReport?.date === date && (
                                 selectedReportData === undefined ? (
-                                  <div className="text-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
-                                  </div>
+                                  <ReportDialogSkeleton />
                                 ) : (
                                   (() => {
-                                    // Enhanced Debug: Log comprehensive data
-                                    console.log('=== NIGHT REPORT DEBUG ===');
-                                    console.log('Selected Date:', selectedReport?.date);
-                                    console.log('Today Report Data:', {
-                                      hasData: !!selectedReportData,
-                                      daily: selectedReportData?.daily,
-                                      taskCount: selectedReportData?.tasks?.length || 0,
-                                      tasks: selectedReportData?.tasks?.map(t => ({
-                                        taskType: t.taskType,
-                                        createdAt: t.createdAt,
-                                        completedAt: t.completedAt,
-                                        createdTime: new Date(t.createdAt).toLocaleString(),
-                                        completedTime: t.completedAt ? new Date(t.completedAt).toLocaleString() : 'N/A',
-                                        createdHour: new Date(t.createdAt).getHours(),
-                                        completedHour: t.completedAt ? new Date(t.completedAt).getHours() : 'N/A'
-                                      }))
-                                    });
-                                    console.log('Yesterday Report Data:', {
-                                      hasData: !!yesterdayReportData,
-                                      daily: yesterdayReportData?.daily,
-                                      taskCount: yesterdayReportData?.tasks?.length || 0,
-                                      tasks: yesterdayReportData?.tasks?.map(t => ({
-                                        taskType: t.taskType,
-                                        createdAt: t.createdAt,
-                                        completedAt: t.completedAt,
-                                        createdTime: new Date(t.createdAt).toLocaleString(),
-                                        completedTime: t.completedAt ? new Date(t.completedAt).toLocaleString() : 'N/A',
-                                        createdHour: new Date(t.createdAt).getHours(),
-                                        completedHour: t.completedAt ? new Date(t.completedAt).getHours() : 'N/A'
-                                      }))
-                                    });
-
                                     // Combine today's and yesterday's data for night shift
                                     const allNightActivities = [
                                       ...(selectedReportData?.tasks || []),
                                       ...(yesterdayReportData?.tasks || [])
                                     ];
 
-                                    console.log('All combined activities:', allNightActivities.length);
-
-                                    // Enhanced filtering logic for night shift (8pm-8am)
-                                    const nightShiftActivities = allNightActivities.filter(activity => {
-                                      // Use createdAt as primary time reference (it's always present as a number timestamp)
-                                      const timeToCheck = activity.createdAt;
-                                      const activityTime = new Date(timeToCheck);
-                                      const hour = activityTime.getHours();
-                                      
-                                      // Night shift: 8pm (20:00) onwards OR before 8am (08:00)
-                                      const isNightShift = hour >= 20 || hour < 8;
-                                      
-                                      console.log(`Activity ${activity.taskType}:`, {
-                                        createdAt: timeToCheck,
-                                        timeString: activityTime.toLocaleString(),
-                                        hour: hour,
-                                        isNightShift: isNightShift
-                                      });
-                                      
-                                      return isNightShift;
-                                    });
-
-                                    console.log(`Filtered ${nightShiftActivities.length} night shift activities out of ${allNightActivities.length} total`);
-
-                                    // TEMPORARY DEBUG: Show all activities regardless of time filter
-                                    console.log('=== TEMP DEBUG: SHOWING ALL ACTIVITIES ===');
-                                    const debugActivities = allNightActivities; // Use all activities temporarily
+                                    // Filter for night shift activities (8pm-8am)
+                                    const nightShiftActivities = allNightActivities.filter(activity => 
+                                      isNightShift(activity.createdAt)
+                                    );
                                     
                                     // Separate personal care and daily activities
-                                    const personalCareActivities = debugActivities.filter(activity => 
+                                    const personalCareActivities = nightShiftActivities.filter(activity => 
                                       activity.taskType !== 'daily_activity_record'
                                     );
-                                    const dailyActivities = debugActivities.filter(activity => 
+                                    const dailyActivities = nightShiftActivities.filter(activity => 
                                       activity.taskType === 'daily_activity_record'
                                     );
-                                    
-                                    console.log('Personal Care Activities:', personalCareActivities.length);
-                                    console.log('Daily Activities:', dailyActivities.length);
 
                                     return (
                                       <div className="space-y-3">
@@ -800,13 +750,13 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                           </div>
                                           <div>
                                             <h4 className="font-medium text-indigo-800">Total Activities</h4>
-                                            <p className="text-sm text-indigo-700">{debugActivities.length}</p>
+                                            <p className="text-sm text-indigo-700">{nightShiftActivities.length}</p>
                                           </div>
                                           <div>
                                             <h4 className="font-medium text-indigo-800">Completion Rate</h4>
                                             <p className="text-sm text-indigo-700">
-                                              {debugActivities.length > 0 
-                                                ? Math.round((debugActivities.filter((a: any) => a.status === 'completed').length / debugActivities.length) * 100)
+                                              {nightShiftActivities.length > 0 
+                                                ? Math.round((nightShiftActivities.filter((a: any) => a.status === 'completed').length / nightShiftActivities.length) * 100)
                                                 : 0}%
                                             </p>
                                           </div>
@@ -910,6 +860,62 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
             </div>
           ))}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-6 border-t">
+            <p className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredDates.length)} of {filteredDates.length} dates
+            </p>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <div className="flex items-center space-x-1">
+                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={i}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </>
       )}
     </div>
   );
