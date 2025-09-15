@@ -136,6 +136,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
   const [isLogLoading, setIsLogLoading] = React.useState(false);
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
+  const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(user?.user?.name || "");
+  const [showLogAnotherActions, setShowLogAnotherActions] = React.useState(false);
 
 
   // Form setup
@@ -163,9 +165,17 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
       portionServed: "",
       amountEaten: "All",
       fluidConsumedMl: undefined,
-      signature: user?.user?.name || "",
+      signature: persistentStaffSignature,
     },
   });
+
+  // Update persistent signature when user changes
+  React.useEffect(() => {
+    if (user?.user?.name && !persistentStaffSignature) {
+      setPersistentStaffSignature(user.user.name);
+      logForm.setValue('signature', user.user.name);
+    }
+  }, [user, persistentStaffSignature, logForm]);
 
   // Watch the typeOfFoodDrink field to show/hide fluid input
 
@@ -247,6 +257,24 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
     return "5pm-midnight";
   };
 
+  const getCurrentTime = () => {
+    return new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getSectionDisplayName = (section: string) => {
+    const timeMap: Record<string, string> = {
+      "midnight-7am": "Midnight - 7:00 AM",
+      "7am-12pm": "7:00 AM - 12:00 PM", 
+      "12pm-5pm": "12:00 PM - 5:00 PM",
+      "5pm-midnight": "5:00 PM - Midnight"
+    };
+    return timeMap[section] || section;
+  };
+
 
 
   const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
@@ -319,17 +347,24 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         createdBy: user.user.id,
       });
 
+      // Update persistent signature from form
+      setPersistentStaffSignature(values.signature);
+      
       toast.success("Food/fluid entry logged successfully");
 
-      // Reset form for next entry
+      // Reset form for next entry but preserve signature
       logForm.reset({
         section: getCurrentSection(),
         typeOfFoodDrink: "",
         portionServed: "",
         amountEaten: "All",
         fluidConsumedMl: undefined,
-        signature: user.user.name || "",
+        signature: values.signature, // Keep the current signature
       });
+
+      // Show quick actions for a few seconds
+      setShowLogAnotherActions(true);
+      setTimeout(() => setShowLogAnotherActions(false), 5000);
 
       setIsFoodFluidDialogOpen(false);
     } catch (error) {
@@ -338,6 +373,16 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
     } finally {
       setIsLogLoading(false);
     }
+  };
+
+  // Handle Log Another actions
+  const handleLogAnother = (type: "food" | "fluid") => {
+    setEntryType(type);
+    logForm.setValue("section", getCurrentSection());
+    logForm.setValue("typeOfFoodDrink", type === "fluid" ? "Water" : "");
+    logForm.setValue("fluidConsumedMl", undefined);
+    setIsFoodFluidDialogOpen(true);
+    setShowLogAnotherActions(false);
   };
 
 
@@ -651,6 +696,48 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
+      {/* Quick Log Another Actions */}
+      {showLogAnotherActions && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-800">Entry logged successfully!</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowLogAnotherActions(false)}
+                className="text-green-600 hover:text-green-800"
+              >
+                ×
+              </Button>
+            </div>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLogAnother("food")}
+                className="flex-1 border-green-300 text-green-700 hover:bg-green-100"
+              >
+                <Utensils className="w-4 h-4 mr-2" />
+                Log Another Food
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLogAnother("fluid")}
+                className="flex-1 border-green-300 text-green-700 hover:bg-green-100"
+              >
+                <Droplets className="w-4 h-4 mr-2" />
+                Log Another Fluid
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Today's Food & Fluid History */}
       <Card>
         <CardHeader>
@@ -716,7 +803,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <Badge variant="outline" className="text-xs bg-white">
-                                    {log.section.replace('-', ' - ')}
+                                    {getSectionDisplayName(log.section)}
                                   </Badge>
                                   <Badge
                                     variant="outline"
@@ -789,7 +876,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <Badge variant="outline" className="text-xs bg-white">
-                                    {log.section.replace('-', ' - ')}
+                                    {getSectionDisplayName(log.section)}
                                   </Badge>
                                   <Badge
                                     variant="outline"
@@ -863,30 +950,142 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Intake Alerts */}
+          {(() => {
+            const fluidIntake = logSummary?.totalFluidIntakeMl ?? 0;
+            const foodEntries = logSummary?.foodEntries ?? 0;
+            const lowFluidThreshold = 1500; // 1.5L daily recommended
+            const lowFoodThreshold = 3; // 3 meals/snacks per day
+            
+            const hasLowFluid = fluidIntake < lowFluidThreshold;
+            const hasLowFood = foodEntries < lowFoodThreshold;
+            
+            return (hasLowFluid || hasLowFood) && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-amber-800">Intake Alert</span>
+                </div>
+                <div className="text-sm text-amber-700 space-y-1">
+                  {hasLowFluid && (
+                    <p>• Low fluid intake: {fluidIntake}ml of recommended {lowFluidThreshold}ml daily</p>
+                  )}
+                  {hasLowFood && (
+                    <p>• Low food entries: {foodEntries} meals/snacks logged today</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-              <div className="text-2xl font-bold text-yellow-600">
+            {/* Food Entries */}
+            <div className={`text-center p-4 rounded-lg border ${
+              (logSummary?.foodEntries ?? 0) < 3 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-center justify-center mb-2">
+                <Utensils className={`w-5 h-5 ${
+                  (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-500' : 'text-green-500'
+                }`} />
+              </div>
+              <div className={`text-2xl font-bold ${
+                (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-600' : 'text-green-600'
+              }`}>
                 {logSummary?.foodEntries ?? 0}
               </div>
-              <p className="text-sm text-yellow-700">Food entries</p>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">
-                {logSummary?.totalFluidIntakeMl ?? 0} ml
+              <p className={`text-sm ${
+                (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-700' : 'text-green-700'
+              }`}>
+                Food entries
+              </p>
+              <div className="mt-2 text-xs text-gray-500">
+                Goal: 3+ entries
               </div>
-              <p className="text-sm text-blue-700">Fluid intake</p>
             </div>
+
+            {/* Fluid Intake */}
+            <div className={`text-center p-4 rounded-lg border ${
+              (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                ? 'bg-red-50 border-red-200' 
+                : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-center justify-center mb-2">
+                <Droplets className={`w-5 h-5 ${
+                  (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                    ? 'text-red-500' 
+                    : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                    ? 'text-yellow-500'
+                    : 'text-blue-500'
+                }`} />
+              </div>
+              <div className={`text-2xl font-bold ${
+                (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                  ? 'text-red-600' 
+                  : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                  ? 'text-yellow-600'
+                  : 'text-blue-600'
+              }`}>
+                {logSummary?.totalFluidIntakeMl ?? 0}ml
+              </div>
+              <p className={`text-sm ${
+                (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                  ? 'text-red-700' 
+                  : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                  ? 'text-yellow-700'
+                  : 'text-blue-700'
+              }`}>
+                Fluid intake
+              </p>
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                        ? 'bg-red-500' 
+                        : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                        ? 'bg-yellow-500'
+                        : 'bg-blue-500'
+                    }`}
+                    style={{ 
+                      width: `${Math.min(100, ((logSummary?.totalFluidIntakeMl ?? 0) / 2000) * 100)}%` 
+                    }}
+                  />
+                </div>
+                <div className="mt-1 text-xs text-gray-500">
+                  Goal: 1500-2000ml
+                </div>
+              </div>
+            </div>
+
+            {/* Last Recorded */}
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-center mb-2">
+                <Clock className="w-5 h-5 text-gray-500" />
+              </div>
               <div className="text-2xl font-bold text-gray-600">
                 {logSummary?.lastRecorded
                   ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
                     hour: '2-digit',
                     minute: '2-digit'
                   })
-                  : "--"
+                  : "--:--"
                 }
               </div>
               <p className="text-sm text-gray-700">Last recorded</p>
+              {logSummary?.lastRecorded && (
+                <div className="mt-2 text-xs text-gray-500">
+                  {(() => {
+                    const timeDiff = Date.now() - logSummary.lastRecorded;
+                    const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
+                    if (hoursAgo === 0) return "Less than 1 hour ago";
+                    return `${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -950,7 +1149,6 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                         'Vegan',
                         'Kosher',
                         'Halal',
-                        'Diabetic',
                         'Low Sodium',
                         'Gluten-Free',
                         'Dairy-Free',
@@ -1245,7 +1443,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
               Log {entryType === "food" ? "Food" : "Fluid"} Entry for {fullName}
             </DialogTitle>
             <DialogDescription>
-              Record {entryType === "food" ? "food consumption" : "fluid intake"} details.
+              Record {entryType === "food" ? "food consumption" : "fluid intake"} details. Current time: {getCurrentTime()}
             </DialogDescription>
           </DialogHeader>
 
@@ -1265,10 +1463,10 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="midnight-7am">Midnight - 7am</SelectItem>
-                        <SelectItem value="7am-12pm">7am - 12pm</SelectItem>
-                        <SelectItem value="12pm-5pm">12pm - 5pm</SelectItem>
-                        <SelectItem value="5pm-midnight">5pm - Midnight</SelectItem>
+                        <SelectItem value="midnight-7am">Midnight - 7:00 AM</SelectItem>
+                        <SelectItem value="7am-12pm">7:00 AM - 12:00 PM</SelectItem>
+                        <SelectItem value="12pm-5pm">12:00 PM - 5:00 PM</SelectItem>
+                        <SelectItem value="5pm-midnight">5:00 PM - Midnight</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -1366,28 +1564,56 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Volume (ml)</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select volume..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="50">50ml</SelectItem>
-                          <SelectItem value="100">100ml</SelectItem>
-                          <SelectItem value="150">150ml</SelectItem>
-                          <SelectItem value="200">200ml</SelectItem>
-                          <SelectItem value="250">250ml</SelectItem>
-                          <SelectItem value="300">300ml</SelectItem>
-                          <SelectItem value="350">350ml</SelectItem>
-                          <SelectItem value="400">400ml</SelectItem>
-                          <SelectItem value="450">450ml</SelectItem>
-                          <SelectItem value="500">500ml</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        <Select
+                          onValueChange={(value) => {
+                            if (value === "custom") {
+                              // Don't set value for custom, let user input manually
+                              return;
+                            }
+                            field.onChange(parseInt(value));
+                          }}
+                          value={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select volume or container..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="custom">Custom Amount</SelectItem>
+                            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                              Common Containers
+                            </div>
+                            <SelectItem value="200">Small Glass (200ml)</SelectItem>
+                            <SelectItem value="250">Cup (250ml)</SelectItem>
+                            <SelectItem value="330">Can (330ml)</SelectItem>
+                            <SelectItem value="500">Bottle (500ml)</SelectItem>
+                            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                              Specific Amounts
+                            </div>
+                            <SelectItem value="50">50ml</SelectItem>
+                            <SelectItem value="100">100ml</SelectItem>
+                            <SelectItem value="150">150ml</SelectItem>
+                            <SelectItem value="300">300ml</SelectItem>
+                            <SelectItem value="400">400ml</SelectItem>
+                            <SelectItem value="600">600ml</SelectItem>
+                            <SelectItem value="750">750ml</SelectItem>
+                            <SelectItem value="1000">1000ml (1L)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {/* Show custom input when custom is selected or no preset matches */}
+                        {(!field.value || ![50, 100, 150, 200, 250, 300, 330, 400, 500, 600, 750, 1000].includes(field.value)) && (
+                          <Input
+                            type="number"
+                            placeholder="Enter custom amount in ml..."
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            min="0"
+                            max="2000"
+                          />
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
