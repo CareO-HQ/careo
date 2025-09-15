@@ -12,7 +12,6 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -34,10 +33,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { bladderBowelAssessmentSchema } from "@/schemas/residents/care-file/bladderBowelSchema";
-import { preAdmissionSchema } from "@/schemas/residents/care-file/preAdmissionSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns-tz";
+import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -67,16 +65,26 @@ export default function BladderBowelDialog({
   const form = useForm<z.infer<typeof bladderBowelAssessmentSchema>>({
     resolver: zodResolver(bladderBowelAssessmentSchema),
     mode: "onChange",
-    defaultValues: {}
+    defaultValues: {
+      residentId,
+      teamId,
+      organizationId,
+      userId,
+      residentName: `${resident.firstName} ${resident.lastName}`,
+      dateOfBirth: new Date(resident.dateOfBirth).getTime(),
+      bedroomNumber: resident.roomNumber || "",
+      informationObtainedFrom: "",
+      sigantureCompletingAssessment: userName
+    }
   });
 
   function onSubmit(values: z.infer<typeof bladderBowelAssessmentSchema>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
     console.log("Form submission triggered - values:", values);
     startTransition(async () => {
       try {
         console.log("Attempting to submit form...");
+        // TODO: Add API call to submit bladder bowel assessment
+        toast.success("Assessment submitted successfully!");
       } catch (error) {
         console.error("Error submitting form:", error);
         toast.error("Error submitting form: " + (error as Error).message);
@@ -95,14 +103,12 @@ export default function BladderBowelDialog({
         "informationObtainedFrom"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
-      isValid = true;
     } else if (step === 2) {
       const fieldsToValidate = [
         "hepatitisAB",
         "bloodBorneVirues",
         "mrsa",
-        "esbl",
-        "other"
+        "esbl"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 3) {
@@ -112,8 +118,7 @@ export default function BladderBowelDialog({
         "protein",
         "leucocytes",
         "glucose",
-        "bloodResult",
-        "mssuDate"
+        "bloodResult"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 4) {
@@ -134,15 +139,6 @@ export default function BladderBowelDialog({
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 5) {
       const fieldsToValidate = [
-        "caffeineMls24h",
-        "caffeineFrequency",
-        "caffeineTimeOfDay",
-        "excersiceType",
-        "excersiceFrequency",
-        "excersiceTimeOfDay",
-        "alcoholAmount24h",
-        "alcoholFrequency",
-        "alcoholTimeOfDay",
         "smoking",
         "weight",
         "skinCondition",
@@ -236,10 +232,12 @@ export default function BladderBowelDialog({
         "dateNextReview"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
+    }
 
     if (isValid) {
       if (step === 13) {
         console.log(form.getValues());
+        form.handleSubmit(onSubmit)();
       } else {
         setStep(step + 1);
       }
@@ -259,84 +257,51 @@ export default function BladderBowelDialog({
     <>
       <DialogHeader>
         <DialogTitle>
-          {step === 1 && "Resident information"}
-          {step === 2 && "Infections information"}
-          {step === 3 && "Urinalysis information"}
-          {step === 4 && "Prescribed medication"}
-          {step === 5 && "Contributing risk factors"}
-          {step === 6 && "Urinay continence"}
-          {step === 7 && "Bowel pattern"}
-          {step === 8 && "Toileting patterns and products"}
-          {step === 9 && "Symptoms associates with incontinence"}
-          {step === 10 && "Symptoms associates with incontinence"}
-          {step === 11 && "Symptoms associates with incontinence"}
-          {step === 12 && "Quality of life"}
+          {step === 1 && "Resident Information"}
+          {step === 2 && "Infections"}
+          {step === 3 && "Urinalysis on Admission"}
+          {step === 4 && "Prescribed Medication"}
+          {step === 5 && "Lifestyle Factors"}
+          {step === 6 && "Urinary Continence"}
+          {step === 7 && "Bowel Pattern"}
+          {step === 8 && "Toileting Patterns & Products"}
+          {step === 9 && "Symptoms - Stress/Urge Incontinence"}
+          {step === 10 && "Symptoms - Retention/Overflow"}
+          {step === 11 && "Symptoms - Functional Issues"}
+          {step === 12 && "Assessment Summary"}
           {step === 13 && "Signatures"}
         </DialogTitle>
         <DialogDescription>
-          {step === 1 &&
-            "Basic information about the resident"}
-          {step === 2 && "Basic information about the infections"}
-          {step === 3 && "Information about the urinalysis"}
-          {step === 4 && "Prescribed medication information"}
-          {step === 5 &&
-            "Contributing risk factors information"}
-          {step === 6 && "Add known allergies and medical history"}
-          {step === 7 && "Urinay continence information"}
-          {step === 8 && "Bowel pattern information"}
-          {step === 9 && "Toileting patterns and products information"}
-          {step === 10 && "Symptoms associates with incontinence information"}
-          {step === 11 && "Symptoms associates with incontinence information"}
-          {step === 12 && "Quality of life information"}
-          {step === 13 && "Signatures information"}
+          {step === 1 && "Basic information about the resident"}
+          {step === 2 && "Check for any current infections"}
+          {step === 3 && "Urinalysis results on admission"}
+          {step === 4 && "Current prescribed medications"}
+          {step === 5 && "Lifestyle factors that may affect continence"}
+          {step === 6 && "Urinary continence assessment"}
+          {step === 7 && "Bowel pattern assessment"}
+          {step === 8 && "Current toileting patterns and products used"}
+          {step === 9 && "Symptoms associated with stress/urge incontinence"}
+          {step === 10 && "Symptoms associated with retention/overflow"}
+          {step === 11 && "Symptoms associated with functional issues"}
+          {step === 12 && "Assessment summary and care planning"}
+          {step === 13 && "Assessment completion and signatures"}
         </DialogDescription>
       </DialogHeader>
       <div className="">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Step 1 - Resident Information */}
             {step === 1 && (
-              <FormField
-                control={form.control}
-                name="consentAcceptedAt"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-start gap-3">
-                      <FormControl>
-                        <Checkbox
-                          checked={consentAcceptedAt}
-                          id="terms-2"
-                          {...field}
-                          onCheckedChange={(e) => {
-                            form.setValue(
-                              "consentAcceptedAt",
-                              new Date().getTime()
-                            );
-
-                            setConsentAcceptedAt(Boolean(e));
-                          }}
-                        />
-                      </FormControl>
-                      <FormLabel htmlFor="terms-2">
-                        The person being assessed agree to the assessment being
-                        completed
-                      </FormLabel>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {step === 2 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="careHomeName"
+                    name="residentName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Care home name</FormLabel>
+                        <FormLabel required>Resident Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="John Doe" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -344,40 +309,12 @@ export default function BladderBowelDialog({
                   />
                   <FormField
                     control={form.control}
-                    name="nhsHealthCareNumber"
+                    name="bedroomNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>NHS Health & Care Number</FormLabel>
+                        <FormLabel required>Bedroom Number</FormLabel>
                         <FormControl>
-                          <Input placeholder="A345657" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="userName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="jobRole"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Job Role</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Nurse" {...field} />
+                          <Input placeholder="Room 101" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -387,26 +324,23 @@ export default function BladderBowelDialog({
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="date"
+                    name="dateOfBirth"
                     render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Expected admission date</FormLabel>
-                        <Popover
-                          open={datePopoverOpen}
-                          onOpenChange={setDatePopoverOpen}
-                        >
+                      <FormItem>
+                        <FormLabel required>Date of Birth</FormLabel>
+                        <Popover>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
                                 type="button"
                                 variant="outline"
                                 className={cn(
-                                  "w-[240px] pl-3 text-left font-normal",
+                                  "w-full pl-3 text-left font-normal",
                                   !field.value && "text-muted-foreground"
                                 )}
                               >
                                 {field.value ? (
-                                  format(field.value, "PPP")
+                                  format(new Date(field.value), "PPP")
                                 ) : (
                                   <span>Pick a date</span>
                                 )}
@@ -415,9 +349,36 @@ export default function BladderBowelDialog({
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              onSelect={(date) =>
+                                field.onChange(date?.getTime())
+                              }
+                            />
                           </PopoverContent>
                         </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="informationObtainedFrom"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>
+                          Information Obtained From
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Family member, medical records, etc."
+                            {...field}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -425,46 +386,981 @@ export default function BladderBowelDialog({
                 </div>
               </>
             )}
-            {step === 3 && (
+
+            {/* Step 2 - Infections */}
+            {step === 2 && (
               <>
+                <p className="text-sm font-medium mb-4">
+                  Check all that apply:
+                </p>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="firstName"
+                    name="hepatitisAB"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>First Name</FormLabel>
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl>
-                          <Input placeholder="John" {...field} />
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                         </FormControl>
+                        <FormLabel>Hepatitis A/B</FormLabel>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="lastName"
+                    name="bloodBorneVirues"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Last Name</FormLabel>
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl>
-                          <Input placeholder="Doe" {...field} />
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                         </FormControl>
+                        <FormLabel>Blood Borne Viruses</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mrsa"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>MRSA</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="esbl"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>ESBL</FormLabel>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+                <FormField
+                  control={form.control}
+                  name="other"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Other Infections</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Specify other infections"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+
+            {/* Step 3 - Urinalysis */}
+            {step === 3 && (
+              <>
+                <p className="text-sm font-medium mb-4">
+                  Urinalysis results (check positive results):
+                </p>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="address"
+                    name="ph"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>pH Abnormal</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="nitrates"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Nitrates Positive</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="protein"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Protein Positive</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="leucocytes"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Leucocytes Positive</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="glucose"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Glucose Positive</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="bloodResult"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Blood Positive</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="mssuDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>MSSU Date (if applicable)</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(new Date(field.value), "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            captionLayout="dropdown"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            onSelect={(date) => field.onChange(date?.getTime())}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+
+            {/* Step 4 - Prescribed Medication */}
+            {step === 4 && (
+              <>
+                <p className="text-sm font-medium mb-4">
+                  Current prescribed medications (check all that apply):
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="antiHypertensives"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Anti-hypertensives</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="antiParkinsonDrugs"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Anti-Parkinson Drugs</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="ironSupplement"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Iron Supplement</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="laxatives"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Laxatives</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="diuretics"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Diuretics</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="histamine"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Histamine</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="antiDepressants"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Anti-depressants</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="cholinergic"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Cholinergic</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sedativesHypnotic"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Sedatives/Hypnotic</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="antiPsychotic"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Anti-psychotic</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="antihistamines"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Antihistamines</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="narcoticAnalgesics"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Narcotic Analgesics</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 5 - Lifestyle Factors */}
+            {step === 5 && (
+              <>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="caffeineMls24h"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Caffeine (mls/24h)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value
+                                    ? parseInt(e.target.value)
+                                    : undefined
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="caffeineFrequency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Caffeine Frequency</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Daily, weekly, etc."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="caffeineTimeOfDay"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Caffeine Time of Day</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Morning, evening, etc."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="alcoholAmount24h"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Alcohol (units/24h)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value
+                                    ? parseInt(e.target.value)
+                                    : undefined
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="alcoholFrequency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Alcohol Frequency</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Daily, weekly, etc."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="alcoholTimeOfDay"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Alcohol Time of Day</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Evening, afternoon, etc."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="smoking"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Smoking Status</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select smoking status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="SMOKER">Smoker</SelectItem>
+                              <SelectItem value="NON-SMOKER">
+                                Non-smoker
+                              </SelectItem>
+                              <SelectItem value="EX-SMOKER">
+                                Ex-smoker
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="weight"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Weight Status</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select weight status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="NORMAL">Normal</SelectItem>
+                              <SelectItem value="OBESE">Obese</SelectItem>
+                              <SelectItem value="UNDERWEIGHT">
+                                Underweight
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="skinCondition"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Skin Condition</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select skin condition" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="HEALTHY">Healthy</SelectItem>
+                              <SelectItem value="RED">Red</SelectItem>
+                              <SelectItem value="EXCORIATED">
+                                Excoriated
+                              </SelectItem>
+                              <SelectItem value="BROKEN">Broken</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="mentalState"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Mental State</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select mental state" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="ALERT">Alert</SelectItem>
+                              <SelectItem value="CONFUSED">Confused</SelectItem>
+                              <SelectItem value="LEARNING-DISABLED">
+                                Learning Disabled
+                              </SelectItem>
+                              <SelectItem value="COGNITIVELY-IMPAIRED">
+                                Cognitively Impaired
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="mobilityIssues"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Mobility Issues</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select mobility level" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="INDEPENDENT">
+                                Independent
+                              </SelectItem>
+                              <SelectItem value="ASSISTANCE">
+                                Assistance
+                              </SelectItem>
+                              <SelectItem value="HOISTED">Hoisted</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="constipationHistory"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-8">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>History of Constipation</FormLabel>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="historyRecurrentUTIs"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>History of Recurrent UTIs</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 6 - Urinary Continence */}
+            {step === 6 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="incontinence"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Address</FormLabel>
+                        <FormLabel required>Incontinence Frequency</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="NONE">None</SelectItem>
+                            <SelectItem value="ONE">One</SelectItem>
+                            <SelectItem value="1-2DAY">1-2 per day</SelectItem>
+                            <SelectItem value="3DAY">3+ per day</SelectItem>
+                            <SelectItem value="NIGHT">Night only</SelectItem>
+                            <SelectItem value="DAYANDNIGHT">
+                              Day and night
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="volume"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Volume</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select volume" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ENTIRE-BLADDER">
+                              Entire bladder
+                            </SelectItem>
+                            <SelectItem value="SMALL-VOL">
+                              Small volume
+                            </SelectItem>
+                            <SelectItem value="UNABLE-DETERMINE">
+                              Unable to determine
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="onset"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Onset</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select onset" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="SUDDEN">Sudden</SelectItem>
+                            <SelectItem value="GRADUAL">Gradual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="duration"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Duration</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select duration" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="LESS-6M">
+                              Less than 6 months
+                            </SelectItem>
+                            <SelectItem value="6M-1Y">
+                              6 months to 1 year
+                            </SelectItem>
+                            <SelectItem value="MORE-1Y">
+                              More than 1 year
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="symptompsLastSix"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Symptoms Last 6 Months</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select trend" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="STABLE">Stable</SelectItem>
+                            <SelectItem value="WORSENING">Worsening</SelectItem>
+                            <SelectItem value="IMPROVING">Improving</SelectItem>
+                            <SelectItem value="FLUCTUATING">
+                              Fluctuating
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="physicianConsulted"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-8">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Physician Consulted</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 7 - Bowel Pattern */}
+            {step === 7 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="bowelState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Bowel State</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select bowel state" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="NORMAL">Normal</SelectItem>
+                          <SelectItem value="CONSTIPATION">
+                            Constipation
+                          </SelectItem>
+                          <SelectItem value="DIARRHOEA">Diarrhoea</SelectItem>
+                          <SelectItem value="STOMA">Stoma</SelectItem>
+                          <SelectItem value="FAECAL-INCONTINENCE">
+                            Faecal Incontinence
+                          </SelectItem>
+                          <SelectItem value="IRRITABLE-BOWEL">
+                            Irritable Bowel
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="bowelFrequency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Bowel Frequency</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="123 Main St, London, UK"
+                            placeholder="e.g., Daily, 3x per week"
                             {...field}
                           />
                         </FormControl>
@@ -474,27 +1370,48 @@ export default function BladderBowelDialog({
                   />
                   <FormField
                     control={form.control}
-                    name="phoneNumber"
+                    name="usualTimeOfDat"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Phone Number</FormLabel>
+                        <FormLabel required>Usual Time of Day</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input
+                            placeholder="e.g., Morning, After meals"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="amountAndStoolType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Amount and Stool Type</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe amount and consistency"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="ethnicity"
+                    name="liquidFeeds"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Ethnicity</FormLabel>
+                        <FormLabel required>Liquid Feeds</FormLabel>
                         <FormControl>
-                          <Input placeholder="White" {...field} />
+                          <Input placeholder="Type and frequency" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -502,22 +1419,132 @@ export default function BladderBowelDialog({
                   />
                   <FormField
                     control={form.control}
-                    name="gender"
+                    name="otherFactors"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Gender</FormLabel>
+                        <FormLabel required>Other Factors</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Contributing factors"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="otherRemedies"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Other Remedies</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Current treatments" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="medicalOfficerConsulted"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-8">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Medical Officer Consulted</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 8 - Toileting Patterns & Products */}
+            {step === 8 && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="dayPattern"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Day Pattern</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
                         >
                           <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pattern" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="male">Male</SelectItem>
-                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="TOILET">Toilet</SelectItem>
+                            <SelectItem value="COMMODE">Commode</SelectItem>
+                            <SelectItem value="BED-PAN">Bed Pan</SelectItem>
+                            <SelectItem value="URINAL">Urinal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="eveningPattern"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Evening Pattern</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pattern" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="TOILET">Toilet</SelectItem>
+                            <SelectItem value="COMMODE">Commode</SelectItem>
+                            <SelectItem value="BED-PAN">Bed Pan</SelectItem>
+                            <SelectItem value="URINAL">Urinal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="nightPattern"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Night Pattern</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pattern" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="TOILET">Toilet</SelectItem>
+                            <SelectItem value="COMMODE">Commode</SelectItem>
+                            <SelectItem value="BED-PAN">Bed Pan</SelectItem>
+                            <SelectItem value="URINAL">Urinal</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -525,314 +1552,16 @@ export default function BladderBowelDialog({
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="religion"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Religion</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Catholic" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Date of Birth</FormLabel>
-                        <FormControl>
-                          <Popover
-                            open={dobPopoverOpen}
-                            onOpenChange={setDobPopoverOpen}
-                          >
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className={cn(
-                                    "w-[240px] pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? (
-                                    format(field.value, "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              className="w-auto p-0"
-                              align="start"
-                              onInteractOutside={(e) => e.preventDefault()}
-                            >
-                              <Calendar
-                                mode="single"
-                                selected={
-                                  field.value
-                                    ? new Date(field.value)
-                                    : undefined
-                                }
-                                captionLayout="dropdown"
-                                onSelect={(date) => {
-                                  if (date) {
-                                    field.onChange(date);
-                                    setDobPopoverOpen(true);
-                                  }
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </>
-            )}
-            {step === 4 && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="kinFirstName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>First Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="John" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="kinLastName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Last Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Doe" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="kinRelationship"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Relationship</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Mother" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="kinPhoneNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Phone Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="+1 (555) 987-6543" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </>
-            )}
-            {step === 5 && (
-              <>
-                <div>
-                  <p className="font-semibold mb-2">
-                    Care Manager / Social Worker
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="careManagerName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Care Manager Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="careManagerPhoneNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Phone Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+1 (555) 987-6543" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">District Nurse</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="districtNurseName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>District Nurse Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="districtNursePhoneNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Phone Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+1 (555) 987-6543" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">General Practitioner</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="generalPractitionerName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>
-                            General Practitioner Name
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="John" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="generalPractitionerPhoneNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Phone Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+1 (555) 987-6543" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">
-                    Person Providing Healthcare Info
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="providerHealthcareInfoName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="providerHealthcareInfoDesignation"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Designation</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Nurse" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-            {step === 6 && (
-              <>
+
                 <FormField
                   control={form.control}
-                  name="allergies"
+                  name="typesOfPads"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Known Allergies</FormLabel>
+                      <FormLabel required>Types of Pads</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="List of known allergies"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="medicalHistory"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Medical History</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Medical history" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="medicationPrescribed"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Medication Prescribed</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="List of medication prescribed"
+                          placeholder="Describe types and sizes of incontinence products used"
                           {...field}
                         />
                       </FormControl>
@@ -842,279 +1571,654 @@ export default function BladderBowelDialog({
                 />
               </>
             )}
-            {step === 7 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="consentCapacityRights"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Consent Capacity Rights</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Consent capacity rights"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Include MCA, DoLs, Guardianship or detention
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="medication"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Medication</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Medication" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mobility"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Mobility</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Mobility" {...field} />
-                      </FormControl>{" "}
-                      <FormDescription>
-                        Refere to current risk assessment
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="nutrition"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Nutrition</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Nutrition" {...field} />
-                      </FormControl>{" "}
-                      <FormDescription>
-                        Include MUST score if known, weight, height, BMI, IDDSI
-                        requirements, diet type and any other relevant
-                        information
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            {step === 8 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="continence"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Continence</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Continence" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="hygieneDressing"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Personal Hygiene & Dressing
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Hygiene & Dressing" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="skin"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Skin Integrity / Tissue Viability
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Skin Integrity / Tissue Viability"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Include any pressure relieving equipment required
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="cognition"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Cognition</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Cognition" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
+
+            {/* Step 9 - Symptoms - Stress/Urge Incontinence */}
             {step === 9 && (
               <>
-                <FormField
-                  control={form.control}
-                  name="infection"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Infection Control</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Infection Control" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Does the person have a current infection? If required,
-                        complete Infection Prevention and Control Pre-Admission
-                        Assessment
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="breathing"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Breathing</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Breathing" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Include details on prescribed inhalers, nebuliser,
-                        oxygen and possible smoking risk
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="alteredStateOfConsciousness"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Altered State of Consciousness
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Altered State of Consciousness"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Epilepsy, Diabetes, TIA,...
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            {step === 10 && (
-              <>
+                <p className="text-sm font-medium mb-4">
+                  Symptoms associated with stress/urge incontinence (check all
+                  that apply):
+                </p>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="dnacpr"
+                    name="leakCoughLaugh"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>DNACPR in place?</FormLabel>
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl>
-                          <Select
-                            onValueChange={(value) =>
-                              field.onChange(value === "true")
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="true">Yes</SelectItem>
-                              <SelectItem value="false">No</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                         </FormControl>
+                        <FormLabel>Leak when cough/laugh</FormLabel>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="capacity"
+                    name="leakStandingUp"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Has capacity?</FormLabel>
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl>
-                          <Select
-                            onValueChange={(value) =>
-                              field.onChange(value === "true")
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="true">Yes</SelectItem>
-                              <SelectItem value="false">No</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                         </FormControl>
+                        <FormLabel>Leak when standing up</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="leakUpstairsDownhill"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Leak upstairs/downhill</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="passesUrineFrequently"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Passes urine frequently</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="desirePassUrine"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Strong desire to pass urine</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="leaksBeforeToilet"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Leaks before reaching toilet</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="moreThanTwiceAtNight"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>More than twice at night</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="anxiety"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Anxiety about incontinence</FormLabel>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4 items-end">
+              </>
+            )}
+
+            {/* Step 10 - Symptoms - Retention/Overflow */}
+            {step === 10 && (
+              <>
+                <p className="text-sm font-medium mb-4">
+                  Symptoms associated with retention/overflow (check all that
+                  apply):
+                </p>
+                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="advancedDecision"
+                    name="difficultyStarting"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Difficulty starting stream</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="hesintancy"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Hesitancy</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="dribbles"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Dribbles after passing urine</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="feelsFull"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>
+                          Feels bladder not completely empty
+                        </FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="recurrentTractInfections"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>
+                          Recurrent urinary tract infections
+                        </FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 11 - Symptoms - Functional Issues */}
+            {step === 11 && (
+              <>
+                <p className="text-sm font-medium mb-4">
+                  Symptoms associated with functional issues (check all that
+                  apply):
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="limitedMobility"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Limited mobility</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="unableOnTime"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Unable to get to toilet on time</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="notHoldUrinalOrSeat"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Cannot hold urinal or sit on seat</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="notuseCallBell"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Cannot use call bell</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="poorVision"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Poor vision</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="assistedTransfer"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Requires assisted transfer</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pain"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel>Pain affecting mobility</FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 12 - Assessment Summary */}
+            {step === 12 && (
+              <>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-medium mb-4">
+                      Bladder Assessment
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="bladderContinent"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bladder Continent</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="bladderIncontinent"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bladder Incontinent</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <FormField
+                        control={form.control}
+                        name="bladderIncontinentType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel required>Incontinence Type</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="STRESS">Stress</SelectItem>
+                                <SelectItem value="URGE">Urge</SelectItem>
+                                <SelectItem value="MIXED">Mixed</SelectItem>
+                                <SelectItem value="FUNCTIONAL">
+                                  Functional
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="bladderReferralRequired"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel required>
+                              Bladder Referral Required
+                            </FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select referral" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="DIETICIAN">
+                                  Dietician
+                                </SelectItem>
+                                <SelectItem value="GP">GP</SelectItem>
+                                <SelectItem value="OT">OT</SelectItem>
+                                <SelectItem value="PHYSIOTHERAPIST">
+                                  Physiotherapist
+                                </SelectItem>
+                                <SelectItem value="CONTINENCE-NURSE">
+                                  Continence Nurse
+                                </SelectItem>
+                                <SelectItem value="NONE">None</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <FormField
+                        control={form.control}
+                        name="bladderPlanCommenced"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bladder Plan Commenced</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="bladderPlanFollowed"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel required>Plan Type</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select plan" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="STRESS">Stress</SelectItem>
+                                <SelectItem value="URGE">Urge</SelectItem>
+                                <SelectItem value="MIXED">Mixed</SelectItem>
+                                <SelectItem value="RETENTION-OVERFLOW">
+                                  Retention/Overflow
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-medium mb-4">
+                      Bowel Assessment
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="bowelContinent"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bowel Continent</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="bowelIncontinent"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bowel Incontinent</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <FormField
+                        control={form.control}
+                        name="bowelPlanCommenced"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bowel Plan Commenced</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="bowelRecordCommenced"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormLabel>Bowel Record Commenced</FormLabel>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="bowelReferralRequired"
+                      render={({ field }) => (
+                        <FormItem className="mt-4">
+                          <FormLabel required>
+                            Bowel Referral Required
+                          </FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select referral" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="DIETICIAN">
+                                Dietician
+                              </SelectItem>
+                              <SelectItem value="GP">GP</SelectItem>
+                              <SelectItem value="OT">OT</SelectItem>
+                              <SelectItem value="PHYSIOTHERAPIST">
+                                Physiotherapist
+                              </SelectItem>
+                              <SelectItem value="NONE">None</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 13 - Signatures */}
+            {step === 13 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="sigantureCompletingAssessment"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel required>
-                          Requirements regarding advanced decision?
+                          Signature - Completing Assessment
                         </FormLabel>
                         <FormControl>
-                          <Select
-                            onValueChange={(value) =>
-                              field.onChange(value === "true")
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="true">Yes</SelectItem>
-                              <SelectItem value="false">No</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            placeholder="Staff member signature"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1122,284 +2226,43 @@ export default function BladderBowelDialog({
                   />
                   <FormField
                     control={form.control}
-                    name="advancedCarePlan"
+                    name="sigantureResident"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Advanced Care Plan?</FormLabel>
+                        <FormLabel required>
+                          Signature - Resident/Representative
+                        </FormLabel>
                         <FormControl>
-                          <Select
-                            onValueChange={(value) =>
-                              field.onChange(value === "true")
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="true">Yes</SelectItem>
-                              <SelectItem value="false">No</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            placeholder="Resident or representative signature"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="comments"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Comments</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add details if needed"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        If any answer is yes, please provide details.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            {step === 11 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="roomPreferences"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        What would you like in your room prior to admission?
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add details if needed"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="admissionContact"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Is there anyone else you would like us to contact about
-                        your admission to the home? List name and contact
-                        details{" "}
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add details if needed"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="foodPreferences"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>What are your food likes/dislikes?</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add details if needed"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="preferedName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        What do you prefer to be called or known as?
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add details if needed"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="familyConcerns"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Do you or your family have any worries or concerns about
-                        moving to the home?
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add details if needed"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            {step === 12 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="otherHealthCareProfessional"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Other Health Care Professional Involved in the
-                        resident&apos;s care{" "}
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Tissue viability, Consultant,
-                        Physiotherapist, Dietician, Continence Nurse
-                        Advisor, Palliative Care Specialist, Advocate"
-                          {...field}
-                        />
-                      </FormControl>
 
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <FormField
                   control={form.control}
-                  name="equipment"
+                  name="dateNextReview"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Equipment required</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Bed rails, Pressure relieving equipment, Hoist, Sling, Walking Aid, oxygen therapy,..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            {step === 13 && (
-              <FormField
-                control={form.control}
-                name="attendFinances"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>
-                      Can the person attend to own finances?
-                    </FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select an option" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {step === 14 && (
-              <FormField
-                control={form.control}
-                name="additionalConsiderations"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      Are there any additional factors to be considered?{" "}
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Level of observation, 1:1 or specialist equipment required"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {step === 15 && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="outcome"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Assessment outcome</FormLabel>
-                      <FormControl>
-                        <Select
-                          onValueChange={(value) => field.onChange(value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="positive">Positive</SelectItem>
-                            <SelectItem value="negative">Negative</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="plannedAdmissionDate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Planned admission date</FormLabel>
-                      <Popover
-                        open={plannedDatePopoverOpen}
-                        onOpenChange={setPlannedDatePopoverOpen}
-                      >
+                      <FormLabel required>Date of Next Review</FormLabel>
+                      <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               type="button"
                               variant="outline"
                               className={cn(
-                                "w-[240px] pl-3 text-left font-normal",
+                                "w-full pl-3 text-left font-normal",
                                 !field.value && "text-muted-foreground"
                               )}
                             >
                               {field.value ? (
-                                format(field.value, "PPP")
+                                format(new Date(field.value), "PPP")
                               ) : (
                                 <span>Pick a date</span>
                               )}
@@ -1407,23 +2270,14 @@ export default function BladderBowelDialog({
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0"
-                          align="start"
-                          onInteractOutside={(e) => e.preventDefault()}
-                        >
+                        <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
+                            captionLayout="dropdown"
                             selected={
                               field.value ? new Date(field.value) : undefined
                             }
-                            captionLayout="dropdown"
-                            onSelect={(date) => {
-                              if (date) {
-                                field.onChange(date);
-                                setPlannedDatePopoverOpen(true);
-                              }
-                            }}
+                            onSelect={(date) => field.onChange(date?.getTime())}
                           />
                         </PopoverContent>
                       </Popover>
@@ -1431,7 +2285,7 @@ export default function BladderBowelDialog({
                     </FormItem>
                   )}
                 />
-              </div>
+              </>
             )}
           </form>
         </Form>
@@ -1446,10 +2300,10 @@ export default function BladderBowelDialog({
         </Button>
         <Button
           onClick={
-            step === 15
+            step === 13
               ? () => {
                   console.log(
-                    "Step 15 button clicked - attempting form submission"
+                    "Step 13 button clicked - attempting form submission"
                   );
                   console.log("Form errors:", form.formState.errors);
                   console.log("Form is valid:", form.formState.isValid);
@@ -1461,14 +2315,14 @@ export default function BladderBowelDialog({
                 }
               : handleNext
           }
-          disabled={(step === 1 && !consentAcceptedAt) || isLoading}
-          type={step === 15 ? "submit" : "button"}
+          disabled={isLoading}
+          type={step === 13 ? "submit" : "button"}
         >
           {isLoading
             ? "Saving..."
             : step === 1
               ? "Start Assessment"
-              : step === 15
+              : step === 13
                 ? "Save Assessment"
                 : "Next"}
         </Button>

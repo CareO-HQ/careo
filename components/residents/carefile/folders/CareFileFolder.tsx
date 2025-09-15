@@ -10,21 +10,22 @@ import {
   SheetTitle,
   SheetTrigger
 } from "@/components/ui/sheet";
-import { DownloadIcon, FolderIcon } from "lucide-react";
-import { useState } from "react";
-import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
-import { authClient } from "@/lib/auth-client";
-import { useActiveTeam } from "@/hooks/use-active-team";
-import { usePathname } from "next/navigation";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { toast } from "sonner";
-import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
-import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
-import { FolderProgressIndicator } from "../FolderCompletionIndicator";
+import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
+import { useQuery } from "convex/react";
+import { DownloadIcon, FolderIcon } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import ContinenceDialog from "../dialogs/ContinenceDialog";
+import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
+import { FolderProgressIndicator } from "../FolderCompletionIndicator";
+import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
+import BladderBowelDialog from "../dialogs/ContinenceDialog";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -159,6 +160,17 @@ export default function CareFileFolder({
             resident={resident}
             teamId={activeTeamId}
             organizationId={activeOrg?.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+          />
+        );
+      case "blader-bowel-form":
+        return (
+          <BladderBowelDialog
+            resident={resident}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+            residentId={residentId}
+            userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
           />
         );
