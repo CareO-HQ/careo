@@ -55,6 +55,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { CreateAppointmentForm } from "./form/create-appointment-form";
 
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
@@ -96,7 +97,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   
   // Create Appointment Dialog state
   const [isCreateAppointmentDialogOpen, setIsCreateAppointmentDialogOpen] = React.useState(false);
-  const [createAppointmentLoading, setCreateAppointmentLoading] = React.useState(false);
   
   // Edit Appointment Dialog state
   const [isEditAppointmentDialogOpen, setIsEditAppointmentDialogOpen] = React.useState(false);
@@ -135,8 +135,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     priority: z.enum(["low", "medium", "high"]).optional(),
   });
 
-  // Create Appointment Schema
-  const CreateAppointmentSchema = z.object({
+  // Edit Appointment Schema (for editing existing appointments)
+  const EditAppointmentSchema = z.object({
     title: z
       .string()
       .min(3, "Title must be at least 3 characters long")
@@ -167,6 +167,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     message: "End time must be after start time",
     path: ["endTime"],
   });
+
   
 
   // Appointment Notes Form setup
@@ -185,22 +186,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     },
   });
 
-  // Create Appointment Form setup
-  const createAppointmentForm = useForm<z.infer<typeof CreateAppointmentSchema>>({
-    resolver: zodResolver(CreateAppointmentSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      startTime: "",
-      endTime: "",
-      location: "",
-      staffId: "none",
-    },
-  });
 
   // Edit Appointment Form setup
-  const editAppointmentForm = useForm<z.infer<typeof CreateAppointmentSchema>>({
-    resolver: zodResolver(CreateAppointmentSchema),
+  const editAppointmentForm = useForm<z.infer<typeof EditAppointmentSchema>>({
+    resolver: zodResolver(EditAppointmentSchema),
     defaultValues: {
       title: "",
       description: "",
@@ -266,7 +255,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const createDailyActivityRecord = useMutation(api.personalCare.createDailyActivityRecord);
   const createAppointmentNote = useMutation(api.appointmentNotes.createAppointmentNote);
   const deleteAppointmentNote = useMutation(api.appointmentNotes.deleteAppointmentNote);
-  const createAppointment = useMutation(api.appointments.createAppointment);
   const updateAppointment = useMutation(api.appointments.updateAppointment);
   const deleteAppointment = useMutation(api.appointments.deleteAppointment);
 
@@ -403,38 +391,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
-  // Handle create appointment submission
-  const onCreateAppointmentSubmit = async (data: z.infer<typeof CreateAppointmentSchema>) => {
-    if (!user || !activeOrganization) {
-      toast.error("Authentication required");
-      return;
-    }
-
-    setCreateAppointmentLoading(true);
-    try {
-      await createAppointment({
-        residentId: id as Id<"residents">,
-        title: data.title,
-        description: data.description,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        location: data.location,
-        staffId: data.staffId === "none" ? undefined : data.staffId,
-        organizationId: activeOrganization.id,
-        teamId: activeOrganization.id, // Using organization ID as team ID for now
-        createdBy: user.user.id,
-      });
-
-      toast.success("Appointment created successfully");
-      createAppointmentForm.reset();
-      setIsCreateAppointmentDialogOpen(false);
-    } catch (error) {
-      console.error("Error creating appointment:", error);
-      toast.error("Failed to create appointment");
-    } finally {
-      setCreateAppointmentLoading(false);
-    }
-  };
 
   // Handle edit appointment
   const handleEditAppointment = (appointment: any) => {
@@ -449,7 +405,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   };
 
   // Handle edit appointment submission
-  const onEditAppointmentSubmit = async (data: z.infer<typeof CreateAppointmentSchema>) => {
+  const onEditAppointmentSubmit = async (data: z.infer<typeof EditAppointmentSchema>) => {
     if (!user || !appointmentToEdit) {
       toast.error("Authentication required");
       return;
@@ -1726,162 +1682,13 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Create Appointment Dialog */}
-      <Dialog open={isCreateAppointmentDialogOpen} onOpenChange={setIsCreateAppointmentDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Create Appointment for {fullName}</DialogTitle>
-            <DialogDescription>
-              Schedule a new appointment for this resident.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...createAppointmentForm}>
-            <form onSubmit={createAppointmentForm.handleSubmit(onCreateAppointmentSubmit)} className="space-y-6">
-              {/* Title */}
-              <FormField
-                control={createAppointmentForm.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Appointment Title *</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Doctor Visit, Physical Therapy"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Description */}
-              <FormField
-                control={createAppointmentForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Additional details about the appointment"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Date and Time */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={createAppointmentForm.control}
-                  name="startTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Start Date & Time *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createAppointmentForm.control}
-                  name="endTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>End Date & Time *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Location */}
-              <FormField
-                control={createAppointmentForm.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location *</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., General Hospital, Room 205"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Staff Assignment */}
-              <FormField
-                control={createAppointmentForm.control}
-                name="staffId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Assigned Staff (optional)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select staff member..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">No staff assigned</SelectItem>
-                        {otherStaffOptions.length > 0 ? (
-                          otherStaffOptions.map((staff) => (
-                            <SelectItem key={staff.key} value={staff.email}>
-                              {staff.label}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no_staff" disabled>
-                            No other staff available
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsCreateAppointmentDialogOpen(false);
-                    createAppointmentForm.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createAppointmentLoading}>
-                  {createAppointmentLoading ? "Creating..." : "Create Appointment"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* Create Appointment Form */}
+      <CreateAppointmentForm
+        residentId={id}
+        residentName={fullName}
+        isOpen={isCreateAppointmentDialogOpen}
+        onClose={() => setIsCreateAppointmentDialogOpen(false)}
+      />
 
 
     </div >
