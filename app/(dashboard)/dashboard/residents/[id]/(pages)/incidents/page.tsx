@@ -239,19 +239,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             </div>
             <div className="flex flex-col space-y-3">
               <Button
-                variant="outline"
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className="bg-black hover:bg-gray-800 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Report Incident
               </Button>
               <Button
-                variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
-                className="w-full"
+                className="bg-black hover:bg-gray-800 text-white w-full"
               >
                 <Eye className="w-4 h-4 mr-2" />
                 View History
+              </Button>
+              <Button
+                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
+              >
+                <FileText className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -288,19 +291,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
-                className="bg-orange-600 text-white hover:bg-orange-700 hover:text-white"
+                className="bg-black hover:bg-gray-800 text-white"
               >
-                <Plus className="w-4 h-4" />
-                <span>Report Incident</span>
+                <Plus className="w-4 h-4 mr-2" />
+                Report Incident
               </Button>
               <Button
-                variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
-                className="flex items-center space-x-2"
+                className="bg-black hover:bg-gray-800 text-white flex items-center space-x-2"
               >
                 <Eye className="w-4 h-4 mr-2" />
                 View History
+              </Button>
+              <Button
+                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
+              >
+                <FileText className="w-4 h-4" />
               </Button>
             </div>
           </div>

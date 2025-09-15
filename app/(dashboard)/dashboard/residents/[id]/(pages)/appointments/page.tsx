@@ -609,8 +609,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
-
-
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Breadcrumb Navigation */}
@@ -626,8 +624,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         <span>/</span>
         <span className="text-foreground">Appointments</span>
       </div>
-
-
 
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
@@ -677,20 +673,25 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
             <div className="flex flex-col space-y-3">
               <Button
-                variant="outline"
-                onClick={() => setIsAppointmentNotesDialogOpen(true)}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => setIsCreateAppointmentDialogOpen(true)}
+                className="bg-black hover:bg-gray-800 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Appointment Note
+                Create Appointment
               </Button>
               <Button
-                variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
-                className="w-full"
+                className="bg-black hover:bg-gray-800 text-white w-full"
               >
                 <Eye className="w-4 h-4 mr-2" />
                 Appointment History
+              </Button>
+              <Button
+
+onClick={() => setIsAppointmentNotesDialogOpen(true)}
+                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
+              >
+                <StickyNote className="w-4 h-4" />
               </Button>
 
             </div>
@@ -724,20 +725,24 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
-                onClick={() => setIsAppointmentNotesDialogOpen(true)}
-                className="bg-green-600 text-white hover:bg-green-700 hover:text-white "
+                onClick={() => setIsCreateAppointmentDialogOpen(true)}
+                className="bg-black hover:bg-gray-800 text-white"
               >
-                <Plus className="w-4 h-4" />
-                <span>Add Appointment Note</span>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Appointment
               </Button>
               <Button
-                variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
-                className="flex items-center space-x-2"
+                className="bg-black hover:bg-gray-800 text-white flex items-center space-x-2"
               >
                 <Eye className="w-4 h-4 mr-2" />
                 Appointment History
+              </Button>
+              <Button
+                onClick={() => setIsAppointmentNotesDialogOpen(true)}
+                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
+              >
+                <StickyNote className="w-4 h-4" />
               </Button>
 
 
@@ -789,26 +794,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Create Appointment */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            <span>Appointments</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Button 
-            onClick={() => setIsCreateAppointmentDialogOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Appointment
-          </Button>
-        </CardContent>
-      </Card>
-
 
 
          {/* Appointment List Card */}
