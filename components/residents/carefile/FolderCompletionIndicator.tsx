@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { CheckCircleIcon } from "lucide-react";
 
 interface FolderProgressIndicatorProps {
   completedCount: number;
@@ -27,7 +26,7 @@ export function FolderProgressIndicator({
       <span
         className={cn(
           "text-xs px-2 py-0.5 rounded-full font-medium",
-          isAllCompleted && "text-emerald-600 bg-emerald-50"
+          isAllCompleted && "text-emerald-500 bg-emerald-50"
         )}
       >
         Completed

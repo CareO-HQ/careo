@@ -106,6 +106,8 @@ export default function CareFileFolder({
               return `pre-admission-form-${baseName}.pdf`;
             case "infection-prevention":
               return `infection-prevention-assessment-${baseName}.pdf`;
+            case "blader-bowel-form":
+              return `bladder-bowel-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -171,6 +173,7 @@ export default function CareFileFolder({
             residentId={residentId}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
+            onClose={() => setIsDialogOpen(false)}
           />
         );
       // case 'discharge':
@@ -190,7 +193,7 @@ export default function CareFileFolder({
               <p className="text-primary">{folderName}</p>
               {forms?.length && (
                 <p className="text-muted-foreground text-xs">
-                  {forms?.length} forms
+                  {forms?.length} {forms?.length === 1 ? "form" : "forms"}
                 </p>
               )}
             </div>

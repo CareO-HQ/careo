@@ -1,6 +1,7 @@
 export type CareFileFormKey =
   | "preAdmission-form"
   | "infection-prevention"
+  | "blader-bowel-form"
   | "new-form";
 
 export type CareFileFormStatus =
