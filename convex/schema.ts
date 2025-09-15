@@ -936,9 +936,17 @@ export default defineSchema({
 
     // Section 11
     sigantureCompletingAssessment: v.string(),
-    sigantureResident: v.string(),
-    dateNextReview: v.number()
-  }),
+    sigantureResident: v.optional(v.string()),
+    dateNextReview: v.number(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+    savedAsDraft: v.optional(v.boolean()),
+    pdfFileId: v.optional(v.id("_storage"))
+  }).index("by_resident", ["residentId"]),
 
   carePlanAssessments: defineTable({
     residentId: v.id("residents"),

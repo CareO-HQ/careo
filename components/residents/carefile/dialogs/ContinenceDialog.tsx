@@ -39,8 +39,11 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
+import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
+import { useMutation } from "convex/react";
+import { toast } from "sonner";
 
 interface BladderBowelDialogProps {
   teamId: string;
@@ -49,6 +52,7 @@ interface BladderBowelDialogProps {
   userId: string;
   userName: string;
   resident: Resident;
+  onClose?: () => void;
 }
 
 export default function BladderBowelDialog({
@@ -57,10 +61,14 @@ export default function BladderBowelDialog({
   organizationId,
   userId,
   userName,
-  resident
+  resident,
+  onClose
 }: BladderBowelDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const submitAssessment = useMutation(
+    api.careFiles.bladderBowel.submitBladderBowelAssessment
+  );
 
   const form = useForm<z.infer<typeof bladderBowelAssessmentSchema>>({
     resolver: zodResolver(bladderBowelAssessmentSchema),
@@ -75,6 +83,31 @@ export default function BladderBowelDialog({
       bedroomNumber: resident.roomNumber || "",
       informationObtainedFrom: "",
       sigantureCompletingAssessment: userName,
+      // Required enum fields
+      smoking: undefined,
+      weight: undefined,
+      skinCondition: undefined,
+      mentalState: undefined,
+      mobilityIssues: undefined,
+      incontinence: undefined,
+      volume: undefined,
+      onset: undefined,
+      duration: undefined,
+      symptompsLastSix: undefined,
+      bowelState: undefined,
+      bowelFrequency: undefined,
+      usualTimeOfDat: undefined,
+      amountAndStoolType: undefined,
+      liquidFeeds: undefined,
+      otherFactors: undefined,
+      otherRemedies: undefined,
+      dayPattern: undefined,
+      eveningPattern: undefined,
+      nightPattern: undefined,
+      typesOfPads: undefined,
+      bladderIncontinentType: undefined,
+      bladderReferralRequired: undefined,
+      bladderPlanFollowed: undefined,
       // Initialize all boolean checkboxes as false
       hepatitisAB: false,
       bloodBorneVirues: false,
@@ -139,15 +172,35 @@ export default function BladderBowelDialog({
     console.log("Form submission triggered - values:", values);
     startTransition(async () => {
       try {
-        console.log("Attempting to submit form...");
-        // TODO: Add API call to submit bladder bowel assessment
-        toast.success("Assessment submitted successfully!");
+        await submitAssessment({
+          ...values,
+          residentId: residentId as Id<"residents">,
+          savedAsDraft: false
+        });
+        toast.success("Bladder bowel assessment submitted successfully");
+        onClose?.();
       } catch (error) {
-        console.error("Error submitting form:", error);
-        toast.error("Error submitting form: " + (error as Error).message);
+        console.error("Error submitting assessment:", error);
+        toast.error("Failed to submit assessment. Please try again.");
       }
     });
   }
+
+  const saveDraft = async () => {
+    const values = form.getValues();
+    try {
+      await submitAssessment({
+        ...values,
+        residentId: residentId as Id<"residents">,
+        savedAsDraft: true
+      });
+      toast.success("Draft saved successfully");
+      onClose?.();
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      toast.error("Failed to save draft. Please try again.");
+    }
+  };
 
   const handleNext = async () => {
     let isValid = false;
@@ -2326,6 +2379,16 @@ export default function BladderBowelDialog({
         >
           {step === 1 ? "Cancel" : "Back"}
         </Button>
+        {/* {step > 1 && (
+          <Button
+            onClick={saveDraft}
+            variant="secondary"
+            disabled={isLoading}
+            type="button"
+          >
+            Save Draft
+          </Button>
+        )} */}
         <Button
           onClick={
             step === 13
