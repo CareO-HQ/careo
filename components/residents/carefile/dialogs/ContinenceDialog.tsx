@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { bladderBowelAssessmentSchema } from "@/schemas/residents/care-file/bladderBowelSchema";
 import { preAdmissionSchema } from "@/schemas/residents/care-file/preAdmissionSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,43 +43,34 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 
-interface PreAdmissionDialogProps {
+interface BladderBowelDialogProps {
   teamId: string;
   residentId: string;
   organizationId: string;
-  careHomeName: string;
+  userId: string;
   userName: string;
   resident: Resident;
 }
 
-export default function PreAdmissionDialog({
+export default function BladderBowelDialog({
   teamId,
   residentId,
   organizationId,
-  careHomeName,
+  userId,
   userName,
   resident
-}: PreAdmissionDialogProps) {
+}: BladderBowelDialogProps) {
   const [step, setStep] = useState<number>(1);
-  const [consentAcceptedAt, setConsentAcceptedAt] = useState(false);
-  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
-  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
-  const [plannedDatePopoverOpen, setPlannedDatePopoverOpen] = useState(false);
   const [isLoading, startTransition] = useTransition();
 
-  const form = useForm<z.infer<typeof preAdmissionSchema>>({
-    resolver: zodResolver(preAdmissionSchema),
+  const form = useForm<z.infer<typeof bladderBowelAssessmentSchema>>({
+    resolver: zodResolver(bladderBowelAssessmentSchema),
     mode: "onChange",
     defaultValues: {}
   });
 
-  // We'll remove this function since we're not downloading immediately anymore
-
-  function onSubmit(values: z.infer<typeof preAdmissionSchema>) {
+  function onSubmit(values: z.infer<typeof bladderBowelAssessmentSchema>) {
     // Do something with the form values.
     // ✅ This will be type-safe and validated.
     console.log("Form submission triggered - values:", values);
@@ -96,120 +88,157 @@ export default function PreAdmissionDialog({
     let isValid = false;
 
     if (step === 1) {
-      // For step 1, just check the consent checkbox state
-      if (!consentAcceptedAt) {
-        toast.error("Consent must be accepted to proceed");
-        return;
-      }
-      // If consent is checked, validation passes
+      const fieldsToValidate = [
+        "residentName",
+        "dateOfBirth",
+        "bedroomNumber",
+        "informationObtainedFrom"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
       isValid = true;
     } else if (step === 2) {
       const fieldsToValidate = [
-        "careHomeName",
-        "nhsHealthCareNumber",
-        "userName",
-        "jobRole",
-        "date"
+        "hepatitisAB",
+        "bloodBorneVirues",
+        "mrsa",
+        "esbl",
+        "other"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 3) {
       const fieldsToValidate = [
-        "firstName",
-        "lastName",
-        "address",
-        "phoneNumber",
-        "ethnicity",
-        "gender",
-        "religion",
-        "dateOfBirth"
+        "ph",
+        "nitrates",
+        "protein",
+        "leucocytes",
+        "glucose",
+        "bloodResult",
+        "mssuDate"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 4) {
       const fieldsToValidate = [
-        "kinFirstName",
-        "kinLastName",
-        "kinRelationship",
-        "kinPhoneNumber"
+        "antiHypertensives",
+        "antiParkinsonDrugs",
+        "ironSupplement",
+        "laxatives",
+        "diuretics",
+        "histamine",
+        "antiDepressants",
+        "cholinergic",
+        "sedativesHypnotic",
+        "antiPsychotic",
+        "antihistamines",
+        "narcoticAnalgesics"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 5) {
       const fieldsToValidate = [
-        "careManagerName",
-        "careManagerPhoneNumber",
-        "districtNurseName",
-        "districtNursePhoneNumber",
-        "generalPractitionerName",
-        "generalPractitionerPhoneNumber",
-        "providerHealthcareInfoName",
-        "providerHealthcareInfoDesignation"
+        "caffeineMls24h",
+        "caffeineFrequency",
+        "caffeineTimeOfDay",
+        "excersiceType",
+        "excersiceFrequency",
+        "excersiceTimeOfDay",
+        "alcoholAmount24h",
+        "alcoholFrequency",
+        "alcoholTimeOfDay",
+        "smoking",
+        "weight",
+        "skinCondition",
+        "constipationHistory",
+        "mentalState",
+        "mobilityIssues",
+        "historyRecurrentUTIs"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 6) {
       const fieldsToValidate = [
-        "allergies",
-        "medicalHistory",
-        "medicationPrescribed"
+        "incontinence",
+        "volume",
+        "onset",
+        "duration",
+        "symptompsLastSix",
+        "physicianConsulted"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 7) {
       const fieldsToValidate = [
-        "consentCapacityRights",
-        "medication",
-        "mobility",
-        "nutrition"
+        "bowelState",
+        "bowelFrequency",
+        "usualTimeOfDat",
+        "amountAndStoolType",
+        "liquidFeeds",
+        "otherFactors",
+        "otherRemedies",
+        "medicalOfficerConsulted"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 8) {
       const fieldsToValidate = [
-        "continence",
-        "hygieneDressing",
-        "skin",
-        "cognition"
+        "dayPattern",
+        "eveningPattern",
+        "nightPattern",
+        "typesOfPads"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 9) {
       const fieldsToValidate = [
-        "infection",
-        "breathing",
-        "alteredStateOfConsciousness"
+        "leakCoughLaugh",
+        "leakStandingUp",
+        "leakUpstairsDownhill",
+        "passesUrineFrequently",
+        "desirePassUrine",
+        "leaksBeforeToilet",
+        "moreThanTwiceAtNight",
+        "anxiety"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 10) {
       const fieldsToValidate = [
-        "dnacpr",
-        "advancedDecision",
-        "capacity",
-        "advancedCarePlan"
+        "difficultyStarting",
+        "hesintancy",
+        "dribbles",
+        "feelsFull",
+        "recurrentTractInfections"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 11) {
       const fieldsToValidate = [
-        "roomPreferences",
-        "admissionContact",
-        "foodPreferences",
-        "preferedName",
-        "familyConcerns"
+        "limitedMobility",
+        "unableOnTime",
+        "notHoldUrinalOrSeat",
+        "notuseCallBell",
+        "poorVision",
+        "assistedTransfer",
+        "pain"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 12) {
       const fieldsToValidate = [
-        "otherHealthCareProfessional",
-        "equipment"
+        "bladderContinent",
+        "bladderIncontinent",
+        "bladderIncontinentType",
+        "bladderPlanCommenced",
+        "bladderReferralRequired",
+        "bladderPlanFollowed",
+        "bowelContinent",
+        "bowelIncontinent",
+        "bowelPlanCommenced",
+        "bowelRecordCommenced",
+        "bowelReferralRequired"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     } else if (step === 13) {
-      const fieldsToValidate = ["attendFinances"] as const;
+      const fieldsToValidate = [
+        "sigantureCompletingAssessment",
+        "sigantureResident",
+        "dateNextReview"
+      ] as const;
       isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 14) {
-      const fieldsToValidate = ["additionalConsiderations"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 15) {
-      const fieldsToValidate = ["outcome", "plannedAdmissionDate"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    }
 
     if (isValid) {
-      if (step === 15) {
+      if (step === 13) {
         console.log(form.getValues());
       } else {
         setStep(step + 1);
@@ -230,35 +259,36 @@ export default function PreAdmissionDialog({
     <>
       <DialogHeader>
         <DialogTitle>
-          {step === 1 && "Patient Information"}
-          {step === 2 && "Infections"}
-          {step === 3 && "Urinalysis on admission"}
-          {step === 4 && "Medication"}
-          {step === 5 && "Lifestyle factors"}
-          {step === 6 && "Physical assessment"}
-          {step === 7 && "Urinary continence"}
-          {step === 8 && "Toileting patterns"}
-          {step === 9 && "Urinary incontinence"}
-          {step === 10 && "Urinary inconinence"}
-          {step === 11 && "Urinary incontinence"}
+          {step === 1 && "Resident information"}
+          {step === 2 && "Infections information"}
+          {step === 3 && "Urinalysis information"}
+          {step === 4 && "Prescribed medication"}
+          {step === 5 && "Contributing risk factors"}
+          {step === 6 && "Urinay continence"}
+          {step === 7 && "Bowel pattern"}
+          {step === 8 && "Toileting patterns and products"}
+          {step === 9 && "Symptoms associates with incontinence"}
+          {step === 10 && "Symptoms associates with incontinence"}
+          {step === 11 && "Symptoms associates with incontinence"}
           {step === 12 && "Quality of life"}
+          {step === 13 && "Signatures"}
         </DialogTitle>
         <DialogDescription>
           {step === 1 &&
-            "Gather essential information about the resident before their admission."}
-          {step === 2 && "Basic information about the care home"}
-          {step === 3 && "Basic resident information"}
-          {step === 4 && "First of kin information"}
+            "Basic information about the resident"}
+          {step === 2 && "Basic information about the infections"}
+          {step === 3 && "Information about the urinalysis"}
+          {step === 4 && "Prescribed medication information"}
           {step === 5 &&
-            "Add information about different professional contacts"}
+            "Contributing risk factors information"}
           {step === 6 && "Add known allergies and medical history"}
-          {step === 7 && "Add information about the assessment sections"}
-          {step === 8 && "Add information about the assessment sections"}
-          {step === 9 && "Add information about the assessment sections"}
-          {step === 10 &&
-            "Add information about the palliative and end of life care"}
-          {step === 11 && "Add information about personal preferences"}
-          {step === 12 && "Additional information about the resident"}
+          {step === 7 && "Urinay continence information"}
+          {step === 8 && "Bowel pattern information"}
+          {step === 9 && "Toileting patterns and products information"}
+          {step === 10 && "Symptoms associates with incontinence information"}
+          {step === 11 && "Symptoms associates with incontinence information"}
+          {step === 12 && "Quality of life information"}
+          {step === 13 && "Signatures information"}
         </DialogDescription>
       </DialogHeader>
       <div className="">

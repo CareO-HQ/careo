@@ -106,7 +106,7 @@ export const bladderBowelAssessmentSchema = z.object({
   typesOfPads: z.string(),
 
   // Section 9 - Symptoms
-  // 9.A
+  // 9.A (9)
   leakCoughLaugh: z.boolean(),
   leakStandingUp: z.boolean(),
   leakUpstairsDownhill: z.boolean(),
@@ -115,13 +115,13 @@ export const bladderBowelAssessmentSchema = z.object({
   leaksBeforeToilet: z.boolean(),
   moreThanTwiceAtNight: z.boolean(),
   anxiety: z.boolean(),
-  // 9.B
+  // 9.B (10)
   difficultyStarting: z.boolean(),
   hesintancy: z.boolean(),
   dribbles: z.boolean(),
   feelsFull: z.boolean(),
   recurrentTractInfections: z.boolean(),
-  // 9.C
+  // 9.C (11)
   limitedMobility: z.boolean(),
   unableOnTime: z.boolean(),
   notHoldUrinalOrSeat: z.boolean(),
@@ -130,7 +130,7 @@ export const bladderBowelAssessmentSchema = z.object({
   assistedTransfer: z.boolean(),
   pain: z.boolean(),
 
-  // Section 10
+  // Section 12
   // Bladder
   bladderContinent: z.boolean(),
   bladderIncontinent: z.boolean(),
@@ -163,7 +163,7 @@ export const bladderBowelAssessmentSchema = z.object({
     "NONE"
   ]),
 
-  // Section 11
+  // Section 13
   sigantureCompletingAssessment: z.string(),
   sigantureResident: z.string(),
   dateNextReview: z.number()
