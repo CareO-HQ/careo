@@ -243,13 +243,13 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [isPersonalCareDialogOpen, setIsPersonalCareDialogOpen] = React.useState(false);
   const [isActivityRecordDialogOpen, setIsActivityRecordDialogOpen] = React.useState(false);
 
-  // Update staff fields when user data loads
+  // Update staff fields when user data loads or when dialog opens
   React.useEffect(() => {
-    if (user?.user) {
+    if (user?.user && isPersonalCareDialogOpen) {
       const staffName = user.user.name || user.user.email?.split('@')[0] || "";
       form.setValue('staff', staffName);
     }
-  }, [user, form]);
+  }, [user, form, isPersonalCareDialogOpen]);
 
   // Mutations
   const createPersonalCareActivities = useMutation(api.personalCare.createPersonalCareActivities);
@@ -303,8 +303,14 @@ const activityOptions = [
         shift: currentShift,
       });
 
-      // Clear form and close dialog
-      form.reset();
+      // Reset form with staff name preserved
+      form.reset({
+        activities: [],
+        time: "",
+        staff: currentUserName, // Keep the staff name populated
+        assistedStaff: "",
+        notes: "",
+      });
       setIsPersonalCareDialogOpen(false);
       toast.success("Personal care activities saved successfully");
     } catch (error) {
@@ -2015,7 +2021,13 @@ const activityOptions = [
                   variant="outline"
                   onClick={() => {
                     setIsPersonalCareDialogOpen(false);
-                    form.reset();
+                    form.reset({
+                      activities: [],
+                      time: "",
+                      staff: currentUserName, // Keep the staff name populated
+                      assistedStaff: "",
+                      notes: "",
+                    });
                   }}
                 >
                   Cancel
