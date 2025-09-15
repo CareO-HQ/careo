@@ -51,6 +51,13 @@ const CareFileName = v.union(
   v.literal("admission")
 );
 
+const ToiletingPattern = v.union(
+  v.literal("TOILET"),
+  v.literal("COMMODE"),
+  v.literal("BED-PAN"),
+  v.literal("URINAL")
+);
+
 export default defineSchema({
   users: defineTable({
     // Better Auth user data
@@ -401,24 +408,34 @@ export default defineSchema({
     dietTypes: v.optional(v.array(v.string())),
     otherDietType: v.optional(v.string()),
     culturalRestrictions: v.optional(v.string()),
-    allergies: v.optional(v.array(v.object({
-      allergy: v.string()
-    }))),
-    chokingRisk: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
-    foodConsistency: v.optional(v.union(
-      v.literal("level7"), // Easy Chew
-      v.literal("level6"), // Soft & Bite-sized  
-      v.literal("level5"), // Minced & Moist
-      v.literal("level4"), // Pureed
-      v.literal("level3")  // Liquidised
-    )),
-    fluidConsistency: v.optional(v.union(
-      v.literal("level0"), // Thin
-      v.literal("level1"), // Slightly Thick
-      v.literal("level2"), // Mildly Thick
-      v.literal("level3"), // Moderately Thick
-      v.literal("level4")  // Extremely Thick
-    )),
+    allergies: v.optional(
+      v.array(
+        v.object({
+          allergy: v.string()
+        })
+      )
+    ),
+    chokingRisk: v.optional(
+      v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
+    ),
+    foodConsistency: v.optional(
+      v.union(
+        v.literal("level7"), // Easy Chew
+        v.literal("level6"), // Soft & Bite-sized
+        v.literal("level5"), // Minced & Moist
+        v.literal("level4"), // Pureed
+        v.literal("level3") // Liquidised
+      )
+    ),
+    fluidConsistency: v.optional(
+      v.union(
+        v.literal("level0"), // Thin
+        v.literal("level1"), // Slightly Thick
+        v.literal("level2"), // Mildly Thick
+        v.literal("level3"), // Moderately Thick
+        v.literal("level4") // Extremely Thick
+      )
+    ),
     assistanceRequired: v.optional(v.union(v.literal("yes"), v.literal("no"))),
     organizationId: v.string(),
     createdBy: v.string(),
@@ -470,34 +487,65 @@ export default defineSchema({
       v.literal("mobility_positioning"),
       v.literal("safety_alerts")
     ),
-    
+
     // Shower/Bath Preference fields
     showerOrBath: v.optional(v.union(v.literal("shower"), v.literal("bath"))),
-    preferredTime: v.optional(v.union(v.literal("morning"), v.literal("afternoon"), v.literal("evening"))),
-    
+    preferredTime: v.optional(
+      v.union(
+        v.literal("morning"),
+        v.literal("afternoon"),
+        v.literal("evening")
+      )
+    ),
+
     // Toileting Needs fields
-    toiletType: v.optional(v.union(v.literal("toilet"), v.literal("commode"), v.literal("pad"))),
-    assistanceLevel: v.optional(v.union(v.literal("independent"), v.literal("1_staff"), v.literal("2_staff"))),
-    
+    toiletType: v.optional(
+      v.union(v.literal("toilet"), v.literal("commode"), v.literal("pad"))
+    ),
+    assistanceLevel: v.optional(
+      v.union(
+        v.literal("independent"),
+        v.literal("1_staff"),
+        v.literal("2_staff")
+      )
+    ),
+
     // Mobility & Positioning fields
-    walkingAid: v.optional(v.union(v.literal("frame"), v.literal("stick"), v.literal("wheelchair"), v.literal("none"))),
-    
+    walkingAid: v.optional(
+      v.union(
+        v.literal("frame"),
+        v.literal("stick"),
+        v.literal("wheelchair"),
+        v.literal("none")
+      )
+    ),
+
     // Communication Needs fields (multiple can be selected)
-    communicationNeeds: v.optional(v.array(v.union(
-      v.literal("hearing_aid"),
-      v.literal("glasses"),
-      v.literal("non_verbal"),
-      v.literal("memory_support")
-    ))),
-    
+    communicationNeeds: v.optional(
+      v.array(
+        v.union(
+          v.literal("hearing_aid"),
+          v.literal("glasses"),
+          v.literal("non_verbal"),
+          v.literal("memory_support")
+        )
+      )
+    ),
+
     // Safety Alerts fields (multiple can be selected)
-    safetyAlerts: v.optional(v.array(v.union(
-      v.literal("high_falls_risk"),
-      v.literal("no_unattended_bathroom"),
-      v.literal("chair_bed_alarm")
-    ))),
-    
-    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    safetyAlerts: v.optional(
+      v.array(
+        v.union(
+          v.literal("high_falls_risk"),
+          v.literal("no_unattended_bathroom"),
+          v.literal("chair_bed_alarm")
+        )
+      )
+    ),
+
+    priority: v.optional(
+      v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
+    ),
     isActive: v.optional(v.boolean()), // true by default, can be deactivated
     organizationId: v.string(),
     teamId: v.string(),
@@ -687,5 +735,241 @@ export default defineSchema({
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"])
     .index("by_assessment_type", ["assessmentType"])
-    .index("by_completion_date", ["completionDate"])
+    .index("by_completion_date", ["completionDate"]),
+
+  bladderBowelAssessments: defineTable({
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+
+    // Section 1 - Resident info
+    residentName: v.string(),
+    dateOfBirth: v.number(),
+    bedroomNumber: v.string(),
+    informationObtainedFrom: v.string(),
+
+    // Section 2 - Infections
+    hepatitisAB: v.boolean(),
+    bloodBorneVirues: v.boolean(),
+    mrsa: v.boolean(),
+    esbl: v.boolean(),
+    other: v.optional(v.string()),
+
+    // Section 3 - Urinalysis on Admission
+    ph: v.boolean(),
+    nitrates: v.boolean(),
+    protein: v.boolean(),
+    leucocytes: v.boolean(),
+    glucose: v.boolean(),
+    bloodResult: v.boolean(),
+    mssuDate: v.optional(v.number()),
+
+    // Section 4 - Prescribed medication
+    antiHypertensives: v.boolean(),
+    antiParkinsonDrugs: v.boolean(),
+    ironSupplement: v.boolean(),
+    laxatives: v.boolean(),
+    diuretics: v.boolean(),
+    histamine: v.boolean(),
+    antiDepressants: v.boolean(),
+    cholinergic: v.boolean(),
+    sedativesHypnotic: v.boolean(),
+    antiPsychotic: v.boolean(),
+    antihistamines: v.boolean(),
+    narcoticAnalgesics: v.boolean(),
+
+    // Section 5 - Lifestyle
+    caffeineMls24h: v.optional(v.number()),
+    caffeineFrequency: v.optional(v.string()),
+    caffeineTimeOfDay: v.optional(v.string()),
+    excersiceType: v.optional(v.string()),
+    excersiceFrequency: v.optional(v.string()),
+    excersiceTimeOfDay: v.optional(v.string()),
+    alcoholAmount24h: v.optional(v.number()),
+    alcoholFrequency: v.optional(v.string()),
+    alcoholTimeOfDay: v.optional(v.string()),
+    smoking: v.union(
+      v.literal("SMOKER"),
+      v.literal("NON-SMOKER"),
+      v.literal("EX-SMOKER")
+    ),
+    weight: v.union(
+      v.literal("NORMAL"),
+      v.literal("OBESE"),
+      v.literal("UNDERWEIGHT")
+    ),
+    skinCondition: v.union(
+      v.literal("HEALTHY"),
+      v.literal("RED"),
+      v.literal("EXCORIATED"),
+      v.literal("BROKEN")
+    ),
+    constipationHistory: v.boolean(),
+    mentalState: v.union(
+      v.literal("ALERT"),
+      v.literal("CONFUSED"),
+      v.literal("LEARNING-DISABLED"),
+      v.literal("COGNITIVELY-IMPAIRED")
+    ),
+    mobilityIssues: v.union(
+      v.literal("INDEPENDENT"),
+      v.literal("ASSISTANCE"),
+      v.literal("HOISTED")
+    ),
+    historyRecurrentUTIs: v.boolean(),
+
+    // Section 6 - Urinari continence
+    incontinence: v.union(
+      v.literal("NONE"),
+      v.literal("ONE"),
+      v.literal("1-2DAY"),
+      v.literal("3DAY"),
+      v.literal("NIGHT"),
+      v.literal("DAYANDNIGHT")
+    ),
+    volume: v.union(
+      v.literal("ENTIRE-BLADDER"),
+      v.literal("SMALL-VOL"),
+      v.literal("UNABLE-DETERMINE")
+    ),
+    onset: v.union(v.literal("SUDDEN"), v.literal("GRADUAL")),
+    duration: v.union(
+      v.literal("LESS-6M"),
+      v.literal("6M-1Y"),
+      v.literal("MORE-1Y")
+    ),
+    symptompsLastSix: v.union(
+      v.literal("STABLE"),
+      v.literal("WORSENING"),
+      v.literal("IMPROVING"),
+      v.literal("FLUCTUATING")
+    ),
+    physicianConsulted: v.boolean(),
+
+    // Section 7 - Bowel pattern
+    bowelState: v.union(
+      v.literal("NORMAL"),
+      v.literal("CONSTIPATION"),
+      v.literal("DIARRHOEA"),
+      v.literal("STOMA"),
+      v.literal("FAECAL-INCONTINENCE"),
+      v.literal("IRRITABLE-BOWEL")
+    ),
+    bowelFrequency: v.string(),
+    usualTimeOfDat: v.string(),
+    amountAndStoolType: v.string(),
+    liquidFeeds: v.string(),
+    otherFactors: v.string(),
+    otherRemedies: v.string(),
+    medicalOfficerConsulted: v.boolean(),
+
+    // Section 8 - Current toileting pattern and products in use
+    // TODO: I thinks is only one option.
+    dayPattern: ToiletingPattern,
+    eveningPattern: ToiletingPattern,
+    nightPattern: ToiletingPattern,
+    typesOfPads: v.string(),
+
+    // Section 9 - Symptoms
+    // 9.A -> If any is true, show to do another plan
+    leakCoughLaugh: v.boolean(),
+    leakStandingUp: v.boolean(),
+    leakUpstairsDownhill: v.boolean(),
+    passesUrineFrequently: v.boolean(),
+    desirePassUrine: v.boolean(),
+    leaksBeforeToilet: v.boolean(),
+    moreThanTwiceAtNight: v.boolean(),
+    anxiety: v.boolean(),
+    // 9.B ->  If any is true, show to do another plan
+    difficultyStarting: v.boolean(),
+    hesintancy: v.boolean(),
+    dribbles: v.boolean(),
+    feelsFull: v.boolean(),
+    recurrentTractInfections: v.boolean(),
+    // 9.C ->  If any is true, show to do another plan
+    limitedMobility: v.boolean(),
+    unableOnTime: v.boolean(),
+    notHoldUrinalOrSeat: v.boolean(),
+    notuseCallBell: v.boolean(),
+    poorVision: v.boolean(),
+    assistedTransfer: v.boolean(),
+    pain: v.boolean(),
+
+    // Section 10
+    // Bladder
+    bladderContinent: v.boolean(),
+    bladderIncontinent: v.boolean(),
+    bladderIncontinentType: v.union(
+      v.literal("STRESS"),
+      v.literal("URGE"),
+      v.literal("MIXED"),
+      v.literal("FUNCTIONAL")
+    ),
+    bladderPlanCommenced: v.boolean(),
+    bladderReferralRequired: v.union(
+      v.literal("DIETICIAN"),
+      v.literal("GP"),
+      v.literal("OT"),
+      v.literal("PHYSIOTHERAPIST"),
+      v.literal("CONTINENCE-NURSE"),
+      v.literal("NONE")
+    ),
+    bladderPlanFollowed: v.union(
+      v.literal("STRESS"),
+      v.literal("URGE"),
+      v.literal("MIXED"),
+      v.literal("RETENTION-OVERFLOW")
+    ),
+    // Bowel
+    bowelContinent: v.boolean(),
+    bowelIncontinent: v.boolean(),
+    bowelPlanCommenced: v.boolean(),
+    bowelRecordCommenced: v.boolean(),
+    bowelReferralRequired: v.union(
+      v.literal("DIETICIAN"),
+      v.literal("GP"),
+      v.literal("OT"),
+      v.literal("PHYSIOTHERAPIST"),
+      v.literal("NONE")
+    ),
+
+    // Section 11
+    sigantureCompletingAssessment: v.string(),
+    sigantureResident: v.string(),
+    dateNextReview: v.number()
+  }),
+
+  carePlanAssessments: defineTable({
+    residentId: v.id("residents"),
+    userId: v.string(),
+
+    //
+    residentName: v.string(),
+    dob: v.number(),
+    bedroomNumber: v.string(),
+    writtenBy: v.string(),
+    dateWritten: v.number(),
+    carePlanNumber: v.string(),
+
+    //
+    identifiedNeeds: v.string(),
+    aims: v.string(),
+
+    //
+    plannedCareDate: v.array(
+      v.object({
+        date: v.number(),
+        time: v.optional(v.string()),
+        details: v.string(),
+        signature: v.string()
+      })
+    ),
+
+    // Review of Patient or Representative
+    discussedWith: v.optional(v.string()),
+    signature: v.optional(v.string()),
+    date: v.number(),
+    staffSignature: v.optional(v.string())
+  })
 });
