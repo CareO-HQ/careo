@@ -21,7 +21,6 @@ import {
   Clock,
   User,
   Plus,
-  Filter,
   Shield,
   Eye
 } from "lucide-react";
@@ -313,86 +312,6 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </CardContent>
       </Card>
 
-      {/* Falls Risk Assessment */}
-      <Card>
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <Shield className="w-5 h-5 text-blue-600" />
-              <span>Falls Risk Assessment</span>
-            </div>
-            <Badge 
-              variant="outline"
-              className={getSeverityColor(mockFallsRiskAssessment.riskLevel).bg + ' ' + 
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).border + ' ' +
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).text}
-            >
-              {mockFallsRiskAssessment.riskLevel} Risk - {mockFallsRiskAssessment.score}/10
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-blue-600" />
-              <span>Falls Risk Assessment</span>
-            </div>
-            <Badge 
-              variant="outline"
-              className={getSeverityColor(mockFallsRiskAssessment.riskLevel).bg + ' ' + 
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).border + ' ' +
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).text}
-            >
-              {mockFallsRiskAssessment.riskLevel} Risk - {mockFallsRiskAssessment.score}/10
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-gray-600">Risk Score</span>
-                <span className="text-lg font-bold">
-                  {mockFallsRiskAssessment.score}/{mockFallsRiskAssessment.maxScore}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-orange-500 h-3 rounded-full" 
-                  style={{ width: `${(mockFallsRiskAssessment.score / mockFallsRiskAssessment.maxScore) * 100}%` }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Last assessed: {mockFallsRiskAssessment.lastAssessment}
-              </p>
-            </div>
-            
-            <div>
-              <h4 className="font-medium mb-3">Risk Factors</h4>
-              <div className="space-y-2">
-                {mockFallsRiskAssessment.factors.map((factor, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm">
-                    <span className={factor.present ? "text-gray-900" : "text-gray-400"}>
-                      {factor.factor}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500">
-                        {factor.points} pts
-                      </span>
-                      <Badge 
-                        variant={factor.present ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
-                        {factor.present ? "Present" : "Not Present"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Recent Incidents */}
       <Card>
@@ -498,38 +417,6 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </CardContent>
       </Card>
 
-      {/* Safety Measures */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Shield className="w-5 h-5 text-green-600" />
-            <span>Current Safety Measures</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <h4 className="font-medium text-green-800 mb-2">Fall Prevention</h4>
-              <ul className="text-sm text-green-700 space-y-1">
-                <li>• Non-slip mats in bathroom</li>
-                <li>• Bed rails installed</li>
-                <li>• Call bell within reach</li>
-                <li>• Regular mobility assessments</li>
-              </ul>
-            </div>
-            
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">Monitoring</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• 15-minute safety checks</li>
-                <li>• Motion sensor alerts</li>
-                <li>• Staff handover reports</li>
-                <li>• Family contact protocol</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Incident Summary */}
       <Card>
@@ -567,22 +454,6 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </CardContent>
       </Card>
 
-
-
-      {/* Development Notice */}
-      <Card className="bg-orange-50 border-orange-200">
-        <CardContent className="p-6 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-orange-100 rounded-full">
-              <AlertTriangle className="w-8 h-8 text-orange-600" />
-            </div>
-          </div>
-          <h3 className="text-lg font-semibold text-orange-800 mb-2">Enhanced Features Coming Soon</h3>
-          <p className="text-orange-600 text-sm">
-            Advanced incident reporting, analytics, automated risk assessments, and comprehensive safety tracking features are in development.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }
