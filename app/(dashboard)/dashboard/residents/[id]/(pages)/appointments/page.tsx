@@ -91,25 +91,29 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Appointment Notes Dialog state
   const [isAppointmentNotesDialogOpen, setIsAppointmentNotesDialogOpen] = React.useState(false);
   const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(false);
-  
+
   // Create Appointment Dialog state
   const [isCreateAppointmentDialogOpen, setIsCreateAppointmentDialogOpen] = React.useState(false);
-  
+
   // Edit Appointment Dialog state
   const [isEditAppointmentDialogOpen, setIsEditAppointmentDialogOpen] = React.useState(false);
   const [editAppointmentLoading, setEditAppointmentLoading] = React.useState(false);
   const [appointmentToEdit, setAppointmentToEdit] = React.useState<any>(null);
-  
+
   // Delete Appointment Dialog state
   const [isDeleteAppointmentDialogOpen, setIsDeleteAppointmentDialogOpen] = React.useState(false);
   const [deleteAppointmentLoading, setDeleteAppointmentLoading] = React.useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = React.useState<any>(null);
-  
+
   // Delete confirmation dialog state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
   const [noteToDelete, setNoteToDelete] = React.useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
-  
+
+  // Pagination state for appointments
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const appointmentsPerPage = 5;
+
   // Appointment Notes Form Schema
   // Enums for appointment-specific needs
   const TransportationNeedEnum = z.enum(["wheelchair_accessible", "oxygen_support", "medical_equipment", "assistance_required"]);
@@ -117,17 +121,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
   const AppointmentNotesSchema = z.object({
     category: z.enum(["preparation", "preferences", "special_instructions", "transportation", "medical_requirements"]),
-  
+
     preparationTime: z.enum(["30_minutes", "1_hour", "2_hours"]).optional(),
     preparationNotes: z.string().optional(),
     preferredTime: z.enum(["morning", "afternoon", "evening"]).optional(),
     transportPreference: z.enum(["wheelchair", "walking_aid", "independent", "stretcher"]).optional(),
     instructions: z.string().optional(),
-  
+
     // ✅ strongly typed
     transportationNeeds: z.array(TransportationNeedEnum).optional(),
     medicalNeeds: z.array(MedicalNeedEnum).optional(),
-  
+
     priority: z.enum(["low", "medium", "high"]).optional(),
   });
 
@@ -352,7 +356,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Handle delete appointment note
   const handleDeleteAppointmentNote = async () => {
     if (!noteToDelete) return;
-    
+
     setDeleteLoading(true);
     try {
       await deleteAppointmentNote({ noteId: noteToDelete as Id<"appointmentNotes"> });
@@ -581,6 +585,25 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
+  // Pagination logic
+  const totalPages = appointments ? Math.ceil(appointments.length / appointmentsPerPage) : 0;
+  const startIndex = (currentPage - 1) * appointmentsPerPage;
+  const endIndex = startIndex + appointmentsPerPage;
+  const currentAppointments = appointments?.slice(startIndex, endIndex) || [];
+
+  // Handle page navigation
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Breadcrumb Navigation */}
@@ -604,7 +627,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </Button>
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-100 rounded-lg">
-          <ClipboardCheck className="w-6 h-6 text-blue-600" />
+            <ClipboardCheck className="w-6 h-6 text-blue-600" />
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
@@ -722,7 +745,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               <StickyNote className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-medium">Appointment Notes</span>
             </div>
-            
+
             {/* Display appointment notes */}
             <div className="flex flex-wrap gap-2">
               {appointmentNotes && appointmentNotes.length > 0 ? (
@@ -762,7 +785,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       </Card>
 
       {/* Appointment List Card */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -783,82 +806,140 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {appointments && appointments.length > 0 ? (
-              appointments.slice(0, 5).map((appointment) => (
+        <CardContent className="border-0" >
+          {appointments && appointments.length > 0 ? (
+            <>
+              <div className="space-y-4">
+                {currentAppointments.map((appointment) => (
+                  <div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-sm">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">
+                          {appointment.title
+                            .split(" ")
+                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(" ")}
+                        </h4>
+                        <div className="flex items-center space-x-2">
 
-<div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-lg bg-gray-50">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-sm">{appointment.title}</h4>
-                      <div className="flex items-center space-x-2">
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${getAppointmentStatusColor(appointment.status)}`}
-                        >
-                          {appointment.status}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditAppointment(appointment)}
-                          className="h-6 px-2 text-xs"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteAppointment(appointment)}
-                          className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
-                        >
-                          Delete
-                        </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditAppointment(appointment)}
+                            className="h-6 px-2 text-xs "
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteAppointment(appointment)}
+                            className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    
-                    {appointment.description && (
-                      <p className="text-xs text-gray-600">{appointment.description}</p>
-                    )}
-                    
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatAppointmentDateTime(appointment.startTime)}</span>
-                      </div>
-                      {appointment.location && (
+
+                      {appointment.description && (
+                        <p className="text-xs text-gray-600">{appointment.description}</p>
+                      )}
+
+                      <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <div className="flex items-center space-x-1">
-                          <span>📍</span>
-                          <span>{appointment.location}</span>
+                          <Clock className="w-3 h-3" />
+                          <span>{formatAppointmentDateTime(appointment.startTime)}</span>
+                        </div>
+                        {appointment.location && (
+                          <div className="flex items-center space-x-1">
+                            <span>📍</span>
+                            <span>{appointment.location}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {appointment.staffId && (
+                        <div className="text-xs text-blue-600">
+                          Assigned to: {appointment.staffId}
                         </div>
                       )}
                     </div>
-                    
-                    {appointment.staffId && (
-                      <div className="text-xs text-blue-600">
-                        Assigned to: {appointment.staffId}
-                      </div>
-                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  {/* Mobile Layout */}
+                  <div className="sm:hidden">
+                    <div className="text-center text-xs text-gray-500 mb-3">
+                      {startIndex + 1}-{Math.min(endIndex, appointments.length)} of {appointments.length} appointments
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 1}
+                        className="h-8 px-2 text-xs flex-1 max-w-[80px]"
+                      >
+                        Prev
+                      </Button>
+                      <span className="text-xs text-gray-600 mx-3 flex-shrink-0">
+                        {currentPage} / {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        className="h-8 px-2 text-xs flex-1 max-w-[80px]"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Desktop Layout */}
+                  <div className="hidden sm:flex sm:items-center sm:justify-between">
+                    <div className="text-sm text-gray-500">
+                      Showing {startIndex + 1}-{Math.min(endIndex, appointments.length)} of {appointments.length} appointments
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 1}
+                        className="h-8 px-3 text-xs"
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        className="h-8 px-3 text-xs"
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500">No appointments scheduled</p>
-                <p className="text-xs text-gray-400 mt-1">Create your first appointment using the button above</p>
-              </div>
-            )}
-            
-            {appointments && appointments.length > 5 && (
-              <div className="text-center pt-2">
-                <p className="text-xs text-gray-500">
-                  Showing 5 of {appointments.length} appointments
-                </p>
-              </div>
-            )}
-          </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500">No appointments scheduled</p>
+              <p className="text-xs text-gray-400 mt-1">Create your first appointment using the button above</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
