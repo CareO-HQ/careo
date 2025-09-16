@@ -643,7 +643,7 @@ export default function CareFileFolder({
                             handleOpenReview(form.formType, form.formId)
                           }
                         >
-                          Review
+                          Audit
                         </Button>
                       </div>
                     </div>
