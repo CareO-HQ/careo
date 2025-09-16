@@ -52,7 +52,6 @@ import {
   Clock,
   Eye,
   Download,
-  FileText,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -137,11 +136,9 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
   const [isLogLoading, setIsLogLoading] = React.useState(false);
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
+  const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(user?.user?.name || "");
+  const [showLogAnotherActions, setShowLogAnotherActions] = React.useState(false);
 
-  // Records Dialog state
-  const [isRecordsDialogOpen, setIsRecordsDialogOpen] = React.useState(false);
-  const [selectedDocument, setSelectedDocument] = React.useState<string | null>(null);
-  const [isViewDocumentOpen, setIsViewDocumentOpen] = React.useState(false);
 
   // Form setup
   const form = useForm<z.infer<typeof DietFormSchema>>({
@@ -168,9 +165,17 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
       portionServed: "",
       amountEaten: "All",
       fluidConsumedMl: undefined,
-      signature: user?.user?.name || "",
+      signature: persistentStaffSignature,
     },
   });
+
+  // Update persistent signature when user changes
+  React.useEffect(() => {
+    if (user?.user?.name && !persistentStaffSignature) {
+      setPersistentStaffSignature(user.user.name);
+      logForm.setValue('signature', user.user.name);
+    }
+  }, [user, persistentStaffSignature, logForm]);
 
   // Watch the typeOfFoodDrink field to show/hide fluid input
 
@@ -252,11 +257,29 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
     return "5pm-midnight";
   };
 
+  const getCurrentTime = () => {
+    return new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getSectionDisplayName = (section: string) => {
+    const timeMap: Record<string, string> = {
+      "midnight-7am": "Midnight - 7:00 AM",
+      "7am-12pm": "7:00 AM - 12:00 PM", 
+      "12pm-5pm": "12:00 PM - 5:00 PM",
+      "5pm-midnight": "5:00 PM - Midnight"
+    };
+    return timeMap[section] || section;
+  };
+
 
 
   const onSubmit = async (values: z.infer<typeof DietFormSchema>) => {
     // Prevent submission if not on the final step
-    if (currentStep !== 4) {
+    if (currentStep !== 3) {
       console.log('Form submission prevented - not on final step. Current step:', currentStep);
       return;
     }
@@ -324,17 +347,24 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         createdBy: user.user.id,
       });
 
+      // Update persistent signature from form
+      setPersistentStaffSignature(values.signature);
+      
       toast.success("Food/fluid entry logged successfully");
 
-      // Reset form for next entry
+      // Reset form for next entry but preserve signature
       logForm.reset({
         section: getCurrentSection(),
         typeOfFoodDrink: "",
         portionServed: "",
         amountEaten: "All",
         fluidConsumedMl: undefined,
-        signature: user.user.name || "",
+        signature: values.signature, // Keep the current signature
       });
+
+      // Show quick actions for a few seconds
+      setShowLogAnotherActions(true);
+      setTimeout(() => setShowLogAnotherActions(false), 5000);
 
       setIsFoodFluidDialogOpen(false);
     } catch (error) {
@@ -345,311 +375,17 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // Generate documents by date for records view
-  const generateDocumentsByDate = () => {
-    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
-    const logsByDate = allLogs.reduce((acc, log) => {
-      const date = log.date;
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(log);
-      return acc;
-    }, {} as Record<string, typeof allLogs>);
-
-    return Object.entries(logsByDate)
-      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-      .map(([date, logs]) => ({
-        id: date,
-        title: new Date(date).toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }),
-        type: date === today ? 'current' : 'archived',
-        entries: logs.length,
-        foodEntries: logs.filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length,
-        fluidEntries: logs.filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length,
-        totalFluidMl: logs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0),
-        date: date
-      }));
+  // Handle Log Another actions
+  const handleLogAnother = (type: "food" | "fluid") => {
+    setEntryType(type);
+    logForm.setValue("section", getCurrentSection());
+    logForm.setValue("typeOfFoodDrink", type === "fluid" ? "Water" : "");
+    logForm.setValue("fluidConsumedMl", undefined);
+    setIsFoodFluidDialogOpen(true);
+    setShowLogAnotherActions(false);
   };
 
-  // Generate full report with all records
-  const downloadAllRecords = () => {
-    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Complete Food & Fluid Records - ${fullName}</title>
-          <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 20px; 
-              line-height: 1.4;
-            }
-            .header { 
-              text-align: center; 
-              border-bottom: 2px solid #333; 
-              padding-bottom: 15px; 
-              margin-bottom: 20px; 
-            }
-            .resident-info { 
-              background: #f5f5f5; 
-              padding: 10px; 
-              margin-bottom: 20px; 
-              border-radius: 5px; 
-            }
-            .section { 
-              margin-bottom: 25px; 
-            }
-            .section-title { 
-              font-size: 16px; 
-              font-weight: bold; 
-              color: #333; 
-              margin-bottom: 10px; 
-              border-bottom: 1px solid #ddd; 
-              padding-bottom: 5px; 
-            }
-            table { 
-              width: 100%; 
-              border-collapse: collapse; 
-              margin-bottom: 15px; 
-            }
-            th, td { 
-              border: 1px solid #ddd; 
-              padding: 8px; 
-              text-align: left; 
-              font-size: 12px; 
-            }
-            th { 
-              background-color: #f8f9fa; 
-              font-weight: bold; 
-            }
-            .food-entry { background-color: #fff8e7; }
-            .fluid-entry { background-color: #e7f3ff; }
-            .consumption-all { color: #28a745; font-weight: bold; }
-            .consumption-none { color: #dc3545; font-weight: bold; }
-            .consumption-partial { color: #fd7e14; font-weight: bold; }
-            .footer { 
-              text-align: center; 
-              margin-top: 30px; 
-              font-size: 10px; 
-              color: #666; 
-              border-top: 1px solid #ddd; 
-              padding-top: 10px; 
-            }
-            @media print { body { margin: 0; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>COMPLETE FOOD & FLUID RECORDS</h1>
-            <h2>${fullName}</h2>
-            <p>Room: ${resident.roomNumber || 'N/A'} | Generated: ${new Date().toLocaleString()}</p>
-          </div>
-
-          <div class="resident-info">
-            <strong>Resident Information:</strong><br>
-            Name: ${fullName}<br>
-            Room Number: ${resident.roomNumber || 'N/A'}<br>
-            Date of Birth: ${resident.dateOfBirth}<br>
-            Report Period: ${allLogs.length > 0 ?
-        `${new Date(Math.min(...allLogs.map(l => l.timestamp))).toLocaleDateString()} - ${new Date(Math.max(...allLogs.map(l => l.timestamp))).toLocaleDateString()}`
-        : 'No records available'}
-          </div>
-
-          ${allLogs.length > 0 ?
-        Object.entries(
-          allLogs.reduce((acc, log) => {
-            const date = log.date;
-            if (!acc[date]) acc[date] = [];
-            acc[date].push(log);
-            return acc;
-          }, {} as Record<string, typeof allLogs>)
-        ).sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-          .map(([date, logs]: [string, typeof allLogs]) => `
-              <div class="section">
-                <div class="section-title">
-                  ${new Date(date).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })} ${date === today ? '(Today)' : '(Archived)'}
-                </div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Section</th>
-                      <th>Type</th>
-                      <th>Food/Drink</th>
-                      <th>Portion</th>
-                      <th>Consumed</th>
-                      <th>Fluid (ml)</th>
-                      <th>Staff</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${logs.sort((a, b) => a.timestamp - b.timestamp)
-              .map(log => `
-                        <tr class="${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? 'fluid-entry' : 'food-entry'}">
-                          <td>${new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td>${log.section.replace('-', ' - ')}</td>
-                          <td>${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? '🥤 Fluid' : '🍽️ Food'}</td>
-                          <td>${log.typeOfFoodDrink}</td>
-                          <td>${log.portionServed}</td>
-                          <td class="consumption-${log.amountEaten.toLowerCase() === 'all' ? 'all' : log.amountEaten.toLowerCase() === 'none' ? 'none' : 'partial'}">${log.amountEaten}</td>
-                          <td>${log.fluidConsumedMl || '-'}</td>
-                          <td>${log.signature}</td>
-                        </tr>
-                      `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            `).join('')
-        : '<div class="section"><p>No food or fluid records found for this resident.</p></div>'
-      }
-
-          <div class="footer">
-            <p>This report was generated from the CareO Food & Fluid Management System</p>
-            <p>Complete report contains ${allLogs.length} total entries</p>
-            <p>Generated on: ${new Date().toLocaleString()}</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Create and download the file
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${fullName.replace(/\s+/g, '_')}_Complete_Food_Fluid_Records_${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast.success("Complete records downloaded successfully!");
-  };
-
-  // Generate single day document
-  const downloadSingleDayDocument = (date: string) => {
-    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
-    const dayLogs = allLogs.filter(log => log.date === date);
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Daily Food & Fluid Record - ${new Date(date).toLocaleDateString()}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-            .resident-info { background: #f5f5f5; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
-            .summary { background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
-            th { background-color: #f8f9fa; font-weight: bold; }
-            .food-entry { background-color: #fff8e7; }
-            .fluid-entry { background-color: #e7f3ff; }
-            .consumption-all { color: #28a745; font-weight: bold; }
-            .consumption-none { color: #dc3545; font-weight: bold; }
-            .consumption-partial { color: #fd7e14; font-weight: bold; }
-            .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #666; border-top: 1px solid #ddd; padding-top: 10px; }
-            @media print { body { margin: 0; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>DAILY FOOD & FLUID RECORD</h1>
-            <h2>${fullName}</h2>
-            <h3>${new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-            <p>Room: ${resident.roomNumber || 'N/A'} | DOB: ${resident.dateOfBirth}</p>
-          </div>
-
-          <div class="resident-info">
-            <strong>Resident Information:</strong><br>
-            Name: ${fullName}<br>
-            Room Number: ${resident.roomNumber || 'N/A'}<br>
-            Date of Birth: ${resident.dateOfBirth}<br>
-            Record Date: ${new Date(date).toLocaleDateString()}
-          </div>
-
-          <div class="summary">
-            <strong>Daily Summary:</strong><br>
-            Total Entries: ${dayLogs.length}<br>
-            Food Entries: ${dayLogs.filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length}<br>
-            Fluid Entries: ${dayLogs.filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length}<br>
-            Total Fluid Intake: ${dayLogs.reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0)} ml
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Section</th>
-                <th>Type</th>
-                <th>Food/Drink</th>
-                <th>Portion</th>
-                <th>Consumed</th>
-                <th>Fluid (ml)</th>
-                <th>Staff</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${dayLogs.sort((a, b) => a.timestamp - b.timestamp)
-        .map(log => `
-                  <tr class="${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? 'fluid-entry' : 'food-entry'}">
-                    <td>${new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td>${log.section.replace('-', ' - ')}</td>
-                    <td>${['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? '🥤 Fluid' : '🍽️ Food'}</td>
-                    <td>${log.typeOfFoodDrink}</td>
-                    <td>${log.portionServed}</td>
-                    <td class="consumption-${log.amountEaten.toLowerCase() === 'all' ? 'all' : log.amountEaten.toLowerCase() === 'none' ? 'none' : 'partial'}">${log.amountEaten}</td>
-                    <td>${log.fluidConsumedMl || '-'}</td>
-                    <td>${log.signature}</td>
-                  </tr>
-                `).join('')}
-            </tbody>
-          </table>
-
-          <div class="footer">
-            <p>Generated from CareO Food & Fluid Management System</p>
-            <p>Generated: ${new Date().toLocaleString()}</p>
-            <p>Document contains ${dayLogs.length} entries for ${new Date(date).toLocaleDateString()}</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${fullName.replace(/\s+/g, '_')}_Food_Fluid_${date}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success("Document downloaded successfully!");
-  };
-
-  // Handle viewing a document
-  const viewDocument = (date: string) => {
-    setSelectedDocument(date);
-    setIsViewDocumentOpen(true);
-  };
-
-  // Get logs for selected document
-  const getSelectedDocumentLogs = () => {
-    if (!selectedDocument) return [];
-    const allLogs = [...(currentDayLogs || []), ...(archivedLogs || [])];
-    return allLogs.filter(log => log.date === selectedDocument).sort((a, b) => a.timestamp - b.timestamp);
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -724,7 +460,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setIsRecordsDialogOpen(true)}
+                onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
                 className="w-full"
               >
                 <Eye className="w-4 h-4 mr-2" />
@@ -769,7 +505,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setIsRecordsDialogOpen(true)}
+                onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
               >
                 <Eye className="w-4 h-4 mr-2" />
                 See All Records
@@ -960,20 +696,61 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
-      {/* Today's Log History */}
+      {/* Quick Log Another Actions */}
+      {showLogAnotherActions && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-800">Entry logged successfully!</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowLogAnotherActions(false)}
+                className="text-green-600 hover:text-green-800"
+              >
+                ×
+              </Button>
+            </div>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLogAnother("food")}
+                className="flex-1 border-green-300 text-green-700 hover:bg-green-100"
+              >
+                <Utensils className="w-4 h-4 mr-2" />
+                Log Another Food
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLogAnother("fluid")}
+                className="flex-1 border-green-300 text-green-700 hover:bg-green-100"
+              >
+                <Droplets className="w-4 h-4 mr-2" />
+                Log Another Fluid
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Today's Food & Fluid History */}
       <Card>
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
             <div className="flex items-center space-x-2 mb-3">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
+              <span>Today&apos;s Food &amp; Fluid History</span>
             </div>
             <div className="flex flex-col space-y-2">
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
                 {new Date().toLocaleDateString()}
               </Badge>
-
             </div>
           </CardTitle>
 
@@ -981,7 +758,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Log History</span>
+              <span>Today&apos;s Food &amp; Fluid History</span>
             </div>
             <div className="flex items-center space-x-2">
               <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
@@ -990,7 +767,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsRecordsDialogOpen(true)}
+                onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
               >
                 <Eye className="w-4 h-4 mr-2" />
                 View All Records
@@ -999,66 +776,153 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {currentDayLogs && currentDayLogs.length > 0 ? (
-            <div className="space-y-3">
-              {currentDayLogs
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .map((log) => (
-                  <div key={log._id} className="flex items-center justify-between p-4  rounded-md border">
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                        <div className="flex items-center space-x-2">
-                          {['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl ? (
-                            <Droplets className="w-4 h-4 text-blue-600" />
-                          ) : (
-                            <Utensils className="w-4 h-4 text-orange-600" />
-                          )}
-                          <span className="font-medium">{log.typeOfFoodDrink}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {log.section.replace('-', ' - ')}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                              log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                                'bg-yellow-100 text-yellow-800 border-yellow-300'
-                              }`}
-                          >
-                            {log.amountEaten}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <p>
-                          Portion: {log.portionServed}
-                          {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })} • Logged by {log.signature}
-                        </p>
-                      </div>
+          <div id="food-fluid-history-content" className="space-y-6">
+            {/* Food History Section - TOP */}
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Utensils className="w-5 h-5 text-orange-600" />
+                <h3 className="text-lg font-semibold text-orange-900">Food Intake</h3>
+              </div>
+              {(() => {
+                const foodLogs = currentDayLogs?.filter(log => 
+                  !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)
+                ) || [];
+                
+                return foodLogs.length > 0 ? (
+                  <div className="border border-orange-200 bg-orange-50/30 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {foodLogs
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .map((log, index) => (
+                          <div key={log._id} className={`py-3 ${index !== foodLogs.length - 1 ? 'border-b border-orange-200' : ''}`}>
+                            <div className="flex-1">
+                              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
+                                <div className="flex items-center space-x-2">
+                                  <Utensils className="w-4 h-4 text-orange-600" />
+                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="text-xs bg-white">
+                                    {getSectionDisplayName(log.section)}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                        'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                      }`}
+                                  >
+                                    {log.amountEaten}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                  <p className="mb-1 md:mb-0">
+                                    Portion: {log.portionServed}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })} • Logged by {log.signature}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-orange-100 rounded-full">
+                        <Utensils className="w-8 h-8 text-orange-400" />
+                      </div>
+                    </div>
+                    <p className="text-gray-600 font-medium mb-2">No food entries logged today</p>
+                    <p className="text-sm text-gray-500">
+                      Start tracking {fullName}&apos;s food intake using the food entry button above
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="flex justify-center mb-4">
-                <div className="p-3 bg-gray-100 rounded-full">
-                  <Clock className="w-8 h-8 text-gray-400" />
-                </div>
+
+            {/* Fluid History Section - BOTTOM */}
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Droplets className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-blue-900">Fluid Intake</h3>
               </div>
-              <p className="text-gray-600 font-medium mb-2">No entries logged today</p>
-              <p className="text-sm text-gray-500">
-                Start tracking {fullName}&apos;s food and fluid intake using the buttons above
-              </p>
+              {(() => {
+                const fluidLogs = currentDayLogs?.filter(log => 
+                  ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl
+                ) || [];
+                
+                return fluidLogs.length > 0 ? (
+                  <div className="border border-blue-200 bg-blue-50/30 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {fluidLogs
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .map((log, index) => (
+                          <div key={log._id} className={`py-3 ${index !== fluidLogs.length - 1 ? 'border-b border-blue-200' : ''}`}>
+                            <div className="flex-1">
+                              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
+                                <div className="flex items-center space-x-2">
+                                  <Droplets className="w-4 h-4 text-blue-600" />
+                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="text-xs bg-white">
+                                    {getSectionDisplayName(log.section)}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
+                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
+                                        'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                      }`}
+                                  >
+                                    {log.amountEaten}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <div className="flex flex-col md:flex-row md:items-center md:gap-3">
+                                  <p className="mb-1 md:mb-0">
+                                    {log.fluidConsumedMl ? `Volume: ${log.fluidConsumedMl}ml` : `Portion: ${log.portionServed}`}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })} • Logged by {log.signature}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-blue-100 rounded-full">
+                        <Droplets className="w-8 h-8 text-blue-400" />
+                      </div>
+                    </div>
+                    <p className="text-gray-600 font-medium mb-2">No fluid entries logged today</p>
+                    <p className="text-sm text-gray-500">
+                      Start tracking {fullName}&apos;s fluid intake using the fluid entry button above
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -1086,30 +950,142 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Intake Alerts */}
+          {(() => {
+            const fluidIntake = logSummary?.totalFluidIntakeMl ?? 0;
+            const foodEntries = logSummary?.foodEntries ?? 0;
+            const lowFluidThreshold = 1500; // 1.5L daily recommended
+            const lowFoodThreshold = 3; // 3 meals/snacks per day
+            
+            const hasLowFluid = fluidIntake < lowFluidThreshold;
+            const hasLowFood = foodEntries < lowFoodThreshold;
+            
+            return (hasLowFluid || hasLowFood) && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-amber-800">Intake Alert</span>
+                </div>
+                <div className="text-sm text-amber-700 space-y-1">
+                  {hasLowFluid && (
+                    <p>• Low fluid intake: {fluidIntake}ml of recommended {lowFluidThreshold}ml daily</p>
+                  )}
+                  {hasLowFood && (
+                    <p>• Low food entries: {foodEntries} meals/snacks logged today</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-              <div className="text-2xl font-bold text-yellow-600">
+            {/* Food Entries */}
+            <div className={`text-center p-4 rounded-lg border ${
+              (logSummary?.foodEntries ?? 0) < 3 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-center justify-center mb-2">
+                <Utensils className={`w-5 h-5 ${
+                  (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-500' : 'text-green-500'
+                }`} />
+              </div>
+              <div className={`text-2xl font-bold ${
+                (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-600' : 'text-green-600'
+              }`}>
                 {logSummary?.foodEntries ?? 0}
               </div>
-              <p className="text-sm text-yellow-700">Food entries</p>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">
-                {logSummary?.totalFluidIntakeMl ?? 0} ml
+              <p className={`text-sm ${
+                (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-700' : 'text-green-700'
+              }`}>
+                Food entries
+              </p>
+              <div className="mt-2 text-xs text-gray-500">
+                Goal: 3+ entries
               </div>
-              <p className="text-sm text-blue-700">Fluid intake</p>
             </div>
+
+            {/* Fluid Intake */}
+            <div className={`text-center p-4 rounded-lg border ${
+              (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                ? 'bg-red-50 border-red-200' 
+                : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-center justify-center mb-2">
+                <Droplets className={`w-5 h-5 ${
+                  (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                    ? 'text-red-500' 
+                    : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                    ? 'text-yellow-500'
+                    : 'text-blue-500'
+                }`} />
+              </div>
+              <div className={`text-2xl font-bold ${
+                (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                  ? 'text-red-600' 
+                  : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                  ? 'text-yellow-600'
+                  : 'text-blue-600'
+              }`}>
+                {logSummary?.totalFluidIntakeMl ?? 0}ml
+              </div>
+              <p className={`text-sm ${
+                (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                  ? 'text-red-700' 
+                  : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                  ? 'text-yellow-700'
+                  : 'text-blue-700'
+              }`}>
+                Fluid intake
+              </p>
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
+                        ? 'bg-red-500' 
+                        : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
+                        ? 'bg-yellow-500'
+                        : 'bg-blue-500'
+                    }`}
+                    style={{ 
+                      width: `${Math.min(100, ((logSummary?.totalFluidIntakeMl ?? 0) / 2000) * 100)}%` 
+                    }}
+                  />
+                </div>
+                <div className="mt-1 text-xs text-gray-500">
+                  Goal: 1500-2000ml
+                </div>
+              </div>
+            </div>
+
+            {/* Last Recorded */}
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-center mb-2">
+                <Clock className="w-5 h-5 text-gray-500" />
+              </div>
               <div className="text-2xl font-bold text-gray-600">
                 {logSummary?.lastRecorded
                   ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
                     hour: '2-digit',
                     minute: '2-digit'
                   })
-                  : "--"
+                  : "--:--"
                 }
               </div>
               <p className="text-sm text-gray-700">Last recorded</p>
+              {logSummary?.lastRecorded && (
+                <div className="mt-2 text-xs text-gray-500">
+                  {(() => {
+                    const timeDiff = Date.now() - logSummary.lastRecorded;
+                    const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
+                    if (hoursAgo === 0) return "Less than 1 hour ago";
+                    return `${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -1150,26 +1126,14 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           <DialogHeader>
             <DialogTitle>{existingDiet ? 'Edit' : 'Add'} Diet Information for {fullName}</DialogTitle>
             <DialogDescription>
-              Step {currentStep} of 4: {currentStep === 1 ? 'Diet Types & Preferences' : currentStep === 2 ? 'Allergies & Restrictions' : currentStep === 3 ? 'Consistency Levels' : 'Assistance Requirements'}
+              Step {currentStep} of 3: {currentStep === 1 ? 'Diet Types & Preferences' : currentStep === 2 ? 'Allergies & Consistency Levels' : 'Assistance & Summary'}
             </DialogDescription>
           </DialogHeader>
 
 
           <Form {...form}>
             <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                // Only submit if we're on the last step
-                if (currentStep === 4) {
-                  form.handleSubmit(onSubmit)(e);
-                }
-              }}
-              onKeyDown={(e) => {
-                // Prevent Enter key from submitting the form unless we're on the final step
-                if (e.key === 'Enter' && currentStep !== 4) {
-                  e.preventDefault();
-                }
-              }}
+              onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6"
             >
               {/* Step 1: Diet Types & Preferences */}
@@ -1180,11 +1144,11 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         'Regular Diet',
+                        'Diabetic Diet',
                         'Vegetarian',
                         'Vegan',
                         'Kosher',
                         'Halal',
-                        'Diabetic',
                         'Low Sodium',
                         'Gluten-Free',
                         'Dairy-Free',
@@ -1239,7 +1203,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                 </div>
               )}
 
-              {/* Step 2: Allergies & Restrictions */}
+              {/* Step 2: Allergies & Consistency Levels */}
               {currentStep === 2 && (
                 <div className="space-y-6">
                   <div className="space-y-3">
@@ -1303,12 +1267,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                       </FormItem>
                     )}
                   />
-                </div>
-              )}
 
-              {/* Step 3: Consistency Levels */}
-              {currentStep === 3 && (
-                <div className="space-y-6">
                   <FormField
                     control={form.control}
                     name="foodConsistency"
@@ -1361,8 +1320,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                 </div>
               )}
 
-              {/* Step 4: Assistance Requirements */}
-              {currentStep === 4 && (
+              {/* Step 3: Assistance & Summary */}
+              {currentStep === 3 && (
                 <div className="space-y-6">
                   <FormField
                     control={form.control}
@@ -1450,7 +1409,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                     Cancel
                   </Button>
 
-                  {currentStep < 4 ? (
+                  {currentStep < 3 ? (
                     <Button
                       type="button"
                       onClick={() => setCurrentStep(currentStep + 1)}
@@ -1458,7 +1417,14 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                       Next
                     </Button>
                   ) : (
-                    <Button type="submit" disabled={isLoading}>
+                    <Button 
+                      type="button" 
+                      disabled={isLoading}
+                      onClick={() => {
+                        // Only submit when explicitly clicking save
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
                       {isLoading ? "Saving..." : existingDiet ? "Update Diet Information" : "Save Diet Information"}
                     </Button>
                   )}
@@ -1477,7 +1443,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
               Log {entryType === "food" ? "Food" : "Fluid"} Entry for {fullName}
             </DialogTitle>
             <DialogDescription>
-              Record {entryType === "food" ? "food consumption" : "fluid intake"} details.
+              Record {entryType === "food" ? "food consumption" : "fluid intake"} details. Current time: {getCurrentTime()}
             </DialogDescription>
           </DialogHeader>
 
@@ -1497,10 +1463,10 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="midnight-7am">Midnight - 7am</SelectItem>
-                        <SelectItem value="7am-12pm">7am - 12pm</SelectItem>
-                        <SelectItem value="12pm-5pm">12pm - 5pm</SelectItem>
-                        <SelectItem value="5pm-midnight">5pm - Midnight</SelectItem>
+                        <SelectItem value="midnight-7am">Midnight - 7:00 AM</SelectItem>
+                        <SelectItem value="7am-12pm">7:00 AM - 12:00 PM</SelectItem>
+                        <SelectItem value="12pm-5pm">12:00 PM - 5:00 PM</SelectItem>
+                        <SelectItem value="5pm-midnight">5:00 PM - Midnight</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -1598,28 +1564,56 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Volume (ml)</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select volume..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="50">50ml</SelectItem>
-                          <SelectItem value="100">100ml</SelectItem>
-                          <SelectItem value="150">150ml</SelectItem>
-                          <SelectItem value="200">200ml</SelectItem>
-                          <SelectItem value="250">250ml</SelectItem>
-                          <SelectItem value="300">300ml</SelectItem>
-                          <SelectItem value="350">350ml</SelectItem>
-                          <SelectItem value="400">400ml</SelectItem>
-                          <SelectItem value="450">450ml</SelectItem>
-                          <SelectItem value="500">500ml</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        <Select
+                          onValueChange={(value) => {
+                            if (value === "custom") {
+                              // Don't set value for custom, let user input manually
+                              return;
+                            }
+                            field.onChange(parseInt(value));
+                          }}
+                          value={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select volume or container..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="custom">Custom Amount</SelectItem>
+                            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                              Common Containers
+                            </div>
+                            <SelectItem value="200">Small Glass (200ml)</SelectItem>
+                            <SelectItem value="250">Cup (250ml)</SelectItem>
+                            <SelectItem value="330">Can (330ml)</SelectItem>
+                            <SelectItem value="500">Bottle (500ml)</SelectItem>
+                            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                              Specific Amounts
+                            </div>
+                            <SelectItem value="50">50ml</SelectItem>
+                            <SelectItem value="100">100ml</SelectItem>
+                            <SelectItem value="150">150ml</SelectItem>
+                            <SelectItem value="300">300ml</SelectItem>
+                            <SelectItem value="400">400ml</SelectItem>
+                            <SelectItem value="600">600ml</SelectItem>
+                            <SelectItem value="750">750ml</SelectItem>
+                            <SelectItem value="1000">1000ml (1L)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {/* Show custom input when custom is selected or no preset matches */}
+                        {(!field.value || ![50, 100, 150, 200, 250, 300, 330, 400, 500, 600, 750, 1000].includes(field.value)) && (
+                          <Input
+                            type="number"
+                            placeholder="Enter custom amount in ml..."
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            min="0"
+                            max="2000"
+                          />
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1659,295 +1653,6 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         </DialogContent>
       </Dialog>
 
-      {/* Records View Dialog */}
-      <Dialog open={isRecordsDialogOpen} onOpenChange={setIsRecordsDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Food & Fluid Records for {fullName}</DialogTitle>
-            <DialogDescription>
-              View and download daily records organized by date.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Download All Records Button */}
-            <div className="flex justify-between items-center pb-4 border-b">
-              <h3 className="text-lg font-semibold">All Records</h3>
-              <Button onClick={downloadAllRecords} className="bg-green-600 hover:bg-green-700">
-                <Download className="w-4 h-4 mr-2" />
-                Download Complete Report
-              </Button>
-            </div>
-
-            {/* Daily Records List */}
-            <div className="max-h-[400px] overflow-y-auto space-y-3">
-              {generateDocumentsByDate().map((doc) => (
-                <Card key={doc.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="w-4 h-4 text-blue-600" />
-                          <h4 className="font-medium">{doc.title}</h4>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={doc.type === 'current' ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-800 border-gray-300'}
-                        >
-                          {doc.type === 'current' ? 'Today' : 'Archived'}
-                        </Badge>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                        <div>
-                          <span className="font-medium">{doc.entries}</span> Total Entries
-                        </div>
-                        <div>
-                          <span className="font-medium">{doc.foodEntries}</span> Food
-                        </div>
-                        <div>
-                          <span className="font-medium">{doc.fluidEntries}</span> Fluid
-                        </div>
-                        <div>
-                          <span className="font-medium">{doc.totalFluidMl}ml</span> Total Fluid
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 ml-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => viewDocument(doc.date)}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadSingleDayDocument(doc.date)}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-
-              {generateDocumentsByDate().length === 0 && (
-                <div className="text-center py-8">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-3 bg-gray-100 rounded-full">
-                      <FileText className="w-8 h-8 text-gray-400" />
-                    </div>
-                  </div>
-                  <p className="text-gray-600 font-medium mb-2">No records found</p>
-                  <p className="text-sm text-gray-500">
-                    Start logging food and fluid entries to generate records
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Dialog Actions */}
-            <div className="flex justify-end pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setIsRecordsDialogOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Document View Dialog */}
-      <Dialog open={isViewDocumentOpen} onOpenChange={setIsViewDocumentOpen}>
-        <DialogContent className="sm:max-w-[900px] max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>
-              Daily Food & Fluid Record - {selectedDocument && new Date(selectedDocument).toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </DialogTitle>
-            <DialogDescription>
-              Detailed view of all food and fluid entries for {fullName}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Document Header Info */}
-            {selectedDocument && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-700">Resident:</span>
-                    <p className="text-gray-900">{fullName}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Room:</span>
-                    <p className="text-gray-900">{resident.roomNumber || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Date:</span>
-                    <p className="text-gray-900">{new Date(selectedDocument).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Total Entries:</span>
-                    <p className="text-gray-900">{getSelectedDocumentLogs().length}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Summary Statistics */}
-            {selectedDocument && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600">
-                      {getSelectedDocumentLogs().filter(log => !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)).length}
-                    </div>
-                    <p className="text-sm text-orange-700">Food Entries</p>
-                  </div>
-                </div>
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {getSelectedDocumentLogs().filter(log => ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl).length}
-                    </div>
-                    <p className="text-sm text-blue-700">Fluid Entries</p>
-                  </div>
-                </div>
-                <div className="bg-cyan-50 p-3 rounded-lg border border-cyan-200">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-cyan-600">
-                      {getSelectedDocumentLogs().reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0)}ml
-                    </div>
-                    <p className="text-sm text-cyan-700">Total Fluid</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Records Table */}
-            <div className="max-h-[400px] overflow-y-auto border rounded-lg">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Time</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Section</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Type</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Food/Drink</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Portion</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Consumed</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Volume</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 border-b">Staff</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {getSelectedDocumentLogs().map((log) => {
-                    const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
-                    return (
-                      <tr
-                        key={log._id}
-                        className={`hover:bg-gray-50 ${isFluid ? 'bg-blue-25' : 'bg-orange-25'}`}
-                      >
-                        <td className="px-4 py-3 text-gray-900">
-                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          <Badge variant="outline" className="text-xs">
-                            {log.section.replace('-', ' - ')}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center space-x-2">
-                            {isFluid ? (
-                              <Droplets className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <Utensils className="w-4 h-4 text-orange-600" />
-                            )}
-                            <span className="text-gray-700 text-xs">
-                              {isFluid ? 'Fluid' : 'Food'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          {log.typeOfFoodDrink}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {log.portionServed || '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                                log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                                  'bg-yellow-100 text-yellow-800 border-yellow-300'
-                              }`}
-                          >
-                            {log.amountEaten}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {log.fluidConsumedMl ? `${log.fluidConsumedMl}ml` : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {log.signature}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {getSelectedDocumentLogs().length === 0 && (
-                <div className="text-center py-8">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-3 bg-gray-100 rounded-full">
-                      <FileText className="w-8 h-8 text-gray-400" />
-                    </div>
-                  </div>
-                  <p className="text-gray-600 font-medium mb-2">No entries found</p>
-                  <p className="text-sm text-gray-500">
-                    No food or fluid entries recorded for this date
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Dialog Actions */}
-            <div className="flex justify-between pt-4 border-t">
-              <div className="flex space-x-2">
-                {selectedDocument && (
-                  <Button
-                    variant="outline"
-                    onClick={() => downloadSingleDayDocument(selectedDocument)}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download This Record
-                  </Button>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => setIsViewDocumentOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

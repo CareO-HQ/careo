@@ -481,10 +481,12 @@ export default defineSchema({
       v.literal("mobility"),
       v.literal("shower"),
       v.literal("communication"),
+      v.literal("mobility_positioning"), // Keep for existing records
       // New structured categories
       v.literal("shower_bath"),
       v.literal("toileting"),
-      v.literal("mobility_positioning"),
+      v.literal("mobility_only"),
+      v.literal("positioning_only"),
       v.literal("safety_alerts")
     ),
 
@@ -511,15 +513,17 @@ export default defineSchema({
     ),
 
     // Mobility & Positioning fields
-    walkingAid: v.optional(
-      v.union(
-        v.literal("frame"),
-        v.literal("stick"),
-        v.literal("wheelchair"),
-        v.literal("none")
-      )
-    ),
-
+    walkingAid: v.optional(v.union(v.literal("frame"), v.literal("stick"), v.literal("wheelchair"), v.literal("none"))),
+    
+    // Positioning frequency field
+    positioningFrequency: v.optional(v.union(
+      v.literal("every_hour"),
+      v.literal("every_2_hours"), 
+      v.literal("every_4_hours"),
+      v.literal("every_5_hours"),
+      v.literal("every_6_hours")
+    )),
+    
     // Communication Needs fields (multiple can be selected)
     communicationNeeds: v.optional(
       v.array(
@@ -533,19 +537,13 @@ export default defineSchema({
     ),
 
     // Safety Alerts fields (multiple can be selected)
-    safetyAlerts: v.optional(
-      v.array(
-        v.union(
-          v.literal("high_falls_risk"),
-          v.literal("no_unattended_bathroom"),
-          v.literal("chair_bed_alarm")
-        )
-      )
-    ),
-
-    priority: v.optional(
-      v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
-    ),
+    safetyAlerts: v.optional(v.array(v.union(
+      v.literal("high_falls_risk"),
+      v.literal("no_unattended_bathroom"),
+      v.literal("chair_bed_alarm")
+    ))),
+    
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
     isActive: v.optional(v.boolean()), // true by default, can be deactivated
     organizationId: v.string(),
     teamId: v.string(),
@@ -560,6 +558,102 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byTeamId", ["teamId"])
     .index("byActiveStatus", ["isActive"])
+    .index("byCreatedBy", ["createdBy"]),
+
+  // Appointment notes for residents
+  appointmentNotes: defineTable({
+    residentId: v.id("residents"),
+    category: v.union(
+      v.literal("preparation"),
+      v.literal("preferences"),
+      v.literal("special_instructions"),
+      v.literal("transportation"),
+      v.literal("medical_requirements")
+    ),
+    
+    // Preparation fields
+    preparationTime: v.optional(v.union(
+      v.literal("30_minutes"),
+      v.literal("1_hour"),
+      v.literal("2_hours")
+    )),
+    preparationNotes: v.optional(v.string()),
+    
+    // Preferences fields
+    preferredTime: v.optional(v.union(
+      v.literal("morning"),
+      v.literal("afternoon"),
+      v.literal("evening")
+    )),
+    transportPreference: v.optional(v.union(
+      v.literal("wheelchair"),
+      v.literal("walking_aid"),
+      v.literal("independent"),
+      v.literal("stretcher")
+    )),
+    
+    // Special instructions
+    instructions: v.optional(v.string()),
+    
+    // Transportation requirements
+    transportationNeeds: v.optional(v.array(v.union(
+      v.literal("wheelchair_accessible"),
+      v.literal("oxygen_support"),
+      v.literal("medical_equipment"),
+      v.literal("assistance_required")
+    ))),
+    
+    // Medical requirements
+    medicalNeeds: v.optional(v.array(v.union(
+      v.literal("fasting_required"),
+      v.literal("medication_adjustment"),
+      v.literal("blood_work"),
+      v.literal("vitals_check")
+    ))),
+    
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    isActive: v.optional(v.boolean()),
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byCategory", ["category"])
+    .index("byResidentAndCategory", ["residentId", "category"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
+    .index("byActiveStatus", ["isActive"])
+    .index("byCreatedBy", ["createdBy"]),
+
+  // Appointments for residents
+  appointments: defineTable({
+    residentId: v.id("residents"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    startTime: v.string(), // ISO date-time string
+    endTime: v.string(), // ISO date-time string
+    location: v.string(),
+    staffId: v.optional(v.string()),
+    status: v.union(
+      v.literal("scheduled"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byStatus", ["status"])
+    .index("byStartTime", ["startTime"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"])
     .index("byCreatedBy", ["createdBy"]),
 
   preAdmissionCareFiles: defineTable({

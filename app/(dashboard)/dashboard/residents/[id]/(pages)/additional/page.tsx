@@ -24,8 +24,11 @@ import {
   Plus,
   Search,
   Download,
-  Upload
+  Upload,
+  User,
+  Eye
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 
 type AdditionalPageProps = {
@@ -72,6 +75,38 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
   }
 
   const fullName = `${resident.firstName} ${resident.lastName}`;
+  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  const calculateLengthOfStay = (admissionDate: string) => {
+    const today = new Date();
+    const admission = new Date(admissionDate);
+    const diffTime = Math.abs(today.getTime() - admission.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) {
+      return `${diffDays} days`;
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      return `${months} month${months > 1 ? 's' : ''}`;
+    } else {
+      const years = Math.floor(diffDays / 365);
+      const remainingMonths = Math.floor((diffDays % 365) / 30);
+      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
+    }
+  };
 
   // Mock additional data - in a real app, this would come from the API
   const mockDocuments = [
@@ -162,44 +197,156 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center space-x-4">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <ClipboardList className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Additional Information</h1>
-              <p className="text-muted-foreground">Documents, notes & records for {fullName}</p>
-            </div>
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/residents/${id}`)}
+          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
+        >
+          {fullName}
+        </Button>
+        <span>/</span>
+        <span className="text-foreground">Additional Info</span>
+      </div>
+
+      {/* Header with Back Button */}
+      <div className="flex items-center space-x-4 mb-6">
+        <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <ClipboardList className="w-6 h-6 text-green-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Additional Info</h1>
+            <p className="text-muted-foreground text-sm">Notes, documents & additional records</p>
           </div>
         </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" size="sm">
-            <Search className="w-4 h-4 mr-2" />
-            Search
-          </Button>
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Document
-          </Button>
-        </div>
       </div>
+
+      {/* Resident Info Card - Matching daily-care pattern */}
+      <Card className="border-0">
+        <CardContent className="p-4">
+          {/* Mobile Layout */}
+          <div className="flex flex-col space-y-4 sm:hidden">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-12 h-12 flex-shrink-0">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <FileText className="w-3 h-3 mr-1" />
+                    {mockDocuments.length} Docs
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col space-y-3">
+              <Button
+                variant="outline"
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Document
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Search Records
+              </Button>
+            </div>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden sm:flex sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-15 h-15">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold">{fullName}</h3>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    {calculateAge(resident.dateOfBirth)} years old
+                  </Badge>
+                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
+                    <ClipboardList className="w-3 h-3 mr-1" />
+                    Additional Records
+                  </Badge>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="bg-green-600 text-white hover:bg-green-700 hover:text-white"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Document</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="flex items-center space-x-2"
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Search
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Documents */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          {/* Mobile Layout */}
+          <CardTitle className="block sm:hidden">
+            <div className="flex items-center space-x-2 mb-2">
+              <FileText className="w-5 h-5 text-gray-600" />
+              <span>Documents</span>
+            </div>
+            <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
+              {mockDocuments.length} files available
+            </Badge>
+          </CardTitle>
+          {/* Desktop Layout */}
+          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
               <FileText className="w-5 h-5 text-gray-600" />
               <span>Documents</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Badge variant="secondary">{mockDocuments.length} files</Badge>
+              <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
+                {mockDocuments.length} files
+              </Badge>
               <Button variant="outline" size="sm">
                 <Upload className="w-4 h-4 mr-2" />
                 Upload
@@ -245,12 +392,25 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
       {/* Notes */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          {/* Mobile Layout */}
+          <CardTitle className="block sm:hidden">
+            <div className="flex items-center space-x-2 mb-2">
+              <BookOpen className="w-5 h-5 text-indigo-600" />
+              <span>Care Notes</span>
+            </div>
+            <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700">
+              {mockNotes.length} care notes
+            </Badge>
+          </CardTitle>
+          {/* Desktop Layout */}
+          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
               <BookOpen className="w-5 h-5 text-indigo-600" />
               <span>Care Notes</span>
             </div>
-            <Badge variant="secondary">{mockNotes.length} notes</Badge>
+            <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700">
+              {mockNotes.length} care notes
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -292,12 +452,25 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
       {/* Photos */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          {/* Mobile Layout */}
+          <CardTitle className="block sm:hidden">
+            <div className="flex items-center space-x-2 mb-2">
+              <Camera className="w-5 h-5 text-pink-600" />
+              <span>Photos</span>
+            </div>
+            <Badge variant="outline" className="bg-pink-50 border-pink-200 text-pink-700">
+              {mockPhotos.length} photos
+            </Badge>
+          </CardTitle>
+          {/* Desktop Layout */}
+          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
             <div className="flex items-center space-x-2">
               <Camera className="w-5 h-5 text-pink-600" />
               <span>Photos</span>
             </div>
-            <Badge variant="secondary">{mockPhotos.length} photos</Badge>
+            <Badge variant="outline" className="bg-pink-50 border-pink-200 text-pink-700">
+              {mockPhotos.length} photos
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -378,44 +551,79 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-gray-600">{mockDocuments.length}</div>
-            <p className="text-sm text-muted-foreground">Documents</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-indigo-600">{mockNotes.length}</div>
-            <p className="text-sm text-muted-foreground">Care Notes</p>
-          </CardContent>
-        </Card>
+      {/* Additional Info Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Settings className="w-5 h-5 text-gray-600" />
+            <span>Records Summary</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-2xl font-bold text-gray-600">
+                {mockDocuments.length}
+              </div>
+              <p className="text-sm text-gray-700">Documents</p>
+            </div>
+            <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="text-2xl font-bold text-indigo-600">
+                {mockNotes.length}
+              </div>
+              <p className="text-sm text-indigo-700">Care Notes</p>
+            </div>
+            <div className="text-center p-4 bg-pink-50 rounded-lg border border-pink-200">
+              <div className="text-2xl font-bold text-pink-600">
+                {mockPhotos.length}
+              </div>
+              <p className="text-sm text-pink-700">Photos</p>
+            </div>
+            <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-2xl font-bold text-green-600">47</div>
+              <p className="text-sm text-green-700">Record Views</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-pink-600">{mockPhotos.length}</div>
-            <p className="text-sm text-muted-foreground">Photos</p>
-          </CardContent>
-        </Card>
+      {/* Additional Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <ClipboardList className="w-5 h-5 text-green-600" />
+            <span>Record Management</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              className="h-16 text-lg bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Plus className="w-6 h-6 mr-3" />
+              Add New Document
+            </Button>
+            <Button
+             className="h-16 text-lg bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              <Eye className="w-6 h-6 mr-3" />
+              View All Records
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">47</div>
-            <p className="text-sm text-muted-foreground">Total Views</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Coming Soon Notice */}
-      <Card className="bg-purple-50 border-purple-200">
+      {/* Development Notice */}
+      <Card className="bg-green-50 border-green-200">
         <CardContent className="p-6 text-center">
-          <ClipboardList className="w-12 h-12 text-purple-400 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-purple-800 mb-2">Enhanced Document Management Coming Soon</h3>
-          <p className="text-purple-600">
-            Advanced file organization, version control, and collaborative editing features are in development.
+          <div className="flex justify-center mb-4">
+            <div className="p-3 bg-green-100 rounded-full">
+              <ClipboardList className="w-8 h-8 text-green-600" />
+            </div>
+          </div>
+          <h3 className="text-lg font-semibold text-green-800 mb-2">Enhanced Features Coming Soon</h3>
+          <p className="text-green-600 text-sm">
+            Advanced document management, version control, collaborative editing, and enhanced search capabilities are in development.
           </p>
         </CardContent>
       </Card>
