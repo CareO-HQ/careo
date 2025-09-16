@@ -9,7 +9,7 @@ export const createAppointment = mutation({
     title: v.string(),
     description: v.optional(v.string()),
     startTime: v.string(), // ISO date-time string
-    endTime: v.string(), // ISO date-time string
+    endTime: v.optional(v.string()), // ISO date-time string (optional)
     location: v.string(),
     staffId: v.optional(v.string()),
     status: v.optional(v.union(
@@ -29,7 +29,7 @@ export const createAppointment = mutation({
       title: args.title,
       description: args.description,
       startTime: args.startTime,
-      endTime: args.endTime,
+      endTime: args.endTime || args.startTime, // Default to startTime if not provided
       location: args.location,
       staffId: args.staffId,
       status: args.status || "scheduled",
@@ -64,8 +64,8 @@ export const getAppointmentsByResident = query({
       appointments = appointments.filter(appointment => appointment.status === args.status);
     }
     
-    // Sort by start time (most recent first)
-    return appointments.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    // Sort by start time (earliest/most immediate first)
+    return appointments.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   },
 });
 

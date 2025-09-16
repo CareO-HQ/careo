@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormDateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Select,
   SelectContent,
@@ -47,9 +48,6 @@ const CreateAppointmentSchema = z.object({
   startTime: z
     .string()
     .min(1, "Start time is required"),
-  endTime: z
-    .string()
-    .min(1, "End time is required"),
   location: z
     .string()
     .min(1, "Location is required")
@@ -57,14 +55,6 @@ const CreateAppointmentSchema = z.object({
   staffId: z
     .string()
     .optional(),
-}).refine((data) => {
-  if (data.startTime && data.endTime) {
-    return new Date(data.endTime) > new Date(data.startTime);
-  }
-  return true;
-}, {
-  message: "End time must be after start time",
-  path: ["endTime"],
 });
 
 interface CreateAppointmentFormProps {
@@ -96,7 +86,6 @@ export function CreateAppointmentForm({
       title: "",
       description: "",
       startTime: "",
-      endTime: "",
       location: "",
       staffId: "none",
     },
@@ -126,7 +115,6 @@ export function CreateAppointmentForm({
         title: data.title,
         description: data.description,
         startTime: data.startTime,
-        endTime: data.endTime,
         location: data.location,
         staffId: data.staffId === "none" ? undefined : data.staffId,
         organizationId: activeOrganization.id,
@@ -194,41 +182,24 @@ export function CreateAppointmentForm({
             />
 
             {/* Date and Time */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={createAppointmentForm.control}
-                name="startTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date & Time *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="datetime-local"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={createAppointmentForm.control}
-                name="endTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End Date & Time *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="datetime-local"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={createAppointmentForm.control}
+              name="startTime"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date & Time *</FormLabel>
+                  <FormControl>
+                    <FormDateTimePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      dateLabel="Date"
+                      timeLabel="Time"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Location */}
             <FormField

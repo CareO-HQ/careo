@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarIcon, ClockIcon } from "lucide-react"
+import { CalendarIcon, ClockIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
@@ -230,10 +230,6 @@ export function FormDateTimePicker({
   className,
   placeholder
 }: FormDateTimePickerProps) {
-  // Debug logging
-  React.useEffect(() => {
-    console.log('FormDateTimePicker - value:', value)
-  }, [value])
 
   // Parse the ISO string into date and time components
   const { dateValue, timeValue } = React.useMemo(() => {
@@ -277,8 +273,6 @@ export function FormDateTimePicker({
 
   // Handle date changes
   const handleDateChange = React.useCallback((newDate: Date | undefined) => {
-    console.log('handleDateChange - newDate:', newDate, 'timeValue:', timeValue)
-    
     if (!newDate) {
       onChange?.("")
       return
@@ -287,25 +281,20 @@ export function FormDateTimePicker({
     // Use existing time value or default
     const currentTime = timeValue || "09:00"
     const newIsoString = combineDateTime(newDate, currentTime)
-    console.log('handleDateChange - newIsoString:', newIsoString)
     onChange?.(newIsoString)
   }, [combineDateTime, timeValue, onChange])
 
   // Handle time changes
   const handleTimeChange = React.useCallback((newTime: string) => {
-    console.log('handleTimeChange - newTime:', newTime, 'dateValue:', dateValue)
-    
     if (!dateValue) {
       // If no date selected yet, select today's date
       const today = new Date()
       const newIsoString = combineDateTime(today, newTime)
-      console.log('handleTimeChange - newIsoString (with today):', newIsoString)
       onChange?.(newIsoString)
       return
     }
     
     const newIsoString = combineDateTime(dateValue, newTime)
-    console.log('handleTimeChange - newIsoString:', newIsoString)
     onChange?.(newIsoString)
   }, [combineDateTime, dateValue, onChange])
 
@@ -318,32 +307,41 @@ export function FormDateTimePicker({
         <Label className="px-1 text-sm">
           {dateLabel}
         </Label>
-        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen} modal>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               className={cn(
-                "w-full justify-start font-normal",
+                "w-full justify-between font-normal",
                 !dateValue && "text-muted-foreground"
               )}
               disabled={disabled}
               type="button"
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateValue 
-                ? dateValue.toLocaleDateString() 
-                : placeholder?.date || "Pick a date"
-              }
+              <span className="flex items-center">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateValue 
+                  ? dateValue.toLocaleDateString() 
+                  : placeholder?.date || "Select date"
+                }
+              </span>
+              <ChevronDownIcon className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
+          <PopoverContent className="w-auto overflow-hidden p-0" align="start">
             <Calendar
               mode="single"
               selected={dateValue}
+              captionLayout="dropdown"
               onSelect={(date) => {
-                handleDateChange(date)
-                setIsDatePickerOpen(false)
+                if (date) {
+                  handleDateChange(date)
+                  setIsDatePickerOpen(false)
+                }
               }}
+              defaultMonth={dateValue || new Date()}
+              startMonth={new Date(new Date().getFullYear(), 0)}
+              endMonth={new Date(new Date().getFullYear() + 5, 11)}
             />
           </PopoverContent>
         </Popover>

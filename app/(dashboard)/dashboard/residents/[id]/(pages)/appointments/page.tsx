@@ -56,6 +56,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { CreateAppointmentForm } from "./form/create-appointment-form";
+import { FormDateTimePicker } from "@/components/ui/date-time-picker";
 
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
@@ -143,9 +144,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     startTime: z
       .string()
       .min(1, "Start time is required"),
-    endTime: z
-      .string()
-      .min(1, "End time is required"),
     location: z
       .string()
       .min(1, "Location is required")
@@ -153,14 +151,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     staffId: z
       .string()
       .optional(),
-  }).refine((data) => {
-    if (data.startTime && data.endTime) {
-      return new Date(data.endTime) > new Date(data.startTime);
-    }
-    return true;
-  }, {
-    message: "End time must be after start time",
-    path: ["endTime"],
   });
 
   // Appointment Notes Form setup
@@ -186,7 +176,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       title: "",
       description: "",
       startTime: "",
-      endTime: "",
       location: "",
       staffId: "none",
     },
@@ -384,7 +373,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     editAppointmentForm.setValue("title", appointment.title || "");
     editAppointmentForm.setValue("description", appointment.description || "");
     editAppointmentForm.setValue("startTime", appointment.startTime || "");
-    editAppointmentForm.setValue("endTime", appointment.endTime || "");
     editAppointmentForm.setValue("location", appointment.location || "");
     editAppointmentForm.setValue("staffId", appointment.staffId || "none");
     setIsEditAppointmentDialogOpen(true);
@@ -404,7 +392,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         title: data.title,
         description: data.description,
         startTime: data.startTime,
-        endTime: data.endTime,
         location: data.location,
         staffId: data.staffId === "none" ? undefined : data.staffId,
         updatedBy: user.user.id,
@@ -590,7 +577,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     } else if (isTomorrow) {
       return `Tomorrow at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
     } else {
-      return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+      return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
     }
   };
 
@@ -800,7 +787,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           <div className="space-y-4">
             {appointments && appointments.length > 0 ? (
               appointments.slice(0, 5).map((appointment) => (
-                <div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-lg bg-gray-50">
+
+<div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-lg bg-gray-50">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium text-sm">{appointment.title}</h4>
@@ -1280,41 +1268,24 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               />
 
               {/* Date and Time */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={editAppointmentForm.control}
-                  name="startTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Start Date & Time *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editAppointmentForm.control}
-                  name="endTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>End Date & Time *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={editAppointmentForm.control}
+                name="startTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date & Time *</FormLabel>
+                    <FormControl>
+                      <FormDateTimePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        dateLabel="Date"
+                        timeLabel="Time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               {/* Location */}
               <FormField
