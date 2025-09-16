@@ -180,7 +180,8 @@ export default function CareFileFolder({
           />
         );
       case "moving-handling-form":
-        return <MovingHandlingDialog
+        return (
+          <MovingHandlingDialog
             resident={resident}
             teamId={activeTeamId}
             organizationId={activeOrg?.id ?? ""}
@@ -188,7 +189,8 @@ export default function CareFileFolder({
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
             onClose={() => setIsDialogOpen(false)}
-          />;
+          />
+        );
       case "long-term-fall-risk-form":
         return <>FORM TO DO - LONG TERM FALL RISK</>;
       // case 'discharge':
@@ -270,6 +272,13 @@ export default function CareFileFolder({
               <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
                 Shortly you will be able to upload files here.
               </div>
+              <p className="text-muted-foreground text-sm font-medium mt-10">
+                Manager audit
+              </p>
+              {/* <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                No audit needed for this folder.
+              </div> */}
+              <p>Audit needed for</p>
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
               <Button variant="outline" size="sm" disabled>
