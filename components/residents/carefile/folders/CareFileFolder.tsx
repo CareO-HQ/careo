@@ -25,6 +25,7 @@ import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
+import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -108,6 +109,8 @@ export default function CareFileFolder({
               return `infection-prevention-assessment-${baseName}.pdf`;
             case "blader-bowel-form":
               return `bladder-bowel-assessment-${baseName}.pdf`;
+            case "moving-handling-form":
+              return `moving-handling-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -176,6 +179,18 @@ export default function CareFileFolder({
             onClose={() => setIsDialogOpen(false)}
           />
         );
+      case "moving-handling-form":
+        return <MovingHandlingDialog
+            resident={resident}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+            residentId={residentId}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+            onClose={() => setIsDialogOpen(false)}
+          />;
+      case "long-term-fall-risk-form":
+        return <>FORM TO DO - LONG TERM FALL RISK</>;
       // case 'discharge':
       //   return <DischargeDialog />;
       default:

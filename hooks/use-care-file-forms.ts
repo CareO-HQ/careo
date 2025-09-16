@@ -31,11 +31,17 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const movingHandlingAssessments = useQuery(
+    api.careFiles.movingHandling.getMovingHandlingAssessmentsByResident,
+    { residentId }
+  );
+
   // Get PDF URLs for the latest forms
   const latestPreAdmissionForm = preAdmissionForms?.[0];
   const latestInfectionPreventionAssessment =
     infectionPreventionAssessments?.[0];
   const latestBladderBowelAssessment = bladderBowelAssessments?.[0];
+  const latestMovingHandlingAssessment = movingHandlingAssessments?.[0];
 
   const preAdmissionPdfUrl = useQuery(
     api.careFiles.preadmission.getPDFUrl,
@@ -53,6 +59,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     api.careFiles.bladderBowel.getPDFUrl,
     latestBladderBowelAssessment
       ? { assessmentId: latestBladderBowelAssessment._id }
+      : "skip"
+  );
+
+  const movingHandlingPdfUrl = useQuery(
+    api.careFiles.movingHandling.getPDFUrl,
+    latestMovingHandlingAssessment
+      ? { assessmentId: latestMovingHandlingAssessment._id }
       : "skip"
   );
 
@@ -132,6 +145,26 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
         : undefined
     };
 
+    // Moving handling assessment
+    const hasMovingHandlingData = !!latestMovingHandlingAssessment;
+    const movingHandlingHasPdfFileId =
+      !!latestMovingHandlingAssessment?.pdfFileId;
+    state["moving-handling-form"] = {
+      status: getFormStatus(
+        hasMovingHandlingData,
+        latestMovingHandlingAssessment?.savedAsDraft,
+        movingHandlingHasPdfFileId,
+        movingHandlingPdfUrl
+      ),
+      hasData: hasMovingHandlingData,
+      hasPdfFileId: movingHandlingHasPdfFileId,
+      pdfUrl: movingHandlingPdfUrl,
+      lastUpdated: latestMovingHandlingAssessment?._creationTime,
+      completedAt: !latestMovingHandlingAssessment?.savedAsDraft
+        ? latestMovingHandlingAssessment?.createdAt
+        : undefined
+    };
+
     // Add other forms here as they are implemented
     // state["admission-form"] = { ... };
     // state["discharge-form"] = { ... };
@@ -141,9 +174,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
+    latestMovingHandlingAssessment,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
-    bladderBowelPdfUrl
+    bladderBowelPdfUrl,
+    movingHandlingPdfUrl
   ]);
 
   // Helper functions
@@ -204,8 +239,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     preAdmissionForms,
     infectionPreventionAssessments,
     bladderBowelAssessments,
+    movingHandlingAssessments,
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
-    latestBladderBowelAssessment
+    latestBladderBowelAssessment,
+    latestMovingHandlingAssessment
   };
 }

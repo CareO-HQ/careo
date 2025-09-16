@@ -979,5 +979,158 @@ export default defineSchema({
     signature: v.optional(v.string()),
     date: v.number(),
     staffSignature: v.optional(v.string())
-  })
+  }),
+
+  movingHandlingAssessments: defineTable({
+    // Metadata
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+
+    // Section 1: Resident information
+    residentName: v.string(),
+    dateOfBirth: v.number(),
+    bedroomNumber: v.string(),
+    weight: v.number(),
+    height: v.number(),
+    historyOfFalls: v.boolean(),
+
+    // Section 2: Mobility Assessment
+    independentMobility: v.boolean(),
+    canWeightBear: v.union(
+      v.literal("FULLY"),
+      v.literal("PARTIALLY"),
+      v.literal("WITH-AID"),
+      v.literal("NO-WEIGHTBEARING")
+    ),
+    limbUpperRight: v.union(
+      v.literal("FULLY"),
+      v.literal("PARTIALLY"),
+      v.literal("NONE")
+    ),
+    limbUpperLeft: v.union(
+      v.literal("FULLY"),
+      v.literal("PARTIALLY"),
+      v.literal("NONE")
+    ),
+    limbLowerRight: v.union(
+      v.literal("FULLY"),
+      v.literal("PARTIALLY"),
+      v.literal("NONE")
+    ),
+    limbLowerLeft: v.union(
+      v.literal("FULLY"),
+      v.literal("PARTIALLY"),
+      v.literal("NONE")
+    ),
+    equipmentUsed: v.optional(v.string()),
+    needsRiskStaff: v.optional(v.string()),
+
+    // Section 3: Sensory and Behavioral Risk Factors
+    deafnessState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    deafnessComments: v.optional(v.string()),
+    blindnessState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    blindnessComments: v.optional(v.string()),
+    unpredictableBehaviourState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    unpredictableBehaviourComments: v.optional(v.string()),
+    uncooperativeBehaviourState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    uncooperativeBehaviourComments: v.optional(v.string()),
+
+    // Section 4: Cognitive and Emotional Risk Factors
+    distressedReactionState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    distressedReactionComments: v.optional(v.string()),
+    disorientatedState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    disorientatedComments: v.optional(v.string()),
+    unconsciousState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    unconsciousComments: v.optional(v.string()),
+    unbalanceState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    unbalanceComments: v.optional(v.string()),
+
+    // Section 5: Physical Risk Factors
+    spasmsState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    spasmsComments: v.optional(v.string()),
+    stiffnessState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    stiffnessComments: v.optional(v.string()),
+    cathetersState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    cathetersComments: v.optional(v.string()),
+    incontinenceState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    incontinenceComments: v.optional(v.string()),
+
+    // Section 6: Additional Risk Factors
+    localisedPain: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    localisedPainComments: v.optional(v.string()),
+    otherState: v.union(
+      v.literal("ALWAYS"),
+      v.literal("SOMETIMES"),
+      v.literal("NEVER")
+    ),
+    otherComments: v.optional(v.string()),
+
+    // Section 7: Assessment Completion
+    completedBy: v.string(),
+    jobRole: v.string(),
+    signature: v.string(),
+    completionDate: v.string(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+    savedAsDraft: v.optional(v.boolean()),
+    pdfFileId: v.optional(v.id("_storage"))
+  }).index("by_resident", ["residentId"])
 });
