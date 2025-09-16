@@ -23,6 +23,7 @@ import type * as migrations from "../migrations.js";
 import type * as personalCare from "../personalCare.js";
 import type * as quickCareNotes from "../quickCareNotes.js";
 import type * as residents from "../residents.js";
+import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as teams from "../teams.js";
 import type * as user from "../user.js";
 
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   personalCare: typeof personalCare;
   quickCareNotes: typeof quickCareNotes;
   residents: typeof residents;
+  "schemas/carefiles": typeof schemas_carefiles;
   teams: typeof teams;
   user: typeof user;
 }>;
