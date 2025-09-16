@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { api } from "./_generated/api";
 
 /**
  * Create a new manager audit record for a completed form
@@ -250,7 +251,7 @@ export const getUnauditedForms = query({
       try {
         switch (mapping.table) {
           case "preAdmissionCareFiles":
-            completedForms = await ctx.db
+            const allPreAdmissionForms = await ctx.db
               .query("preAdmissionCareFiles")
               .withIndex("by_resident", (q) =>
                 q.eq("residentId", args.residentId)
@@ -259,10 +260,14 @@ export const getUnauditedForms = query({
                 q.eq(q.field("organizationId"), args.organizationId)
               )
               .filter((q) => q.eq(q.field("savedAsDraft"), false))
+              .order("desc")
               .collect();
+            // Get only the latest submission
+            completedForms =
+              allPreAdmissionForms.length > 0 ? [allPreAdmissionForms[0]] : [];
             break;
           case "infectionPreventionAssessments":
-            completedForms = await ctx.db
+            const allInfectionForms = await ctx.db
               .query("infectionPreventionAssessments")
               .withIndex("by_resident", (q) =>
                 q.eq("residentId", args.residentId)
@@ -271,10 +276,14 @@ export const getUnauditedForms = query({
                 q.eq(q.field("organizationId"), args.organizationId)
               )
               .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .order("desc")
               .collect();
+            // Get only the latest submission
+            completedForms =
+              allInfectionForms.length > 0 ? [allInfectionForms[0]] : [];
             break;
           case "bladderBowelAssessments":
-            completedForms = await ctx.db
+            const allBladderBowelForms = await ctx.db
               .query("bladderBowelAssessments")
               .withIndex("by_resident", (q) =>
                 q.eq("residentId", args.residentId)
@@ -283,10 +292,14 @@ export const getUnauditedForms = query({
                 q.eq(q.field("organizationId"), args.organizationId)
               )
               .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .order("desc")
               .collect();
+            // Get only the latest submission
+            completedForms =
+              allBladderBowelForms.length > 0 ? [allBladderBowelForms[0]] : [];
             break;
           case "movingHandlingAssessments":
-            completedForms = await ctx.db
+            const allMovingHandlingForms = await ctx.db
               .query("movingHandlingAssessments")
               .withIndex("by_resident", (q) =>
                 q.eq("residentId", args.residentId)
@@ -295,7 +308,13 @@ export const getUnauditedForms = query({
                 q.eq(q.field("organizationId"), args.organizationId)
               )
               .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .order("desc")
               .collect();
+            // Get only the latest submission
+            completedForms =
+              allMovingHandlingForms.length > 0
+                ? [allMovingHandlingForms[0]]
+                : [];
             break;
         }
       } catch (error) {
@@ -377,6 +396,122 @@ export const getFormAuditStatus = query({
     }
 
     return auditStatus;
+  }
+});
+
+/**
+ * Get form data for review based on form type and ID
+ */
+export const getFormDataForReview = query({
+  args: {
+    formType: v.union(
+      v.literal("movingHandlingAssessment"),
+      v.literal("infectionPreventionAssessment"),
+      v.literal("carePlanAssessment"),
+      v.literal("bladderBowelAssessment"),
+      v.literal("preAdmissionCareFile")
+    ),
+    formId: v.string()
+  },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    try {
+      switch (args.formType) {
+        case "movingHandlingAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "infectionPreventionAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "bladderBowelAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "preAdmissionCareFile":
+          return await ctx.db.get(args.formId as any);
+        case "carePlanAssessment":
+          return await ctx.db.get(args.formId as any);
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.error("Error fetching form data:", error);
+      return null;
+    }
+  }
+});
+
+/**
+ * Submit a form revision from review mode and automatically create audit record
+ */
+export const submitReviewedForm = mutation({
+  args: {
+    formType: v.union(
+      v.literal("movingHandlingAssessment"),
+      v.literal("infectionPreventionAssessment"),
+      v.literal("carePlanAssessment"),
+      v.literal("bladderBowelAssessment"),
+      v.literal("preAdmissionCareFile")
+    ),
+    formData: v.any(), // The form data to be submitted
+    residentId: v.id("residents"),
+    auditedBy: v.string(),
+    auditNotes: v.optional(v.string()),
+    teamId: v.string(),
+    organizationId: v.string()
+  },
+  returns: v.object({
+    formId: v.string(),
+    auditId: v.id("managerAudits")
+  }),
+  handler: async (ctx, args) => {
+    // First, submit the new form based on the form type
+    let newFormId: string;
+
+    switch (args.formType) {
+      case "movingHandlingAssessment":
+        newFormId = await ctx.runMutation(
+          api.careFiles.movingHandling.submitMovingHandlingAssessment,
+          args.formData
+        );
+        break;
+      case "infectionPreventionAssessment":
+        newFormId = await ctx.runMutation(
+          api.careFiles.infectionPrevention.submitInfectionPreventionAssessment,
+          args.formData
+        );
+        break;
+      case "bladderBowelAssessment":
+        newFormId = await ctx.runMutation(
+          api.careFiles.bladderBowel.submitBladderBowelAssessment,
+          args.formData
+        );
+        break;
+      case "preAdmissionCareFile":
+        newFormId = await ctx.runMutation(
+          api.careFiles.preadmission.submitPreAdmissionForm,
+          args.formData
+        );
+        break;
+      case "carePlanAssessment":
+        // TODO: Add when carePlanAssessment is implemented
+        throw new Error("Care plan assessment submission not implemented yet");
+      default:
+        throw new Error(`Unsupported form type: ${args.formType}`);
+    }
+
+    // Then, automatically create an audit record for the new form
+    const auditId = await ctx.db.insert("managerAudits", {
+      formType: args.formType,
+      formId: newFormId,
+      residentId: args.residentId,
+      auditedBy: args.auditedBy,
+      auditNotes: args.auditNotes || "Form reviewed and updated",
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      createdAt: Date.now()
+    });
+
+    return {
+      formId: newFormId,
+      auditId: auditId
+    };
   }
 });
 

@@ -51,8 +51,10 @@ interface PreAdmissionDialogProps {
   residentId: string;
   organizationId: string;
   careHomeName: string;
-
   resident: Resident;
+  onClose?: () => void;
+  initialData?: any; // Data from existing assessment for editing
+  isEditMode?: boolean; // Whether this is an edit/review mode
 }
 
 export default function PreAdmissionDialog({
@@ -60,7 +62,10 @@ export default function PreAdmissionDialog({
   residentId,
   organizationId,
   careHomeName,
-  resident
+  resident,
+  onClose,
+  initialData,
+  isEditMode = false
 }: PreAdmissionDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [consentAcceptedAt, setConsentAcceptedAt] = useState(false);
@@ -76,81 +81,167 @@ export default function PreAdmissionDialog({
   const submitPreAdmissionFormMutation = useMutation(
     api.careFiles.preadmission.submitPreAdmissionForm
   );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof preAdmissionSchema>>({
     resolver: zodResolver(preAdmissionSchema),
     mode: "onChange",
-    defaultValues: {
-      residentId,
-      teamId,
-      organizationId,
-      savedAsDraft: false,
-      consentAcceptedAt: 0,
-      careHomeName,
-      nhsHealthCareNumber: "1",
-      userName: resident.firstName + " " + resident.lastName,
-      jobRole: "1",
-      date: new Date().getTime(),
-      firstName: resident.firstName ?? "",
-      lastName: resident.lastName ?? "",
-      address: "1",
-      phoneNumber: resident.phoneNumber ?? "",
-      ethnicity: "1",
-      gender: undefined,
-      religion: "1",
-      dateOfBirth: resident.dateOfBirth ?? "",
-      kinFirstName: firstKin?.name ?? "",
-      kinLastName: "1",
-      kinRelationship: firstKin?.relationship ?? "",
-      kinPhoneNumber: firstKin?.phoneNumber ?? "",
-      // Professional contacts
-      careManagerName: "1",
-      careManagerPhoneNumber: "1",
-      districtNurseName: "1",
-      districtNursePhoneNumber: "1",
-      generalPractitionerName: "1",
-      generalPractitionerPhoneNumber: "1",
-      providerHealthcareInfoName: "1",
-      providerHealthcareInfoDesignation: "1",
-      // Medical information
-      allergies: "1",
-      medicalHistory: "1",
-      medicationPrescribed: "1",
-      // Assessment sections
-      consentCapacityRights: "1",
-      medication: "1",
-      mobility: "1",
-      nutrition: "1",
-      continence: "1",
-      hygieneDressing: "1",
-      skin: "1",
-      cognition: "1",
-      infection: "1",
-      breathing: "1",
-      alteredStateOfConsciousness: "1",
-      // Palliative and End of life care
-      dnacpr: undefined,
-      advancedDecision: undefined,
-      capacity: undefined,
-      advancedCarePlan: undefined,
-      comments: "1",
-      // Preferences
-      roomPreferences: "",
-      admissionContact: "",
-      foodPreferences: "",
-      preferedName: "",
-      familyConcerns: "",
-      // Other information
-      otherHealthCareProfessional: "",
-      equipment: "",
-      // Financial
-      attendFinances: undefined,
-      // Additional considerations
-      additionalConsiderations: "",
-      // Outcome
-      outcome: "",
-      plannedAdmissionDate: undefined
-    }
+    defaultValues: initialData
+      ? {
+          // Use existing data for editing
+          residentId,
+          teamId,
+          organizationId,
+          savedAsDraft: false,
+          consentAcceptedAt: initialData.consentAcceptedAt || 0,
+          careHomeName: initialData.careHomeName ?? careHomeName,
+          nhsHealthCareNumber: initialData.nhsHealthCareNumber ?? "1",
+          userName:
+            initialData.userName ??
+            resident.firstName + " " + resident.lastName,
+          jobRole: initialData.jobRole ?? "1",
+          date: initialData.date ?? new Date().getTime(),
+          firstName: initialData.firstName ?? resident.firstName ?? "",
+          lastName: initialData.lastName ?? resident.lastName ?? "",
+          address: initialData.address ?? "1",
+          phoneNumber: initialData.phoneNumber ?? resident.phoneNumber ?? "",
+          ethnicity: initialData.ethnicity ?? "1",
+          gender: initialData.gender ?? undefined,
+          religion: initialData.religion ?? "1",
+          dateOfBirth: initialData.dateOfBirth ?? resident.dateOfBirth ?? "",
+          kinFirstName: initialData.kinFirstName ?? firstKin?.name ?? "",
+          kinLastName: initialData.kinLastName ?? "1",
+          kinRelationship:
+            initialData.kinRelationship ?? firstKin?.relationship ?? "",
+          kinPhoneNumber:
+            initialData.kinPhoneNumber ?? firstKin?.phoneNumber ?? "",
+          // Professional contacts
+          careManagerName: initialData.careManagerName ?? "1",
+          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? "1",
+          districtNurseName: initialData.districtNurseName ?? "1",
+          districtNursePhoneNumber: initialData.districtNursePhoneNumber ?? "1",
+          generalPractitionerName: initialData.generalPractitionerName ?? "1",
+          generalPractitionerPhoneNumber:
+            initialData.generalPractitionerPhoneNumber ?? "1",
+          providerHealthcareInfoName:
+            initialData.providerHealthcareInfoName ?? "1",
+          providerHealthcareInfoDesignation:
+            initialData.providerHealthcareInfoDesignation ?? "1",
+          // Medical information
+          allergies: initialData.allergies ?? "1",
+          medicalHistory: initialData.medicalHistory ?? "1",
+          medicationPrescribed: initialData.medicationPrescribed ?? "1",
+          // Assessment sections
+          consentCapacityRights: initialData.consentCapacityRights ?? "1",
+          medication: initialData.medication ?? "1",
+          mobility: initialData.mobility ?? "1",
+          nutrition: initialData.nutrition ?? "1",
+          continence: initialData.continence ?? "1",
+          hygieneDressing: initialData.hygieneDressing ?? "1",
+          skin: initialData.skin ?? "1",
+          cognition: initialData.cognition ?? "1",
+          infection: initialData.infection ?? "1",
+          breathing: initialData.breathing ?? "1",
+          alteredStateOfConsciousness:
+            initialData.alteredStateOfConsciousness ?? "1",
+          // Palliative and End of life care
+          dnacpr: initialData.dnacpr ?? undefined,
+          advancedDecision: initialData.advancedDecision ?? undefined,
+          capacity: initialData.capacity ?? undefined,
+          advancedCarePlan: initialData.advancedCarePlan ?? undefined,
+          comments: initialData.comments ?? "1",
+          // Preferences
+          roomPreferences: initialData.roomPreferences ?? "",
+          admissionContact: initialData.admissionContact ?? "",
+          foodPreferences: initialData.foodPreferences ?? "",
+          preferedName: initialData.preferedName ?? "",
+          familyConcerns: initialData.familyConcerns ?? "",
+          // Other information
+          otherHealthCareProfessional:
+            initialData.otherHealthCareProfessional ?? "",
+          equipment: initialData.equipment ?? "",
+          // Financial
+          attendFinances: initialData.attendFinances ?? undefined,
+          // Additional considerations
+          additionalConsiderations: initialData.additionalConsiderations ?? "",
+          // Outcome
+          outcome: initialData.outcome ?? "",
+          plannedAdmissionDate: initialData.plannedAdmissionDate ?? undefined
+        }
+      : {
+          // Default values for new forms
+          residentId,
+          teamId,
+          organizationId,
+          savedAsDraft: false,
+          consentAcceptedAt: 0,
+          careHomeName,
+          nhsHealthCareNumber: "1",
+          userName: resident.firstName + " " + resident.lastName,
+          jobRole: "1",
+          date: new Date().getTime(),
+          firstName: resident.firstName ?? "",
+          lastName: resident.lastName ?? "",
+          address: "1",
+          phoneNumber: resident.phoneNumber ?? "",
+          ethnicity: "1",
+          gender: undefined,
+          religion: "1",
+          dateOfBirth: resident.dateOfBirth ?? "",
+          kinFirstName: firstKin?.name ?? "",
+          kinLastName: "1",
+          kinRelationship: firstKin?.relationship ?? "",
+          kinPhoneNumber: firstKin?.phoneNumber ?? "",
+          // Professional contacts
+          careManagerName: "1",
+          careManagerPhoneNumber: "1",
+          districtNurseName: "1",
+          districtNursePhoneNumber: "1",
+          generalPractitionerName: "1",
+          generalPractitionerPhoneNumber: "1",
+          providerHealthcareInfoName: "1",
+          providerHealthcareInfoDesignation: "1",
+          // Medical information
+          allergies: "1",
+          medicalHistory: "1",
+          medicationPrescribed: "1",
+          // Assessment sections
+          consentCapacityRights: "1",
+          medication: "1",
+          mobility: "1",
+          nutrition: "1",
+          continence: "1",
+          hygieneDressing: "1",
+          skin: "1",
+          cognition: "1",
+          infection: "1",
+          breathing: "1",
+          alteredStateOfConsciousness: "1",
+          // Palliative and End of life care
+          dnacpr: undefined,
+          advancedDecision: undefined,
+          capacity: undefined,
+          advancedCarePlan: undefined,
+          comments: "1",
+          // Preferences
+          roomPreferences: "",
+          admissionContact: "",
+          foodPreferences: "",
+          preferedName: "",
+          familyConcerns: "",
+          // Other information
+          otherHealthCareProfessional: "",
+          equipment: "",
+          // Financial
+          attendFinances: undefined,
+          // Additional considerations
+          additionalConsiderations: "",
+          // Outcome
+          outcome: "",
+          plannedAdmissionDate: undefined
+        }
   });
 
   // We'll remove this function since we're not downloading immediately anymore
@@ -162,20 +253,47 @@ export default function PreAdmissionDialog({
     startTransition(async () => {
       try {
         console.log("Attempting to submit form...");
-        const data = await submitPreAdmissionFormMutation({
-          ...values,
-          residentId: residentId as Id<"residents">,
-          teamId,
-          organizationId
-        });
-        console.log("Form submission successful:", data);
-        if (data) {
-          toast.success(
-            "Pre-admission form submitted successfully! PDF will be generated and saved to files."
-          );
+
+        if (isEditMode) {
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "preAdmissionCareFile",
+            formData: {
+              ...values,
+              residentId: residentId as Id<"residents">,
+              teamId,
+              organizationId
+            },
+            residentId: residentId as Id<"residents">,
+            auditedBy: resident.firstName + " " + resident.lastName, // Using resident name as we don't have userName here
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
+          });
+          console.log("Review submission successful:", data);
+          toast.success("Form reviewed and updated successfully!");
         } else {
-          toast.error("Failed to submit pre-admission form");
+          // Normal submission for new forms
+          const data = await submitPreAdmissionFormMutation({
+            ...values,
+            residentId: residentId as Id<"residents">,
+            teamId,
+            organizationId
+          });
+          console.log("Form submission successful:", data);
+          if (data) {
+            toast.success(
+              "Pre-admission form submitted successfully! PDF will be generated and saved to files."
+            );
+          } else {
+            toast.error("Failed to submit pre-admission form");
+          }
         }
+
+        // Close dialog after successful submission with slight delay to allow data refresh
+        setTimeout(() => {
+          onClose?.();
+        }, 500);
       } catch (error) {
         console.error("Error submitting form:", error);
         toast.error("Error submitting form: " + (error as Error).message);

@@ -17,7 +17,7 @@ import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery } from "convex/react";
-import { CheckIcon, DownloadIcon, FolderIcon } from "lucide-react";
+import { DownloadIcon, FolderIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
@@ -49,6 +49,11 @@ export default function CareFileFolder({
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
+  const [reviewFormData, setReviewFormData] = useState<{
+    formType: string;
+    formId: string;
+    formDisplayName: string;
+  } | null>(null);
   const { activeTeamId } = useActiveTeam();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
@@ -83,6 +88,17 @@ export default function CareFileFolder({
 
   // Mutation to create audit records
   const createAudit = useMutation(api.managerAudits.createAudit);
+
+  // Query to get form data for editing
+  const formDataForEdit = useQuery(
+    api.managerAudits.getFormDataForReview,
+    reviewFormData
+      ? {
+          formType: reviewFormData.formType as any,
+          formId: reviewFormData.formId
+        }
+      : "skip"
+  );
 
   const handleCareFileClick = (key: string) => {
     setActiveDialogKey(key);
@@ -155,6 +171,27 @@ export default function CareFileFolder({
     document.body.removeChild(a);
   };
 
+  const handleOpenReview = (formType: string, formId: string) => {
+    // Store the form info for fetching data
+    setReviewFormData({
+      formType,
+      formId,
+      formDisplayName: getFormDisplayName(formType)
+    });
+
+    // Map form type to dialog key
+    const dialogKeyMap: Record<string, string> = {
+      movingHandlingAssessment: "moving-handling-form",
+      infectionPreventionAssessment: "infection-prevention",
+      bladderBowelAssessment: "blader-bowel-form",
+      preAdmissionCareFile: "preAdmission-form",
+      carePlanAssessment: "care-plan-form"
+    };
+
+    setActiveDialogKey(dialogKeyMap[formType]);
+    setIsDialogOpen(true);
+  };
+
   const handleCreateAudit = async (formType: string, formId: string) => {
     if (!activeOrg?.id || !activeTeamId || !currentUser?.user.id) {
       toast.error("Missing required information for audit creation");
@@ -190,6 +227,22 @@ export default function CareFileFolder({
   };
 
   const renderDialogContent = () => {
+    const isReviewMode = !!reviewFormData;
+    const editData = isReviewMode ? formDataForEdit : null;
+    console.log("EDIT DATA", editData);
+
+    // If we're in review mode and still loading data, show loading state
+    if (isReviewMode && formDataForEdit === undefined) {
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading form data...</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeDialogKey) {
       case "preAdmission-form":
         return (
@@ -199,6 +252,12 @@ export default function CareFileFolder({
             organizationId={activeOrg?.id ?? ""}
             careHomeName={activeOrg?.name ?? ""}
             resident={resident}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "infection-prevention":
@@ -208,6 +267,12 @@ export default function CareFileFolder({
             teamId={activeTeamId}
             organizationId={activeOrg?.id ?? ""}
             userName={currentUser?.user.name ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "blader-bowel-form":
@@ -219,7 +284,12 @@ export default function CareFileFolder({
             residentId={residentId}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
-            onClose={() => setIsDialogOpen(false)}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "moving-handling-form":
@@ -231,7 +301,12 @@ export default function CareFileFolder({
             residentId={residentId}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
-            onClose={() => setIsDialogOpen(false)}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "long-term-fall-risk-form":
@@ -323,34 +398,38 @@ export default function CareFileFolder({
               </p>
               {unauditedForms && unauditedForms.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    Forms requiring audit ({unauditedForms.length})
-                  </p>
                   {unauditedForms.map((form: any) => (
                     <div
                       key={`${form.formType}-${form.formId}`}
-                      className="flex items-center justify-between p-2 border rounded-md bg-yellow-50 hover:bg-yellow-100 transition-colors"
+                      className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-yellow-800">
+                        <p className="text-sm font-medium text-primary">
                           {getFormDisplayName(form.formType)}
                         </p>
-                        <p className="text-xs text-yellow-600">
+                        <p className="text-xs text-muted-foreground">
                           Completed:{" "}
-                          {new Date(form.lastUpdated).toLocaleDateString()}
+                          {new Date(form.lastUpdated).toLocaleDateString(
+                            "en-GB",
+                            {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric"
+                            }
+                          )}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 border-yellow-300 text-yellow-700 hover:bg-yellow-200"
-                        onClick={() =>
-                          handleCreateAudit(form.formType, form.formId)
-                        }
-                      >
-                        <CheckIcon className="h-3 w-3 mr-1" />
-                        Mark Audited
-                      </Button>
+                      <div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleOpenReview(form.formType, form.formId)
+                          }
+                        >
+                          Review
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
