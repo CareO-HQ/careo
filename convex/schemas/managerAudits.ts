@@ -14,7 +14,7 @@ export const managerAuditsValidator = defineTable({
   residentId: v.id("residents"),
 
   // Audit information
-  auditedBy: v.id("users"), // The user who performed the audit
+  auditedBy: v.string(), // The user who performed the audit
 
   // Optional audit notes and feedback
   auditNotes: v.optional(v.string()),

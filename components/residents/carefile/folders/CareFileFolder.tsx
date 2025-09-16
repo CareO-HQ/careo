@@ -16,8 +16,8 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
-import { useQuery } from "convex/react";
-import { DownloadIcon, FolderIcon } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { CheckIcon, DownloadIcon, FolderIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
@@ -45,7 +45,6 @@ export default function CareFileFolder({
   folderName,
   description,
   forms,
-  preAddissionState,
   residentId
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,18 +54,13 @@ export default function CareFileFolder({
   const { data: currentUser } = authClient.useSession();
 
   // Use our new care file forms hook
-  const {
-    getFormState,
-    canDownloadPdf,
-    areAllFormsCompleted,
-    getCompletedFormsCount
-  } = useCareFileForms({ residentId });
+  const { getFormState, canDownloadPdf, getCompletedFormsCount } =
+    useCareFileForms({ residentId });
 
   // Get form keys for this folder
   const folderFormKeys = (forms || []).map(
     (form) => form.key as CareFileFormKey
   );
-  const allFormsCompleted = areAllFormsCompleted(folderFormKeys);
   const completedCount = getCompletedFormsCount(folderFormKeys);
   const totalCount = folderFormKeys.length;
 
@@ -74,6 +68,21 @@ export default function CareFileFolder({
   const resident = useQuery(api.residents.getById, {
     residentId: residentId || ("skip" as Id<"residents">)
   });
+
+  // Get unaudited forms for this folder
+  const unauditedForms = useQuery(
+    api.managerAudits.getUnauditedForms,
+    activeOrg?.id
+      ? {
+          residentId: residentId,
+          organizationId: activeOrg.id,
+          formKeys: folderFormKeys
+        }
+      : "skip"
+  );
+
+  // Mutation to create audit records
+  const createAudit = useMutation(api.managerAudits.createAudit);
 
   const handleCareFileClick = (key: string) => {
     setActiveDialogKey(key);
@@ -144,6 +153,40 @@ export default function CareFileFolder({
     // Cleanup
     window.URL.revokeObjectURL(downloadUrl);
     document.body.removeChild(a);
+  };
+
+  const handleCreateAudit = async (formType: string, formId: string) => {
+    if (!activeOrg?.id || !activeTeamId || !currentUser?.user.id) {
+      toast.error("Missing required information for audit creation");
+      return;
+    }
+
+    try {
+      await createAudit({
+        formType: formType as any,
+        formId: formId,
+        residentId: residentId,
+        auditedBy: currentUser.user.id,
+        auditNotes: "Form audited and approved",
+        teamId: activeTeamId,
+        organizationId: activeOrg.id
+      });
+      toast.success("Audit record created successfully");
+    } catch (error) {
+      console.error("Error creating audit:", error);
+      toast.error("Failed to create audit record");
+    }
+  };
+
+  // Map form types to display names
+  const getFormDisplayName = (formType: string): string => {
+    const mapping: Record<string, string> = {
+      preAdmissionCareFile: "Pre-Admission Care File",
+      infectionPreventionAssessment: "Infection Prevention Assessment",
+      bladderBowelAssessment: "Bladder & Bowel Assessment",
+      movingHandlingAssessment: "Moving & Handling Assessment"
+    };
+    return mapping[formType] || formType;
   };
 
   const renderDialogContent = () => {
@@ -252,7 +295,10 @@ export default function CareFileFolder({
                       <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
                         {form.value}
                       </p>
-                      <FormStatusBadge status={formState.status} />
+                      <FormStatusBadge
+                        status={formState.status}
+                        isAudited={formState.isAudited}
+                      />
                     </div>
                     {showDownload && (
                       <DownloadIcon
@@ -275,10 +321,46 @@ export default function CareFileFolder({
               <p className="text-muted-foreground text-sm font-medium mt-10">
                 Manager audit
               </p>
-              {/* <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                No audit needed for this folder.
-              </div> */}
-              <p>Audit needed for</p>
+              {unauditedForms && unauditedForms.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Forms requiring audit ({unauditedForms.length})
+                  </p>
+                  {unauditedForms.map((form: any) => (
+                    <div
+                      key={`${form.formType}-${form.formId}`}
+                      className="flex items-center justify-between p-2 border rounded-md bg-yellow-50 hover:bg-yellow-100 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-yellow-800">
+                          {getFormDisplayName(form.formType)}
+                        </p>
+                        <p className="text-xs text-yellow-600">
+                          Completed:{" "}
+                          {new Date(form.lastUpdated).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-yellow-300 text-yellow-700 hover:bg-yellow-200"
+                        onClick={() =>
+                          handleCreateAudit(form.formType, form.formId)
+                        }
+                      >
+                        <CheckIcon className="h-3 w-3 mr-1" />
+                        Mark Audited
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="w-full text-center p-2 py-6 border rounded-md bg-green-50 text-green-700 text-xs">
+                  {unauditedForms === undefined
+                    ? "Loading audit status..."
+                    : "All forms in this folder have been audited ✓"}
+                </div>
+              )}
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
               <Button variant="outline" size="sm" disabled>

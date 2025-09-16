@@ -15,7 +15,7 @@ export const createAudit = mutation({
     ),
     formId: v.string(),
     residentId: v.id("residents"),
-    auditedBy: v.id("users"),
+    auditedBy: v.string(),
     auditNotes: v.optional(v.string()),
     teamId: v.string(),
     organizationId: v.string()
@@ -79,7 +79,7 @@ export const getAuditsByForm = query({
       formType: v.string(),
       formId: v.string(),
       residentId: v.id("residents"),
-      auditedBy: v.id("users"),
+      auditedBy: v.string(),
       auditNotes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -113,7 +113,7 @@ export const getAuditsByResident = query({
       formType: v.string(),
       formId: v.string(),
       residentId: v.id("residents"),
-      auditedBy: v.id("users"),
+      auditedBy: v.string(),
       auditNotes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -146,7 +146,7 @@ export const getAuditsByTeam = query({
       formType: v.string(),
       formId: v.string(),
       residentId: v.id("residents"),
-      auditedBy: v.id("users"),
+      auditedBy: v.string(),
       auditNotes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -169,7 +169,7 @@ export const getAuditsByTeam = query({
  */
 export const getAuditsByAuditor = query({
   args: {
-    auditedBy: v.id("users"),
+    auditedBy: v.string(),
     organizationId: v.string()
   },
   returns: v.array(
@@ -179,7 +179,7 @@ export const getAuditsByAuditor = query({
       formType: v.string(),
       formId: v.string(),
       residentId: v.id("residents"),
-      auditedBy: v.id("users"),
+      auditedBy: v.string(),
       auditNotes: v.optional(v.string()),
       teamId: v.string(),
       organizationId: v.string(),
@@ -194,6 +194,189 @@ export const getAuditsByAuditor = query({
       .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
       .order("desc")
       .collect();
+  }
+});
+
+/**
+ * Get forms that are completed but haven't been audited yet for a specific resident
+ */
+export const getUnauditedForms = query({
+  args: {
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    formKeys: v.optional(v.array(v.string())) // Optional filter for specific form keys
+  },
+  returns: v.array(
+    v.object({
+      formType: v.string(),
+      formId: v.string(),
+      lastUpdated: v.number()
+    })
+  ),
+  handler: async (ctx, args) => {
+    // Map of form keys to form types and table names
+    const formTypeMapping: Record<string, { formType: string; table: string }> =
+      {
+        "preAdmission-form": {
+          formType: "preAdmissionCareFile",
+          table: "preAdmissionCareFiles"
+        },
+        "infection-prevention": {
+          formType: "infectionPreventionAssessment",
+          table: "infectionPreventionAssessments"
+        },
+        "blader-bowel-form": {
+          formType: "bladderBowelAssessment",
+          table: "bladderBowelAssessments"
+        },
+        "moving-handling-form": {
+          formType: "movingHandlingAssessment",
+          table: "movingHandlingAssessments"
+        }
+      };
+
+    const unauditedForms = [];
+
+    // Check which form keys to process (all if not specified)
+    const keysToCheck = args.formKeys || Object.keys(formTypeMapping);
+
+    for (const formKey of keysToCheck) {
+      const mapping = formTypeMapping[formKey];
+      if (!mapping) continue;
+
+      // Get completed forms for this resident
+      let completedForms: any[] = [];
+
+      try {
+        switch (mapping.table) {
+          case "preAdmissionCareFiles":
+            completedForms = await ctx.db
+              .query("preAdmissionCareFiles")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.eq(q.field("savedAsDraft"), false))
+              .collect();
+            break;
+          case "infectionPreventionAssessments":
+            completedForms = await ctx.db
+              .query("infectionPreventionAssessments")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .collect();
+            break;
+          case "bladderBowelAssessments":
+            completedForms = await ctx.db
+              .query("bladderBowelAssessments")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .collect();
+            break;
+          case "movingHandlingAssessments":
+            completedForms = await ctx.db
+              .query("movingHandlingAssessments")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .collect();
+            break;
+        }
+      } catch (error) {
+        // If table doesn't exist or other error, skip this form type
+        continue;
+      }
+
+      // For each completed form, check if it has been audited
+      for (const form of completedForms) {
+        const existingAudit = await ctx.db
+          .query("managerAudits")
+          .withIndex("by_form", (q) =>
+            q.eq("formType", mapping.formType as any).eq("formId", form._id)
+          )
+          .first();
+
+        if (!existingAudit) {
+          unauditedForms.push({
+            formType: mapping.formType,
+            formId: form._id,
+            lastUpdated: form.updatedAt || form.createdAt || form._creationTime
+          });
+        }
+      }
+    }
+
+    return unauditedForms.sort((a, b) => b.lastUpdated - a.lastUpdated);
+  }
+});
+
+/**
+ * Check if specific forms have been audited for a resident
+ */
+export const getFormAuditStatus = query({
+  args: {
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    formIds: v.array(v.string())
+  },
+  returns: v.record(
+    v.string(),
+    v.object({
+      isAudited: v.boolean(),
+      auditedAt: v.optional(v.number()),
+      auditedBy: v.optional(v.string()),
+      auditNotes: v.optional(v.string())
+    })
+  ),
+  handler: async (ctx, args) => {
+    const auditStatus: Record<string, any> = {};
+
+    // Initialize all forms as not audited
+    for (const formId of args.formIds) {
+      auditStatus[formId] = {
+        isAudited: false,
+        auditedAt: undefined,
+        auditedBy: undefined,
+        auditNotes: undefined
+      };
+    }
+
+    // Get all audits for this resident
+    const audits = await ctx.db
+      .query("managerAudits")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
+      .collect();
+
+    // Update status for audited forms
+    for (const audit of audits) {
+      if (args.formIds.includes(audit.formId)) {
+        auditStatus[audit.formId] = {
+          isAudited: true,
+          auditedAt: audit.createdAt,
+          auditedBy: audit.auditedBy,
+          auditNotes: audit.auditNotes
+        };
+      }
+    }
+
+    return auditStatus;
   }
 });
 

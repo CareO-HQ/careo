@@ -20,6 +20,9 @@ export interface CareFileFormState {
   pdfUrl?: string | null;
   lastUpdated?: number;
   completedAt?: number;
+  isAudited?: boolean;
+  auditedAt?: number;
+  auditedBy?: string;
 }
 
 export interface CareFileFormsState {

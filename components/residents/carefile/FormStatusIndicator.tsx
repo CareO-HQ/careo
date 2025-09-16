@@ -30,12 +30,22 @@ export default function FormStatusIndicator({
 
 interface FormStatusBadgeProps {
   status: CareFileFormStatus;
+  isAudited?: boolean;
 }
 
-export function FormStatusBadge({ status }: FormStatusBadgeProps) {
-  const getStatusInfo = (status: CareFileFormStatus) => {
+export function FormStatusBadge({ status, isAudited }: FormStatusBadgeProps) {
+  const getStatusInfo = (
+    status: CareFileFormStatus,
+    isAudited: boolean = false
+  ) => {
     switch (status) {
       case "completed":
+        if (isAudited) {
+          return {
+            text: "Completed & Audited",
+            className: "text-emerald-500 bg-emerald-50"
+          };
+        }
         return {
           text: "Completed",
           className: "text-emerald-500 bg-emerald-50"
@@ -64,7 +74,7 @@ export function FormStatusBadge({ status }: FormStatusBadgeProps) {
     }
   };
 
-  const { text, className } = getStatusInfo(status);
+  const { text, className } = getStatusInfo(status, isAudited || false);
 
   return <p className={`text-xs px-1 rounded-md ${className}`}>{text}</p>;
 }

@@ -8,12 +8,15 @@ import {
   CareFileFormStatus
 } from "@/types/care-files";
 import { useMemo } from "react";
+import { authClient } from "@/lib/auth-client";
 
 interface UseCareFileFormsProps {
   residentId: Id<"residents">;
 }
 
 export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
+  const { data: activeOrg } = authClient.useActiveOrganization();
+
   // Query all form data
   const preAdmissionForms = useQuery(
     api.careFiles.preadmission.getPreAdmissionFormsByResident,
@@ -69,6 +72,35 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  // Query audit status for all latest forms
+  const formIds = useMemo(() => {
+    const ids = [];
+    if (latestPreAdmissionForm) ids.push(latestPreAdmissionForm._id);
+    if (latestInfectionPreventionAssessment)
+      ids.push(latestInfectionPreventionAssessment._id);
+    if (latestBladderBowelAssessment)
+      ids.push(latestBladderBowelAssessment._id);
+    if (latestMovingHandlingAssessment)
+      ids.push(latestMovingHandlingAssessment._id);
+    return ids;
+  }, [
+    latestPreAdmissionForm,
+    latestInfectionPreventionAssessment,
+    latestBladderBowelAssessment,
+    latestMovingHandlingAssessment
+  ]);
+
+  const auditStatus = useQuery(
+    api.managerAudits.getFormAuditStatus,
+    activeOrg?.id && formIds.length > 0
+      ? {
+          residentId,
+          organizationId: activeOrg.id,
+          formIds
+        }
+      : "skip"
+  );
+
   // Helper function to determine form status
   const getFormStatus = (
     hasData: boolean,
@@ -90,6 +122,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     // Pre-admission form
     const hasPreAdmissionData = !!latestPreAdmissionForm;
     const preAdmissionHasPdfFileId = !!latestPreAdmissionForm?.pdfFileId;
+    const preAdmissionAudit = latestPreAdmissionForm
+      ? auditStatus?.[latestPreAdmissionForm._id]
+      : undefined;
     state["preAdmission-form"] = {
       status: getFormStatus(
         hasPreAdmissionData,
@@ -103,13 +138,19 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       lastUpdated: latestPreAdmissionForm?._creationTime,
       completedAt: !latestPreAdmissionForm?.savedAsDraft
         ? latestPreAdmissionForm?.createdAt
-        : undefined
+        : undefined,
+      isAudited: preAdmissionAudit?.isAudited || false,
+      auditedAt: preAdmissionAudit?.auditedAt,
+      auditedBy: preAdmissionAudit?.auditedBy
     };
 
     // Infection prevention assessment
     const hasInfectionPreventionData = !!latestInfectionPreventionAssessment;
     const infectionPreventionHasPdfFileId =
       !!latestInfectionPreventionAssessment?.pdfFileId;
+    const infectionPreventionAudit = latestInfectionPreventionAssessment
+      ? auditStatus?.[latestInfectionPreventionAssessment._id]
+      : undefined;
     state["infection-prevention"] = {
       status: getFormStatus(
         hasInfectionPreventionData,
@@ -123,12 +164,18 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       lastUpdated: latestInfectionPreventionAssessment?._creationTime,
       completedAt: !latestInfectionPreventionAssessment?.savedAsDraft
         ? latestInfectionPreventionAssessment?.createdAt
-        : undefined
+        : undefined,
+      isAudited: infectionPreventionAudit?.isAudited || false,
+      auditedAt: infectionPreventionAudit?.auditedAt,
+      auditedBy: infectionPreventionAudit?.auditedBy
     };
 
     // Bladder bowel assessment
     const hasBladderBowelData = !!latestBladderBowelAssessment;
     const bladderBowelHasPdfFileId = !!latestBladderBowelAssessment?.pdfFileId;
+    const bladderBowelAudit = latestBladderBowelAssessment
+      ? auditStatus?.[latestBladderBowelAssessment._id]
+      : undefined;
     state["blader-bowel-form"] = {
       status: getFormStatus(
         hasBladderBowelData,
@@ -142,13 +189,19 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       lastUpdated: latestBladderBowelAssessment?._creationTime,
       completedAt: !latestBladderBowelAssessment?.savedAsDraft
         ? latestBladderBowelAssessment?.createdAt
-        : undefined
+        : undefined,
+      isAudited: bladderBowelAudit?.isAudited || false,
+      auditedAt: bladderBowelAudit?.auditedAt,
+      auditedBy: bladderBowelAudit?.auditedBy
     };
 
     // Moving handling assessment
     const hasMovingHandlingData = !!latestMovingHandlingAssessment;
     const movingHandlingHasPdfFileId =
       !!latestMovingHandlingAssessment?.pdfFileId;
+    const movingHandlingAudit = latestMovingHandlingAssessment
+      ? auditStatus?.[latestMovingHandlingAssessment._id]
+      : undefined;
     state["moving-handling-form"] = {
       status: getFormStatus(
         hasMovingHandlingData,
@@ -162,7 +215,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       lastUpdated: latestMovingHandlingAssessment?._creationTime,
       completedAt: !latestMovingHandlingAssessment?.savedAsDraft
         ? latestMovingHandlingAssessment?.createdAt
-        : undefined
+        : undefined,
+      isAudited: movingHandlingAudit?.isAudited || false,
+      auditedAt: movingHandlingAudit?.auditedAt,
+      auditedBy: movingHandlingAudit?.auditedBy
     };
 
     // Add other forms here as they are implemented
@@ -178,7 +234,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
-    movingHandlingPdfUrl
+    movingHandlingPdfUrl,
+    auditStatus
   ]);
 
   // Helper functions
