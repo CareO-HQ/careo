@@ -60,9 +60,6 @@ import { CreateAppointmentForm } from "./form/create-appointment-form";
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
 };
-// put this at the very top (after imports)
-
-
 
 export default function DailyCarePage({ params }: DailyCarePageProps) {
   const { id } = React.use(params);
@@ -90,7 +87,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     notes: z.string().optional(),
   });
 
-
   // Appointment Notes Dialog state
   const [isAppointmentNotesDialogOpen, setIsAppointmentNotesDialogOpen] = React.useState(false);
   const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(false);
@@ -113,7 +109,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [noteToDelete, setNoteToDelete] = React.useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
   
-
   // Appointment Notes Form Schema
   // Enums for appointment-specific needs
   const TransportationNeedEnum = z.enum(["wheelchair_accessible", "oxygen_support", "medical_equipment", "assistance_required"]);
@@ -168,8 +163,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     path: ["endTime"],
   });
 
-  
-
   // Appointment Notes Form setup
   const appointmentNotesForm = useForm<z.infer<typeof AppointmentNotesSchema>>({
     resolver: zodResolver(AppointmentNotesSchema),
@@ -185,7 +178,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       priority: "medium",
     },
   });
-
 
   // Edit Appointment Form setup
   const editAppointmentForm = useForm<z.infer<typeof EditAppointmentSchema>>({
@@ -210,10 +202,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const appointments = useQuery(api.appointments.getAppointmentsByResident, {
     residentId: id as Id<"residents">,
   });
-  
-  
-
- 
 
   // Get all users for staff selection
   const allUsers = useQuery(api.user.getAllUsers);
@@ -311,7 +299,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       toast.error("Failed to save personal care activities");
     }
   };
-  
 
   // Handle daily activity record submission
   const handleActivityRecordSubmit = async () => {
@@ -391,7 +378,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   };
 
-
   // Handle edit appointment
   const handleEditAppointment = (appointment: any) => {
     setAppointmentToEdit(appointment);
@@ -462,7 +448,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       setDeleteAppointmentLoading(false);
     }
   };
-
 
   if (resident === undefined) {
     return (
@@ -633,7 +618,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-100 rounded-lg">
           <ClipboardCheck className="w-6 h-6 text-blue-600" />
-      
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
@@ -687,13 +671,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 Appointment History
               </Button>
               <Button
-
-onClick={() => setIsAppointmentNotesDialogOpen(true)}
+                onClick={() => setIsAppointmentNotesDialogOpen(true)}
                 className="bg-black hover:bg-gray-800 text-white w-10 p-0"
               >
                 <StickyNote className="w-4 h-4" />
               </Button>
-
             </div>
           </div>
 
@@ -744,9 +726,6 @@ onClick={() => setIsAppointmentNotesDialogOpen(true)}
               >
                 <StickyNote className="w-4 h-4" />
               </Button>
-
-
-
             </div>
           </div>
 
@@ -795,9 +774,8 @@ onClick={() => setIsAppointmentNotesDialogOpen(true)}
         </CardContent>
       </Card>
 
-
-         {/* Appointment List Card */}
-         <Card>
+      {/* Appointment List Card */}
+      <Card>
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -896,8 +874,15 @@ onClick={() => setIsAppointmentNotesDialogOpen(true)}
         </CardContent>
       </Card>
 
+      {/* Create Appointment Form */}
+      <CreateAppointmentForm
+        residentId={id}
+        residentName={fullName}
+        isOpen={isCreateAppointmentDialogOpen}
+        onClose={() => setIsCreateAppointmentDialogOpen(false)}
+      />
 
-      {/* Add Appointment Notes Dialog */}
+      {/* Add Appointment Notes Dialog - keeping the existing dialog code here for now */}
       <Dialog open={isAppointmentNotesDialogOpen} onOpenChange={setIsAppointmentNotesDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1246,238 +1231,6 @@ onClick={() => setIsAppointmentNotesDialogOpen(true)}
         </DialogContent>
       </Dialog>
 
-      {/* Personal Care Dialog */}
-      <Dialog open={isPersonalCareDialogOpen} onOpenChange={setIsPersonalCareDialogOpen}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
-            <DialogTitle>Personal Care Activities for {fullName}</DialogTitle>
-            <DialogDescription>
-              Record personal care activities performed for this resident.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Activities Section */}
-              <FormField
-                control={form.control}
-                name="activities"
-                render={() => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium">Activities</FormLabel>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-3 border rounded-md">
-                      {activityOptions.map((activity) => (
-                        <FormField
-                          key={activity.id}
-                          control={form.control}
-                          name="activities"
-                          render={({ field }) => {
-                            return (
-                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(activity.id)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? field.onChange([...field.value, activity.id])
-                                        : field.onChange(
-                                          field.value?.filter(
-                                            (value) => value !== activity.id
-                                          )
-                                        )
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-xs font-normal cursor-pointer">
-                                  {activity.label}
-                                </FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Form Controls */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Time</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="time"
-                            className="h-9"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="staff"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Primary Staff</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={currentUserName}
-                            disabled
-                            className="h-9 bg-gray-50 text-gray-600"
-                            placeholder="Current user"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="assistedStaff"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Assisted By (optional)</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder="Select assisting staff..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {otherStaffOptions.length > 0 ? (
-                              otherStaffOptions.map((staff) => (
-                                <SelectItem key={staff.key} value={staff.key}>
-                                  {staff.label}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no_staff" disabled>
-                                No other staff available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium">Notes (optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter notes..."
-                          className="h-9"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsPersonalCareDialogOpen(false);
-                    form.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  Save Personal Care Activities
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Daily Activity Record Dialog */}
-      <Dialog open={isActivityRecordDialogOpen} onOpenChange={setIsActivityRecordDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Daily Activity Record for {fullName}</DialogTitle>
-            <DialogDescription>
-              Record daily activity notes for this resident.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Activity Notes</Label>
-              <Input
-                placeholder="Enter activity details..."
-                value={activityRecordNotes}
-                onChange={(e) => setActivityRecordNotes(e.target.value)}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Primary Staff</Label>
-              <Input
-                value={currentUserName}
-                disabled
-                className="h-9 bg-gray-50 text-gray-600"
-                placeholder="Current user"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Time</Label>
-              <Input
-                type="time"
-                value={activityRecordTime}
-                onChange={(e) => setActivityRecordTime(e.target.value)}
-                placeholder="Select time"
-                className="h-9"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsActivityRecordDialogOpen(false);
-                  setActivityRecordTime("");
-                  setActivityRecordNotes("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleActivityRecordSubmit}
-                disabled={!currentUserName || !activityRecordTime}
-              >
-                Save Daily Activity Record
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Edit Appointment Dialog */}
       <Dialog open={isEditAppointmentDialogOpen} onOpenChange={setIsEditAppointmentDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
@@ -1666,16 +1419,6 @@ onClick={() => setIsAppointmentNotesDialogOpen(true)}
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Create Appointment Form */}
-      <CreateAppointmentForm
-        residentId={id}
-        residentName={fullName}
-        isOpen={isCreateAppointmentDialogOpen}
-        onClose={() => setIsCreateAppointmentDialogOpen(false)}
-      />
-
-
-    </div >
+    </div>
   );
 }

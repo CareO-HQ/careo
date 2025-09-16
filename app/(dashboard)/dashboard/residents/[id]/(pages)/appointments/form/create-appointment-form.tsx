@@ -163,7 +163,7 @@ export function CreateAppointmentForm({
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Appointment Title *</FormLabel>
+                  <FormLabel required>Appointment Title</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="e.g., Doctor Visit, Physical Therapy"
