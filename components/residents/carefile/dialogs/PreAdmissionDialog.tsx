@@ -264,6 +264,8 @@ export default function PreAdmissionDialog({
               teamId,
               organizationId
             },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
             residentId: residentId as Id<"residents">,
             auditedBy: resident.firstName + " " + resident.lastName, // Using resident name as we don't have userName here
             auditNotes: "Form reviewed and updated",
@@ -271,7 +273,11 @@ export default function PreAdmissionDialog({
             organizationId
           });
           console.log("Review submission successful:", data);
-          toast.success("Form reviewed and updated successfully!");
+          if (data.hasChanges) {
+            toast.success("Form reviewed and updated successfully!");
+          } else {
+            toast.success("Form reviewed and approved without changes!");
+          }
         } else {
           // Normal submission for new forms
           const data = await submitPreAdmissionFormMutation({

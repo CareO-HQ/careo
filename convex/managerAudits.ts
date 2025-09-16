@@ -3,6 +3,74 @@ import { v } from "convex/values";
 import { api } from "./_generated/api";
 
 /**
+ * Utility function to check if form data has meaningful changes
+ * Compares two form objects and returns true if there are differences
+ * Only considers user-visible form fields, ignoring metadata and system fields
+ */
+function hasFormDataChanged(originalData: any, newData: any): boolean {
+  if (!originalData || !newData) {
+    return true; // If either is missing, consider it a change
+  }
+
+  // Comprehensive list of metadata/system fields to ignore in comparison
+  const fieldsToIgnore = [
+    // System generated fields
+    "_id",
+    "_creationTime",
+    "createdAt",
+    "updatedAt",
+    "createdBy",
+    "userId",
+    "teamId",
+    "organizationId",
+    "residentId",
+
+    // PDF and file related fields
+    "pdfFileId",
+    "pdfGenerated",
+    "pdfGeneratedAt",
+    "pdfUrl",
+
+    // Audit and workflow fields
+    "savedAsDraft",
+    "isCompleted",
+    "submittedAt",
+    "reviewedAt",
+    "reviewedBy",
+    "auditNotes",
+
+    // Dynamic timestamp fields that change on every submission
+    "consentAcceptedAt",
+    "date", // Current date field that auto-updates
+    "completionDate", // Often auto-set to current date
+
+    // User identification fields (not form content)
+    "userName",
+    "completedBy",
+    "signature", // Often just the user's name
+    "jobRole", // User's role, not form content
+
+    // Internal system fields
+    "version",
+    "formVersion",
+    "migrationVersion"
+  ];
+
+  // Create deep copies to avoid mutating original objects
+  const originalFiltered = JSON.parse(JSON.stringify(originalData));
+  const newFiltered = JSON.parse(JSON.stringify(newData));
+
+  // Remove all ignored fields
+  fieldsToIgnore.forEach((field) => {
+    delete originalFiltered[field];
+    delete newFiltered[field];
+  });
+
+  // Deep comparison of the filtered objects
+  return JSON.stringify(originalFiltered) !== JSON.stringify(newFiltered);
+}
+
+/**
  * Create a new manager audit record for a completed form
  */
 export const createAudit = mutation({
@@ -450,6 +518,8 @@ export const submitReviewedForm = mutation({
       v.literal("preAdmissionCareFile")
     ),
     formData: v.any(), // The form data to be submitted
+    originalFormData: v.any(), // The original form data for comparison
+    originalFormId: v.string(), // The ID of the original form being audited
     residentId: v.id("residents"),
     auditedBy: v.string(),
     auditNotes: v.optional(v.string()),
@@ -458,59 +528,79 @@ export const submitReviewedForm = mutation({
   },
   returns: v.object({
     formId: v.string(),
-    auditId: v.id("managerAudits")
+    auditId: v.id("managerAudits"),
+    hasChanges: v.boolean()
   }),
   handler: async (ctx, args) => {
-    // First, submit the new form based on the form type
-    let newFormId: string;
+    // Check if the form data has actually changed
+    const hasChanges = hasFormDataChanged(args.originalFormData, args.formData);
 
-    switch (args.formType) {
-      case "movingHandlingAssessment":
-        newFormId = await ctx.runMutation(
-          api.careFiles.movingHandling.submitMovingHandlingAssessment,
-          args.formData
-        );
-        break;
-      case "infectionPreventionAssessment":
-        newFormId = await ctx.runMutation(
-          api.careFiles.infectionPrevention.submitInfectionPreventionAssessment,
-          args.formData
-        );
-        break;
-      case "bladderBowelAssessment":
-        newFormId = await ctx.runMutation(
-          api.careFiles.bladderBowel.submitBladderBowelAssessment,
-          args.formData
-        );
-        break;
-      case "preAdmissionCareFile":
-        newFormId = await ctx.runMutation(
-          api.careFiles.preadmission.submitPreAdmissionForm,
-          args.formData
-        );
-        break;
-      case "carePlanAssessment":
-        // TODO: Add when carePlanAssessment is implemented
-        throw new Error("Care plan assessment submission not implemented yet");
-      default:
-        throw new Error(`Unsupported form type: ${args.formType}`);
+    let formIdToAudit: string;
+
+    if (hasChanges) {
+      // If there are changes, submit the new form based on the form type
+      let newFormId: string;
+
+      switch (args.formType) {
+        case "movingHandlingAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.movingHandling.submitMovingHandlingAssessment,
+            args.formData
+          );
+          break;
+        case "infectionPreventionAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.infectionPrevention
+              .submitInfectionPreventionAssessment,
+            args.formData
+          );
+          break;
+        case "bladderBowelAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bladderBowel.submitBladderBowelAssessment,
+            args.formData
+          );
+          break;
+        case "preAdmissionCareFile":
+          newFormId = await ctx.runMutation(
+            api.careFiles.preadmission.submitPreAdmissionForm,
+            args.formData
+          );
+          break;
+        case "carePlanAssessment":
+          // TODO: Add when carePlanAssessment is implemented
+          throw new Error(
+            "Care plan assessment submission not implemented yet"
+          );
+        default:
+          throw new Error(`Unsupported form type: ${args.formType}`);
+      }
+      formIdToAudit = newFormId;
+    } else {
+      // If no changes, audit the original form
+      formIdToAudit = args.originalFormId;
     }
 
-    // Then, automatically create an audit record for the new form
+    // Create an audit record for the appropriate form
     const auditId = await ctx.db.insert("managerAudits", {
       formType: args.formType,
-      formId: newFormId,
+      formId: formIdToAudit,
       residentId: args.residentId,
       auditedBy: args.auditedBy,
-      auditNotes: args.auditNotes || "Form reviewed and updated",
+      auditNotes:
+        args.auditNotes ||
+        (hasChanges
+          ? "Form reviewed and updated with changes to user-visible content"
+          : "Form reviewed and approved - no changes to form content"),
       teamId: args.teamId,
       organizationId: args.organizationId,
       createdAt: Date.now()
     });
 
     return {
-      formId: newFormId,
-      auditId: auditId
+      formId: formIdToAudit,
+      auditId: auditId,
+      hasChanges: hasChanges
     };
   }
 });

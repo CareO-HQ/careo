@@ -283,20 +283,26 @@ export default function BladderBowelDialog({
       try {
         if (isEditMode) {
           // In review mode, use the special submission that creates audit automatically
-          await submitReviewedFormMutation({
+          const data = await submitReviewedFormMutation({
             formType: "bladderBowelAssessment",
             formData: {
               ...values,
               residentId: residentId as Id<"residents">,
               savedAsDraft: false
             },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
             residentId: residentId as Id<"residents">,
             auditedBy: userName,
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
           });
-          toast.success("Form reviewed and updated successfully!");
+          if (data.hasChanges) {
+            toast.success("Form reviewed and updated successfully!");
+          } else {
+            toast.success("Form reviewed and approved without changes!");
+          }
         } else {
           // Normal submission for new forms
           await submitAssessment({

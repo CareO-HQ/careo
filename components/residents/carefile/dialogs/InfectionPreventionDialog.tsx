@@ -305,6 +305,8 @@ export default function InfectionPreventionDialog({
           const data = await submitReviewedFormMutation({
             formType: "infectionPreventionAssessment",
             formData: formattedValues,
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
             residentId: resident._id as Id<"residents">,
             auditedBy: userName,
             auditNotes: "Form reviewed and updated",
@@ -312,7 +314,11 @@ export default function InfectionPreventionDialog({
             organizationId
           });
           console.log("Review submitted successfully:", data);
-          toast.success("Form reviewed and updated successfully!");
+          if (data.hasChanges) {
+            toast.success("Form reviewed and updated successfully!");
+          } else {
+            toast.success("Form reviewed and approved without changes!");
+          }
         } else {
           // Normal submission for new forms
           const data =

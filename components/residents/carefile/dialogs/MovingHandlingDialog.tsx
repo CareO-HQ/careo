@@ -63,6 +63,9 @@ export default function MovingHandlingDialog({
   const submitAssessment = useMutation(
     api.careFiles.movingHandling.submitMovingHandlingAssessment
   );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof movingHandlingAssessmentSchema>>({
     resolver: zodResolver(movingHandlingAssessmentSchema),
@@ -196,33 +199,30 @@ export default function MovingHandlingDialog({
       try {
         console.log("Starting form submission...");
 
-        // Check if this is edit mode and if there are changes
+        // Check if this is edit mode
         if (isEditMode && initialData) {
-          const hasChanges = Object.keys(values).some((key) => {
-            if (
-              key === "completedBy" ||
-              key === "signature" ||
-              key === "completionDate"
-            ) {
-              return false; // Ignore these fields for change detection
-            }
-            return values[key as keyof typeof values] !== initialData[key];
-          });
-
-          if (hasChanges) {
-            // Create new entry if changes were made
-            const result = await submitAssessment({
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "movingHandlingAssessment",
+            formData: {
               ...values,
               residentId: residentId as Id<"residents">,
               savedAsDraft: false
-            });
-            console.log("Form updated with new entry:", result);
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
+          });
+          console.log("Review submission successful:", data);
+          if (data.hasChanges) {
             toast.success(
               "Assessment updated successfully - new version created"
             );
           } else {
-            // No changes, just mark as audited
-            console.log("No changes detected, marking as audited");
             toast.success("Assessment reviewed - no changes made");
           }
         } else {
