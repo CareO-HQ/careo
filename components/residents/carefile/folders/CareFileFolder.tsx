@@ -17,8 +17,8 @@ import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery } from "convex/react";
-import { DownloadIcon, FolderIcon } from "lucide-react";
-import { useState } from "react";
+import { DownloadIcon, FolderIcon, FileIcon } from "lucide-react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
@@ -85,6 +85,205 @@ export default function CareFileFolder({
         }
       : "skip"
   );
+
+  // Query all form submissions for forms in this folder to show all PDFs
+  const allPreAdmissionForms = useQuery(
+    api.careFiles.preadmission.getPreAdmissionFormsByResident,
+    folderFormKeys.includes("preAdmission-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allInfectionPreventionForms = useQuery(
+    api.careFiles.infectionPrevention
+      .getInfectionPreventionAssessmentsByResident,
+    folderFormKeys.includes("infection-prevention") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allBladderBowelForms = useQuery(
+    api.careFiles.bladderBowel.getBladderBowelAssessmentsByResident,
+    folderFormKeys.includes("blader-bowel-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allMovingHandlingForms = useQuery(
+    api.careFiles.movingHandling.getMovingHandlingAssessmentsByResident,
+    folderFormKeys.includes("moving-handling-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  // Helper function to get all PDFs from all form submissions
+  const getAllPdfFiles = useMemo(() => {
+    const pdfFiles: Array<{
+      formKey: string;
+      formId: string;
+      name: string;
+      url?: string;
+      completedAt: number;
+      isLatest: boolean;
+    }> = [];
+
+    // Process Pre-admission forms
+    if (allPreAdmissionForms) {
+      const sortedForms = [...allPreAdmissionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "preAdmission-form",
+          formId: form._id,
+          name: "Pre-Admission Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Infection Prevention forms
+    if (allInfectionPreventionForms) {
+      const sortedForms = [...allInfectionPreventionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "infection-prevention",
+          formId: form._id,
+          name: "Infection Prevention Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Bladder/Bowel forms
+    if (allBladderBowelForms) {
+      const sortedForms = [...allBladderBowelForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "blader-bowel-form",
+          formId: form._id,
+          name: "Bladder & Bowel Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Moving & Handling forms
+    if (allMovingHandlingForms) {
+      const sortedForms = [...allMovingHandlingForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "moving-handling-form",
+          formId: form._id,
+          name: "Moving & Handling Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Sort all PDFs by completion date (newest first)
+    return pdfFiles.sort((a, b) => b.completedAt - a.completedAt);
+  }, [
+    allPreAdmissionForms,
+    allInfectionPreventionForms,
+    allBladderBowelForms,
+    allMovingHandlingForms
+  ]);
+
+  // Component to handle individual PDF file with URL fetching
+  const PdfFileItem = ({
+    file
+  }: {
+    file: {
+      formKey: string;
+      formId: string;
+      name: string;
+      completedAt: number;
+      isLatest: boolean;
+    };
+  }) => {
+    const pdfUrl = useQuery(
+      file.formKey === "preAdmission-form"
+        ? api.careFiles.preadmission.getPDFUrl
+        : file.formKey === "infection-prevention"
+          ? api.careFiles.infectionPrevention.getPDFUrl
+          : file.formKey === "blader-bowel-form"
+            ? api.careFiles.bladderBowel.getPDFUrl
+            : file.formKey === "moving-handling-form"
+              ? api.careFiles.movingHandling.getPDFUrl
+              : ("skip" as any),
+      file.formKey === "preAdmission-form"
+        ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
+        : file.formKey === "infection-prevention"
+          ? {
+              assessmentId: file.formId as Id<"infectionPreventionAssessments">
+            }
+          : file.formKey === "blader-bowel-form"
+            ? { assessmentId: file.formId as Id<"bladderBowelAssessments"> }
+            : file.formKey === "moving-handling-form"
+              ? { assessmentId: file.formId as Id<"movingHandlingAssessments"> }
+              : "skip"
+    );
+
+    if (!pdfUrl) return null;
+
+    return (
+      <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+        <div className="flex-1 flex items-center gap-2">
+          <div className="bg-red-50 rounded-md">
+            <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-primary">
+                {file.name}.pdf
+              </p>
+            </div>
+            <div className="flex flex-row items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Created:{" "}
+                {new Date(file.completedAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </p>
+              {file.isLatest && (
+                <span className="text-xs px-1 bg-blue-50 text-blue-700 rounded-full">
+                  Latest
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DownloadIcon
+          className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+          onClick={async () => {
+            try {
+              await downloadFromUrl(pdfUrl, `${file.name}.pdf`);
+              toast.success("PDF downloaded successfully");
+            } catch (error) {
+              console.error("Error downloading PDF:", error);
+              toast.error("Failed to download PDF");
+            }
+          }}
+        />
+      </div>
+    );
+  };
 
   // Mutation to create audit records
   const createAudit = useMutation(api.managerAudits.createAudit);
@@ -387,12 +586,29 @@ export default function CareFileFolder({
                   </div>
                 );
               })}
-              <p className="text-muted-foreground text-sm font-medium mt-10">
-                Files
-              </p>
-              <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                Shortly you will be able to upload files here.
+              <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Files
+                </p>
+                <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
+                  Upload file
+                </p>
               </div>
+              {getAllPdfFiles.length > 0 ? (
+                <div className="space-y-2">
+                  {getAllPdfFiles.map((file) => (
+                    <PdfFileItem
+                      key={`${file.formKey}-${file.formId}`}
+                      file={file}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                  No PDF files generated yet. Complete and submit forms to
+                  generate PDFs.
+                </div>
+              )}
               <p className="text-muted-foreground text-sm font-medium mt-10">
                 Manager audit
               </p>
@@ -434,10 +650,10 @@ export default function CareFileFolder({
                   ))}
                 </div>
               ) : (
-                <div className="w-full text-center p-2 py-6 border rounded-md bg-green-50 text-green-700 text-xs">
+                <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/50 text-muted-foreground text-xs">
                   {unauditedForms === undefined
                     ? "Loading audit status..."
-                    : "All forms in this folder have been audited ✓"}
+                    : "All forms in this folder have been audited"}
                 </div>
               )}
             </div>
