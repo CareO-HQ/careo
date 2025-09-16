@@ -1226,5 +1226,167 @@ export default defineSchema({
     updatedBy: v.optional(v.id("users")),
     savedAsDraft: v.optional(v.boolean()),
     pdfFileId: v.optional(v.id("_storage"))
-  }).index("by_resident", ["residentId"])
+  }).index("by_resident", ["residentId"]),
+
+  incidents: defineTable({
+    // Section 1: Incident Details
+    date: v.string(),
+    time: v.string(),
+    homeName: v.optional(v.string()),
+    unit: v.optional(v.string()),
+    
+    // Section 2: Injured Person Details
+    injuredPersonFirstName: v.optional(v.string()),
+    injuredPersonSurname: v.optional(v.string()),
+    injuredPersonDOB: v.optional(v.string()),
+    residentId: v.optional(v.id("residents")),
+    residentInternalId: v.optional(v.string()),
+    dateOfAdmission: v.optional(v.string()),
+    healthCareNumber: v.optional(v.string()),
+    
+    // Section 3: Status of Injured Person (multiple can be selected)
+    statusResident: v.optional(v.boolean()),
+    statusRelative: v.optional(v.boolean()),
+    statusStaff: v.optional(v.boolean()),
+    statusAgencyStaff: v.optional(v.boolean()),
+    statusVisitor: v.optional(v.boolean()),
+    statusContractor: v.optional(v.boolean()),
+    contractorEmployer: v.optional(v.string()),
+    
+    // Section 4: Type of Incident (multiple can be selected)
+    typeFallWitnessed: v.optional(v.boolean()),
+    typeFallUnwitnessed: v.optional(v.boolean()),
+    typePressureUlcer: v.optional(v.boolean()),
+    typeWound: v.optional(v.boolean()),
+    typeIllness: v.optional(v.boolean()),
+    typeNearMiss: v.optional(v.boolean()),
+    typeExpectedDeath: v.optional(v.boolean()),
+    typeUnexpectedDeath: v.optional(v.boolean()),
+    typeStaffingLevels: v.optional(v.boolean()),
+    typeEquipment: v.optional(v.boolean()),
+    typeStaffAccident: v.optional(v.boolean()),
+    typeAbuseOfStaff: v.optional(v.boolean()),
+    typeBehavioural: v.optional(v.boolean()),
+    typeSafeguarding: v.optional(v.boolean()),
+    typeMedication: v.optional(v.boolean()),
+    typeAbsentWithoutLeave: v.optional(v.boolean()),
+    typeWeightLoss: v.optional(v.boolean()),
+    typeChoking: v.optional(v.boolean()),
+    typeBruise: v.optional(v.boolean()),
+    typeResidentAltercation: v.optional(v.boolean()),
+    typeInfection: v.optional(v.boolean()),
+    typeCovid: v.optional(v.boolean()),
+    typeFireSafety: v.optional(v.boolean()),
+    typeSelfHarm: v.optional(v.boolean()),
+    typePSNI: v.optional(v.boolean()),
+    typeTheft: v.optional(v.boolean()),
+    typeMissingResident: v.optional(v.boolean()),
+    typeOther: v.optional(v.boolean()),
+    typeOtherDetails: v.optional(v.string()),
+    
+    // Section 5-6: Fall-Specific Questions
+    anticoagulantMedication: v.optional(v.string()), // "yes", "no", "unknown"
+    fallPathway: v.optional(v.string()), // "green", "amber", "red"
+    
+    // Section 7: Detailed Description
+    detailedDescription: v.optional(v.string()),
+    attachedPhotos: v.optional(v.array(v.id("_storage"))),
+    
+    // Section 8: Incident Level
+    incidentLevel: v.optional(v.string()), // "death", "permanent_harm", "minor_injury", "no_harm", "near_miss"
+    
+    // Section 9: Details of Injury
+    injuryDescription: v.optional(v.string()),
+    bodyPartInjured: v.optional(v.string()),
+    
+    // Section 10: Treatment Required
+    treatmentFirstAid: v.optional(v.boolean()),
+    treatmentGP: v.optional(v.boolean()),
+    treatmentParamedic: v.optional(v.boolean()),
+    treatmentED: v.optional(v.boolean()),
+    treatmentHospitalAdmit: v.optional(v.boolean()),
+    treatment999: v.optional(v.boolean()),
+    
+    // Section 11: Details of Treatment Given
+    treatmentDetails: v.optional(v.string()),
+    vitalSigns: v.optional(v.string()),
+    treatmentRefused: v.optional(v.boolean()),
+    
+    // Section 12: Witnesses
+    witness1Name: v.optional(v.string()),
+    witness1Contact: v.optional(v.string()),
+    witness2Name: v.optional(v.string()),
+    witness2Contact: v.optional(v.string()),
+    witnessStatements: v.optional(v.array(v.id("_storage"))),
+    
+    // Section 13: Further Actions by Nurse
+    actionOnCallManager: v.optional(v.boolean()),
+    actionDutySocialWorker: v.optional(v.boolean()),
+    actionCarePlanUpdated: v.optional(v.boolean()),
+    actionBodyMapCompleted: v.optional(v.boolean()),
+    actionTrustIncidentReport: v.optional(v.boolean()),
+    actionRiskAssessment: v.optional(v.boolean()),
+    actionObservationsCommenced: v.optional(v.boolean()),
+    actionWoundAssessment: v.optional(v.boolean()),
+    actionSafeguardingForms: v.optional(v.boolean()),
+    actionKeyWorkerContacted: v.optional(v.boolean()),
+    
+    // Section 14: Further Actions Advised
+    furtherActionsAdvised: v.optional(v.string()),
+    
+    // Section 15: Prevention Measures
+    preventionMeasures: v.optional(v.string()),
+    
+    // Section 16: Home Manager Informed
+    homeManagerInformedBy: v.optional(v.string()),
+    homeManagerInformedDateTime: v.optional(v.string()),
+    
+    // Section 17: Out of Hours On-Call
+    onCallManagerName: v.optional(v.string()),
+    onCallContactedDateTime: v.optional(v.string()),
+    
+    // Section 18: Next of Kin Informed
+    nokInformedWho: v.optional(v.string()),
+    nokInformedBy: v.optional(v.string()),
+    nokInformedDateTime: v.optional(v.string()),
+    
+    // Section 19: Trust Incident Form Recipients
+    careManagerName: v.optional(v.string()),
+    careManagerEmail: v.optional(v.string()),
+    keyWorkerName: v.optional(v.string()),
+    keyWorkerEmail: v.optional(v.string()),
+    
+    // Section 20: Form Completion Details
+    completedByFullName: v.optional(v.string()),
+    completedByJobTitle: v.optional(v.string()),
+    completedBySignature: v.optional(v.string()),
+    dateCompleted: v.optional(v.string()),
+    
+    // Legacy fields for backward compatibility
+    description: v.optional(v.string()),
+    immediateAction: v.optional(v.string()),
+    medicalAttention: v.optional(v.string()),
+    doctorNotified: v.optional(v.boolean()),
+    familyNotified: v.optional(v.boolean()),
+    injuriesNoted: v.optional(v.string()),
+    followUpRequired: v.optional(v.string()),
+    preventativeMeasures: v.optional(v.string()),
+    reportedBy: v.optional(v.string()),
+    reporterRole: v.optional(v.string()),
+    severity: v.optional(v.string()),
+    type: v.optional(v.string()),
+    location: v.optional(v.string()),
+    witnesses: v.optional(v.string()),
+    
+    // Metadata
+    status: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users"))
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_date", ["date"])
+    .index("by_incident_level", ["incidentLevel"])
+    .index("by_home", ["homeName"])
 });

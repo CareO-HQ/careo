@@ -20,6 +20,7 @@ import type * as diet from "../diet.js";
 import type * as files_image from "../files/image.js";
 import type * as foodFluidLogs from "../foodFluidLogs.js";
 import type * as http from "../http.js";
+import type * as incidents from "../incidents.js";
 import type * as labels from "../labels.js";
 import type * as medication from "../medication.js";
 import type * as migrations from "../migrations.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   "files/image": typeof files_image;
   foodFluidLogs: typeof foodFluidLogs;
   http: typeof http;
+  incidents: typeof incidents;
   labels: typeof labels;
   medication: typeof medication;
   migrations: typeof migrations;
