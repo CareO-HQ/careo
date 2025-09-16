@@ -10,21 +10,22 @@ import {
   SheetTitle,
   SheetTrigger
 } from "@/components/ui/sheet";
-import { DownloadIcon, FolderIcon } from "lucide-react";
-import { useState } from "react";
-import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
-import { authClient } from "@/lib/auth-client";
-import { useActiveTeam } from "@/hooks/use-active-team";
-import { usePathname } from "next/navigation";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { toast } from "sonner";
-import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
-import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
-import { FolderProgressIndicator } from "../FolderCompletionIndicator";
+import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
+import { useQuery } from "convex/react";
+import { DownloadIcon, FolderIcon } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import BladderBowelDialog from "../dialogs/ContinenceDialog";
+import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
+import { FolderProgressIndicator } from "../FolderCompletionIndicator";
+import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
+import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -106,6 +107,10 @@ export default function CareFileFolder({
               return `pre-admission-form-${baseName}.pdf`;
             case "infection-prevention":
               return `infection-prevention-assessment-${baseName}.pdf`;
+            case "blader-bowel-form":
+              return `bladder-bowel-assessment-${baseName}.pdf`;
+            case "moving-handling-form":
+              return `moving-handling-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -162,6 +167,32 @@ export default function CareFileFolder({
             userName={currentUser?.user.name ?? ""}
           />
         );
+      case "blader-bowel-form":
+        return (
+          <BladderBowelDialog
+            resident={resident}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+            residentId={residentId}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+            onClose={() => setIsDialogOpen(false)}
+          />
+        );
+      case "moving-handling-form":
+        return (
+          <MovingHandlingDialog
+            resident={resident}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+            residentId={residentId}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+            onClose={() => setIsDialogOpen(false)}
+          />
+        );
+      case "long-term-fall-risk-form":
+        return <>FORM TO DO - LONG TERM FALL RISK</>;
       // case 'discharge':
       //   return <DischargeDialog />;
       default:
@@ -179,7 +210,7 @@ export default function CareFileFolder({
               <p className="text-primary">{folderName}</p>
               {forms?.length && (
                 <p className="text-muted-foreground text-xs">
-                  {forms?.length} forms
+                  {forms?.length} {forms?.length === 1 ? "form" : "forms"}
                 </p>
               )}
             </div>
@@ -241,6 +272,13 @@ export default function CareFileFolder({
               <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
                 Shortly you will be able to upload files here.
               </div>
+              <p className="text-muted-foreground text-sm font-medium mt-10">
+                Manager audit
+              </p>
+              {/* <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                No audit needed for this folder.
+              </div> */}
+              <p>Audit needed for</p>
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
               <Button variant="outline" size="sm" disabled>

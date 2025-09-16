@@ -55,6 +55,26 @@ export const config = {
           description: "Blader & Bowel continence Assessment"
         }
       ]
+    },
+    {
+      type: "folder",
+      key: "mobility-fall",
+      value: "Mobility & Fall",
+      description: "Track mobility and fall risks",
+      forms: [
+        {
+          type: "form",
+          key: "moving-handling-form",
+          value: "Moving & Handling Risk Assessment",
+          description: "Moving & Handling Risk Assessment"
+        },
+        {
+          type: "form",
+          key: "long-term-fall-risk-form",
+          value: "Long Term Fall Risk Assessment",
+          description: "Long Term Fall Risk Assessment"
+        }
+      ]
     }
   ]
 };

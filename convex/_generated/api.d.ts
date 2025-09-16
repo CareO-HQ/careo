@@ -11,7 +11,9 @@
 import type * as appointmentNotes from "../appointmentNotes.js";
 import type * as appointments from "../appointments.js";
 import type * as auth from "../auth.js";
+import type * as careFiles_bladderBowel from "../careFiles/bladderBowel.js";
 import type * as careFiles_infectionPrevention from "../careFiles/infectionPrevention.js";
+import type * as careFiles_movingHandling from "../careFiles/movingHandling.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
 import type * as crons from "../crons.js";
 import type * as diet from "../diet.js";
@@ -24,6 +26,7 @@ import type * as migrations from "../migrations.js";
 import type * as personalCare from "../personalCare.js";
 import type * as quickCareNotes from "../quickCareNotes.js";
 import type * as residents from "../residents.js";
+import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as teams from "../teams.js";
 import type * as user from "../user.js";
 
@@ -45,7 +48,9 @@ declare const fullApi: ApiFromModules<{
   appointmentNotes: typeof appointmentNotes;
   appointments: typeof appointments;
   auth: typeof auth;
+  "careFiles/bladderBowel": typeof careFiles_bladderBowel;
   "careFiles/infectionPrevention": typeof careFiles_infectionPrevention;
+  "careFiles/movingHandling": typeof careFiles_movingHandling;
   "careFiles/preadmission": typeof careFiles_preadmission;
   crons: typeof crons;
   diet: typeof diet;
@@ -58,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   personalCare: typeof personalCare;
   quickCareNotes: typeof quickCareNotes;
   residents: typeof residents;
+  "schemas/carefiles": typeof schemas_carefiles;
   teams: typeof teams;
   user: typeof user;
 }>;
