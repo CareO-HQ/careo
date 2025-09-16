@@ -428,59 +428,85 @@ export function ComprehensiveIncidentForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
+      <DialogContent className="max-w-7xl w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0 pb-4">
+          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
             Incident Report Form
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm sm:text-base">
             Complete incident report for {residentName} - Step {currentStep} of {maxSteps}
           </DialogDescription>
           
           {/* Progress indicator */}
-          <div className="flex justify-between items-center mt-4 px-2">
-            {steps.map((step, index) => (
-              <div key={step.number} className="flex items-center">
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                  currentStep >= step.number 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {step.number}
-                </div>
-                <div className="ml-2 hidden sm:block">
-                  <div className={`text-sm font-medium ${
-                    currentStep >= step.number ? 'text-primary' : 'text-gray-600'
-                  }`}>
-                    {step.title}
+          <div className="mt-4">
+            {/* Mobile Progress - Simple dots */}
+            <div className="flex justify-center items-center gap-2 sm:hidden">
+              {steps.map((step) => (
+                <div
+                  key={step.number}
+                  className={`w-3 h-3 rounded-full transition-colors ${
+                    currentStep >= step.number 
+                      ? 'bg-primary' 
+                      : 'bg-gray-300'
+                  }`}
+                />
+              ))}
+              <span className="ml-2 text-sm text-gray-600">
+                {currentStep}/{maxSteps}
+              </span>
+            </div>
+
+            {/* Desktop Progress - Full layout */}
+            <div className="hidden sm:flex justify-between items-center">
+              {steps.map((step, index) => (
+                <div key={step.number} className="flex items-center flex-1">
+                  <div className="flex items-center">
+                    <div className={`flex items-center justify-center w-8 h-8 lg:w-10 lg:h-10 rounded-full text-sm lg:text-base font-medium transition-colors ${
+                      currentStep >= step.number 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {step.number}
+                    </div>
+                    <div className="ml-3">
+                      <div className={`text-sm lg:text-base font-medium ${
+                        currentStep >= step.number ? 'text-primary' : 'text-gray-600'
+                      }`}>
+                        {step.title}
+                      </div>
+                      <div className="text-xs lg:text-sm text-gray-500">Sections {step.sections}</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500">Sections {step.sections}</div>
+                  {index < steps.length - 1 && (
+                    <div className="flex-1 mx-4">
+                      <div className={`h-0.5 ${
+                        currentStep > step.number ? 'bg-primary' : 'bg-gray-300'
+                      }`} />
+                    </div>
+                  )}
                 </div>
-                {index < steps.length - 1 && (
-                  <ChevronRight className="w-4 h-4 mx-2 text-gray-400" />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-1">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-1">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 pb-6">
               
               {/* Step 1: Incident & Person Details */}
               {currentStep === 1 && (
                 <div className="space-y-6">
                   {/* Section 1: Incident Details */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <CalendarIcon className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 1: Incident Details
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="date"
@@ -585,14 +611,14 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 2: Injured Person Details */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <User className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 2: Injured Person Details
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="injuredPersonFirstName"
@@ -742,16 +768,16 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 3: Status of Injured Person */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <UserCheck className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 3: Status of Injured Person
                       </CardTitle>
-                      <p className="text-sm text-muted-foreground">Select one or more that apply</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">Select one or more that apply</p>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                         {[
                           { field: "statusResident", label: "Resident in Care" },
                           { field: "statusRelative", label: "Relative" },
@@ -880,14 +906,14 @@ export function ComprehensiveIncidentForm({
 
                   {/* Section 5-6: Fall-Specific Questions */}
                   {hasFallType && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Activity className="w-5 h-5" />
+                    <Card className="shadow-sm">
+                      <CardHeader className="pb-4">
+                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                          <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
                           Section 5-6: Fall-Specific Questions
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <FormField
                           control={form.control}
                           name="anticoagulantMedication"
@@ -944,10 +970,10 @@ export function ComprehensiveIncidentForm({
                   )}
 
                   {/* Section 7: Detailed Description */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <FileText className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 7: Detailed Description of Incident/Event
                       </CardTitle>
                     </CardHeader>
@@ -981,10 +1007,10 @@ export function ComprehensiveIncidentForm({
               {currentStep === 3 && (
                 <div className="space-y-6">
                   {/* Section 8: Incident Level */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Shield className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 8: Incident Level
                       </CardTitle>
                     </CardHeader>
@@ -1020,14 +1046,14 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 9: Details of Injury */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Activity className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 9: Details of the Injury
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="injuryDescription"
@@ -1065,10 +1091,10 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 10: Treatment Required */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Activity className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 10: Treatment Required
                       </CardTitle>
                     </CardHeader>
@@ -1078,7 +1104,7 @@ export function ComprehensiveIncidentForm({
                         name="treatmentTypes"
                         render={() => (
                           <FormItem>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                               {treatmentOptions.map((item) => (
                                 <FormField
                                   key={item.value}
@@ -1121,14 +1147,14 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 11: Details of Treatment Given */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Activity className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 11: Details of Treatment Given
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-3 sm:space-y-4">
                       <FormField
                         control={form.control}
                         name="treatmentDetails"
@@ -1191,15 +1217,15 @@ export function ComprehensiveIncidentForm({
               {currentStep === 4 && (
                 <div className="space-y-6">
                   {/* Section 12: Witnesses */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <User className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 12: Witnesses
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="space-y-3 sm:space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <h4 className="font-medium mb-3">Witness 1</h4>
                           <div className="space-y-3">
@@ -1271,10 +1297,10 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 13: Further Actions by Nurse */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <UserCheck className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 13: Further Actions Completed by Nurse
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">Tick all that apply</p>
@@ -1285,7 +1311,7 @@ export function ComprehensiveIncidentForm({
                         name="nurseActions"
                         render={() => (
                           <FormItem>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                               {nurseActionOptions.map((item) => (
                                 <FormField
                                   key={item.value}
@@ -1328,10 +1354,10 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 14: Further Actions Advised */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <FileText className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 14: Advise Further Action(s) to be Taken
                       </CardTitle>
                     </CardHeader>
@@ -1357,10 +1383,10 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 15: Prevention Measures */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Shield className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 15: Actions Taken to Prevent Re-occurrence
                       </CardTitle>
                     </CardHeader>
@@ -1391,14 +1417,14 @@ export function ComprehensiveIncidentForm({
               {currentStep === 5 && (
                 <div className="space-y-6">
                   {/* Section 16: Home Manager Informed */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Phone className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 16: Home Manager Informed
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="homeManagerInformedBy"
@@ -1430,14 +1456,14 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 17: Out of Hours On-Call */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Phone className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 17: Out of Hours On-Call Contacted
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="onCallManagerName"
@@ -1469,14 +1495,14 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 18: Next of Kin Informed */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <User className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 18: NOK (Next of Kin) Informed
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="nokInformedWho"
@@ -1522,17 +1548,17 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 19: Trust Incident Form Recipients */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Mail className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 19: Trust Incident Form to be Emailed To
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-3 sm:space-y-4">
                       <div>
                         <h4 className="font-medium mb-3">Care Manager</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <FormField
                             control={form.control}
                             name="careManagerName"
@@ -1569,7 +1595,7 @@ export function ComprehensiveIncidentForm({
 
                       <div>
                         <h4 className="font-medium mb-3">Key Worker</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <FormField
                             control={form.control}
                             name="keyWorkerName"
@@ -1607,14 +1633,14 @@ export function ComprehensiveIncidentForm({
                   </Card>
 
                   {/* Section 20: Form Completion Details */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Signature className="w-5 h-5" />
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Signature className="w-4 h-4 sm:w-5 sm:h-5" />
                         Section 20: Details of Person Completing This Form
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="completedByFullName"
@@ -1704,35 +1730,62 @@ export function ComprehensiveIncidentForm({
               )}
 
               {/* Navigation buttons */}
-              <DialogFooter className="flex justify-between">
+              <DialogFooter className="flex-shrink-0 flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t bg-gray-50/50 -mx-1 px-4 sm:px-6">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={prevStep}
                   disabled={currentStep === 1}
-                  className="flex items-center gap-2"
+                  className="flex items-center justify-center gap-2 w-full sm:w-auto order-2 sm:order-1"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  Previous
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Back</span>
                 </Button>
+
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-600 order-1 sm:order-2">
+                  <span>Step {currentStep} of {maxSteps}</span>
+                  <div className="flex gap-1">
+                    {Array.from({ length: maxSteps }).map((_, index) => (
+                      <div
+                        key={index}
+                        className={`w-2 h-2 rounded-full ${
+                          index + 1 <= currentStep ? 'bg-primary' : 'bg-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
 
                 {currentStep < maxSteps ? (
                   <Button
                     type="button"
                     onClick={nextStep}
-                    className="flex items-center gap-2"
+                    className="flex items-center justify-center gap-2 w-full sm:w-auto order-3"
                   >
-                    Next
+                    <span className="hidden sm:inline">Next</span>
+                    <span className="sm:hidden">Continue</span>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 ) : (
                   <Button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex items-center gap-2"
+                    className="flex items-center justify-center gap-2 w-full sm:w-auto order-3 bg-green-600 hover:bg-green-700"
                   >
-                    {isSubmitting ? "Submitting..." : "Submit Report"}
-                    <FileText className="w-4 h-4" />
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span className="hidden sm:inline">Submitting...</span>
+                        <span className="sm:hidden">Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Submit Report</span>
+                        <span className="sm:hidden">Submit</span>
+                        <FileText className="w-4 h-4" />
+                      </>
+                    )}
                   </Button>
                 )}
               </DialogFooter>
