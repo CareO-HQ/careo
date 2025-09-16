@@ -26,6 +26,7 @@ import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
 import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
+import UploadFileModal from "./UploadFileModal";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -590,9 +591,7 @@ export default function CareFileFolder({
                 <p className="text-muted-foreground text-sm font-medium">
                   Files
                 </p>
-                <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
-                  Upload file
-                </p>
+                <UploadFileModal />
               </div>
               {getAllPdfFiles.length > 0 ? (
                 <div className="space-y-2">
