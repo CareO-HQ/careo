@@ -17,7 +17,13 @@ import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery } from "convex/react";
-import { DownloadIcon, FolderIcon, FileIcon } from "lucide-react";
+import {
+  DownloadIcon,
+  FolderIcon,
+  FileIcon,
+  Edit2,
+  Trash2
+} from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
@@ -55,6 +61,8 @@ export default function CareFileFolder({
     formId: string;
     formDisplayName: string;
   } | null>(null);
+  const [editingPdfId, setEditingPdfId] = useState<string | null>(null);
+  const [editingPdfName, setEditingPdfName] = useState("");
   const { activeTeamId } = useActiveTeam();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
@@ -85,6 +93,12 @@ export default function CareFileFolder({
           formKeys: folderFormKeys
         }
       : "skip"
+  );
+
+  // Query custom uploaded PDFs for this folder
+  const customPdfs = useQuery(
+    api.careFilePdfs.getPdfsByResidentAndFolder,
+    residentId ? { residentId, folderName } : "skip"
   );
 
   // Query all form submissions for forms in this folder to show all PDFs
@@ -288,6 +302,134 @@ export default function CareFileFolder({
 
   // Mutation to create audit records
   const createAudit = useMutation(api.managerAudits.createAudit);
+
+  // Mutations for PDF management
+  const renamePdf = useMutation(api.careFilePdfs.renamePdf);
+  const deletePdf = useMutation(api.careFilePdfs.deletePdf);
+
+  // Handler for renaming PDFs
+  const handleRenamePdf = async (pdfId: string, newName: string) => {
+    if (!newName.trim()) {
+      toast.error("Please enter a valid name");
+      return;
+    }
+
+    try {
+      await renamePdf({ pdfId: pdfId as any, newName: newName.trim() });
+      toast.success("PDF renamed successfully");
+      setEditingPdfId(null);
+      setEditingPdfName("");
+    } catch (error) {
+      console.error("Error renaming PDF:", error);
+      toast.error("Failed to rename PDF");
+    }
+  };
+
+  // Handler for deleting PDFs
+  const handleDeletePdf = async (pdfId: string) => {
+    if (!confirm("Are you sure you want to delete this PDF?")) {
+      return;
+    }
+
+    try {
+      await deletePdf({ pdfId: pdfId as any });
+      toast.success("PDF deleted successfully");
+    } catch (error) {
+      console.error("Error deleting PDF:", error);
+      toast.error("Failed to delete PDF");
+    }
+  };
+
+  // Component for custom uploaded PDFs
+  const CustomPdfItem = ({ pdf }: { pdf: any }) => {
+    const pdfUrl = useQuery(api.careFilePdfs.getPdfUrl, { pdfId: pdf._id });
+
+    const isEditing = editingPdfId === pdf._id;
+
+    if (!pdfUrl) return null;
+
+    return (
+      <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+        <div className="flex-1 flex items-center gap-2">
+          <div className="bg-red-50 rounded-md">
+            <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editingPdfName}
+                  onChange={(e) => setEditingPdfName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleRenamePdf(pdf._id, editingPdfName);
+                    } else if (e.key === "Escape") {
+                      setEditingPdfId(null);
+                      setEditingPdfName("");
+                    }
+                  }}
+                  onBlur={() => {
+                    setEditingPdfId(null);
+                    setEditingPdfName("");
+                  }}
+                  className="text-sm font-medium text-primary bg-transparent border-b border-primary focus:outline-none"
+                  autoFocus
+                />
+              ) : (
+                <p className="text-sm font-medium text-primary">
+                  {pdf.name}.pdf
+                </p>
+              )}
+            </div>
+            <div className="flex flex-row items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Uploaded:{" "}
+                {new Date(pdf.uploadedAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </p>
+              {pdf.size && (
+                <p className="text-xs text-muted-foreground">
+                  {(pdf.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Edit2
+            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+            onClick={() => {
+              setEditingPdfId(pdf._id);
+              setEditingPdfName(pdf.name);
+            }}
+          />
+          <Trash2
+            className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
+            onClick={() => handleDeletePdf(pdf._id)}
+          />
+          <DownloadIcon
+            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+            onClick={async () => {
+              try {
+                await downloadFromUrl(pdfUrl, `${pdf.name}.pdf`);
+                toast.success("PDF downloaded successfully");
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                toast.error("Failed to download PDF");
+              }
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
 
   // Query to get form data for editing
   const formDataForEdit = useQuery(
@@ -591,23 +733,45 @@ export default function CareFileFolder({
                 <p className="text-muted-foreground text-sm font-medium">
                   Files
                 </p>
-                <UploadFileModal />
+                <UploadFileModal
+                  folderName={folderName}
+                  residentId={residentId}
+                />
               </div>
-              {getAllPdfFiles.length > 0 ? (
-                <div className="space-y-2">
-                  {getAllPdfFiles.map((file) => (
-                    <PdfFileItem
-                      key={`${file.formKey}-${file.formId}`}
-                      file={file}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                  No PDF files generated yet. Complete and submit forms to
-                  generate PDFs.
-                </div>
-              )}
+              <div className="space-y-2">
+                {/* Generated PDFs from forms */}
+                {getAllPdfFiles.length > 0 && (
+                  <>
+                    {getAllPdfFiles.map((file) => (
+                      <PdfFileItem
+                        key={`${file.formKey}-${file.formId}`}
+                        file={file}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Custom uploaded PDFs */}
+                {customPdfs && customPdfs.length > 0 && (
+                  <>
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Custom uploaded files:
+                    </p>
+                    {customPdfs.map((pdf) => (
+                      <CustomPdfItem key={pdf._id} pdf={pdf} />
+                    ))}
+                  </>
+                )}
+
+                {/* Show message if no files at all */}
+                {!getAllPdfFiles.length &&
+                  (!customPdfs || !customPdfs.length) && (
+                    <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                      No PDF files available. Complete and submit forms to
+                      generate PDFs, or upload custom files.
+                    </div>
+                  )}
+              </div>
               <p className="text-muted-foreground text-sm font-medium mt-10">
                 Manager audit
               </p>

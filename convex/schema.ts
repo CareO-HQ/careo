@@ -1267,5 +1267,27 @@ export default defineSchema({
     .index("by_audited_by", ["auditedBy"])
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"])
-    .index("by_form_and_resident", ["formType", "residentId"])
+    .index("by_form_and_resident", ["formType", "residentId"]),
+
+  // Care file PDFs - for custom uploaded PDFs in specific folders
+  careFilePdfs: defineTable({
+    name: v.string(), // Custom name given by user (can be renamed)
+    originalName: v.string(), // Original filename
+    fileId: v.id("_storage"), // Reference to Convex storage
+    folderName: v.string(), // Which care file folder this belongs to
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    teamId: v.string(),
+    uploadedBy: v.string(), // User ID who uploaded the file
+    uploadedAt: v.number(), // Upload timestamp
+    size: v.optional(v.number()), // File size in bytes
+    isActive: v.optional(v.boolean()) // For soft deletion
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_folder", ["folderName"])
+    .index("by_resident_and_folder", ["residentId", "folderName"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_uploaded_by", ["uploadedBy"])
+    .index("by_active", ["isActive"])
 });

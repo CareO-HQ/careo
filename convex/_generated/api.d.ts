@@ -11,6 +11,7 @@
 import type * as appointmentNotes from "../appointmentNotes.js";
 import type * as appointments from "../appointments.js";
 import type * as auth from "../auth.js";
+import type * as careFilePdfs from "../careFilePdfs.js";
 import type * as careFiles_bladderBowel from "../careFiles/bladderBowel.js";
 import type * as careFiles_infectionPrevention from "../careFiles/infectionPrevention.js";
 import type * as careFiles_movingHandling from "../careFiles/movingHandling.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   appointmentNotes: typeof appointmentNotes;
   appointments: typeof appointments;
   auth: typeof auth;
+  careFilePdfs: typeof careFilePdfs;
   "careFiles/bladderBowel": typeof careFiles_bladderBowel;
   "careFiles/infectionPrevention": typeof careFiles_infectionPrevention;
   "careFiles/movingHandling": typeof careFiles_movingHandling;
