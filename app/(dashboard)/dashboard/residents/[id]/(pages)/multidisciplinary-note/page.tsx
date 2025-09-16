@@ -852,7 +852,7 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
                   name="subjectiveObservations"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Subjective (S) - Patient's reported experience</FormLabel>
+                      <FormLabel>{`Subjective (S) - Patient's reported experience`}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="What the resident reports, family observations, complaints, concerns..."
