@@ -30,6 +30,7 @@ import type * as residents from "../residents.js";
 import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as teams from "../teams.js";
 import type * as user from "../user.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/carefiles": typeof schemas_carefiles;
   teams: typeof teams;
   user: typeof user;
+  users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

@@ -171,6 +171,9 @@ export function ComprehensiveIncidentForm({
   const resident = useQuery(api.residents.getById, {
     residentId: residentId as Id<"residents">
   });
+  
+  // Fetch current user context for organization and team
+  const userContext = useQuery(api.users.getCurrentUserContext);
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
     resolver: zodResolver(ComprehensiveIncidentSchema),
@@ -224,13 +227,22 @@ export function ComprehensiveIncidentForm({
     },
   });
 
-  // Update form with resident data when available
+  // Update form with resident and organization data when available
   React.useEffect(() => {
-    if (resident) {
-      // Pre-populate Section 1: Incident Details
-      form.setValue("homeName", resident.homeName || "");
-      form.setValue("unit", resident.unit || resident.roomNumber || "");
+    // Pre-populate Section 1: Incident Details with organization/team
+    if (userContext) {
+      // Home Name = Organization Name
+      if (userContext.organization) {
+        form.setValue("homeName", userContext.organization.name || userContext.organization.id || "");
+      }
       
+      // Unit = Current Team Name
+      if (userContext.team) {
+        form.setValue("unit", userContext.team.name || userContext.team.id || "");
+      }
+    }
+    
+    if (resident) {
       // Pre-populate Section 2: Injured Person Details
       form.setValue("injuredPersonFirstName", resident.firstName || "");
       form.setValue("injuredPersonSurname", resident.lastName || "");
@@ -262,7 +274,7 @@ export function ComprehensiveIncidentForm({
         form.setValue("keyWorkerEmail", resident.keyWorker.email || "");
       }
     }
-  }, [resident, form]);
+  }, [resident, userContext, form]);
 
   const watchedIncidentTypes = form.watch("incidentTypes");
   const watchedIncidentLevel = form.watch("incidentLevel");
@@ -557,12 +569,12 @@ export function ComprehensiveIncidentForm({
                         name="homeName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Home Name *</FormLabel>
+                            <FormLabel required>Home Name (Organization)</FormLabel>
                             <FormControl>
                               <div className="relative">
                                 <Home className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                  placeholder="Name of care home/facility"
+                                  placeholder="Organization name"
                                   {...field}
                                   className="pl-10"
                                 />
@@ -578,10 +590,10 @@ export function ComprehensiveIncidentForm({
                         name="unit"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Unit *</FormLabel>
+                            <FormLabel required>Unit (Team)</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="Specific unit/wing/house"
+                                placeholder="Current team/unit"
                                 {...field}
                               />
                             </FormControl>
