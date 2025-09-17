@@ -23,7 +23,7 @@ export const getCurrentUserContext = query({
     let organization = null;
     
     if (user.activeTeamId) {
-      // Get team details
+      // Get team membership details
       const teamMembership = await ctx.db
         .query("teamMemberships")
         .withIndex("byUserAndTeam", (q) => 
@@ -32,16 +32,20 @@ export const getCurrentUserContext = query({
         .first();
       
       if (teamMembership) {
-        // Get team name from teams table or from membership
         team = {
           id: teamMembership.teamId,
-          name: user.activeTeamId, // Will be the actual team name
-          organizationId: teamMembership.organizationId
+          name: user.activeTeamId // Use the team ID as name for now
         };
         
         organization = {
           id: teamMembership.organizationId,
-          name: teamMembership.organizationId // For now, using ID as name
+          name: teamMembership.organizationId // Use organization ID as name for now
+        };
+      } else {
+        // Fallback if no membership found
+        team = {
+          id: user.activeTeamId,
+          name: user.activeTeamId
         };
       }
     }

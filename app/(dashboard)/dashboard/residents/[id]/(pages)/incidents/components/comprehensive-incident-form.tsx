@@ -232,13 +232,13 @@ export function ComprehensiveIncidentForm({
     // Pre-populate Section 1: Incident Details with organization/team
     if (userContext) {
       // Home Name = Organization Name
-      if (userContext.organization) {
-        form.setValue("homeName", userContext.organization.name || userContext.organization.id || "");
+      if (userContext.organization && userContext.organization.name) {
+        form.setValue("homeName", userContext.organization.name);
       }
       
       // Unit = Current Team Name
-      if (userContext.team) {
-        form.setValue("unit", userContext.team.name || userContext.team.id || "");
+      if (userContext.team && userContext.team.name) {
+        form.setValue("unit", userContext.team.name);
       }
     }
     
@@ -277,7 +277,6 @@ export function ComprehensiveIncidentForm({
   }, [resident, userContext, form]);
 
   const watchedIncidentTypes = form.watch("incidentTypes");
-  const watchedIncidentLevel = form.watch("incidentLevel");
   const hasFallType = watchedIncidentTypes?.some(type => 
     type === "FallWitnessed" || type === "FallUnwitnessed"
   );
