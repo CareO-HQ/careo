@@ -715,7 +715,7 @@ export default function LongTermFallRiskDialog({
                       <FormItem>
                         <FormLabel required>Completed By</FormLabel>
                         <FormControl>
-                          <Input  placeholder="Completed By" {...field} />
+                          <Input placeholder="Completed By" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

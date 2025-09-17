@@ -132,6 +132,16 @@ export default function CareFileFolder({
       : "skip"
   );
 
+  const allLongTermFallsForms = useQuery(
+    api.careFiles.longTermFalls.getLatestAssessmentByResident,
+    folderFormKeys.includes("long-term-fall-risk-form") && residentId
+      ? {
+          residentId: residentId as Id<"residents">,
+          organizationId: activeOrg?.id ?? ""
+        }
+      : "skip"
+  );
+
   // Helper function to get all PDFs from all form submissions
   const getAllPdfFiles = useMemo(() => {
     const pdfFiles: Array<{
@@ -207,13 +217,25 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Long Term Falls forms
+    if (allLongTermFallsForms) {
+      pdfFiles.push({
+        formKey: "long-term-fall-risk-form",
+        formId: allLongTermFallsForms._id,
+        name: "Long Term Falls Risk Assessment",
+        completedAt: allLongTermFallsForms._creationTime,
+        isLatest: true // Since we only get the latest one
+      });
+    }
+
     // Sort all PDFs by completion date (newest first)
     return pdfFiles.sort((a, b) => b.completedAt - a.completedAt);
   }, [
     allPreAdmissionForms,
     allInfectionPreventionForms,
     allBladderBowelForms,
-    allMovingHandlingForms
+    allMovingHandlingForms,
+    allLongTermFallsForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -237,7 +259,9 @@ export default function CareFileFolder({
             ? api.careFiles.bladderBowel.getPDFUrl
             : file.formKey === "moving-handling-form"
               ? api.careFiles.movingHandling.getPDFUrl
-              : ("skip" as any),
+              : file.formKey === "long-term-fall-risk-form"
+                ? api.careFiles.longTermFalls.getPDFUrl
+                : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -248,7 +272,12 @@ export default function CareFileFolder({
             ? { assessmentId: file.formId as Id<"bladderBowelAssessments"> }
             : file.formKey === "moving-handling-form"
               ? { assessmentId: file.formId as Id<"movingHandlingAssessments"> }
-              : "skip"
+              : file.formKey === "long-term-fall-risk-form"
+                ? {
+                    assessmentId:
+                      file.formId as Id<"longTermFallsRiskAssessments">
+                  }
+                : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -479,6 +508,8 @@ export default function CareFileFolder({
               return `bladder-bowel-assessment-${baseName}.pdf`;
             case "moving-handling-form":
               return `moving-handling-assessment-${baseName}.pdf`;
+            case "long-term-fall-risk-form":
+              return `long-term-falls-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -528,7 +559,8 @@ export default function CareFileFolder({
       infectionPreventionAssessment: "infection-prevention",
       bladderBowelAssessment: "blader-bowel-form",
       preAdmissionCareFile: "preAdmission-form",
-      carePlanAssessment: "care-plan-form"
+      carePlanAssessment: "care-plan-form",
+      longTermFallsRiskAssessment: "long-term-fall-risk-form"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -564,7 +596,8 @@ export default function CareFileFolder({
       preAdmissionCareFile: "Pre-Admission Care File",
       infectionPreventionAssessment: "Infection Prevention Assessment",
       bladderBowelAssessment: "Bladder & Bowel Assessment",
-      movingHandlingAssessment: "Moving & Handling Assessment"
+      movingHandlingAssessment: "Moving & Handling Assessment",
+      longTermFallsRiskAssessment: "Long Term Falls Risk Assessment"
     };
     return mapping[formType] || formType;
   };

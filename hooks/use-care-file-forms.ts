@@ -39,6 +39,16 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const longTermFallsAssessment = useQuery(
+    api.careFiles.longTermFalls.getLatestAssessmentByResident,
+    activeOrg?.id
+      ? {
+          residentId,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -53,6 +63,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   const latestMovingHandlingAssessment = movingHandlingAssessments?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
+  const latestLongTermFallsAssessment = longTermFallsAssessment;
 
   const preAdmissionPdfUrl = useQuery(
     api.careFiles.preadmission.getPDFUrl,
@@ -80,6 +91,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const longTermFallsPdfUrl = useQuery(
+    api.careFiles.longTermFalls.getPDFUrl,
+    latestLongTermFallsAssessment
+      ? { assessmentId: latestLongTermFallsAssessment._id }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -90,12 +108,15 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ids.push(latestBladderBowelAssessment._id);
     if (latestMovingHandlingAssessment)
       ids.push(latestMovingHandlingAssessment._id);
+    if (latestLongTermFallsAssessment)
+      ids.push(latestLongTermFallsAssessment._id);
     return ids;
   }, [
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
-    latestMovingHandlingAssessment
+    latestMovingHandlingAssessment,
+    latestLongTermFallsAssessment
   ]);
 
   const auditStatus = useQuery(
@@ -119,6 +140,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   );
   console.log("  bladderBowelAssessments:", bladderBowelAssessments);
   console.log("  movingHandlingAssessments:", movingHandlingAssessments);
+  console.log("  longTermFallsAssessment:", longTermFallsAssessment);
   console.log("formIds:", formIds);
   console.log("auditStatus:", auditStatus);
   console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
@@ -133,6 +155,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log(
     "latestMovingHandlingAssessment ID:",
     latestMovingHandlingAssessment?._id
+  );
+  console.log(
+    "latestLongTermFallsAssessment ID:",
+    latestLongTermFallsAssessment?._id
   );
 
   // Helper function to determine form status
@@ -279,6 +305,38 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: movingHandlingAudit?.auditedBy
     };
 
+    // Long Term Falls Risk Assessment
+    const hasLongTermFallsData = !!latestLongTermFallsAssessment;
+    const longTermFallsHasPdfFileId =
+      !!latestLongTermFallsAssessment?.pdfFileId;
+    const longTermFallsAudit = latestLongTermFallsAssessment
+      ? auditStatus?.[latestLongTermFallsAssessment._id as string]
+      : undefined;
+
+    console.log("Long Term Falls audit lookup:");
+    console.log("  Form ID:", latestLongTermFallsAssessment?._id);
+    console.log("  Audit found:", longTermFallsAudit);
+    console.log("  Is audited:", longTermFallsAudit?.isAudited);
+
+    state["long-term-fall-risk-form"] = {
+      status: getFormStatus(
+        hasLongTermFallsData,
+        latestLongTermFallsAssessment?.savedAsDraft,
+        longTermFallsHasPdfFileId,
+        longTermFallsPdfUrl
+      ),
+      hasData: hasLongTermFallsData,
+      hasPdfFileId: longTermFallsHasPdfFileId,
+      pdfUrl: longTermFallsPdfUrl,
+      lastUpdated: latestLongTermFallsAssessment?._creationTime,
+      completedAt: !latestLongTermFallsAssessment?.savedAsDraft
+        ? latestLongTermFallsAssessment?.createdAt
+        : undefined,
+      isAudited: longTermFallsAudit?.isAudited || false,
+      auditedAt: longTermFallsAudit?.auditedAt,
+      auditedBy: longTermFallsAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["admission-form"] = { ... };
     // state["discharge-form"] = { ... };
@@ -289,10 +347,12 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
+    latestLongTermFallsAssessment,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
     movingHandlingPdfUrl,
+    longTermFallsPdfUrl,
     auditStatus
   ]);
 
@@ -355,9 +415,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     infectionPreventionAssessments,
     bladderBowelAssessments,
     movingHandlingAssessments,
+    longTermFallsAssessment,
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
-    latestMovingHandlingAssessment
+    latestMovingHandlingAssessment,
+    latestLongTermFallsAssessment
   };
 }

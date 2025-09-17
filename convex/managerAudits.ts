@@ -303,6 +303,10 @@ export const getUnauditedForms = query({
         "moving-handling-form": {
           formType: "movingHandlingAssessment",
           table: "movingHandlingAssessments"
+        },
+        "long-term-fall-risk-form": {
+          formType: "longTermFallsRiskAssessment",
+          table: "longTermFallsRiskAssessments"
         }
       };
 
@@ -384,6 +388,24 @@ export const getUnauditedForms = query({
             completedForms =
               allMovingHandlingForms.length > 0
                 ? [allMovingHandlingForms[0]]
+                : [];
+            break;
+          case "longTermFallsRiskAssessments":
+            const allLongTermFallsForms = await ctx.db
+              .query("longTermFallsRiskAssessments")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms =
+              allLongTermFallsForms.length > 0
+                ? [allLongTermFallsForms[0]]
                 : [];
             break;
         }
@@ -497,6 +519,8 @@ export const getFormDataForReview = query({
         case "preAdmissionCareFile":
           return await ctx.db.get(args.formId as any);
         case "carePlanAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "longTermFallsRiskAssessment":
           return await ctx.db.get(args.formId as any);
         default:
           return null;

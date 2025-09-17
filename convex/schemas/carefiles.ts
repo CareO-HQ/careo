@@ -152,5 +152,9 @@ export const longTermFallsRiskAssessments = defineTable({
   safetyAwarness: v.boolean(),
   mentalState: v.union(v.literal("CONFUSED"), v.literal("ORIENTATED")),
   completedBy: v.string(),
-  completionDate: v.string()
+  completionDate: v.string(),
+
+  // Metadata
+  savedAsDraft: v.optional(v.boolean()),
+  createdBy: v.string()
 });
