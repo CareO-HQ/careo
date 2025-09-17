@@ -24,8 +24,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-  DialogFooter
+  DialogTitle
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -47,8 +46,6 @@ import {
   Clock, 
   User, 
   AlertCircle,
-  ChevronRight,
-  ChevronLeft,
   Home,
   UserCheck,
   FileText,
@@ -166,6 +163,7 @@ export function ComprehensiveIncidentForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
   const [doiPopoverOpen, setDoiPopoverOpen] = React.useState(false);
+  const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = React.useState(false);
   const createIncident = useMutation(api.incidents.create);
   
   // Fetch resident data to pre-populate form
@@ -344,14 +342,32 @@ export function ComprehensiveIncidentForm({
   ];
 
   const steps = [
-    { number: 1, title: "Incident & Person Details", sections: "1-3" },
-    { number: 2, title: "Incident Type & Description", sections: "4-7" },
-    { number: 3, title: "Injury & Treatment", sections: "8-11" },
-    { number: 4, title: "Witnesses & Actions", sections: "12-15" },
-    { number: 5, title: "Notifications & Completion", sections: "16-20" }
+    { number: 1, title: "Incident Details", sections: "1" },
+    { number: 2, title: "Injured Person Details", sections: "2" },
+    { number: 3, title: "Person Status", sections: "3" },
+    { number: 4, title: "Incident Type", sections: "4" },
+    { number: 5, title: "Fall-Specific Questions", sections: "5-6" },
+    { number: 6, title: "Incident Description", sections: "7" },
+    { number: 7, title: "Incident Level & Injury", sections: "8-9" },
+    { number: 8, title: "Treatment Required", sections: "10" },
+    { number: 9, title: "Treatment Details", sections: "11" },
+    { number: 10, title: "Witnesses", sections: "12" },
+    { number: 11, title: "Nurse Actions", sections: "13" },
+    { number: 12, title: "Prevention & Advice", sections: "14-15" },
+    { number: 13, title: "Notifications", sections: "16-18" },
+    { number: 14, title: "Recipients & Completion", sections: "19-20" }
   ];
 
-  const maxSteps = steps.length;
+  // Calculate max steps dynamically based on whether fall questions are needed
+  const getCurrentMaxSteps = () => {
+    const incidentTypes = form.watch("incidentTypes") || [];
+    const hasFallType = incidentTypes.some(type => 
+      type === "FallWitnessed" || type === "FallUnwitnessed"
+    );
+    return hasFallType ? steps.length : steps.length - 1; // Subtract 1 if no fall questions
+  };
+  
+  const maxSteps = getCurrentMaxSteps();
 
   async function onSubmit(values: z.infer<typeof ComprehensiveIncidentSchema>) {
     try {
@@ -449,27 +465,73 @@ export function ComprehensiveIncidentForm({
     const isValid = await form.trigger(fieldsToValidate);
     
     if (isValid && currentStep < maxSteps) {
-      setCurrentStep(currentStep + 1);
+      let nextStepNumber = currentStep + 1;
+      
+      // Skip Step 5 (Fall-Specific Questions) if no fall incident type is selected
+      if (currentStep === 4 && nextStepNumber === 5) {
+        const incidentTypes = form.getValues("incidentTypes") || [];
+        const hasFallType = incidentTypes.some(type => 
+          type === "FallWitnessed" || type === "FallUnwitnessed"
+        );
+        
+        if (!hasFallType) {
+          nextStepNumber = 6; // Skip to Step 6 (Incident Description)
+        }
+      }
+      
+      setCurrentStep(nextStepNumber);
     }
   };
 
   const prevStep = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      let prevStepNumber = currentStep - 1;
+      
+      // Skip Step 5 (Fall-Specific Questions) when going back if no fall incident type is selected
+      if (currentStep === 6 && prevStepNumber === 5) {
+        const incidentTypes = form.getValues("incidentTypes") || [];
+        const hasFallType = incidentTypes.some(type => 
+          type === "FallWitnessed" || type === "FallUnwitnessed"
+        );
+        
+        if (!hasFallType) {
+          prevStepNumber = 4; // Go back to Step 4 (Incident Type)
+        }
+      }
+      
+      setCurrentStep(prevStepNumber);
     }
   };
 
   function getFieldsForStep(step: number): (keyof z.infer<typeof ComprehensiveIncidentSchema>)[] {
     switch (step) {
       case 1:
-        return ["date", "time", "homeName", "unit", "injuredPersonFirstName", "injuredPersonSurname", "injuredPersonDOB"];
+        return ["date", "time", "homeName", "unit"];
       case 2:
-        return ["incidentTypes", "detailedDescription"];
+        return ["injuredPersonFirstName", "injuredPersonSurname", "injuredPersonDOB"];
       case 3:
-        return ["incidentLevel"];
+        return ["injuredPersonStatus"];
       case 4:
-        return [];
+        return ["incidentTypes"];
       case 5:
+        return [];
+      case 6:
+        return ["detailedDescription"];
+      case 7:
+        return ["incidentLevel"];
+      case 8:
+        return ["treatmentTypes"];
+      case 9:
+        return [];
+      case 10:
+        return [];
+      case 11:
+        return [];
+      case 12:
+        return [];
+      case 13:
+        return [];
+      case 14:
         return ["completedByFullName", "completedByJobTitle", "dateCompleted"];
       default:
         return [];
@@ -478,42 +540,37 @@ export function ComprehensiveIncidentForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-9xl w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0 pb-4">
-          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-            <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
+      <DialogContent className="max-w-4xl">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <FileText className="w-6 h-6" />
             Incident Report Form
           </DialogTitle>
-          <DialogDescription className="text-sm sm:text-base">
+          <DialogDescription>
             Complete incident report for {residentName} - Step {currentStep} of {maxSteps}
           </DialogDescription>
           {resident === undefined && (
             <div className="text-sm text-muted-foreground">Loading resident information...</div>
           )}
-     
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-1">
+        <div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 pb-6">
               
-              {/* Step 1: Incident & Person Details */}
+              {/* Step 1: Incident Details */}
               {currentStep === 1 && (
-                <div className="space-y-6">
-                  {/* Section 1: Incident Details */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 1: Incident Details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5" />
+                    Section 1: Incident Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="date"
                         render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="flex flex-col">
                             <FormLabel required>Date of Incident</FormLabel>
                             <Popover modal open={doiPopoverOpen} onOpenChange={setDoiPopoverOpen}>
                               <PopoverTrigger asChild>
@@ -613,18 +670,18 @@ export function ComprehensiveIncidentForm({
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
+                </div>
+              )}
 
-                  {/* Section 2: Injured Person Details */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 2: Injured Person Details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {/* Step 2: Injured Person Details */}
+              {currentStep === 2 && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Section 2: Injured Person Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="injuredPersonFirstName"
@@ -719,9 +776,9 @@ export function ComprehensiveIncidentForm({
                         control={form.control}
                         name="dateOfAdmission"
                         render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="flex flex-col">
                             <FormLabel>Date of Admission</FormLabel>
-                            <Popover>
+                            <Popover modal open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen}>
                               <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
@@ -744,11 +801,15 @@ export function ComprehensiveIncidentForm({
                                 <Calendar
                                   mode="single"
                                   selected={field.value}
-                                  onSelect={field.onChange}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(date);
+                                      setAdmissionDatePopoverOpen(false);
+                                    }
+                                  }}
                                   disabled={(date) =>
                                     date > new Date() || date < new Date("1900-01-01")
                                   }
-                               
                                 />
                               </PopoverContent>
                             </Popover>
@@ -773,19 +834,19 @@ export function ComprehensiveIncidentForm({
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
+                </div>
+              )}
 
-                  {/* Section 3: Status of Injured Person */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 3: Status of Injured Person
-                      </CardTitle>
-                      <p className="text-xs sm:text-sm text-muted-foreground">Select one or more that apply</p>
-                    </CardHeader>
-                    <CardContent>
+              {/* Step 3: Status of Injured Person */}
+              {currentStep === 3 && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                      <UserCheck className="w-5 h-5" />
+                      Section 3: Status of Injured Person
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">Select one or more that apply</p>
+                    <div>
                       <FormField
                         control={form.control}
                         name="injuredPersonStatus"
@@ -854,13 +915,12 @@ export function ComprehensiveIncidentForm({
                           )}
                         />
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
                 </div>
               )}
 
-              {/* Step 2: Incident Type & Description */}
-              {currentStep === 2 && (
+              {/* Step 4: Incident Type */}
+              {currentStep === 4 && (
                 <div className="space-y-6">
                   {/* Section 4: Type of Incident */}
                   <Card>
@@ -936,80 +996,80 @@ export function ComprehensiveIncidentForm({
                     </CardContent>
                   </Card>
 
-                  {/* Section 5-6: Fall-Specific Questions */}
-                  {hasFallType && (
-                    <Card className="shadow-sm">
-                      <CardHeader className="pb-4">
-                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                          <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
-                          Section 5-6: Fall-Specific Questions
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <FormField
-                          control={form.control}
-                          name="anticoagulantMedication"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Anticoagulant Medication</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select option" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="yes">Yes</SelectItem>
-                                  <SelectItem value="no">No</SelectItem>
-                                  <SelectItem value="unknown">Unknown</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                Is the person on blood thinners?
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                </div>
+              )}
 
-                        <FormField
-                          control={form.control}
-                          name="fallPathway"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Pathway Followed</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select pathway" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="green">Green</SelectItem>
-                                  <SelectItem value="amber">Amber</SelectItem>
-                                  <SelectItem value="red">Red</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                According to internal fall-management policy
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
+              {/* Step 5: Fall-Specific Questions (conditional) */}
+              {currentStep === 5 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Section 5-6: Fall-Specific Questions
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="anticoagulantMedication"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Anticoagulant Medication</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select option" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">No</SelectItem>
+                              <SelectItem value="unknown">Unknown</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Is the person on blood thinners?
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  {/* Section 7: Detailed Description */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 7: Detailed Description of Incident/Event
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                    <FormField
+                      control={form.control}
+                      name="fallPathway"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Pathway Followed</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select pathway" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="green">Green</SelectItem>
+                              <SelectItem value="amber">Amber</SelectItem>
+                              <SelectItem value="red">Red</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            According to internal fall-management policy
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 6: Incident Description */}
+              {currentStep === 6 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Section 7: Detailed Description of Incident/Event
+                  </h3>
+                  <div>
                       <FormField
                         control={form.control}
                         name="detailedDescription"
@@ -1030,13 +1090,12 @@ export function ComprehensiveIncidentForm({
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
                 </div>
               )}
 
-              {/* Step 3: Injury & Treatment */}
-              {currentStep === 3 && (
+              {/* Step 7: Incident Level & Injury */}
+              {currentStep === 7 && (
                 <div className="space-y-6">
                   {/* Section 8: Incident Level */}
                   <Card className="shadow-sm">
@@ -1121,16 +1180,17 @@ export function ComprehensiveIncidentForm({
                       />
                     </CardContent>
                   </Card>
+                </div>
+              )}
 
-                  {/* Section 10: Treatment Required */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 10: Treatment Required
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
+              {/* Step 8: Treatment Required */}
+              {currentStep === 8 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Section 10: Treatment Required
+                  </h3>
+                  <div>
                       <FormField
                         control={form.control}
                         name="treatmentTypes"
@@ -1175,18 +1235,18 @@ export function ComprehensiveIncidentForm({
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
+                </div>
+              )}
 
-                  {/* Section 11: Details of Treatment Given */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 11: Details of Treatment Given
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 sm:space-y-4">
+              {/* Step 9: Treatment Details */}
+              {currentStep === 9 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Section 11: Details of Treatment Given
+                  </h3>
+                  <div className="space-y-4">
                       <FormField
                         control={form.control}
                         name="treatmentDetails"
@@ -1240,220 +1300,210 @@ export function ComprehensiveIncidentForm({
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
                 </div>
               )}
 
-              {/* Step 4: Witnesses & Actions */}
-              {currentStep === 4 && (
-                <div className="space-y-6">
-                  {/* Section 12: Witnesses */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 12: Witnesses
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 sm:space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div>
-                          <h4 className="font-medium mb-3">Witness 1</h4>
-                          <div className="space-y-3">
-                            <FormField
-                              control={form.control}
-                              name="witness1Name"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Name</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Witness name" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="witness1Contact"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Contact Number</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Phone number" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="font-medium mb-3">Witness 2</h4>
-                          <div className="space-y-3">
-                            <FormField
-                              control={form.control}
-                              name="witness2Name"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Name</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Witness name" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="witness2Contact"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Contact Number</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Phone number" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
+              {/* Step 10: Witnesses */}
+              {currentStep === 10 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Section 12: Witnesses
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-medium mb-3">Witness 1</h4>
+                        <div className="space-y-3">
+                          <FormField
+                            control={form.control}
+                            name="witness1Name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Witness name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="witness1Contact"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Contact Number</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Phone number" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Attach statements if needed (can be added later)
-                      </p>
-                    </CardContent>
-                  </Card>
 
-                  {/* Section 13: Further Actions by Nurse */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 13: Further Actions Completed by Nurse
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">Tick all that apply</p>
-                    </CardHeader>
-                    <CardContent>
-                      <FormField
-                        control={form.control}
-                        name="nurseActions"
-                        render={() => (
-                          <FormItem>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                              {nurseActionOptions.map((item) => (
-                                <FormField
-                                  key={item.value}
-                                  control={form.control}
-                                  name="nurseActions"
-                                  render={({ field }) => {
-                                    return (
-                                      <FormItem
-                                        key={item.value}
-                                        className="flex flex-row items-start space-x-3 space-y-0"
-                                      >
-                                        <FormControl>
-                                          <Checkbox
-                                            checked={field.value?.includes(item.value)}
-                                            onCheckedChange={(checked) => {
-                                              return checked
-                                                ? field.onChange([...(field.value || []), item.value])
-                                                : field.onChange(
-                                                    (field.value || []).filter(
-                                                      (value) => value !== item.value
-                                                    )
-                                                  )
-                                            }}
-                                          />
-                                        </FormControl>
-                                        <FormLabel className="text-sm font-normal">
-                                          {item.label}
-                                        </FormLabel>
-                                      </FormItem>
-                                    )
-                                  }}
-                                />
-                              ))}
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </CardContent>
-                  </Card>
-
-                  {/* Section 14: Further Actions Advised */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 14: Advise Further Action(s) to be Taken
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FormField
-                        control={form.control}
-                        name="furtherActionsAdvised"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Recommended Next Steps</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Describe recommended next steps..."
-                                className="min-h-[80px]"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </CardContent>
-                  </Card>
-
-                  {/* Section 15: Prevention Measures */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 15: Actions Taken to Prevent Re-occurrence
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FormField
-                        control={form.control}
-                        name="preventionMeasures"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Preventive Measures Implemented</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Describe measures implemented to prevent similar incidents..."
-                                className="min-h-[80px]"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </CardContent>
-                  </Card>
+                      <div>
+                        <h4 className="font-medium mb-3">Witness 2</h4>
+                        <div className="space-y-3">
+                          <FormField
+                            control={form.control}
+                            name="witness2Name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Witness name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="witness2Contact"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Contact Number</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Phone number" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Attach statements if needed (can be added later)
+                    </p>
+                  </div>
                 </div>
               )}
 
-              {/* Step 5: Notifications & Completion */}
-              {currentStep === 5 && (
+              {/* Step 11: Nurse Actions */}
+              {currentStep === 11 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <UserCheck className="w-5 h-5" />
+                    Section 13: Further Actions Completed by Nurse
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">Tick all that apply</p>
+                  <div>
+                    <FormField
+                      control={form.control}
+                      name="nurseActions"
+                      render={() => (
+                        <FormItem>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {nurseActionOptions.map((item) => (
+                              <FormField
+                                key={item.value}
+                                control={form.control}
+                                name="nurseActions"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem
+                                      key={item.value}
+                                      className="flex flex-row items-start space-x-3 space-y-0"
+                                    >
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(item.value)}
+                                          onCheckedChange={(checked) => {
+                                            return checked
+                                              ? field.onChange([...(field.value || []), item.value])
+                                              : field.onChange(
+                                                  (field.value || []).filter(
+                                                    (value) => value !== item.value
+                                                  )
+                                                )
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-sm font-normal">
+                                        {item.label}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 12: Prevention & Advice */}
+              {currentStep === 12 && (
+                <div className="space-y-6">
+                  {/* Section 14: Further Actions Advised */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Section 14: Advise Further Action(s) to be Taken
+                    </h3>
+                    <FormField
+                      control={form.control}
+                      name="furtherActionsAdvised"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Recommended Next Steps</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Describe recommended next steps..."
+                              className="min-h-[80px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Section 15: Prevention Measures */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Shield className="w-5 h-5" />
+                    Actions Taken to Prevent Re-occurrence
+                    </h3>
+                    <FormField
+                      control={form.control}
+                      name="preventionMeasures"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preventive Measures Implemented</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Describe measures implemented to prevent similar incidents..."
+                              className="min-h-[80px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 13: Notifications */}
+              {currentStep === 13 && (
                 <div className="space-y-6">
                   {/* Section 16: Home Manager Informed */}
                   <Card className="shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 16: Home Manager Informed
+                      Home Manager Informed
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -1491,8 +1541,8 @@ export function ComprehensiveIncidentForm({
                   <Card className="shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 17: Out of Hours On-Call Contacted
+                        
+                        Out of Hours On-Call Contacted
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -1530,8 +1580,8 @@ export function ComprehensiveIncidentForm({
                   <Card className="shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 18: NOK (Next of Kin) Informed
+                       
+                NOK (Next of Kin) Informed
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -1579,18 +1629,22 @@ export function ComprehensiveIncidentForm({
                     </CardContent>
                   </Card>
 
+                </div>
+              )}
+
+              {/* Step 14: Recipients & Completion */}
+              {currentStep === 14 && (
+                <div className="space-y-6">
                   {/* Section 19: Trust Incident Form Recipients */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 19: Trust Incident Form to be Emailed To
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 sm:space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Mail className="w-5 h-5" />
+                      Section 19: Trust Incident Form to be Emailed To
+                    </h3>
+                    <div className="space-y-4">
                       <div>
                         <h4 className="font-medium mb-3">Care Manager</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
                             name="careManagerName"
@@ -1627,7 +1681,7 @@ export function ComprehensiveIncidentForm({
 
                       <div>
                         <h4 className="font-medium mb-3">Key Worker</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
                             name="keyWorkerName"
@@ -1661,18 +1715,16 @@ export function ComprehensiveIncidentForm({
                           />
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
 
                   {/* Section 20: Form Completion Details */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Signature className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Section 20: Details of Person Completing This Form
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Signature className="w-5 h-5" />
+                      Section 20: Details of Person Completing This Form
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="completedByFullName"
@@ -1755,71 +1807,42 @@ export function ComprehensiveIncidentForm({
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Navigation buttons */}
-              <DialogFooter className="flex-shrink-0 flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t bg-gray-50/50 -mx-1 px-4 sm:px-6">
+              <div className="flex justify-between items-center pt-6">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={prevStep}
                   disabled={currentStep === 1}
-                  className="flex items-center justify-center gap-2 w-full sm:w-auto order-2 sm:order-1"
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Previous</span>
-                  <span className="sm:hidden">Back</span>
+                  Back
                 </Button>
 
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-600 order-1 sm:order-2">
-                  <span>Step {currentStep} of {maxSteps}</span>
-                  <div className="flex gap-1">
-                    {Array.from({ length: maxSteps }).map((_, index) => (
-                      <div
-                        key={index}
-                        className={`w-2 h-2 rounded-full ${
-                          index + 1 <= currentStep ? 'bg-primary' : 'bg-gray-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Step {currentStep > 5 && !hasFallType ? currentStep - 1 : currentStep} of {maxSteps}</span>
                 </div>
 
                 {currentStep < maxSteps ? (
                   <Button
                     type="button"
                     onClick={nextStep}
-                    className="flex items-center justify-center gap-2 w-full sm:w-auto order-3"
                   >
-                    <span className="hidden sm:inline">Next</span>
-                    <span className="sm:hidden">Continue</span>
-                    <ChevronRight className="w-4 h-4" />
+                    Continue
                   </Button>
                 ) : (
                   <Button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex items-center justify-center gap-2 w-full sm:w-auto order-3 bg-green-600 hover:bg-green-700"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span className="hidden sm:inline">Submitting...</span>
-                        <span className="sm:hidden">Sending...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="hidden sm:inline">Submit Report</span>
-                        <span className="sm:hidden">Submit</span>
-                        <FileText className="w-4 h-4" />
-                      </>
-                    )}
+                    {isSubmitting ? "Submitting..." : "Submit Report"}
                   </Button>
                 )}
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         </div>
