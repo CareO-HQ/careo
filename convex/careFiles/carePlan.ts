@@ -70,6 +70,13 @@ export const submitCarePlanAssessment = mutation({
       submittedAt: Date.now()
     });
 
+    // Schedule PDF generation after successful save if not a draft
+    await ctx.scheduler.runAfter(
+      1000, // 1 second delay
+      internal.careFiles.carePlan.generatePDFAndUpdateRecord,
+      { assessmentId: carePlanId }
+    );
+
     return carePlanId;
   }
 });
@@ -148,6 +155,97 @@ export const updateCarePlanAssessment = mutation({
   }
 });
 
+/**
+ * Generate PDF and update the record with the file ID
+ */
+export const generatePDFAndUpdateRecord = internalAction({
+  args: { assessmentId: v.id("carePlanAssessments") },
+  handler: async (ctx, args) => {
+    try {
+      // Get the PDF API URL from environment variables
+      const pdfApiUrl = process.env.PDF_API_URL;
+      const pdfApiToken = process.env.PDF_API_TOKEN;
+
+      // Check if PDF generation is properly configured
+      if (!pdfApiUrl || !pdfApiUrl.startsWith("https://")) {
+        console.warn(
+          "PDF generation disabled: PDF_API_URL not set or not HTTPS. Set PDF_API_URL=https://your-domain.com"
+        );
+        return;
+      }
+
+      if (!pdfApiToken) {
+        console.warn(
+          "PDF generation disabled: PDF_API_TOKEN not set in environment variables"
+        );
+        return;
+      }
+
+      // Call the PDF generation API
+      console.log("Calling PDF API at:", `${pdfApiUrl}/api/pdf/care-plan`);
+      const pdfResponse = await fetch(`${pdfApiUrl}/api/pdf/care-plan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pdfApiToken}`
+        },
+        body: JSON.stringify({ assessmentId: args.assessmentId })
+      });
+
+      console.log(
+        "PDF API response status:",
+        pdfResponse.status,
+        pdfResponse.statusText
+      );
+
+      if (!pdfResponse.ok) {
+        const errorText = await pdfResponse.text();
+        console.log("PDF API error response:", errorText);
+        throw new Error(
+          `PDF generation failed: ${pdfResponse.status} ${pdfResponse.statusText} - ${errorText}`
+        );
+      }
+
+      // Get the PDF as a buffer
+      const pdfBuffer = await pdfResponse.arrayBuffer();
+      console.log("Received PDF buffer of size:", pdfBuffer.byteLength);
+
+      // Store the PDF in Convex file storage
+      const storageId = await ctx.storage.store(new Blob([pdfBuffer]));
+
+      // Update the assessment record with the PDF file ID
+      await ctx.runMutation(internal.careFiles.carePlan.updatePDFFileId, {
+        assessmentId: args.assessmentId,
+        storageId
+      });
+
+      console.log(
+        `Successfully generated and stored PDF for care plan assessment ${args.assessmentId}`
+      );
+    } catch (error) {
+      console.error("Error generating and saving PDF:", error);
+    }
+  }
+});
+
+/**
+ * Update a care plan assessment with PDF file ID
+ */
+export const updatePDFFileId = internalMutation({
+  args: {
+    assessmentId: v.id("carePlanAssessments"),
+    storageId: v.id("_storage")
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.assessmentId, {
+      pdfFileId: args.storageId
+    });
+  }
+});
+
+/**
+ * Get PDF URL for a care plan assessment
+ */
 export const getPDFUrl = query({
   args: {
     assessmentId: v.id("carePlanAssessments")
@@ -158,7 +256,12 @@ export const getPDFUrl = query({
       return null;
     }
 
-    // Generate PDF via API route
+    // If we have a stored PDF file, return the file URL
+    if (assessment.pdfFileId) {
+      return await ctx.storage.getUrl(assessment.pdfFileId);
+    }
+
+    // Fallback to direct PDF generation via API route
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     return `${baseUrl}/api/pdf/care-plan?assessmentId=${args.assessmentId}`;
   }

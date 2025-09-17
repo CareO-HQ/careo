@@ -145,12 +145,48 @@ export default function CareFileFolder({
       : "skip"
   );
 
+  // Debug the query condition step by step
+  const hasCarePlanProp = carePlan;
+  const hasResidentId = !!residentId;
+  const queryCondition = hasCarePlanProp && hasResidentId;
+  const queryArgs = queryCondition ? { residentId } : "skip";
+
+  console.log("=== QUERY CONDITION DETAILED DEBUG ===");
+  console.log("folderName:", folderName);
+  console.log("carePlan prop:", carePlan);
+  console.log("hasCarePlanProp:", hasCarePlanProp);
+  console.log("hasResidentId:", hasResidentId);
+  console.log("residentId value:", residentId);
+  console.log(
+    "queryCondition (hasCarePlanProp && hasResidentId):",
+    queryCondition
+  );
+  console.log("queryArgs:", queryArgs);
+  console.log("=====================================");
+
   const allCarePlanForms = useQuery(
     api.careFiles.carePlan.getCarePlanAssessmentsByResident,
+    queryArgs
+  );
+
+  // Debug logging for care plan forms
+  console.log("=== CARE PLAN DEBUG INFO ===");
+  console.log("folderName:", folderName);
+  console.log("folderFormKeys:", folderFormKeys);
+  console.log(
+    "includes care-plan-form:",
+    folderFormKeys.includes("care-plan-form")
+  );
+  console.log("residentId:", residentId);
+  console.log("carePlan prop:", carePlan);
+  console.log("allCarePlanForms:", allCarePlanForms);
+  console.log(
+    "query condition result:",
     folderFormKeys.includes("care-plan-form") && residentId
       ? { residentId }
       : "skip"
   );
+  console.log("===============================");
 
   // Helper function to get all PDFs from all form submissions
   const getAllPdfFiles = useMemo(() => {
@@ -238,24 +274,45 @@ export default function CareFileFolder({
       });
     }
 
-    // Process Care Plan forms
-    if (allCarePlanForms) {
-      const sortedForms = [...allCarePlanForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "care-plan-form",
-          formId: form._id,
-          name: "Care Plan Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
+    // Process Care Plan forms - DON'T add to general files list
+    // Care plans are shown in their own dedicated section
+    // if (allCarePlanForms) {
+    //   const sortedForms = [...allCarePlanForms].sort(
+    //     (a, b) => b._creationTime - a._creationTime
+    //   );
+    //   sortedForms.forEach((form, index) => {
+    //     pdfFiles.push({
+    //       formKey: "care-plan-form",
+    //       formId: form._id,
+    //       name: "Care Plan Assessment",
+    //       completedAt: form._creationTime,
+    //       isLatest: index === 0
+    //     });
+    //   });
+    // }
 
     // Sort all PDFs by completion date (newest first)
-    return pdfFiles.sort((a, b) => b.completedAt - a.completedAt);
+    const sortedPdfFiles = pdfFiles.sort(
+      (a, b) => b.completedAt - a.completedAt
+    );
+
+    // Debug logging for getAllPdfFiles
+    console.log("=== GET ALL PDF FILES DEBUG ===");
+    console.log("Total pdfFiles collected:", pdfFiles.length);
+    console.log(
+      "Care plan files excluded from files section (shown in dedicated section)"
+    );
+    console.log(
+      "All collected files:",
+      pdfFiles.map((f) => ({
+        formKey: f.formKey,
+        formId: f.formId,
+        name: f.name
+      }))
+    );
+    console.log("===============================");
+
+    return sortedPdfFiles;
   }, [
     allPreAdmissionForms,
     allInfectionPreventionForms,
@@ -310,6 +367,17 @@ export default function CareFileFolder({
                   ? { assessmentId: file.formId as Id<"carePlanAssessments"> }
                   : "skip"
     );
+
+    // Debug logging for PDF URL fetching
+    if (file.formKey === "care-plan-form") {
+      console.log("=== PDF FILE ITEM DEBUG (CARE PLAN) ===");
+      console.log("file:", file);
+      console.log("pdfUrl query result:", pdfUrl);
+      console.log("query args:", {
+        assessmentId: file.formId as Id<"carePlanAssessments">
+      });
+      console.log("======================================");
+    }
 
     if (!pdfUrl) return null;
 
@@ -825,22 +893,73 @@ export default function CareFileFolder({
                 );
               })}
               {carePlan && (
-                <div className="flex flex-row justify-between items-center gap-2 mt-10">
-                  <p className="text-muted-foreground text-sm font-medium">
-                    Care plans
-                  </p>
-                  <CarePlanDialog
-                    teamId={activeTeamId}
-                    organizationId={activeOrg?.id ?? ""}
-                    residentId={residentId}
-                    userId={currentUser?.user.id ?? ""}
-                    userName={currentUser?.user.name ?? ""}
-                    resident={resident}
-                    onClose={() => {
-                      setIsDialogOpen(false);
-                    }}
-                  />
-                </div>
+                <>
+                  <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                    <p className="text-muted-foreground text-sm font-medium">
+                      Care plans
+                    </p>
+                    <CarePlanDialog
+                      teamId={activeTeamId}
+                      organizationId={activeOrg?.id ?? ""}
+                      residentId={residentId}
+                      userId={currentUser?.user.id ?? ""}
+                      userName={currentUser?.user.name ?? ""}
+                      resident={resident}
+                    />
+                  </div>
+                  {/* LIST OF CARE PLANS */}
+                  <div className="space-y-2">
+                    {(() => {
+                      console.log("=== CARE PLANS RENDERING DEBUG ===");
+                      console.log("carePlan prop:", carePlan);
+                      console.log("allCarePlanForms:", allCarePlanForms);
+                      console.log(
+                        "allCarePlanForms?.length:",
+                        allCarePlanForms?.length
+                      );
+                      console.log(
+                        "condition check (allCarePlanForms && allCarePlanForms.length > 0):",
+                        allCarePlanForms && allCarePlanForms.length > 0
+                      );
+                      if (allCarePlanForms) {
+                        console.log(
+                          "Forms to render:",
+                          allCarePlanForms.map((f) => ({
+                            id: f._id,
+                            creationTime: f._creationTime
+                          }))
+                        );
+                      }
+                      console.log("=================================");
+                      return null;
+                    })()}
+                    {allCarePlanForms && allCarePlanForms.length > 0 ? (
+                      allCarePlanForms
+                        .sort((a, b) => b._creationTime - a._creationTime)
+                        .map((form, index) => (
+                          <PdfFileItem
+                            key={form._id}
+                            file={{
+                              formKey: "care-plan-form",
+                              formId: form._id,
+                              name: "Care Plan Assessment",
+                              completedAt: form._creationTime,
+                              isLatest: index === 0
+                            }}
+                          />
+                        ))
+                    ) : (
+                      <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                        No care plans generated yet. Complete and submit care
+                        plan.
+                        {allCarePlanForms === undefined && " (Loading...)"}
+                        {allCarePlanForms &&
+                          allCarePlanForms.length === 0 &&
+                          " (No forms found)"}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               <div className="flex flex-row justify-between items-center gap-2 mt-10">

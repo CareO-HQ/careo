@@ -3,8 +3,8 @@ import { z } from "zod";
 const plannedCareEntrySchema = z.object({
   date: z.number(),
   time: z.string().optional(),
-  details: z.string(),
-  signature: z.string()
+  details: z.string().min(1, "Details are required"),
+  signature: z.string().min(1, "Signature is required")
 });
 
 export const carePlanAssessmentSchema = z.object({
@@ -12,19 +12,21 @@ export const carePlanAssessmentSchema = z.object({
   userId: z.string(),
 
   // Basic information
-  residentName: z.string(),
+  residentName: z.string().min(1, "Resident name is required"),
   dob: z.number(),
-  bedroomNumber: z.string(),
-  writtenBy: z.string(),
+  bedroomNumber: z.string().min(1, "Bedroom number is required"),
+  writtenBy: z.string().min(1, "Written by is required"),
   dateWritten: z.number(),
-  carePlanNumber: z.string(),
+  carePlanNumber: z.string().min(1, "Care plan number is required"),
 
   // Care plan details
-  identifiedNeeds: z.string(),
-  aims: z.string(),
+  identifiedNeeds: z.string().min(1, "Identified needs are required"),
+  aims: z.string().min(1, "Aims are required"),
 
   // Planned care entries
-  plannedCareDate: z.array(plannedCareEntrySchema),
+  plannedCareDate: z
+    .array(plannedCareEntrySchema)
+    .min(1, "At least one planned care entry is required"),
 
   // Review of Patient or Representative
   discussedWith: z.string().optional(),

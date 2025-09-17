@@ -61,7 +61,7 @@ export const config = {
           key: "long-term-fall-risk-form",
           value: "Long Term Fall Risk Assessment",
           description: "Long Term Fall Risk Assessment"
-        }
+        },
       ]
     },
     {

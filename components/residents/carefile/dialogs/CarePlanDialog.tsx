@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
+  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -38,7 +39,6 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
-import Stepper from "@/components/stepper/Stepper";
 
 interface CarePlanDialogProps {
   teamId: string;
@@ -47,20 +47,23 @@ interface CarePlanDialogProps {
   userId: string;
   userName: string;
   resident: Resident;
-  onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  onClose?: () => void; // For review mode only
 }
 
 export default function CarePlanDialog({
+  teamId,
   residentId,
+  organizationId,
   userId,
   userName,
   resident,
-  onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  onClose
 }: CarePlanDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
 
@@ -160,7 +163,13 @@ export default function CarePlanDialog({
           toast.success("Care plan assessment submitted successfully");
         }
 
-        onClose?.();
+        // Reset form and close modal
+        setStep(1);
+        if (onClose) {
+          onClose(); // For review mode
+        } else {
+          setIsOpen(false); // For standalone mode
+        }
       } catch (error) {
         console.error("Error submitting care plan assessment:", error);
         toast.error("Failed to submit care plan assessment");
@@ -168,9 +177,54 @@ export default function CarePlanDialog({
     });
   };
 
-  const handleNextStep = () => {
-    if (step < 4) {
-      setStep(step + 1);
+  const handleNextStep = async () => {
+    let isValid = false;
+
+    if (step === 1) {
+      const fieldsToValidate = [
+        "residentName",
+        "dob",
+        "bedroomNumber",
+        "writtenBy",
+        "dateWritten",
+        "carePlanNumber"
+      ] as const;
+      isValid = await form.trigger(fieldsToValidate);
+      console.log("Step 1 validation result:", isValid);
+      console.log("Step 1 form errors:", form.formState.errors);
+    } else if (step === 2) {
+      const fieldsToValidate = ["identifiedNeeds", "aims"] as const;
+      isValid = await form.trigger(fieldsToValidate);
+      console.log("Step 2 validation result:", isValid);
+      console.log("Step 2 form errors:", form.formState.errors);
+    } else if (step === 3) {
+      // Validate planned care entries - validate the entire plannedCareDate array
+      const plannedCareEntries = form.getValues("plannedCareDate");
+      console.log("Planned care entries:", plannedCareEntries);
+      if (plannedCareEntries.length === 0) {
+        toast.error("Please add at least one planned care entry");
+        isValid = false;
+      } else {
+        isValid = await form.trigger("plannedCareDate");
+        console.log("Step 3 validation result:", isValid);
+        console.log("Step 3 form errors:", form.formState.errors);
+      }
+    } else if (step === 4) {
+      const fieldsToValidate = ["date"] as const;
+      isValid = await form.trigger(fieldsToValidate);
+      console.log("Step 4 validation result:", isValid);
+      console.log("Step 4 form errors:", form.formState.errors);
+    }
+
+    if (isValid) {
+      if (step === 4) {
+        // Submit the form when on step 4
+        form.handleSubmit(onSubmit)();
+      } else {
+        setStep(step + 1);
+      }
+    } else {
+      toast.error("Please fill in all required fields correctly");
     }
   };
 
@@ -178,6 +232,16 @@ export default function CarePlanDialog({
     if (step > 1) {
       setStep(step - 1);
     }
+  };
+
+  const handleClose = () => {
+    setStep(1);
+    if (onClose) {
+      onClose(); // For review mode
+    } else {
+      setIsOpen(false); // For standalone mode
+    }
+    form.reset();
   };
 
   const renderStepContent = () => {
@@ -193,7 +257,6 @@ export default function CarePlanDialog({
                 Enter the basic resident and care plan information.
               </DialogDescription>
             </DialogHeader>
-            <Stepper step={step} totalSteps={4} />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -354,7 +417,6 @@ export default function CarePlanDialog({
                 Describe the identified needs and aims of the care plan.
               </DialogDescription>
             </DialogHeader>
-            <Stepper step={step} totalSteps={4} />
 
             <FormField
               control={form.control}
@@ -404,7 +466,6 @@ export default function CarePlanDialog({
                 details.
               </DialogDescription>
             </DialogHeader>
-            <Stepper step={step} totalSteps={4} />
 
             <div className="space-y-4">
               {fields.map((field, index) => (
@@ -556,7 +617,6 @@ export default function CarePlanDialog({
                 Review and add signatures for the care plan assessment.
               </DialogDescription>
             </DialogHeader>
-            <Stepper step={step} totalSteps={4} />
 
             <FormField
               control={form.control}
@@ -652,39 +712,23 @@ export default function CarePlanDialog({
     }
   };
 
-  return (
-    <>
+  // If this is review mode (onClose exists), render without Dialog wrapper
+  if (onClose) {
+    return (
       <Form {...form}>
         <form className="space-y-6 max-h-[70vh] overflow-y-auto px-1">
-          <Dialog>
-            <DialogTrigger asChild>
-              <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
-                Upload file
-              </p>
-            </DialogTrigger>
-            {renderStepContent()}
-          </Dialog>
+          {renderStepContent()}
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={step === 1 ? onClose : handlePreviousStep}
+              onClick={step === 1 ? handleClose : handlePreviousStep}
               disabled={step === 1 || isLoading}
             >
               {step === 1 ? "Cancel" : "Back"}
             </Button>
-            <Button
-              onClick={
-                step === 4
-                  ? () => {
-                      form.handleSubmit(onSubmit)();
-                    }
-                  : handleNextStep
-              }
-              disabled={isLoading}
-              type={step === 4 ? "submit" : "button"}
-            >
+            <Button onClick={handleNextStep} disabled={isLoading} type="button">
               {isLoading
                 ? "Saving..."
                 : step === 1
@@ -696,6 +740,49 @@ export default function CarePlanDialog({
           </DialogFooter>
         </form>
       </Form>
-    </>
+    );
+  }
+
+  // Otherwise, render as standalone Dialog
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
+          Create Care Plan
+        </p>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+        <Form {...form}>
+          <form className="space-y-6">
+            {renderStepContent()}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={step === 1 ? handleClose : handlePreviousStep}
+                disabled={step === 1 || isLoading}
+              >
+                {step === 1 ? "Cancel" : "Back"}
+              </Button>
+              <Button
+                onClick={handleNextStep}
+                disabled={isLoading}
+                type="button"
+              >
+                {isLoading
+                  ? "Saving..."
+                  : step === 1
+                    ? "Start Assessment"
+                    : step === 4
+                      ? "Save Assessment"
+                      : "Next"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
