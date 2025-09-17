@@ -24,7 +24,7 @@ export const create = mutation({
     contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
     
     // Section 4: Type of Incident
-    incidentTypes: v.optional(v.array(v.string())),
+    incidentTypes: v.array(v.string()), // Required with at least one type
     typeOtherDetails: v.optional(v.string()),
     
     // Section 5-6: Fall-Specific Questions
@@ -104,28 +104,6 @@ export const create = mutation({
       throw new Error("User not found");
     }
 
-    // Convert array fields to individual boolean fields for storage
-    const incidentTypesMap: any = {};
-    if (args.incidentTypes) {
-      args.incidentTypes.forEach(type => {
-        incidentTypesMap[`type${type}`] = true;
-      });
-    }
-
-    const treatmentMap: any = {};
-    if (args.treatmentTypes) {
-      args.treatmentTypes.forEach(type => {
-        treatmentMap[`treatment${type}`] = true;
-      });
-    }
-
-    const nurseActionsMap: any = {};
-    if (args.nurseActions) {
-      args.nurseActions.forEach(action => {
-        nurseActionsMap[`action${action}`] = true;
-      });
-    }
-
     const incident = await ctx.db.insert("incidents", {
       // Section 1
       date: args.date,
@@ -146,8 +124,8 @@ export const create = mutation({
       injuredPersonStatus: args.injuredPersonStatus,
       contractorEmployer: args.contractorEmployer,
       
-      // Section 4 - Spread individual incident type booleans
-      ...incidentTypesMap,
+      // Section 4
+      incidentTypes: args.incidentTypes,
       typeOtherDetails: args.typeOtherDetails,
       
       // Section 5-6
@@ -164,8 +142,8 @@ export const create = mutation({
       injuryDescription: args.injuryDescription,
       bodyPartInjured: args.bodyPartInjured,
       
-      // Section 10 - Spread individual treatment booleans
-      ...treatmentMap,
+      // Section 10
+      treatmentTypes: args.treatmentTypes,
       
       // Section 11
       treatmentDetails: args.treatmentDetails,
@@ -178,8 +156,8 @@ export const create = mutation({
       witness2Name: args.witness2Name,
       witness2Contact: args.witness2Contact,
       
-      // Section 13 - Spread individual action booleans
-      ...nurseActionsMap,
+      // Section 13
+      nurseActions: args.nurseActions,
       
       // Section 14
       furtherActionsAdvised: args.furtherActionsAdvised,
@@ -293,8 +271,12 @@ export const getIncidentStats = query({
     }
 
     const totalIncidents = incidents.length;
-    const fallsCount = incidents.filter(i => i.typeFallWitnessed || i.typeFallUnwitnessed).length;
-    const medicationErrors = incidents.filter(i => i.typeMedication).length;
+    const fallsCount = incidents.filter(i => 
+      i.incidentTypes?.includes("FallWitnessed") || i.incidentTypes?.includes("FallUnwitnessed")
+    ).length;
+    const medicationErrors = incidents.filter(i => 
+      i.incidentTypes?.includes("Medication")
+    ).length;
     
     const levelBreakdown = {
       death: incidents.filter(i => i.incidentLevel === "death").length,
