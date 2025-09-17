@@ -13,6 +13,18 @@ function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("en-GB");
 }
 
+// Helper function to generate PDF filename
+function generatePDFFilename(assessment: any): string {
+  const sanitize = (str: string) =>
+    str.replace(/[^a-zA-Z0-9-_\s]/g, "").replace(/\s+/g, "-");
+
+  const carePlanName = sanitize(assessment.nameOfCarePlan || "care-plan");
+  const residentName = sanitize(assessment.residentName || "resident");
+  const date = new Date().toISOString().split("T")[0];
+
+  return `${carePlanName}-${residentName}-${date}.pdf`;
+}
+
 function formatDateTime(timestamp: number): string {
   return (
     new Date(timestamp).toLocaleDateString("en-GB") +
@@ -93,7 +105,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="care-plan-assessment-${assessment.residentName.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf"`
+        "Content-Disposition": `attachment; filename="${generatePDFFilename(assessment)}"`
       }
     });
   } catch (error) {
@@ -180,7 +192,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(pdfBuffer, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="care-plan-assessment-${assessmentId}.pdf"`,
+          "Content-Disposition": `attachment; filename="${generatePDFFilename(assessmentData)}"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });
@@ -303,6 +315,10 @@ function generateCarePlanHTML(assessment: any): string {
 
       <div class="section">
         <div class="section-title">Basic Information</div>
+        <div class="form-group">
+          <div class="form-label">Name of Care Plan:</div>
+          <div class="form-value">${assessment.nameOfCarePlan}</div>
+        </div>
         <div class="form-group">
           <div class="form-label">Resident Name:</div>
           <div class="form-value">${assessment.residentName}</div>

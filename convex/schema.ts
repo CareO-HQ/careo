@@ -1340,6 +1340,7 @@ export default defineSchema({
     userId: v.string(),
 
     // Basic information
+    nameOfCarePlan: v.string(),
     residentName: v.string(),
     dob: v.number(),
     bedroomNumber: v.string(),

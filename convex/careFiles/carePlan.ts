@@ -15,6 +15,7 @@ export const submitCarePlanAssessment = mutation({
     userId: v.string(),
 
     // Basic information
+    nameOfCarePlan: v.string(),
     residentName: v.string(),
     dob: v.number(),
     bedroomNumber: v.string(),
@@ -53,6 +54,7 @@ export const submitCarePlanAssessment = mutation({
     const carePlanId = await ctx.db.insert("carePlanAssessments", {
       residentId: args.residentId,
       userId: args.userId,
+      nameOfCarePlan: args.nameOfCarePlan,
       residentName: args.residentName,
       dob: args.dob,
       bedroomNumber: args.bedroomNumber,
@@ -111,6 +113,7 @@ export const updateCarePlanAssessment = mutation({
     assessmentId: v.id("carePlanAssessments"),
 
     // Basic information
+    nameOfCarePlan: v.string(),
     residentName: v.string(),
     dob: v.number(),
     bedroomNumber: v.string(),

@@ -12,6 +12,7 @@ export const carePlanAssessmentSchema = z.object({
   userId: z.string(),
 
   // Basic information
+  nameOfCarePlan: z.string().min(1, "Name of care plan is required"),
   residentName: z.string().min(1, "Resident name is required"),
   dob: z.number(),
   bedroomNumber: z.string().min(1, "Bedroom number is required"),

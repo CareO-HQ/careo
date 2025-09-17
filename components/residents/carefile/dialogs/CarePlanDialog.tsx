@@ -81,6 +81,7 @@ export default function CarePlanDialog({
       ? {
           residentId: residentId as Id<"residents">,
           userId,
+          nameOfCarePlan: initialData.nameOfCarePlan || "",
           residentName:
             initialData.residentName ||
             `${resident.firstName} ${resident.lastName}`,
@@ -107,6 +108,7 @@ export default function CarePlanDialog({
       : {
           residentId: residentId as Id<"residents">,
           userId,
+          nameOfCarePlan: "",
           residentName: resident
             ? `${resident.firstName} ${resident.lastName}`
             : "",
@@ -182,6 +184,7 @@ export default function CarePlanDialog({
 
     if (step === 1) {
       const fieldsToValidate = [
+        "nameOfCarePlan",
         "residentName",
         "dob",
         "bedroomNumber",
@@ -257,6 +260,22 @@ export default function CarePlanDialog({
                 Enter the basic resident and care plan information.
               </DialogDescription>
             </DialogHeader>
+
+            <div className="grid grid-cols-1 gap-4 mb-4">
+              <FormField
+                control={form.control}
+                name="nameOfCarePlan"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Name of Care Plan</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter care plan name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

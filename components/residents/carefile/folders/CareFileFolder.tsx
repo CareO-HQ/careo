@@ -629,9 +629,21 @@ export default function CareFileFolder({
     }
   };
 
-  const downloadFromUrl = async (url: string, filename: string) => {
+  const downloadFromUrl = async (url: string, fallbackFilename: string) => {
     const response = await fetch(url);
     const blob = await response.blob();
+
+    // Try to extract filename from Content-Disposition header
+    let filename = fallbackFilename;
+    const contentDisposition = response.headers.get("content-disposition");
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(
+        /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+      );
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, "");
+      }
+    }
 
     // Create download link
     const downloadUrl = window.URL.createObjectURL(blob);
@@ -942,7 +954,8 @@ export default function CareFileFolder({
                             file={{
                               formKey: "care-plan-form",
                               formId: form._id,
-                              name: "Care Plan Assessment",
+                              name:
+                                form.nameOfCarePlan || "Care Plan Assessment",
                               completedAt: form._creationTime,
                               isLatest: index === 0
                             }}
