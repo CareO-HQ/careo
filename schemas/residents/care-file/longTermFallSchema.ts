@@ -7,7 +7,7 @@ export const longTermFallsRiskAssessmentSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
 
-  // 1. Resident information
+  // 1
   age: z.enum(["65-80", "81-85", "86+"]),
   gender: z.enum(["MALE", "FEMALE"]),
   historyOfFalls: z.enum([
@@ -24,6 +24,8 @@ export const longTermFallsRiskAssessmentSchema = z.object({
     "IMMOBILE"
   ]),
   standUnsupported: z.boolean(),
+
+  // 2. 
   personalActivities: z.enum([
     "ASSISTANCE",
     "INDEPENDENT-EQUIPMENT",
@@ -50,6 +52,8 @@ export const longTermFallsRiskAssessmentSchema = z.object({
     "LISTED-CONDITIONS",
     "NO-IDENTIFIED"
   ]),
+  
+  // 3.
   medicines: z.enum(["4-OR-MORE", "LESS-4", "NO-MEDICATIONS"]),
   safetyAwarness: z.boolean(),
   mentalState: z.enum(["CONFUSED", "ORIENTATED"]),

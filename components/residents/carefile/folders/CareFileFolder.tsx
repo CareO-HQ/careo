@@ -19,19 +19,20 @@ import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery } from "convex/react";
 import {
   DownloadIcon,
-  FolderIcon,
-  FileIcon,
   Edit2,
+  FileIcon,
+  FolderIcon,
   Trash2
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
+import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
-import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
 import UploadFileModal from "./UploadFileModal";
 
 interface CareFileFolderProps {
@@ -652,7 +653,7 @@ export default function CareFileFolder({
           />
         );
       case "long-term-fall-risk-form":
-        return <>FORM TO DO - LONG TERM FALL RISK</>;
+        return <LongTermFallRiskDialog />;
       // case 'discharge':
       //   return <DischargeDialog />;
       default:
