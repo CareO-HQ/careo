@@ -1248,9 +1248,47 @@ export default defineSchema({
     injuredPersonStatus: v.optional(v.array(v.string())), // Array of status values: "Resident", "Relative", "Staff", "AgencyStaff", "Visitor", "Contractor"
     contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
     
+    // Legacy status fields for backward compatibility
+    statusResident: v.optional(v.boolean()),
+    statusRelative: v.optional(v.boolean()),
+    statusStaff: v.optional(v.boolean()),
+    statusAgencyStaff: v.optional(v.boolean()),
+    statusVisitor: v.optional(v.boolean()),
+    statusContractor: v.optional(v.boolean()),
+    
     // Section 4: Type of Incident (multiple can be selected)
-    incidentTypes: v.array(v.string()), // Required array with at least one type selected
+    incidentTypes: v.optional(v.array(v.string())), // Array of incident types (optional for backward compatibility)
     typeOtherDetails: v.optional(v.string()), // Details if "Other" is selected
+    
+    // Legacy incident type fields for backward compatibility
+    typeFallWitnessed: v.optional(v.boolean()),
+    typeFallUnwitnessed: v.optional(v.boolean()),
+    typePressureUlcer: v.optional(v.boolean()),
+    typeWound: v.optional(v.boolean()),
+    typeIllness: v.optional(v.boolean()),
+    typeNearMiss: v.optional(v.boolean()),
+    typeExpectedDeath: v.optional(v.boolean()),
+    typeUnexpectedDeath: v.optional(v.boolean()),
+    typeStaffingLevels: v.optional(v.boolean()),
+    typeEquipment: v.optional(v.boolean()),
+    typeStaffAccident: v.optional(v.boolean()),
+    typeAbuseOfStaff: v.optional(v.boolean()),
+    typeBehavioural: v.optional(v.boolean()),
+    typeSafeguarding: v.optional(v.boolean()),
+    typeMedication: v.optional(v.boolean()),
+    typeAbsentWithoutLeave: v.optional(v.boolean()),
+    typeWeightLoss: v.optional(v.boolean()),
+    typeChoking: v.optional(v.boolean()),
+    typeBruise: v.optional(v.boolean()),
+    typeResidentAltercation: v.optional(v.boolean()),
+    typeInfection: v.optional(v.boolean()),
+    typeCovid: v.optional(v.boolean()),
+    typeFireSafety: v.optional(v.boolean()),
+    typeSelfHarm: v.optional(v.boolean()),
+    typePSNI: v.optional(v.boolean()),
+    typeTheft: v.optional(v.boolean()),
+    typeMissingResident: v.optional(v.boolean()),
+    typeOther: v.optional(v.boolean()),
     
     // Section 5-6: Fall-Specific Questions
     anticoagulantMedication: v.optional(v.string()), // "yes", "no", "unknown"
@@ -1269,6 +1307,14 @@ export default defineSchema({
     // Section 10: Treatment Required
     treatmentTypes: v.optional(v.array(v.string())), // Array of treatment types selected
     
+    // Legacy treatment fields for backward compatibility
+    treatmentFirstAid: v.optional(v.boolean()),
+    treatmentGP: v.optional(v.boolean()),
+    treatmentParamedic: v.optional(v.boolean()),
+    treatmentED: v.optional(v.boolean()),
+    treatmentHospitalAdmit: v.optional(v.boolean()),
+    treatment999: v.optional(v.boolean()),
+    
     // Section 11: Details of Treatment Given
     treatmentDetails: v.optional(v.string()),
     vitalSigns: v.optional(v.string()),
@@ -1282,6 +1328,18 @@ export default defineSchema({
     
     // Section 13: Further Actions by Nurse
     nurseActions: v.optional(v.array(v.string())), // Array of nurse actions taken
+    
+    // Legacy nurse action fields for backward compatibility
+    actionOnCallManager: v.optional(v.boolean()),
+    actionDutySocialWorker: v.optional(v.boolean()),
+    actionCarePlanUpdated: v.optional(v.boolean()),
+    actionBodyMapCompleted: v.optional(v.boolean()),
+    actionTrustIncidentReport: v.optional(v.boolean()),
+    actionRiskAssessment: v.optional(v.boolean()),
+    actionObservationsCommenced: v.optional(v.boolean()),
+    actionWoundAssessment: v.optional(v.boolean()),
+    actionSafeguardingForms: v.optional(v.boolean()),
+    actionKeyWorkerContacted: v.optional(v.boolean()),
     
     // Section 14: Further Actions Advised
     furtherActionsAdvised: v.optional(v.string()),

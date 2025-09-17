@@ -24,7 +24,7 @@ export const create = mutation({
     contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
     
     // Section 4: Type of Incident
-    incidentTypes: v.array(v.string()), // Required with at least one type
+    incidentTypes: v.array(v.string()), // Required with at least one type for new records
     typeOtherDetails: v.optional(v.string()),
     
     // Section 5-6: Fall-Specific Questions
@@ -272,10 +272,16 @@ export const getIncidentStats = query({
 
     const totalIncidents = incidents.length;
     const fallsCount = incidents.filter(i => 
-      i.incidentTypes?.includes("FallWitnessed") || i.incidentTypes?.includes("FallUnwitnessed")
+      // Check new array format
+      (i.incidentTypes?.includes("FallWitnessed") || i.incidentTypes?.includes("FallUnwitnessed")) ||
+      // Check legacy boolean fields
+      i.typeFallWitnessed || i.typeFallUnwitnessed
     ).length;
     const medicationErrors = incidents.filter(i => 
-      i.incidentTypes?.includes("Medication")
+      // Check new array format
+      i.incidentTypes?.includes("Medication") ||
+      // Check legacy boolean field
+      i.typeMedication
     ).length;
     
     const levelBreakdown = {
