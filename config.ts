@@ -25,6 +25,7 @@ export const config = {
       value: "Pre-Admission",
       description:
         "Pre-Admission Assessment Form and Infection prevention and control pre-admission risk assessment",
+      carePlan: false,
       forms: [
         {
           type: "form",
@@ -44,23 +45,10 @@ export const config = {
     },
     {
       type: "folder",
-      key: "continence",
-      value: "Continence",
-      description: "Continence Assessment",
-      forms: [
-        {
-          type: "form",
-          key: "blader-bowel-form",
-          value: "Blader & Bowel continence Assessment",
-          description: "Blader & Bowel continence Assessment"
-        }
-      ]
-    },
-    {
-      type: "folder",
       key: "mobility-fall",
       value: "Mobility & Fall",
       description: "Track mobility and fall risks",
+      carePlan: true,
       forms: [
         {
           type: "form",
@@ -73,6 +61,21 @@ export const config = {
           key: "long-term-fall-risk-form",
           value: "Long Term Fall Risk Assessment",
           description: "Long Term Fall Risk Assessment"
+        }
+      ]
+    },
+    {
+      type: "folder",
+      key: "continence",
+      value: "Continence",
+      description: "Continence Assessment",
+      carePlan: true,
+      forms: [
+        {
+          type: "form",
+          key: "blader-bowel-form",
+          value: "Blader & Bowel continence Assessment",
+          description: "Blader & Bowel continence Assessment"
         }
       ]
     }

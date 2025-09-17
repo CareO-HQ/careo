@@ -34,9 +34,11 @@ import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
 import UploadFileModal from "./UploadFileModal";
 import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
+import CarePlanDialog from "../dialogs/CarePlanDialog";
 
 interface CareFileFolderProps {
   folderName: string;
+  carePlan: boolean;
   description: string;
   forms:
     | {
@@ -51,6 +53,7 @@ interface CareFileFolderProps {
 
 export default function CareFileFolder({
   folderName,
+  carePlan,
   description,
   forms,
   residentId
@@ -142,6 +145,13 @@ export default function CareFileFolder({
       : "skip"
   );
 
+  const allCarePlanForms = useQuery(
+    api.careFiles.carePlan.getCarePlanAssessmentsByResident,
+    folderFormKeys.includes("care-plan-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   // Helper function to get all PDFs from all form submissions
   const getAllPdfFiles = useMemo(() => {
     const pdfFiles: Array<{
@@ -228,6 +238,22 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Care Plan forms
+    if (allCarePlanForms) {
+      const sortedForms = [...allCarePlanForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "care-plan-form",
+          formId: form._id,
+          name: "Care Plan Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Sort all PDFs by completion date (newest first)
     return pdfFiles.sort((a, b) => b.completedAt - a.completedAt);
   }, [
@@ -235,7 +261,8 @@ export default function CareFileFolder({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
-    allLongTermFallsForms
+    allLongTermFallsForms,
+    allCarePlanForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -261,7 +288,9 @@ export default function CareFileFolder({
               ? api.careFiles.movingHandling.getPDFUrl
               : file.formKey === "long-term-fall-risk-form"
                 ? api.careFiles.longTermFalls.getPDFUrl
-                : ("skip" as any),
+                : file.formKey === "care-plan-form"
+                  ? api.careFiles.carePlan.getPDFUrl
+                  : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -277,7 +306,9 @@ export default function CareFileFolder({
                     assessmentId:
                       file.formId as Id<"longTermFallsRiskAssessments">
                   }
-                : "skip"
+                : file.formKey === "care-plan-form"
+                  ? { assessmentId: file.formId as Id<"carePlanAssessments"> }
+                  : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -510,6 +541,8 @@ export default function CareFileFolder({
               return `moving-handling-assessment-${baseName}.pdf`;
             case "long-term-fall-risk-form":
               return `long-term-falls-assessment-${baseName}.pdf`;
+            case "care-plan-form":
+              return `care-plan-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -597,7 +630,8 @@ export default function CareFileFolder({
       infectionPreventionAssessment: "Infection Prevention Assessment",
       bladderBowelAssessment: "Bladder & Bowel Assessment",
       movingHandlingAssessment: "Moving & Handling Assessment",
-      longTermFallsRiskAssessment: "Long Term Falls Risk Assessment"
+      longTermFallsRiskAssessment: "Long Term Falls Risk Assessment",
+      carePlanAssessment: "Care Plan Assessment"
     };
     return mapping[formType] || formType;
   };
@@ -696,6 +730,23 @@ export default function CareFileFolder({
             userName={currentUser?.user.name ?? ""}
           />
         );
+      case "care-plan-form":
+        return (
+          <CarePlanDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
 
       // case 'discharge':
       //   return <DischargeDialog />;
@@ -773,6 +824,25 @@ export default function CareFileFolder({
                   </div>
                 );
               })}
+              {carePlan && (
+                <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Care plans
+                  </p>
+                  <CarePlanDialog
+                    teamId={activeTeamId}
+                    organizationId={activeOrg?.id ?? ""}
+                    residentId={residentId}
+                    userId={currentUser?.user.id ?? ""}
+                    userName={currentUser?.user.name ?? ""}
+                    resident={resident}
+                    onClose={() => {
+                      setIsDialogOpen(false);
+                    }}
+                  />
+                </div>
+              )}
+
               <div className="flex flex-row justify-between items-center gap-2 mt-10">
                 <p className="text-muted-foreground text-sm font-medium">
                   Files

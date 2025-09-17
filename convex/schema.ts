@@ -1366,5 +1366,47 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_team", ["teamId"])
     .index("by_uploaded_by", ["uploadedBy"])
-    .index("by_active", ["isActive"])
+    .index("by_active", ["isActive"]),
+
+  carePlanAssessments: defineTable({
+    residentId: v.id("residents"),
+    userId: v.string(),
+
+    // Basic information
+    residentName: v.string(),
+    dob: v.number(),
+    bedroomNumber: v.string(),
+    writtenBy: v.string(),
+    dateWritten: v.number(),
+    carePlanNumber: v.string(),
+
+    // Care plan details
+    identifiedNeeds: v.string(),
+    aims: v.string(),
+
+    // Planned care entries
+    plannedCareDate: v.array(
+      v.object({
+        date: v.number(),
+        time: v.optional(v.string()),
+        details: v.string(),
+        signature: v.string()
+      })
+    ),
+
+    // Review of Patient or Representative
+    discussedWith: v.optional(v.string()),
+    signature: v.optional(v.string()),
+    date: v.number(),
+    staffSignature: v.optional(v.string()),
+
+    // Metadata
+    status: v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed")),
+    submittedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("by_residentId", ["residentId"])
+    .index("by_userId", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_carePlanNumber", ["carePlanNumber"])
 });

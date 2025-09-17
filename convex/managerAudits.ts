@@ -307,6 +307,10 @@ export const getUnauditedForms = query({
         "long-term-fall-risk-form": {
           formType: "longTermFallsRiskAssessment",
           table: "longTermFallsRiskAssessments"
+        },
+        "care-plan-form": {
+          formType: "carePlanAssessment",
+          table: "carePlanAssessments"
         }
       };
 
@@ -407,6 +411,19 @@ export const getUnauditedForms = query({
               allLongTermFallsForms.length > 0
                 ? [allLongTermFallsForms[0]]
                 : [];
+            break;
+          case "carePlanAssessments":
+            const allCarePlanForms = await ctx.db
+              .query("carePlanAssessments")
+              .withIndex("by_residentId", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) => q.neq(q.field("status"), "draft"))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms =
+              allCarePlanForms.length > 0 ? [allCarePlanForms[0]] : [];
             break;
         }
       } catch (error) {
@@ -602,10 +619,11 @@ export const submitReviewedForm = mutation({
           );
           break;
         case "carePlanAssessment":
-          // TODO: Add when carePlanAssessment is implemented
-          throw new Error(
-            "Care plan assessment submission not implemented yet"
+          newFormId = await ctx.runMutation(
+            api.careFiles.carePlan.submitCarePlanAssessment,
+            args.formData
           );
+          break;
         default:
           throw new Error(`Unsupported form type: ${args.formType}`);
       }
