@@ -437,58 +437,7 @@ export function ComprehensiveIncidentForm({
           <DialogDescription className="text-sm sm:text-base">
             Complete incident report for {residentName} - Step {currentStep} of {maxSteps}
           </DialogDescription>
-          
-          {/* Progress indicator */}
-          <div className="mt-4">
-            {/* Mobile Progress - Simple dots */}
-            <div className="flex justify-center items-center gap-2 sm:hidden">
-              {steps.map((step) => (
-                <div
-                  key={step.number}
-                  className={`w-3 h-3 rounded-full transition-colors ${
-                    currentStep >= step.number 
-                      ? 'bg-primary' 
-                      : 'bg-gray-300'
-                  }`}
-                />
-              ))}
-              <span className="ml-2 text-sm text-gray-600">
-                {currentStep}/{maxSteps}
-              </span>
-            </div>
-
-            {/* Desktop Progress - Full layout */}
-            <div className="hidden sm:flex justify-between items-center">
-              {steps.map((step, index) => (
-                <div key={step.number} className="flex items-center flex-1">
-                  <div className="flex items-center">
-                    <div className={`flex items-center justify-center w-8 h-8 lg:w-10 lg:h-10 rounded-full text-sm lg:text-base font-medium transition-colors ${
-                      currentStep >= step.number 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      {step.number}
-                    </div>
-                    <div className="ml-3">
-                      <div className={`text-sm lg:text-base font-medium ${
-                        currentStep >= step.number ? 'text-primary' : 'text-gray-600'
-                      }`}>
-                        {step.title}
-                      </div>
-                      <div className="text-xs lg:text-sm text-gray-500">Sections {step.sections}</div>
-                    </div>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className="flex-1 mx-4">
-                      <div className={`h-0.5 ${
-                        currentStep > step.number ? 'bg-primary' : 'bg-gray-300'
-                      }`} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+     
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-1">
@@ -540,7 +489,7 @@ export function ComprehensiveIncidentForm({
                                   disabled={(date) =>
                                     date > new Date() || date < new Date("1900-01-01")
                                   }
-                                  initialFocus
+                           
                                 />
                               </PopoverContent>
                             </Popover>
@@ -739,7 +688,7 @@ export function ComprehensiveIncidentForm({
                                   disabled={(date) =>
                                     date > new Date() || date < new Date("1900-01-01")
                                   }
-                                  initialFocus
+                               
                                 />
                               </PopoverContent>
                             </Popover>

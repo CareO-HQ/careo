@@ -1229,20 +1229,20 @@ export default defineSchema({
   }).index("by_resident", ["residentId"]),
 
   incidents: defineTable({
-    // Section 1: Incident Details
-    date: v.string(),
-    time: v.string(),
-    homeName: v.optional(v.string()),
-    unit: v.optional(v.string()),
+    // Section 1: Incident Details (all required in form)
+    date: v.string(), // Required - date of incident
+    time: v.string(), // Required - time of incident
+    homeName: v.string(), // Required - home name
+    unit: v.string(), // Required - unit
     
     // Section 2: Injured Person Details
-    injuredPersonFirstName: v.optional(v.string()),
-    injuredPersonSurname: v.optional(v.string()),
-    injuredPersonDOB: v.optional(v.string()),
-    residentId: v.optional(v.id("residents")),
-    residentInternalId: v.optional(v.string()),
-    dateOfAdmission: v.optional(v.string()),
-    healthCareNumber: v.optional(v.string()),
+    injuredPersonFirstName: v.string(), // Required - first name
+    injuredPersonSurname: v.string(), // Required - surname
+    injuredPersonDOB: v.string(), // Required - date of birth
+    residentId: v.optional(v.id("residents")), // Auto-filled from context
+    residentInternalId: v.optional(v.string()), // Optional - internal ID
+    dateOfAdmission: v.optional(v.string()), // Optional - admission date
+    healthCareNumber: v.optional(v.string()), // Optional - healthcare number
     
     // Section 3: Status of Injured Person (multiple can be selected)
     statusResident: v.optional(v.boolean()),
@@ -1289,11 +1289,10 @@ export default defineSchema({
     fallPathway: v.optional(v.string()), // "green", "amber", "red"
     
     // Section 7: Detailed Description
-    detailedDescription: v.optional(v.string()),
-    attachedPhotos: v.optional(v.array(v.id("_storage"))),
+    detailedDescription: v.string(), // Required - detailed description (min 10 chars in form)
     
     // Section 8: Incident Level
-    incidentLevel: v.optional(v.string()), // "death", "permanent_harm", "minor_injury", "no_harm", "near_miss"
+    incidentLevel: v.string(), // Required - "death", "permanent_harm", "minor_injury", "no_harm", "near_miss"
     
     // Section 9: Details of Injury
     injuryDescription: v.optional(v.string()),
@@ -1317,7 +1316,6 @@ export default defineSchema({
     witness1Contact: v.optional(v.string()),
     witness2Name: v.optional(v.string()),
     witness2Contact: v.optional(v.string()),
-    witnessStatements: v.optional(v.array(v.id("_storage"))),
     
     // Section 13: Further Actions by Nurse
     actionOnCallManager: v.optional(v.boolean()),
@@ -1357,12 +1355,12 @@ export default defineSchema({
     keyWorkerEmail: v.optional(v.string()),
     
     // Section 20: Form Completion Details
-    completedByFullName: v.optional(v.string()),
-    completedByJobTitle: v.optional(v.string()),
-    completedBySignature: v.optional(v.string()),
-    dateCompleted: v.optional(v.string()),
+    completedByFullName: v.string(), // Required - full name of person completing form
+    completedByJobTitle: v.string(), // Required - job title of person completing form
+    completedBySignature: v.optional(v.string()), // Optional - digital signature
+    dateCompleted: v.string(), // Required - date completed
     
-    // Legacy fields for backward compatibility
+    // Legacy fields for backward compatibility (keep for existing records)
     description: v.optional(v.string()),
     immediateAction: v.optional(v.string()),
     medicalAttention: v.optional(v.string()),

@@ -4,16 +4,16 @@ import { Id } from "./_generated/dataModel";
 
 export const create = mutation({
   args: {
-    // Section 1: Incident Details
+    // Section 1: Incident Details (all required)
     date: v.string(),
     time: v.string(),
-    homeName: v.optional(v.string()),
-    unit: v.optional(v.string()),
+    homeName: v.string(),
+    unit: v.string(),
     
     // Section 2: Injured Person Details
-    injuredPersonFirstName: v.optional(v.string()),
-    injuredPersonSurname: v.optional(v.string()),
-    injuredPersonDOB: v.optional(v.string()),
+    injuredPersonFirstName: v.string(),
+    injuredPersonSurname: v.string(),
+    injuredPersonDOB: v.string(),
     residentId: v.optional(v.id("residents")),
     residentInternalId: v.optional(v.string()),
     dateOfAdmission: v.optional(v.string()),
@@ -37,10 +37,10 @@ export const create = mutation({
     fallPathway: v.optional(v.string()),
     
     // Section 7: Detailed Description
-    detailedDescription: v.optional(v.string()),
+    detailedDescription: v.string(),
     
     // Section 8: Incident Level
-    incidentLevel: v.optional(v.string()),
+    incidentLevel: v.string(),
     
     // Section 9: Details of Injury
     injuryDescription: v.optional(v.string()),
@@ -89,10 +89,10 @@ export const create = mutation({
     keyWorkerEmail: v.optional(v.string()),
     
     // Section 20: Form Completion Details
-    completedByFullName: v.optional(v.string()),
-    completedByJobTitle: v.optional(v.string()),
+    completedByFullName: v.string(),
+    completedByJobTitle: v.string(),
     completedBySignature: v.optional(v.string()),
-    dateCompleted: v.optional(v.string()),
+    dateCompleted: v.string(),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
