@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -166,6 +166,11 @@ export function ComprehensiveIncidentForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
   const createIncident = useMutation(api.incidents.create);
+  
+  // Fetch resident data to pre-populate form
+  const resident = useQuery(api.residents.getById, {
+    residentId: residentId as Id<"residents">
+  });
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
     resolver: zodResolver(ComprehensiveIncidentSchema),
@@ -180,7 +185,7 @@ export function ComprehensiveIncidentForm({
       residentInternalId: "",
       dateOfAdmission: undefined,
       healthCareNumber: "",
-      injuredPersonStatus: [],
+      injuredPersonStatus: ["Resident"], // Default to Resident status
       contractorEmployer: "",
       incidentTypes: [],
       typeOtherDetails: "",
@@ -218,6 +223,46 @@ export function ComprehensiveIncidentForm({
       dateCompleted: new Date(),
     },
   });
+
+  // Update form with resident data when available
+  React.useEffect(() => {
+    if (resident) {
+      // Pre-populate Section 1: Incident Details
+      form.setValue("homeName", resident.homeName || "");
+      form.setValue("unit", resident.unit || resident.roomNumber || "");
+      
+      // Pre-populate Section 2: Injured Person Details
+      form.setValue("injuredPersonFirstName", resident.firstName || "");
+      form.setValue("injuredPersonSurname", resident.lastName || "");
+      
+      if (resident.dateOfBirth) {
+        form.setValue("injuredPersonDOB", new Date(resident.dateOfBirth));
+      }
+      
+      form.setValue("residentInternalId", resident.internalId || resident._id || "");
+      
+      if (resident.dateOfAdmission) {
+        form.setValue("dateOfAdmission", new Date(resident.dateOfAdmission));
+      }
+      
+      form.setValue("healthCareNumber", resident.healthCareNumber || resident.nhsNumber || "");
+      
+      // Pre-populate Section 18: Next of Kin (if available)
+      if (resident.nextOfKin) {
+        form.setValue("nokInformedWho", resident.nextOfKin.name || "");
+      }
+      
+      // Pre-populate Section 19: Care team (if available)
+      if (resident.careManager) {
+        form.setValue("careManagerName", resident.careManager.name || "");
+        form.setValue("careManagerEmail", resident.careManager.email || "");
+      }
+      if (resident.keyWorker) {
+        form.setValue("keyWorkerName", resident.keyWorker.name || "");
+        form.setValue("keyWorkerEmail", resident.keyWorker.email || "");
+      }
+    }
+  }, [resident, form]);
 
   const watchedIncidentTypes = form.watch("incidentTypes");
   const watchedIncidentLevel = form.watch("incidentLevel");
@@ -422,6 +467,9 @@ export function ComprehensiveIncidentForm({
           <DialogDescription className="text-sm sm:text-base">
             Complete incident report for {residentName} - Step {currentStep} of {maxSteps}
           </DialogDescription>
+          {resident === undefined && (
+            <div className="text-sm text-muted-foreground">Loading resident information...</div>
+          )}
      
         </DialogHeader>
 
