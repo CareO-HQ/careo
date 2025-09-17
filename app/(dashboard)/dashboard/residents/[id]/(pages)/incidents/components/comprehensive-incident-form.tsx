@@ -165,6 +165,7 @@ export function ComprehensiveIncidentForm({
 }: ComprehensiveIncidentFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
+  const [doiPopoverOpen, setDoiPopoverOpen] = React.useState(false);
   const createIncident = useMutation(api.incidents.create);
   
   // Fetch resident data to pre-populate form
@@ -172,8 +173,20 @@ export function ComprehensiveIncidentForm({
     residentId: residentId as Id<"residents">
   });
   
-  // Fetch current user context for organization and team
-  const userContext = useQuery(api.users.getCurrentUserContext);
+  // Fetch resident's organization and team names
+  const organizationData = useQuery(
+    api.teams.getOrganizationName,
+    resident?.organizationId ? { organizationId: resident.organizationId } : "skip"
+  );
+  
+  const teamData = useQuery(
+    api.teams.getTeamName,
+    resident?.teamId ? { teamId: resident.teamId } : "skip"
+  );
+  
+  console.log("resident data:", resident);
+  console.log("organization data:", organizationData);
+  console.log("team data:", teamData);
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
     resolver: zodResolver(ComprehensiveIncidentSchema),
@@ -229,17 +242,13 @@ export function ComprehensiveIncidentForm({
 
   // Update form with resident and organization data when available
   React.useEffect(() => {
-    // Pre-populate Section 1: Incident Details with organization/team
-    if (userContext) {
-      // Home Name = Organization Name
-      if (userContext.organization && userContext.organization.name) {
-        form.setValue("homeName", userContext.organization.name);
-      }
-      
-      // Unit = Current Team Name
-      if (userContext.team && userContext.team.name) {
-        form.setValue("unit", userContext.team.name);
-      }
+    // Pre-populate Section 1: Incident Details with resident's organization/team
+    if (organizationData?.name) {
+      form.setValue("homeName", organizationData.name);
+    }
+    
+    if (teamData?.name) {
+      form.setValue("unit", teamData.name);
     }
     
     if (resident) {
@@ -253,11 +262,11 @@ export function ComprehensiveIncidentForm({
       
       form.setValue("residentInternalId", resident.internalId || resident._id || "");
       
-      if (resident.dateOfAdmission) {
-        form.setValue("dateOfAdmission", new Date(resident.dateOfAdmission));
+      if (resident.admissionDate) {
+        form.setValue("dateOfAdmission", new Date(resident.admissionDate));
       }
       
-      form.setValue("healthCareNumber", resident.healthCareNumber || resident.nhsNumber || "");
+      form.setValue("healthCareNumber", resident.nhsHealthNumber || "");
       
       // Pre-populate Section 18: Next of Kin (if available)
       if (resident.nextOfKin) {
@@ -274,7 +283,7 @@ export function ComprehensiveIncidentForm({
         form.setValue("keyWorkerEmail", resident.keyWorker.email || "");
       }
     }
-  }, [resident, userContext, form]);
+  }, [resident, organizationData, teamData, form]);
 
   const watchedIncidentTypes = form.watch("incidentTypes");
   const hasFallType = watchedIncidentTypes?.some(type => 
@@ -469,7 +478,7 @@ export function ComprehensiveIncidentForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-9xl w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0 pb-4">
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -505,8 +514,8 @@ export function ComprehensiveIncidentForm({
                         name="date"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Date of Incident *</FormLabel>
-                            <Popover>
+                            <FormLabel required>Date of Incident</FormLabel>
+                            <Popover modal open={doiPopoverOpen} onOpenChange={setDoiPopoverOpen}>
                               <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
@@ -529,11 +538,15 @@ export function ComprehensiveIncidentForm({
                                 <Calendar
                                   mode="single"
                                   selected={field.value}
-                                  onSelect={field.onChange}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(date);
+                                      setDoiPopoverOpen(false);
+                                    }
+                                  }}
                                   disabled={(date) =>
                                     date > new Date() || date < new Date("1900-01-01")
                                   }
-                           
                                 />
                               </PopoverContent>
                             </Popover>
@@ -547,7 +560,7 @@ export function ComprehensiveIncidentForm({
                         name="time"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Time of Incident *</FormLabel>
+                            <FormLabel required>Time of Incident</FormLabel>
                             <FormControl>
                               <div className="relative">
                                 <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -568,7 +581,7 @@ export function ComprehensiveIncidentForm({
                         name="homeName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel required>Home Name (Organization)</FormLabel>
+                            <FormLabel required>Care Home Name</FormLabel>
                             <FormControl>
                               <div className="relative">
                                 <Home className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -616,8 +629,8 @@ export function ComprehensiveIncidentForm({
                         control={form.control}
                         name="injuredPersonFirstName"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name *</FormLabel>
+                          <FormItem className="flex flex-col gap-1">
+                            <FormLabel required>First Name</FormLabel>
                             <FormControl>
                               <Input placeholder="First name" {...field} />
                             </FormControl>
@@ -631,7 +644,7 @@ export function ComprehensiveIncidentForm({
                         name="injuredPersonSurname"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Surname *</FormLabel>
+                            <FormLabel required>Surname</FormLabel>
                             <FormControl>
                               <Input placeholder="Surname" {...field} />
                             </FormControl>
@@ -646,7 +659,7 @@ export function ComprehensiveIncidentForm({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Date of Birth *</FormLabel>
-                            <Popover>
+                            <Popover modal>
                               <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
@@ -669,11 +682,14 @@ export function ComprehensiveIncidentForm({
                                 <Calendar
                                   mode="single"
                                   selected={field.value}
-                                  onSelect={field.onChange}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(date);
+                                    }
+                                  }}
                                   disabled={(date) =>
                                     date > new Date() || date < new Date("1900-01-01")
                                   }
-                                  initialFocus
                                 />
                               </PopoverContent>
                             </Popover>
@@ -1732,7 +1748,6 @@ export function ComprehensiveIncidentForm({
                                   disabled={(date) =>
                                     date > new Date() || date < new Date("1900-01-01")
                                   }
-                                  initialFocus
                                 />
                               </PopoverContent>
                             </Popover>

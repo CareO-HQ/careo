@@ -24,22 +24,22 @@ export const getCurrentUserContext = query({
     
     if (user.activeTeamId) {
       // Get team membership details
-      const teamMembership = await ctx.db
-        .query("teamMemberships")
+      const teamMember = await ctx.db
+        .query("teamMembers")
         .withIndex("byUserAndTeam", (q) => 
-          q.eq("userId", identity.subject).eq("teamId", user.activeTeamId)
+          q.eq("userId", identity.subject).eq("teamId", user.activeTeamId!)
         )
         .first();
       
-      if (teamMembership) {
+      if (teamMember) {
         team = {
-          id: teamMembership.teamId,
-          name: user.activeTeamId // Use the team ID as name for now
+          id: teamMember.teamId,
+          name: teamMember.teamId // Use the team ID as name for now
         };
         
         organization = {
-          id: teamMembership.organizationId,
-          name: teamMembership.organizationId // Use organization ID as name for now
+          id: teamMember.organizationId,
+          name: teamMember.organizationId // Use organization ID as name for now
         };
       } else {
         // Fallback if no membership found
