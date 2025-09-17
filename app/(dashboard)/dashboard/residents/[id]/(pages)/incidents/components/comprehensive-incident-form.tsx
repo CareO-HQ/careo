@@ -78,12 +78,7 @@ const ComprehensiveIncidentSchema = z.object({
   healthCareNumber: z.string().optional(),
   
   // Section 3: Status of Injured Person
-  statusResident: z.boolean().optional(),
-  statusRelative: z.boolean().optional(),
-  statusStaff: z.boolean().optional(),
-  statusAgencyStaff: z.boolean().optional(),
-  statusVisitor: z.boolean().optional(),
-  statusContractor: z.boolean().optional(),
+  injuredPersonStatus: z.array(z.string()).optional(),
   contractorEmployer: z.string().optional(),
   
   // Section 4: Type of Incident
@@ -185,12 +180,7 @@ export function ComprehensiveIncidentForm({
       residentInternalId: "",
       dateOfAdmission: undefined,
       healthCareNumber: "",
-      statusResident: false,
-      statusRelative: false,
-      statusStaff: false,
-      statusAgencyStaff: false,
-      statusVisitor: false,
-      statusContractor: false,
+      injuredPersonStatus: [],
       contractorEmployer: "",
       incidentTypes: [],
       typeOtherDetails: "",
@@ -319,12 +309,7 @@ export function ComprehensiveIncidentForm({
         healthCareNumber: values.healthCareNumber,
         
         // Status
-        statusResident: values.statusResident,
-        statusRelative: values.statusRelative,
-        statusStaff: values.statusStaff,
-        statusAgencyStaff: values.statusAgencyStaff,
-        statusVisitor: values.statusVisitor,
-        statusContractor: values.statusContractor,
+        injuredPersonStatus: values.injuredPersonStatus,
         contractorEmployer: values.contractorEmployer,
         
         // Incident types
@@ -726,51 +711,74 @@ export function ComprehensiveIncidentForm({
                       <p className="text-xs sm:text-sm text-muted-foreground">Select one or more that apply</p>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                        {[
-                          { field: "statusResident", label: "Resident in Care" },
-                          { field: "statusRelative", label: "Relative" },
-                          { field: "statusStaff", label: "Staff Member" },
-                          { field: "statusAgencyStaff", label: "Agency Staff" },
-                          { field: "statusVisitor", label: "Visitor" },
-                          { field: "statusContractor", label: "Contractor" },
-                        ].map(({ field, label }) => (
-                          <FormField
-                            key={field}
-                            control={form.control}
-                            name={field as keyof z.infer<typeof ComprehensiveIncidentSchema>}
-                            render={({ field: formField }) => (
-                              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={formField.value as boolean}
-                                    onCheckedChange={formField.onChange}
-                                  />
-                                </FormControl>
-                                <div className="space-y-1 leading-none">
-                                  <FormLabel className="text-sm font-normal">
-                                    {label}
-                                  </FormLabel>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-                        ))}
-                      </div>
-
                       <FormField
                         control={form.control}
-                        name="contractorEmployer"
-                        render={({ field }) => (
-                          <FormItem className="mt-4">
-                            <FormLabel>Contractor Employer (if applicable)</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Name of contractor's employer" {...field} />
-                            </FormControl>
+                        name="injuredPersonStatus"
+                        render={() => (
+                          <FormItem>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                              {[
+                                { value: "Resident", label: "Resident in Care" },
+                                { value: "Relative", label: "Relative" },
+                                { value: "Staff", label: "Staff Member" },
+                                { value: "AgencyStaff", label: "Agency Staff" },
+                                { value: "Visitor", label: "Visitor" },
+                                { value: "Contractor", label: "Contractor" },
+                              ].map((item) => (
+                                <FormField
+                                  key={item.value}
+                                  control={form.control}
+                                  name="injuredPersonStatus"
+                                  render={({ field }) => {
+                                    return (
+                                      <FormItem
+                                        key={item.value}
+                                        className="flex flex-row items-start space-x-3 space-y-0"
+                                      >
+                                        <FormControl>
+                                          <Checkbox
+                                            checked={field.value?.includes(item.value)}
+                                            onCheckedChange={(checked) => {
+                                              return checked
+                                                ? field.onChange([...(field.value || []), item.value])
+                                                : field.onChange(
+                                                    (field.value || []).filter(
+                                                      (value) => value !== item.value
+                                                    )
+                                                  )
+                                            }}
+                                          />
+                                        </FormControl>
+                                        <FormLabel className="text-sm font-normal">
+                                          {item.label}
+                                        </FormLabel>
+                                      </FormItem>
+                                    )
+                                  }}
+                                />
+                              ))}
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+
+                      {/* Show contractor employer field if Contractor is selected */}
+                      {form.watch("injuredPersonStatus")?.includes("Contractor") && (
+                        <FormField
+                          control={form.control}
+                          name="contractorEmployer"
+                          render={({ field }) => (
+                            <FormItem className="mt-4">
+                              <FormLabel>Contractor Employer</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Name of contractor's employer" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </CardContent>
                   </Card>
                 </div>

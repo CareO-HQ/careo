@@ -1245,13 +1245,8 @@ export default defineSchema({
     healthCareNumber: v.optional(v.string()), // Optional - healthcare number
     
     // Section 3: Status of Injured Person (multiple can be selected)
-    statusResident: v.optional(v.boolean()),
-    statusRelative: v.optional(v.boolean()),
-    statusStaff: v.optional(v.boolean()),
-    statusAgencyStaff: v.optional(v.boolean()),
-    statusVisitor: v.optional(v.boolean()),
-    statusContractor: v.optional(v.boolean()),
-    contractorEmployer: v.optional(v.string()),
+    injuredPersonStatus: v.optional(v.array(v.string())), // Array of status values: "Resident", "Relative", "Staff", "AgencyStaff", "Visitor", "Contractor"
+    contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
     
     // Section 4: Type of Incident (multiple can be selected)
     typeFallWitnessed: v.optional(v.boolean()),

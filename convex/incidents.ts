@@ -20,13 +20,8 @@ export const create = mutation({
     healthCareNumber: v.optional(v.string()),
     
     // Section 3: Status of Injured Person
-    statusResident: v.optional(v.boolean()),
-    statusRelative: v.optional(v.boolean()),
-    statusStaff: v.optional(v.boolean()),
-    statusAgencyStaff: v.optional(v.boolean()),
-    statusVisitor: v.optional(v.boolean()),
-    statusContractor: v.optional(v.boolean()),
-    contractorEmployer: v.optional(v.string()),
+    injuredPersonStatus: v.optional(v.array(v.string())), // Array of status values
+    contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
     
     // Section 4: Type of Incident
     incidentTypes: v.optional(v.array(v.string())),
@@ -148,12 +143,7 @@ export const create = mutation({
       healthCareNumber: args.healthCareNumber,
       
       // Section 3
-      statusResident: args.statusResident,
-      statusRelative: args.statusRelative,
-      statusStaff: args.statusStaff,
-      statusAgencyStaff: args.statusAgencyStaff,
-      statusVisitor: args.statusVisitor,
-      statusContractor: args.statusContractor,
+      injuredPersonStatus: args.injuredPersonStatus,
       contractorEmployer: args.contractorEmployer,
       
       // Section 4 - Spread individual incident type booleans
