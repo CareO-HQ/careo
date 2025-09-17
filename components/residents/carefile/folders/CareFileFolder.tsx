@@ -28,12 +28,12 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
-import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
 import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
 import UploadFileModal from "./UploadFileModal";
+import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -653,7 +653,17 @@ export default function CareFileFolder({
           />
         );
       case "long-term-fall-risk-form":
-        return <LongTermFallRiskDialog />;
+        return (
+          <LongTermFallRiskDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+          />
+        );
+
       // case 'discharge':
       //   return <DischargeDialog />;
       default:

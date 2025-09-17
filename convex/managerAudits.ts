@@ -80,7 +80,8 @@ export const createAudit = mutation({
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
-      v.literal("preAdmissionCareFile")
+      v.literal("preAdmissionCareFile"),
+      v.literal("longTermFallsRiskAssessment")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -137,7 +138,8 @@ export const getAuditsByForm = query({
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
-      v.literal("preAdmissionCareFile")
+      v.literal("preAdmissionCareFile"),
+      v.literal("longTermFallsRiskAssessment")
     ),
     formId: v.string()
   },
@@ -477,7 +479,8 @@ export const getFormDataForReview = query({
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
-      v.literal("preAdmissionCareFile")
+      v.literal("preAdmissionCareFile"),
+      v.literal("longTermFallsRiskAssessment")
     ),
     formId: v.string()
   },
@@ -515,7 +518,8 @@ export const submitReviewedForm = mutation({
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
-      v.literal("preAdmissionCareFile")
+      v.literal("preAdmissionCareFile"),
+      v.literal("longTermFallsRiskAssessment")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -564,6 +568,12 @@ export const submitReviewedForm = mutation({
         case "preAdmissionCareFile":
           newFormId = await ctx.runMutation(
             api.careFiles.preadmission.submitPreAdmissionForm,
+            args.formData
+          );
+          break;
+        case "longTermFallsRiskAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.longTermFalls.submitLongTermFallsAssessment,
             args.formData
           );
           break;
