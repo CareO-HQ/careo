@@ -51,7 +51,6 @@ import {
   FileText,
   Shield,
   Activity,
-  Phone,
   Mail,
   Signature
 } from "lucide-react";
@@ -286,7 +285,7 @@ export function ComprehensiveIncidentForm({
   const watchedIncidentTypes = form.watch("incidentTypes");
   const hasFallType = watchedIncidentTypes?.some(type => 
     type === "FallWitnessed" || type === "FallUnwitnessed"
-  );
+  ) || false;
 
   const incidentTypeOptions = [
     { value: "FallWitnessed", label: "Fall (witnessed)" },
@@ -359,15 +358,7 @@ export function ComprehensiveIncidentForm({
   ];
 
   // Calculate max steps dynamically based on whether fall questions are needed
-  const getCurrentMaxSteps = () => {
-    const incidentTypes = form.watch("incidentTypes") || [];
-    const hasFallType = incidentTypes.some(type => 
-      type === "FallWitnessed" || type === "FallUnwitnessed"
-    );
-    return hasFallType ? steps.length : steps.length - 1; // Subtract 1 if no fall questions
-  };
-  
-  const maxSteps = getCurrentMaxSteps();
+  const maxSteps = steps.length; // Always use total steps for UI consistency
 
   async function onSubmit(values: z.infer<typeof ComprehensiveIncidentSchema>) {
     try {
@@ -464,7 +455,7 @@ export function ComprehensiveIncidentForm({
     const fieldsToValidate = getFieldsForStep(currentStep);
     const isValid = await form.trigger(fieldsToValidate);
     
-    if (isValid && currentStep < maxSteps) {
+    if (isValid) {
       let nextStepNumber = currentStep + 1;
       
       // Skip Step 5 (Fall-Specific Questions) if no fall incident type is selected
@@ -479,7 +470,10 @@ export function ComprehensiveIncidentForm({
         }
       }
       
-      setCurrentStep(nextStepNumber);
+      // Don't go beyond the last step
+      if (nextStepNumber <= steps.length) {
+        setCurrentStep(nextStepNumber);
+      }
     }
   };
 
@@ -1000,7 +994,15 @@ export function ComprehensiveIncidentForm({
               )}
 
               {/* Step 5: Fall-Specific Questions (conditional) */}
-              {currentStep === 5 && (
+              {currentStep === 5 && !hasFallType && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">No fall-related incident selected. Skipping fall-specific questions.</p>
+                  <Button type="button" onClick={nextStep}>
+                    Continue to Next Step
+                  </Button>
+                </div>
+              )}
+              {currentStep === 5 && hasFallType && (
                 <div>
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Activity className="w-5 h-5" />
@@ -1824,7 +1826,7 @@ export function ComprehensiveIncidentForm({
                 </Button>
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Step {currentStep > 5 && !hasFallType ? currentStep - 1 : currentStep} of {maxSteps}</span>
+                  <span>Step {currentStep} of {maxSteps}</span>
                 </div>
 
                 {currentStep < maxSteps ? (

@@ -272,16 +272,12 @@ export const getIncidentStats = query({
 
     const totalIncidents = incidents.length;
     const fallsCount = incidents.filter(i => 
-      // Check new array format
-      (i.incidentTypes?.includes("FallWitnessed") || i.incidentTypes?.includes("FallUnwitnessed")) ||
-      // Check legacy boolean fields
-      i.typeFallWitnessed || i.typeFallUnwitnessed
+      // Check array format
+      (i.incidentTypes?.includes("FallWitnessed") || i.incidentTypes?.includes("FallUnwitnessed"))
     ).length;
     const medicationErrors = incidents.filter(i => 
-      // Check new array format
-      i.incidentTypes?.includes("Medication") ||
-      // Check legacy boolean field
-      i.typeMedication
+      // Check array format
+      i.incidentTypes?.includes("Medication")
     ).length;
     
     const levelBreakdown = {
