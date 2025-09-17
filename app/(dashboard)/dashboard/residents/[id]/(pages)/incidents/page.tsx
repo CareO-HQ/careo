@@ -474,7 +474,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               </div>
               <span className="text-gray-900">Recent Incidents</span>
             </CardTitle>
-            <Badge variant="secondary">{incidents?.length || 0} Total</Badge>
+            <Badge className="bg-gray-100 text-gray-700">{incidents?.length || 0} Total</Badge>
           </div>
         </CardHeader>
         <CardContent className="p-6">
@@ -491,7 +491,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               {paginatedIncidents.map((incident) => (
                 <div
                   key={incident._id}
-                  className="flex items-center justify-between p-4 rounded-lg"
+                  className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
                 >
                   <div className="flex items-start space-x-3 flex-1">
                     <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
@@ -503,14 +503,13 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           {incident.incidentTypes?.join(", ") || "Incident"}
                         </h4>
                         <Badge
-                          variant={
-                            incident.incidentLevel === "death" ? "destructive" :
-                              incident.incidentLevel === "permanent_harm" ? "destructive" :
-                                incident.incidentLevel === "minor_injury" ? "secondary" :
-                                  incident.incidentLevel === "no_harm" ? "outline" :
-                                    "default"
-                          }
-                          className="text-xs"
+                          className={`text-xs border-0 ${
+                            incident.incidentLevel === "death" ? "bg-red-100 text-red-800" :
+                            incident.incidentLevel === "permanent_harm" ? "bg-red-100 text-red-800" :
+                            incident.incidentLevel === "minor_injury" ? "bg-yellow-100 text-yellow-800" :
+                            incident.incidentLevel === "no_harm" ? "bg-green-100 text-green-800" :
+                            "bg-gray-100 text-gray-800"
+                          }`}
                         >
                           {incident.incidentLevel
                             ?.replace("_", " ")
@@ -520,7 +519,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                         </Badge>
                       </div>
                     
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                         <div className="flex items-center space-x-1">
                           <Calendar className="w-3 h-3" />
                           <span>{new Date(incident.date).toLocaleDateString()}</span>
@@ -536,7 +535,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2 ml-4">
+                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start">
                     <Button
                       size="sm"
                       variant="ghost"

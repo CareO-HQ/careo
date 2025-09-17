@@ -950,34 +950,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Intake Alerts */}
-          {(() => {
-            const fluidIntake = logSummary?.totalFluidIntakeMl ?? 0;
-            const foodEntries = logSummary?.foodEntries ?? 0;
-            const lowFluidThreshold = 1500; // 1.5L daily recommended
-            const lowFoodThreshold = 3; // 3 meals/snacks per day
-            
-            const hasLowFluid = fluidIntake < lowFluidThreshold;
-            const hasLowFood = foodEntries < lowFoodThreshold;
-            
-            return (hasLowFluid || hasLowFood) && (
-              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-amber-800">Intake Alert</span>
-                </div>
-                <div className="text-sm text-amber-700 space-y-1">
-                  {hasLowFluid && (
-                    <p>• Low fluid intake: {fluidIntake}ml of recommended {lowFluidThreshold}ml daily</p>
-                  )}
-                  {hasLowFood && (
-                    <p>• Low food entries: {foodEntries} meals/snacks logged today</p>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
+   
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Food Entries */}
             <div className={`text-center p-4 rounded-lg border ${

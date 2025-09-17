@@ -675,15 +675,15 @@ export function ComprehensiveIncidentForm({
                       <User className="w-5 h-5" />
                       Section 2: Injured Person Details
                     </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="injuredPersonFirstName"
                         render={({ field }) => (
-                          <FormItem className="flex flex-col gap-1">
+                          <FormItem>
                             <FormLabel required>First Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="First name" {...field} />
+                              <Input placeholder="First name" {...field} className="w-full" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -697,7 +697,7 @@ export function ComprehensiveIncidentForm({
                           <FormItem>
                             <FormLabel required>Surname</FormLabel>
                             <FormControl>
-                              <Input placeholder="Surname" {...field} />
+                              <Input placeholder="Surname" {...field} className="w-full" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -709,7 +709,7 @@ export function ComprehensiveIncidentForm({
                         name="injuredPersonDOB"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Date of Birth *</FormLabel>
+                            <FormLabel requiredxf>Date of Birth</FormLabel>
                             <Popover modal>
                               <PopoverTrigger asChild>
                                 <FormControl>
@@ -756,11 +756,9 @@ export function ComprehensiveIncidentForm({
                           <FormItem>
                             <FormLabel>Resident ID</FormLabel>
                             <FormControl>
-                              <Input placeholder="Internal ID or medical record number" {...field} />
+                              <Input placeholder="Internal ID or medical record number" {...field} className="w-full" />
                             </FormControl>
-                            <FormDescription>
-                              Internal ID or medical record number
-                            </FormDescription>
+                      
                             <FormMessage />
                           </FormItem>
                         )}
@@ -770,7 +768,7 @@ export function ComprehensiveIncidentForm({
                         control={form.control}
                         name="dateOfAdmission"
                         render={({ field }) => (
-                          <FormItem className="flex flex-col">
+                          <FormItem>
                             <FormLabel>Date of Admission</FormLabel>
                             <Popover modal open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen}>
                               <PopoverTrigger asChild>
@@ -817,13 +815,11 @@ export function ComprehensiveIncidentForm({
                         name="healthCareNumber"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Health and Care Number</FormLabel>
+                            <FormLabel>Health and Care Number(NHS)</FormLabel>
                             <FormControl>
-                              <Input placeholder="NHS number or equivalent" {...field} />
+                              <Input placeholder="NHS number or equivalent" {...field} className="w-full" />
                             </FormControl>
-                            <FormDescription>
-                              National health/care identifier (e.g., NHS number)
-                            </FormDescription>
+                           
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1077,7 +1073,7 @@ export function ComprehensiveIncidentForm({
                         name="detailedDescription"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Description *</FormLabel>
+                            <FormLabel required>Description</FormLabel>
                             <FormControl>
                               <Textarea
                                 placeholder="Provide a detailed description of exactly what happened, what the injured person was doing, and how the incident occurred..."
@@ -1732,7 +1728,7 @@ export function ComprehensiveIncidentForm({
                         name="completedByFullName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Full Name *</FormLabel>
+                            <FormLabel required>Full Name</FormLabel>
                             <FormControl>
                               <Input placeholder="Your full name" {...field} />
                             </FormControl>
@@ -1746,7 +1742,7 @@ export function ComprehensiveIncidentForm({
                         name="completedByJobTitle"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Job Title *</FormLabel>
+                            <FormLabel required>Job Title</FormLabel>
                             <FormControl>
                               <Input placeholder="Your job title" {...field} />
                             </FormControl>
