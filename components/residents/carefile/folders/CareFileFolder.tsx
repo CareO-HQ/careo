@@ -482,6 +482,11 @@ export default function CareFileFolder({
         </div>
 
         <div className="flex items-center gap-1">
+          <EmailPDF
+            pdfStorageId={pdf.fileId}
+            filename={`${pdf.name}.pdf`}
+            residentName={resident?.fullName}
+          />
           <Edit2
             className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
             onClick={() => {
