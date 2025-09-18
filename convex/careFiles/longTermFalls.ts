@@ -206,7 +206,8 @@ export const getLongTermFallsAssessment = query({
     v.null()
   ),
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const result = await ctx.db.get(args.id);
+    return result as any;
   }
 });
 

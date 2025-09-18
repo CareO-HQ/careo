@@ -1233,7 +1233,7 @@ export default defineSchema({
     time: v.string(), // Required - time of incident
     homeName: v.string(), // Required - home name
     unit: v.string(), // Required - unit
-    
+
     // Section 2: Injured Person Details
     injuredPersonFirstName: v.string(), // Required - first name
     injuredPersonSurname: v.string(), // Required - surname
@@ -1242,77 +1242,77 @@ export default defineSchema({
     residentInternalId: v.optional(v.string()), // Optional - internal ID
     dateOfAdmission: v.optional(v.string()), // Optional - admission date
     healthCareNumber: v.optional(v.string()), // Optional - healthcare number
-    
+
     // Section 3: Status of Injured Person (multiple can be selected)
     injuredPersonStatus: v.optional(v.array(v.string())), // Array of status values: "Resident", "Relative", "Staff", "AgencyStaff", "Visitor", "Contractor"
     contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
-    
+
     // Section 4: Type of Incident (multiple can be selected)
     incidentTypes: v.array(v.string()), // Array of incident types - required
     typeOtherDetails: v.optional(v.string()), // Details if "Other" is selected
-    
+
     // Section 5-6: Fall-Specific Questions
     anticoagulantMedication: v.optional(v.string()), // "yes", "no", "unknown"
     fallPathway: v.optional(v.string()), // "green", "amber", "red"
-    
+
     // Section 7: Detailed Description
     detailedDescription: v.string(), // Required - detailed description (min 10 chars in form)
-    
+
     // Section 8: Incident Level
     incidentLevel: v.string(), // Required - "death", "permanent_harm", "minor_injury", "no_harm", "near_miss"
-    
+
     // Section 9: Details of Injury
     injuryDescription: v.optional(v.string()),
     bodyPartInjured: v.optional(v.string()),
-    
+
     // Section 10: Treatment Required
     treatmentTypes: v.optional(v.array(v.string())), // Array of treatment types selected
-    
+
     // Section 11: Details of Treatment Given
     treatmentDetails: v.optional(v.string()),
     vitalSigns: v.optional(v.string()),
     treatmentRefused: v.optional(v.boolean()),
-    
+
     // Section 12: Witnesses
     witness1Name: v.optional(v.string()),
     witness1Contact: v.optional(v.string()),
     witness2Name: v.optional(v.string()),
     witness2Contact: v.optional(v.string()),
-    
+
     // Section 13: Further Actions by Nurse
     nurseActions: v.optional(v.array(v.string())), // Array of nurse actions taken
-    
+
     // Section 14: Further Actions Advised
     furtherActionsAdvised: v.optional(v.string()),
-    
+
     // Section 15: Prevention Measures
     preventionMeasures: v.optional(v.string()),
-    
+
     // Section 16: Home Manager Informed
     homeManagerInformedBy: v.optional(v.string()),
     homeManagerInformedDateTime: v.optional(v.string()),
-    
+
     // Section 17: Out of Hours On-Call
     onCallManagerName: v.optional(v.string()),
     onCallContactedDateTime: v.optional(v.string()),
-    
+
     // Section 18: Next of Kin Informed
     nokInformedWho: v.optional(v.string()),
     nokInformedBy: v.optional(v.string()),
     nokInformedDateTime: v.optional(v.string()),
-    
+
     // Section 19: Trust Incident Form Recipients
     careManagerName: v.optional(v.string()),
     careManagerEmail: v.optional(v.string()),
     keyWorkerName: v.optional(v.string()),
     keyWorkerEmail: v.optional(v.string()),
-    
+
     // Section 20: Form Completion Details
     completedByFullName: v.string(), // Required - full name of person completing form
     completedByJobTitle: v.string(), // Required - job title of person completing form
     completedBySignature: v.optional(v.string()), // Optional - digital signature
     dateCompleted: v.string(), // Required - date completed
-    
+
     // Legacy fields for backward compatibility (keep for existing records)
     description: v.optional(v.string()),
     immediateAction: v.optional(v.string()),
@@ -1328,7 +1328,7 @@ export default defineSchema({
     type: v.optional(v.string()),
     location: v.optional(v.string()),
     witnesses: v.optional(v.string()),
-    
+
     // Metadata
     status: v.optional(v.string()),
     createdAt: v.number(),
@@ -1339,5 +1339,233 @@ export default defineSchema({
     .index("by_resident", ["residentId"])
     .index("by_date", ["date"])
     .index("by_incident_level", ["incidentLevel"])
-    .index("by_home", ["homeName"])
+    .index("by_home", ["homeName"]),
+
+  longTermFallsRiskAssessments: defineTable({
+    // Metadata
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+    pdfFileId: v.optional(v.id("_storage")),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    createdBy: v.string(),
+
+    // Assessment fields
+    age: v.union(v.literal("65-80"), v.literal("81-85"), v.literal("86+")),
+    gender: v.union(v.literal("MALE"), v.literal("FEMALE")),
+    historyOfFalls: v.union(
+      v.literal("RECURRENT-LAST-12"),
+      v.literal("FALL-LAST-12"),
+      v.literal("FALL-MORE-THAN-12"),
+      v.literal("NEVER")
+    ),
+
+    mobilityLevel: v.union(
+      v.literal("ASSISTANCE-1-AID"),
+      v.literal("ASSISTANCE-2-AID"),
+
+      v.literal("INDEPENDENT-WITH-AID"),
+
+      v.literal("INDEPENDENT-SAFE-UNAIDED"),
+
+      v.literal("IMMOBILE")
+    ),
+
+    standUnsupported: v.boolean(),
+
+    personalActivities: v.union(
+      v.literal("ASSISTANCE"),
+
+      v.literal("INDEPENDENT-EQUIPMENT"),
+
+      v.literal("INDEPENDENT-SAFE")
+    ),
+
+    domesticActivities: v.optional(
+      v.union(
+        v.literal("ASSISTANCE"),
+
+        v.literal("INDEPENDENT-EQUIPMENT"),
+
+        v.literal("INDEPENDENT-SAFE")
+      )
+    ),
+
+    footwear: v.union(v.literal("UNSAFE"), v.literal("SAFE")),
+
+    visionProblems: v.boolean(),
+
+    bladderBowelMovement: v.union(
+      v.literal("FREQUENCY"),
+
+      v.literal("IDENTIFIED-PROBLEMS"),
+
+      v.literal("NO-PROBLEMS")
+    ),
+
+    residentEnvironmentalRisks: v.boolean(),
+
+    socialRisks: v.union(
+      v.literal("LIVES-ALONE"),
+
+      v.literal("LIMITED-SUPPORT"),
+
+      v.literal("24H-CARE")
+    ),
+
+    medicalCondition: v.union(
+      v.literal("NEUROLOGICAL-PROBLEMS"),
+
+      v.literal("POSTURAL"),
+
+      v.literal("CARDIAC"),
+
+      v.literal("SKELETAL-CONDITION"),
+
+      v.literal("FRACTURES"),
+
+      v.literal("LISTED-CONDITIONS"),
+
+      v.literal("NO-IDENTIFIED")
+    ),
+
+    medicines: v.union(
+      v.literal("4-OR-MORE"),
+
+      v.literal("LESS-4"),
+
+      v.literal("NO-MEDICATIONS")
+    ),
+    safetyAwarness: v.boolean(),
+    mentalState: v.union(v.literal("CONFUSED"), v.literal("ORIENTATED")),
+    completedBy: v.string(),
+    completionDate: v.string(),
+    savedAsDraft: v.optional(v.boolean()),
+  }).index("by_resident", ["residentId"]),
+
+  managerAudits: managerAuditsValidator
+    .index("by_form", ["formType", "formId"])
+    .index("by_resident", ["residentId"])
+    .index("by_audited_by", ["auditedBy"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_form_and_resident", ["formType", "residentId"]),
+
+  // Care file PDFs - for custom uploaded PDFs in specific folders
+
+  careFilePdfs: defineTable({
+    name: v.string(), // Custom name given by user (can be renamed)
+
+    originalName: v.string(), // Original filename
+
+    fileId: v.id("_storage"), // Reference to Convex storage
+
+    folderName: v.string(), // Which care file folder this belongs to
+
+    residentId: v.id("residents"),
+
+    organizationId: v.string(),
+
+    teamId: v.string(),
+
+    uploadedBy: v.string(), // User ID who uploaded the file
+
+    uploadedAt: v.number(), // Upload timestamp
+
+    size: v.optional(v.number()), // File size in bytes
+
+    isActive: v.optional(v.boolean()) // For soft deletion
+  })
+    .index("by_resident", ["residentId"])
+
+    .index("by_folder", ["folderName"])
+
+    .index("by_resident_and_folder", ["residentId", "folderName"])
+
+    .index("by_organization", ["organizationId"])
+
+    .index("by_team", ["teamId"])
+
+    .index("by_uploaded_by", ["uploadedBy"])
+
+    .index("by_active", ["isActive"]),
+
+  carePlanAssessments: defineTable({
+    residentId: v.id("residents"),
+
+    userId: v.string(),
+
+    // Basic information
+
+    nameOfCarePlan: v.string(),
+
+    residentName: v.string(),
+
+    dob: v.number(),
+
+    bedroomNumber: v.string(),
+
+    writtenBy: v.string(),
+
+    dateWritten: v.number(),
+
+    carePlanNumber: v.string(),
+
+    // Care plan details
+
+    identifiedNeeds: v.string(),
+
+    aims: v.string(),
+
+    // Planned care entries
+
+    plannedCareDate: v.array(
+      v.object({
+        date: v.number(),
+
+        time: v.optional(v.string()),
+
+        details: v.string(),
+
+        signature: v.string()
+      })
+    ),
+
+    // Review of Patient or Representative
+
+    discussedWith: v.optional(v.string()),
+
+    signature: v.optional(v.string()),
+
+    date: v.number(),
+
+    staffSignature: v.optional(v.string()),
+
+    // Metadata
+
+    status: v.union(
+      v.literal("draft"),
+
+      v.literal("submitted"),
+
+      v.literal("reviewed")
+    ),
+
+    submittedAt: v.optional(v.number()),
+
+    updatedAt: v.optional(v.number()),
+
+    pdfFileId: v.optional(v.id("_storage"))
+  })
+    .index("by_residentId", ["residentId"])
+
+    .index("by_userId", ["userId"])
+
+    .index("by_status", ["status"])
+
+    .index("by_carePlanNumber", ["carePlanNumber"])
+
+    .index("by_date", ["date"])
 });
