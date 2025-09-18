@@ -18,6 +18,7 @@ import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery, useAction } from "convex/react";
 import {
+  BookOpenCheckIcon,
   DownloadIcon,
   Edit2,
   FileIcon,
@@ -37,6 +38,7 @@ import UploadFileModal from "./UploadFileModal";
 import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
 import CarePlanDialog from "../dialogs/CarePlanDialog";
 import EmailPDF from "../EmailPDF";
+import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -277,8 +279,10 @@ export default function CareFileFolder({
 
   // Component to handle individual PDF file with URL fetching
   const PdfFileItem = ({
+    isCarePlan,
     file
   }: {
+    isCarePlan?: boolean;
     file: {
       formKey: string;
       formId: string;
@@ -356,6 +360,7 @@ export default function CareFileFolder({
         </div>
 
         <div className="flex items-center gap-2">
+          {isCarePlan && <CarePlanEvaluationDialog />}
           <EmailPDFWithStorageId
             formKey={file.formKey}
             formId={file.formId}
@@ -963,6 +968,7 @@ export default function CareFileFolder({
                         .map((form, index) => (
                           <PdfFileItem
                             key={form._id}
+                            isCarePlan
                             file={{
                               formKey: "care-plan-form",
                               formId: form._id,
