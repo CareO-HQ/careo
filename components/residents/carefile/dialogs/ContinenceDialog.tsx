@@ -53,6 +53,8 @@ interface BladderBowelDialogProps {
   userName: string;
   resident: Resident;
   onClose?: () => void;
+  initialData?: any; // Data from existing assessment for editing
+  isEditMode?: boolean; // Whether this is an edit/review mode
 }
 
 export default function BladderBowelDialog({
@@ -62,123 +64,258 @@ export default function BladderBowelDialog({
   userId,
   userName,
   resident,
-  onClose
+  onClose,
+  initialData,
+  isEditMode = false
 }: BladderBowelDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const submitAssessment = useMutation(
     api.careFiles.bladderBowel.submitBladderBowelAssessment
   );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof bladderBowelAssessmentSchema>>({
     resolver: zodResolver(bladderBowelAssessmentSchema),
     mode: "onChange",
-    defaultValues: {
-      residentId,
-      teamId,
-      organizationId,
-      userId,
-      residentName: `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: new Date(resident.dateOfBirth).getTime(),
-      bedroomNumber: resident.roomNumber || "",
-      informationObtainedFrom: "",
-      sigantureCompletingAssessment: userName,
-      // Required enum fields
-      smoking: undefined,
-      weight: undefined,
-      skinCondition: undefined,
-      mentalState: undefined,
-      mobilityIssues: undefined,
-      incontinence: undefined,
-      volume: undefined,
-      onset: undefined,
-      duration: undefined,
-      symptompsLastSix: undefined,
-      bowelState: undefined,
-      bowelFrequency: undefined,
-      usualTimeOfDat: undefined,
-      amountAndStoolType: undefined,
-      liquidFeeds: undefined,
-      otherFactors: undefined,
-      otherRemedies: undefined,
-      dayPattern: undefined,
-      eveningPattern: undefined,
-      nightPattern: undefined,
-      typesOfPads: undefined,
-      bladderIncontinentType: undefined,
-      bladderReferralRequired: undefined,
-      bladderPlanFollowed: undefined,
-      // Initialize all boolean checkboxes as false
-      hepatitisAB: false,
-      bloodBorneVirues: false,
-      mrsa: false,
-      esbl: false,
-      ph: false,
-      nitrates: false,
-      protein: false,
-      leucocytes: false,
-      glucose: false,
-      bloodResult: false,
-      antiHypertensives: false,
-      antiParkinsonDrugs: false,
-      ironSupplement: false,
-      laxatives: false,
-      diuretics: false,
-      histamine: false,
-      antiDepressants: false,
-      cholinergic: false,
-      sedativesHypnotic: false,
-      antiPsychotic: false,
-      antihistamines: false,
-      narcoticAnalgesics: false,
-      constipationHistory: false,
-      historyRecurrentUTIs: false,
-      physicianConsulted: false,
-      medicalOfficerConsulted: false,
-      leakCoughLaugh: false,
-      leakStandingUp: false,
-      leakUpstairsDownhill: false,
-      passesUrineFrequently: false,
-      desirePassUrine: false,
-      leaksBeforeToilet: false,
-      moreThanTwiceAtNight: false,
-      anxiety: false,
-      difficultyStarting: false,
-      hesintancy: false,
-      dribbles: false,
-      feelsFull: false,
-      recurrentTractInfections: false,
-      limitedMobility: false,
-      unableOnTime: false,
-      notHoldUrinalOrSeat: false,
-      notuseCallBell: false,
-      poorVision: false,
-      assistedTransfer: false,
-      pain: false,
-      bladderContinent: false,
-      bladderIncontinent: false,
-      bladderPlanCommenced: false,
-      bowelContinent: false,
-      bowelIncontinent: false,
-      bowelPlanCommenced: false,
-      bowelRecordCommenced: false,
-      bowelReferralRequired: undefined,
-      sigantureResident: undefined,
-      dateNextReview: new Date().getTime()
-    }
+    defaultValues: initialData
+      ? {
+          // Use existing data for editing
+          residentId,
+          teamId,
+          organizationId,
+          userId,
+          residentName:
+            initialData.residentName ||
+            `${resident.firstName} ${resident.lastName}`,
+          dateOfBirth:
+            initialData.dateOfBirth || new Date(resident.dateOfBirth).getTime(),
+          bedroomNumber: initialData.bedroomNumber || resident.roomNumber || "",
+          informationObtainedFrom: initialData.informationObtainedFrom || "",
+          sigantureCompletingAssessment: isEditMode
+            ? userName
+            : initialData.sigantureCompletingAssessment || userName,
+          // Required enum fields
+          smoking: initialData.smoking,
+          weight: initialData.weight,
+          skinCondition: initialData.skinCondition,
+          mentalState: initialData.mentalState,
+          mobilityIssues: initialData.mobilityIssues,
+          incontinence: initialData.incontinence,
+          volume: initialData.volume,
+          onset: initialData.onset,
+          duration: initialData.duration,
+          symptompsLastSix: initialData.symptompsLastSix,
+          bowelState: initialData.bowelState,
+          bowelFrequency: initialData.bowelFrequency,
+          usualTimeOfDat: initialData.usualTimeOfDat,
+          amountAndStoolType: initialData.amountAndStoolType,
+          liquidFeeds: initialData.liquidFeeds,
+          otherFactors: initialData.otherFactors,
+          otherRemedies: initialData.otherRemedies,
+          dayPattern: initialData.dayPattern,
+          eveningPattern: initialData.eveningPattern,
+          nightPattern: initialData.nightPattern,
+          typesOfPads: initialData.typesOfPads,
+          bladderIncontinentType: initialData.bladderIncontinentType,
+          bladderReferralRequired: initialData.bladderReferralRequired,
+          bladderPlanFollowed: initialData.bladderPlanFollowed,
+          // Initialize all boolean checkboxes from data
+          hepatitisAB: initialData.hepatitisAB || false,
+          bloodBorneVirues: initialData.bloodBorneVirues || false,
+          mrsa: initialData.mrsa || false,
+          esbl: initialData.esbl || false,
+          ph: initialData.ph || false,
+          nitrates: initialData.nitrates || false,
+          protein: initialData.protein || false,
+          leucocytes: initialData.leucocytes || false,
+          glucose: initialData.glucose || false,
+          bloodResult: initialData.bloodResult || false,
+          antiHypertensives: initialData.antiHypertensives || false,
+          antiParkinsonDrugs: initialData.antiParkinsonDrugs || false,
+          ironSupplement: initialData.ironSupplement || false,
+          laxatives: initialData.laxatives || false,
+          diuretics: initialData.diuretics || false,
+          histamine: initialData.histamine || false,
+          antiDepressants: initialData.antiDepressants || false,
+          cholinergic: initialData.cholinergic || false,
+          sedativesHypnotic: initialData.sedativesHypnotic || false,
+          antiPsychotic: initialData.antiPsychotic || false,
+          antihistamines: initialData.antihistamines || false,
+          narcoticAnalgesics: initialData.narcoticAnalgesics || false,
+          constipationHistory: initialData.constipationHistory || false,
+          historyRecurrentUTIs: initialData.historyRecurrentUTIs || false,
+          physicianConsulted: initialData.physicianConsulted || false,
+          medicalOfficerConsulted: initialData.medicalOfficerConsulted || false,
+          leakCoughLaugh: initialData.leakCoughLaugh || false,
+          leakStandingUp: initialData.leakStandingUp || false,
+          leakUpstairsDownhill: initialData.leakUpstairsDownhill || false,
+          passesUrineFrequently: initialData.passesUrineFrequently || false,
+          desirePassUrine: initialData.desirePassUrine || false,
+          leaksBeforeToilet: initialData.leaksBeforeToilet || false,
+          moreThanTwiceAtNight: initialData.moreThanTwiceAtNight || false,
+          anxiety: initialData.anxiety || false,
+          difficultyStarting: initialData.difficultyStarting || false,
+          hesintancy: initialData.hesintancy || false,
+          dribbles: initialData.dribbles || false,
+          feelsFull: initialData.feelsFull || false,
+          recurrentTractInfections:
+            initialData.recurrentTractInfections || false,
+          limitedMobility: initialData.limitedMobility || false,
+          unableOnTime: initialData.unableOnTime || false,
+          notHoldUrinalOrSeat: initialData.notHoldUrinalOrSeat || false,
+          notuseCallBell: initialData.notuseCallBell || false,
+          poorVision: initialData.poorVision || false,
+          assistedTransfer: initialData.assistedTransfer || false,
+          pain: initialData.pain || false,
+          bladderContinent: initialData.bladderContinent || false,
+          bladderIncontinent: initialData.bladderIncontinent || false,
+          bladderPlanCommenced: initialData.bladderPlanCommenced || false,
+          bowelContinent: initialData.bowelContinent || false,
+          bowelIncontinent: initialData.bowelIncontinent || false,
+          bowelPlanCommenced: initialData.bowelPlanCommenced || false,
+          bowelRecordCommenced: initialData.bowelRecordCommenced || false,
+          bowelReferralRequired: initialData.bowelReferralRequired,
+          sigantureResident: initialData.sigantureResident,
+          dateNextReview: initialData.dateNextReview || new Date().getTime()
+        }
+      : {
+          // Default values for new forms
+          residentId,
+          teamId,
+          organizationId,
+          userId,
+          residentName: `${resident.firstName} ${resident.lastName}`,
+          dateOfBirth: new Date(resident.dateOfBirth).getTime(),
+          bedroomNumber: resident.roomNumber || "",
+          informationObtainedFrom: "",
+          sigantureCompletingAssessment: userName,
+          // Required enum fields
+          smoking: undefined,
+          weight: undefined,
+          skinCondition: undefined,
+          mentalState: undefined,
+          mobilityIssues: undefined,
+          incontinence: undefined,
+          volume: undefined,
+          onset: undefined,
+          duration: undefined,
+          symptompsLastSix: undefined,
+          bowelState: undefined,
+          bowelFrequency: undefined,
+          usualTimeOfDat: undefined,
+          amountAndStoolType: undefined,
+          liquidFeeds: undefined,
+          otherFactors: undefined,
+          otherRemedies: undefined,
+          dayPattern: undefined,
+          eveningPattern: undefined,
+          nightPattern: undefined,
+          typesOfPads: undefined,
+          bladderIncontinentType: undefined,
+          bladderReferralRequired: undefined,
+          bladderPlanFollowed: undefined,
+          // Initialize all boolean checkboxes as false
+          hepatitisAB: false,
+          bloodBorneVirues: false,
+          mrsa: false,
+          esbl: false,
+          ph: false,
+          nitrates: false,
+          protein: false,
+          leucocytes: false,
+          glucose: false,
+          bloodResult: false,
+          antiHypertensives: false,
+          antiParkinsonDrugs: false,
+          ironSupplement: false,
+          laxatives: false,
+          diuretics: false,
+          histamine: false,
+          antiDepressants: false,
+          cholinergic: false,
+          sedativesHypnotic: false,
+          antiPsychotic: false,
+          antihistamines: false,
+          narcoticAnalgesics: false,
+          constipationHistory: false,
+          historyRecurrentUTIs: false,
+          physicianConsulted: false,
+          medicalOfficerConsulted: false,
+          leakCoughLaugh: false,
+          leakStandingUp: false,
+          leakUpstairsDownhill: false,
+          passesUrineFrequently: false,
+          desirePassUrine: false,
+          leaksBeforeToilet: false,
+          moreThanTwiceAtNight: false,
+          anxiety: false,
+          difficultyStarting: false,
+          hesintancy: false,
+          dribbles: false,
+          feelsFull: false,
+          recurrentTractInfections: false,
+          limitedMobility: false,
+          unableOnTime: false,
+          notHoldUrinalOrSeat: false,
+          notuseCallBell: false,
+          poorVision: false,
+          assistedTransfer: false,
+          pain: false,
+          bladderContinent: false,
+          bladderIncontinent: false,
+          bladderPlanCommenced: false,
+          bowelContinent: false,
+          bowelIncontinent: false,
+          bowelPlanCommenced: false,
+          bowelRecordCommenced: false,
+          bowelReferralRequired: undefined,
+          sigantureResident: undefined,
+          dateNextReview: new Date().getTime()
+        }
   });
 
   function onSubmit(values: z.infer<typeof bladderBowelAssessmentSchema>) {
     console.log("Form submission triggered - values:", values);
     startTransition(async () => {
       try {
-        await submitAssessment({
-          ...values,
-          residentId: residentId as Id<"residents">,
-          savedAsDraft: false
-        });
-        toast.success("Bladder bowel assessment submitted successfully");
-        onClose?.();
+        if (isEditMode) {
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "bladderBowelAssessment",
+            formData: {
+              ...values,
+              residentId: residentId as Id<"residents">,
+              savedAsDraft: false
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
+          });
+          if (data.hasChanges) {
+            toast.success("Form reviewed and updated successfully!");
+          } else {
+            toast.success("Form reviewed and approved without changes!");
+          }
+        } else {
+          // Normal submission for new forms
+          await submitAssessment({
+            ...values,
+            residentId: residentId as Id<"residents">,
+            savedAsDraft: false
+          });
+          toast.success("Bladder bowel assessment submitted successfully");
+        }
+        // Close the dialog after successful submission with slight delay to allow data refresh
+        setTimeout(() => {
+          onClose?.();
+        }, 500);
       } catch (error) {
         console.error("Error submitting assessment:", error);
         toast.error("Failed to submit assessment. Please try again.");

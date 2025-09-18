@@ -11,12 +11,18 @@ import {
   SidebarMenuItem
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import { FolderIcon, PillIcon, User2Icon } from "lucide-react";
+import {
+  FolderIcon,
+  MessageCircleQuestionMarkIcon,
+  PillIcon,
+  User2Icon
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
+import HelpSupportDialog from "./HelpSupportDialog";
 
 export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
@@ -72,7 +78,14 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter />
+      <SidebarFooter>
+        <HelpSupportDialog>
+          <SidebarMenuButton>
+            <MessageCircleQuestionMarkIcon />
+            <span>Help and Support</span>
+          </SidebarMenuButton>
+        </HelpSupportDialog>
+      </SidebarFooter>
     </Sidebar>
   );
 }

@@ -43,6 +43,8 @@ interface MovingHandlingDialogProps {
   userName: string;
   resident: Resident;
   onClose?: () => void;
+  initialData?: any; // Data from existing assessment for editing
+  isEditMode?: boolean; // Whether this is an edit/review mode
 }
 
 export default function MovingHandlingDialog({
@@ -52,55 +54,128 @@ export default function MovingHandlingDialog({
   userId,
   userName,
   resident,
-  onClose
+  onClose,
+  initialData,
+  isEditMode = false
 }: MovingHandlingDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const submitAssessment = useMutation(
     api.careFiles.movingHandling.submitMovingHandlingAssessment
   );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof movingHandlingAssessmentSchema>>({
     resolver: zodResolver(movingHandlingAssessmentSchema),
     mode: "onChange",
-    defaultValues: {
-      residentId,
-      teamId,
-      organizationId,
-      userId,
-      residentName: resident
-        ? `${resident.firstName} ${resident.lastName}`
-        : "",
-      dateOfBirth: resident ? new Date(resident.dateOfBirth).getTime() : 0,
-      bedroomNumber: resident?.roomNumber || "",
-      weight: 0,
-      height: 0,
-      historyOfFalls: false,
-      independentMobility: false,
-      canWeightBear: undefined,
-      limbUpperRight: undefined,
-      limbUpperLeft: undefined,
-      limbLowerRight: undefined,
-      limbLowerLeft: undefined,
-      deafnessState: undefined,
-      blindnessState: undefined,
-      unpredictableBehaviourState: undefined,
-      uncooperativeBehaviourState: undefined,
-      distressedReactionState: undefined,
-      disorientatedState: undefined,
-      unconsciousState: undefined,
-      unbalanceState: undefined,
-      spasmsState: undefined,
-      stiffnessState: undefined,
-      cathetersState: undefined,
-      incontinenceState: undefined,
-      localisedPain: undefined,
-      otherState: undefined,
-      completedBy: userName,
-      jobRole: "",
-      signature: userName,
-      completionDate: new Date().toISOString().split("T")[0]
-    }
+    defaultValues: initialData
+      ? {
+          // Use existing data for editing
+          residentId,
+          teamId,
+          organizationId,
+          userId,
+          residentName:
+            initialData.residentName ||
+            (resident ? `${resident.firstName} ${resident.lastName}` : ""),
+          dateOfBirth:
+            initialData.dateOfBirth ||
+            (resident ? new Date(resident.dateOfBirth).getTime() : 0),
+          bedroomNumber:
+            initialData.bedroomNumber || resident?.roomNumber || "",
+          weight: initialData.weight || 0,
+          height: initialData.height || 0,
+          historyOfFalls: initialData.historyOfFalls || false,
+          independentMobility: initialData.independentMobility || false,
+          canWeightBear: initialData.canWeightBear,
+          limbUpperRight: initialData.limbUpperRight,
+          limbUpperLeft: initialData.limbUpperLeft,
+          limbLowerRight: initialData.limbLowerRight,
+          limbLowerLeft: initialData.limbLowerLeft,
+          equipmentUsed: initialData.equipmentUsed || "",
+          needsRiskStaff: initialData.needsRiskStaff || "",
+          deafnessState: initialData.deafnessState,
+          deafnessComments: initialData.deafnessComments || "",
+          blindnessState: initialData.blindnessState,
+          blindnessComments: initialData.blindnessComments || "",
+          unpredictableBehaviourState: initialData.unpredictableBehaviourState,
+          unpredictableBehaviourComments:
+            initialData.unpredictableBehaviourComments || "",
+          uncooperativeBehaviourState: initialData.uncooperativeBehaviourState,
+          uncooperativeBehaviourComments:
+            initialData.uncooperativeBehaviourComments || "",
+          distressedReactionState: initialData.distressedReactionState,
+          distressedReactionComments:
+            initialData.distressedReactionComments || "",
+          disorientatedState: initialData.disorientatedState,
+          disorientatedComments: initialData.disorientatedComments || "",
+          unconsciousState: initialData.unconsciousState,
+          unconsciousComments: initialData.unconsciousComments || "",
+          unbalanceState: initialData.unbalanceState,
+          unbalanceComments: initialData.unbalanceComments || "",
+          spasmsState: initialData.spasmsState,
+          spasmsComments: initialData.spasmsComments || "",
+          stiffnessState: initialData.stiffnessState,
+          stiffnessComments: initialData.stiffnessComments || "",
+          cathetersState: initialData.cathetersState,
+          cathetersComments: initialData.cathetersComments || "",
+          incontinenceState: initialData.incontinenceState,
+          incontinenceComments: initialData.incontinenceComments || "",
+          localisedPain: initialData.localisedPain,
+          localisedPainComments: initialData.localisedPainComments || "",
+          otherState: initialData.otherState,
+          otherComments: initialData.otherComments || "",
+          completedBy: isEditMode
+            ? userName
+            : initialData.completedBy || userName,
+          jobRole: initialData.jobRole || "",
+          signature: isEditMode ? userName : initialData.signature || userName,
+          completionDate: isEditMode
+            ? new Date().toISOString().split("T")[0]
+            : initialData.completionDate ||
+              new Date().toISOString().split("T")[0]
+        }
+      : {
+          // Default values for new forms
+          residentId,
+          teamId,
+          organizationId,
+          userId,
+          residentName: resident
+            ? `${resident.firstName} ${resident.lastName}`
+            : "",
+          dateOfBirth: resident ? new Date(resident.dateOfBirth).getTime() : 0,
+          bedroomNumber: resident?.roomNumber || "",
+          weight: 0,
+          height: 0,
+          historyOfFalls: false,
+          independentMobility: false,
+          canWeightBear: undefined,
+          limbUpperRight: undefined,
+          limbUpperLeft: undefined,
+          limbLowerRight: undefined,
+          limbLowerLeft: undefined,
+          deafnessState: undefined,
+          blindnessState: undefined,
+          unpredictableBehaviourState: undefined,
+          uncooperativeBehaviourState: undefined,
+          distressedReactionState: undefined,
+          disorientatedState: undefined,
+          unconsciousState: undefined,
+          unbalanceState: undefined,
+          spasmsState: undefined,
+          stiffnessState: undefined,
+          cathetersState: undefined,
+          incontinenceState: undefined,
+          localisedPain: undefined,
+          otherState: undefined,
+          completedBy: userName,
+          jobRole: "",
+          signature: userName,
+          completionDate: new Date().toISOString().split("T")[0]
+        }
   });
 
   // Don't render form if resident data is not available yet
@@ -123,13 +198,46 @@ export default function MovingHandlingDialog({
     startTransition(async () => {
       try {
         console.log("Starting form submission...");
-        const result = await submitAssessment({
-          ...values,
-          residentId: residentId as Id<"residents">,
-          savedAsDraft: false
-        });
-        console.log("Form submitted successfully:", result);
-        toast.success("Moving and handling assessment submitted successfully");
+
+        // Check if this is edit mode
+        if (isEditMode && initialData) {
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "movingHandlingAssessment",
+            formData: {
+              ...values,
+              residentId: residentId as Id<"residents">,
+              savedAsDraft: false
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
+          });
+          console.log("Review submission successful:", data);
+          if (data.hasChanges) {
+            toast.success(
+              "Assessment updated successfully - new version created"
+            );
+          } else {
+            toast.success("Assessment reviewed - no changes made");
+          }
+        } else {
+          // New form submission
+          const result = await submitAssessment({
+            ...values,
+            residentId: residentId as Id<"residents">,
+            savedAsDraft: false
+          });
+          console.log("Form submitted successfully:", result);
+          toast.success(
+            "Moving and handling assessment submitted successfully"
+          );
+        }
+
         // Small delay to show success message before closing
         setTimeout(() => {
           onClose?.();

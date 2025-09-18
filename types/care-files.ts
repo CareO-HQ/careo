@@ -4,7 +4,7 @@ export type CareFileFormKey =
   | "blader-bowel-form"
   | "moving-handling-form"
   | "long-term-fall-risk-form"
-  | "new-form";
+  | "care-plan-form";
 
 export type CareFileFormStatus =
   | "not-started"
@@ -20,6 +20,9 @@ export interface CareFileFormState {
   pdfUrl?: string | null;
   lastUpdated?: number;
   completedAt?: number;
+  isAudited?: boolean;
+  auditedAt?: number;
+  auditedBy?: string;
 }
 
 export interface CareFileFormsState {

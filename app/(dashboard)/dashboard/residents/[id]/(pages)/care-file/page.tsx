@@ -55,6 +55,7 @@ export default function CareFilePage() {
                 <CareFileFolder
                   key={file.key}
                   folderName={file.value}
+                  carePlan={file.carePlan}
                   description={file.description}
                   forms={file.forms}
                   preAddissionState={preAddissionState}

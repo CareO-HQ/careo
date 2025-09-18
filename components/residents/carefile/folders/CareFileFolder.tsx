@@ -16,19 +16,33 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
-import { useQuery } from "convex/react";
-import { DownloadIcon, FolderIcon } from "lucide-react";
-import { useState } from "react";
+import { useMutation, useQuery, useAction } from "convex/react";
+import {
+  BookOpenCheckIcon,
+  DownloadIcon,
+  Edit2,
+  FileIcon,
+  FolderIcon,
+  Trash2
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import JSZip from "jszip";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
+import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
 import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
-import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
+import UploadFileModal from "./UploadFileModal";
+import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
+import CarePlanDialog from "../dialogs/CarePlanDialog";
+import EmailPDF from "../EmailPDF";
+import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 
 interface CareFileFolderProps {
   folderName: string;
+  carePlan: boolean;
   description: string;
   forms:
     | {
@@ -43,30 +57,32 @@ interface CareFileFolderProps {
 
 export default function CareFileFolder({
   folderName,
+  carePlan,
   description,
   forms,
-  preAddissionState,
   residentId
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
+  const [reviewFormData, setReviewFormData] = useState<{
+    formType: string;
+    formId: string;
+    formDisplayName: string;
+  } | null>(null);
+  const [editingPdfId, setEditingPdfId] = useState<string | null>(null);
+  const [editingPdfName, setEditingPdfName] = useState("");
   const { activeTeamId } = useActiveTeam();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
 
   // Use our new care file forms hook
-  const {
-    getFormState,
-    canDownloadPdf,
-    areAllFormsCompleted,
-    getCompletedFormsCount
-  } = useCareFileForms({ residentId });
+  const { getFormState, canDownloadPdf, getCompletedFormsCount } =
+    useCareFileForms({ residentId });
 
   // Get form keys for this folder
   const folderFormKeys = (forms || []).map(
     (form) => form.key as CareFileFormKey
   );
-  const allFormsCompleted = areAllFormsCompleted(folderFormKeys);
   const completedCount = getCompletedFormsCount(folderFormKeys);
   const totalCount = folderFormKeys.length;
 
@@ -74,6 +90,446 @@ export default function CareFileFolder({
   const resident = useQuery(api.residents.getById, {
     residentId: residentId || ("skip" as Id<"residents">)
   });
+
+  // Get unaudited forms for this folder
+  const unauditedForms = useQuery(
+    api.managerAudits.getUnauditedForms,
+    activeOrg?.id
+      ? {
+          residentId: residentId,
+          organizationId: activeOrg.id,
+          formKeys: folderFormKeys
+        }
+      : "skip"
+  );
+
+  // Query custom uploaded PDFs for this folder
+  const customPdfs = useQuery(
+    api.careFilePdfs.getPdfsByResidentAndFolder,
+    residentId ? { residentId, folderName } : "skip"
+  );
+
+  // Query all form submissions for forms in this folder to show all PDFs
+  const allPreAdmissionForms = useQuery(
+    api.careFiles.preadmission.getPreAdmissionFormsByResident,
+    folderFormKeys.includes("preAdmission-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allInfectionPreventionForms = useQuery(
+    api.careFiles.infectionPrevention
+      .getInfectionPreventionAssessmentsByResident,
+    folderFormKeys.includes("infection-prevention") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allBladderBowelForms = useQuery(
+    api.careFiles.bladderBowel.getBladderBowelAssessmentsByResident,
+    folderFormKeys.includes("blader-bowel-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allMovingHandlingForms = useQuery(
+    api.careFiles.movingHandling.getMovingHandlingAssessmentsByResident,
+    folderFormKeys.includes("moving-handling-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allLongTermFallsForms = useQuery(
+    api.careFiles.longTermFalls.getLatestAssessmentByResident,
+    folderFormKeys.includes("long-term-fall-risk-form") && residentId
+      ? {
+          residentId: residentId as Id<"residents">,
+          organizationId: activeOrg?.id ?? ""
+        }
+      : "skip"
+  );
+
+  // Debug the query condition step by step
+  const hasCarePlanProp = carePlan;
+  const hasResidentId = !!residentId;
+  const queryCondition = hasCarePlanProp && hasResidentId;
+  const queryArgs = queryCondition ? { residentId } : "skip";
+
+  const allCarePlanForms = useQuery(
+    api.careFiles.carePlan.getCarePlanAssessmentsByResident,
+    queryArgs
+  );
+
+  // Helper function to get all PDFs from all form submissions
+  const getAllPdfFiles = useMemo(() => {
+    const pdfFiles: Array<{
+      formKey: string;
+      formId: string;
+      name: string;
+      url?: string;
+      completedAt: number;
+      isLatest: boolean;
+    }> = [];
+
+    // Process Pre-admission forms
+    if (allPreAdmissionForms) {
+      const sortedForms = [...allPreAdmissionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "preAdmission-form",
+          formId: form._id,
+          name: "Pre-Admission Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Infection Prevention forms
+    if (allInfectionPreventionForms) {
+      const sortedForms = [...allInfectionPreventionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "infection-prevention",
+          formId: form._id,
+          name: "Infection Prevention Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Bladder/Bowel forms
+    if (allBladderBowelForms) {
+      const sortedForms = [...allBladderBowelForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "blader-bowel-form",
+          formId: form._id,
+          name: "Bladder & Bowel Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Moving & Handling forms
+    if (allMovingHandlingForms) {
+      const sortedForms = [...allMovingHandlingForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "moving-handling-form",
+          formId: form._id,
+          name: "Moving & Handling Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Long Term Falls forms
+    if (allLongTermFallsForms) {
+      pdfFiles.push({
+        formKey: "long-term-fall-risk-form",
+        formId: allLongTermFallsForms._id,
+        name: "Long Term Falls Risk Assessment",
+        completedAt: allLongTermFallsForms._creationTime,
+        isLatest: true // Since we only get the latest one
+      });
+    }
+
+    // Process Care Plan forms - DON'T add to general files list
+    // Care plans are shown in their own dedicated section
+    // if (allCarePlanForms) {
+    //   const sortedForms = [...allCarePlanForms].sort(
+    //     (a, b) => b._creationTime - a._creationTime
+    //   );
+    //   sortedForms.forEach((form, index) => {
+    //     pdfFiles.push({
+    //       formKey: "care-plan-form",
+    //       formId: form._id,
+    //       name: "Care Plan Assessment",
+    //       completedAt: form._creationTime,
+    //       isLatest: index === 0
+    //     });
+    //   });
+    // }
+
+    // Sort all PDFs by completion date (newest first)
+    const sortedPdfFiles = pdfFiles.sort(
+      (a, b) => b.completedAt - a.completedAt
+    );
+
+    return sortedPdfFiles;
+  }, [
+    allPreAdmissionForms,
+    allInfectionPreventionForms,
+    allBladderBowelForms,
+    allMovingHandlingForms,
+    allLongTermFallsForms
+  ]);
+
+  // Component to handle individual PDF file with URL fetching
+  const PdfFileItem = ({
+    isCarePlan,
+    file
+  }: {
+    isCarePlan?: boolean;
+    file: {
+      formKey: string;
+      formId: string;
+      name: string;
+      completedAt: number;
+      isLatest: boolean;
+    };
+  }) => {
+    const pdfUrl = useQuery(
+      file.formKey === "preAdmission-form"
+        ? api.careFiles.preadmission.getPDFUrl
+        : file.formKey === "infection-prevention"
+          ? api.careFiles.infectionPrevention.getPDFUrl
+          : file.formKey === "blader-bowel-form"
+            ? api.careFiles.bladderBowel.getPDFUrl
+            : file.formKey === "moving-handling-form"
+              ? api.careFiles.movingHandling.getPDFUrl
+              : file.formKey === "long-term-fall-risk-form"
+                ? api.careFiles.longTermFalls.getPDFUrl
+                : file.formKey === "care-plan-form"
+                  ? api.careFiles.carePlan.getPDFUrl
+                  : ("skip" as any),
+      file.formKey === "preAdmission-form"
+        ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
+        : file.formKey === "infection-prevention"
+          ? {
+              assessmentId: file.formId as Id<"infectionPreventionAssessments">
+            }
+          : file.formKey === "blader-bowel-form"
+            ? { assessmentId: file.formId as Id<"bladderBowelAssessments"> }
+            : file.formKey === "moving-handling-form"
+              ? { assessmentId: file.formId as Id<"movingHandlingAssessments"> }
+              : file.formKey === "long-term-fall-risk-form"
+                ? {
+                    assessmentId:
+                      file.formId as Id<"longTermFallsRiskAssessments">
+                  }
+                : file.formKey === "care-plan-form"
+                  ? { assessmentId: file.formId as Id<"carePlanAssessments"> }
+                  : "skip"
+    );
+
+    if (!pdfUrl) return null;
+
+    return (
+      <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+        <div className="flex-1 flex items-center gap-2">
+          <div className="bg-red-50 rounded-md">
+            <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-primary">
+                {file.name}.pdf
+              </p>
+            </div>
+            <div className="flex flex-row items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Created:{" "}
+                {new Date(file.completedAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </p>
+              {file.isLatest && (
+                <span className="text-xs px-1 bg-blue-50 text-blue-700 rounded-full">
+                  Latest
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isCarePlan && <CarePlanEvaluationDialog />}
+          <EmailPDFWithStorageId
+            formKey={file.formKey}
+            formId={file.formId}
+            filename={`${file.name}.pdf`}
+            residentName={resident?.fullName}
+          />
+          <DownloadIcon
+            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+            onClick={async () => {
+              try {
+                await downloadFromUrl(pdfUrl, `${file.name}.pdf`);
+                toast.success("PDF downloaded successfully");
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                toast.error("Failed to download PDF");
+              }
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Mutations for PDF management
+  const renamePdf = useMutation(api.careFilePdfs.renamePdf);
+  const deletePdf = useMutation(api.careFilePdfs.deletePdf);
+  const getAllFilesForDownload = useAction(
+    api.careFilePdfs.getAllFilesForFolderDownload
+  );
+
+  // Handler for renaming PDFs
+  const handleRenamePdf = async (pdfId: string, newName: string) => {
+    if (!newName.trim()) {
+      toast.error("Please enter a valid name");
+      return;
+    }
+
+    try {
+      await renamePdf({ pdfId: pdfId as any, newName: newName.trim() });
+      toast.success("PDF renamed successfully");
+      setEditingPdfId(null);
+      setEditingPdfName("");
+    } catch (error) {
+      console.error("Error renaming PDF:", error);
+      toast.error("Failed to rename PDF");
+    }
+  };
+
+  // Handler for deleting PDFs
+  const handleDeletePdf = async (pdfId: string) => {
+    if (!confirm("Are you sure you want to delete this PDF?")) {
+      return;
+    }
+
+    try {
+      await deletePdf({ pdfId: pdfId as any });
+      toast.success("PDF deleted successfully");
+    } catch (error) {
+      console.error("Error deleting PDF:", error);
+      toast.error("Failed to delete PDF");
+    }
+  };
+
+  // Component for custom uploaded PDFs
+  const CustomPdfItem = ({ pdf }: { pdf: any }) => {
+    const pdfUrl = useQuery(api.careFilePdfs.getPdfUrl, { pdfId: pdf._id });
+
+    const isEditing = editingPdfId === pdf._id;
+
+    if (!pdfUrl) return null;
+
+    return (
+      <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+        <div className="flex-1 flex items-center gap-2">
+          <div className="bg-red-50 rounded-md">
+            <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editingPdfName}
+                  onChange={(e) => setEditingPdfName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleRenamePdf(pdf._id, editingPdfName);
+                    } else if (e.key === "Escape") {
+                      setEditingPdfId(null);
+                      setEditingPdfName("");
+                    }
+                  }}
+                  onBlur={() => {
+                    setEditingPdfId(null);
+                    setEditingPdfName("");
+                  }}
+                  className="text-sm font-medium text-primary bg-transparent border-b border-primary focus:outline-none"
+                  autoFocus
+                />
+              ) : (
+                <p className="text-sm font-medium text-primary">
+                  {pdf.name}.pdf
+                </p>
+              )}
+            </div>
+            <div className="flex flex-row items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Uploaded:{" "}
+                {new Date(pdf.uploadedAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </p>
+              {pdf.size && (
+                <p className="text-xs text-muted-foreground">
+                  {(pdf.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <EmailPDF
+            pdfStorageId={pdf.fileId}
+            filename={`${pdf.name}.pdf`}
+            residentName={resident?.fullName}
+          />
+          <Edit2
+            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+            onClick={() => {
+              setEditingPdfId(pdf._id);
+              setEditingPdfName(pdf.name);
+            }}
+          />
+          <Trash2
+            className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
+            onClick={() => handleDeletePdf(pdf._id)}
+          />
+          <DownloadIcon
+            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+            onClick={async () => {
+              try {
+                await downloadFromUrl(pdfUrl, `${pdf.name}.pdf`);
+                toast.success("PDF downloaded successfully");
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                toast.error("Failed to download PDF");
+              }
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Query to get form data for editing
+  const formDataForEdit = useQuery(
+    api.managerAudits.getFormDataForReview,
+    reviewFormData
+      ? {
+          formType: reviewFormData.formType as any,
+          formId: reviewFormData.formId
+        }
+      : "skip"
+  );
 
   const handleCareFileClick = (key: string) => {
     setActiveDialogKey(key);
@@ -111,6 +567,10 @@ export default function CareFileFolder({
               return `bladder-bowel-assessment-${baseName}.pdf`;
             case "moving-handling-form":
               return `moving-handling-assessment-${baseName}.pdf`;
+            case "long-term-fall-risk-form":
+              return `long-term-falls-assessment-${baseName}.pdf`;
+            case "care-plan-form":
+              return `care-plan-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -129,9 +589,21 @@ export default function CareFileFolder({
     }
   };
 
-  const downloadFromUrl = async (url: string, filename: string) => {
+  const downloadFromUrl = async (url: string, fallbackFilename: string) => {
     const response = await fetch(url);
     const blob = await response.blob();
+
+    // Try to extract filename from Content-Disposition header
+    let filename = fallbackFilename;
+    const contentDisposition = response.headers.get("content-disposition");
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(
+        /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+      );
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, "");
+      }
+    }
 
     // Create download link
     const downloadUrl = window.URL.createObjectURL(blob);
@@ -146,7 +618,138 @@ export default function CareFileFolder({
     document.body.removeChild(a);
   };
 
+  // Download all files in folder as ZIP
+  const handleDownloadFolder = async () => {
+    if (!forms || !residentId) {
+      toast.error("No files available to download");
+      return;
+    }
+
+    try {
+      toast.info("Preparing files for download...");
+
+      // Get all file URLs from the server
+      const files = await getAllFilesForDownload({
+        residentId,
+        folderName,
+        forms: forms || [],
+        includeCareplanFiles: carePlan
+      });
+
+      if (files.length === 0) {
+        toast.error("No files found to download");
+        return;
+      }
+
+      // Create a new JSZip instance
+      const zip = new JSZip();
+
+      // Download all files and add to ZIP
+      const downloadPromises = files.map(async (file) => {
+        try {
+          const response = await fetch(file.url);
+          if (!response.ok) {
+            throw new Error(`Failed to download ${file.filename}`);
+          }
+          const blob = await response.blob();
+
+          // Organize files into folders within the ZIP
+          const folderPath =
+            file.type === "custom_pdf"
+              ? "Uploaded Files/"
+              : file.type === "care_plan"
+                ? "Care Plans/"
+                : "Generated Forms/";
+
+          zip.file(folderPath + file.filename, blob);
+        } catch (error) {
+          console.error(`Error downloading ${file.filename}:`, error);
+          toast.error(`Failed to download ${file.filename}`);
+        }
+      });
+
+      await Promise.all(downloadPromises);
+
+      // Generate ZIP file
+      toast.info("Creating ZIP archive...");
+      const content = await zip.generateAsync({ type: "blob" });
+
+      // Create download
+      const residentName = resident
+        ? `${resident.firstName}-${resident.lastName}`
+        : "resident";
+      const zipFilename = `${folderName}-${residentName}-files.zip`;
+
+      const downloadUrl = window.URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = zipFilename;
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+
+      toast.success(`Downloaded ${files.length} files successfully`);
+    } catch (error) {
+      console.error("Error creating folder download:", error);
+      toast.error("Failed to download folder");
+    }
+  };
+
+  const handleOpenReview = (formType: string, formId: string) => {
+    // Store the form info for fetching data
+    setReviewFormData({
+      formType,
+      formId,
+      formDisplayName: getFormDisplayName(formType)
+    });
+
+    // Map form type to dialog key
+    const dialogKeyMap: Record<string, string> = {
+      movingHandlingAssessment: "moving-handling-form",
+      infectionPreventionAssessment: "infection-prevention",
+      bladderBowelAssessment: "blader-bowel-form",
+      preAdmissionCareFile: "preAdmission-form",
+      carePlanAssessment: "care-plan-form",
+      longTermFallsRiskAssessment: "long-term-fall-risk-form"
+    };
+
+    setActiveDialogKey(dialogKeyMap[formType]);
+    setIsDialogOpen(true);
+  };
+
+  // Map form types to display names
+  const getFormDisplayName = (formType: string): string => {
+    const mapping: Record<string, string> = {
+      preAdmissionCareFile: "Pre-Admission Care File",
+      infectionPreventionAssessment: "Infection Prevention Assessment",
+      bladderBowelAssessment: "Bladder & Bowel Assessment",
+      movingHandlingAssessment: "Moving & Handling Assessment",
+      longTermFallsRiskAssessment: "Long Term Falls Risk Assessment",
+      carePlanAssessment: "Care Plan Assessment"
+    };
+    return mapping[formType] || formType;
+  };
+
   const renderDialogContent = () => {
+    const isReviewMode = !!reviewFormData;
+    const editData = isReviewMode ? formDataForEdit : null;
+    console.log("EDIT DATA", editData);
+
+    // If we're in review mode and still loading data, show loading state
+    if (isReviewMode && formDataForEdit === undefined) {
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading form data...</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeDialogKey) {
       case "preAdmission-form":
         return (
@@ -156,6 +759,12 @@ export default function CareFileFolder({
             organizationId={activeOrg?.id ?? ""}
             careHomeName={activeOrg?.name ?? ""}
             resident={resident}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "infection-prevention":
@@ -165,6 +774,12 @@ export default function CareFileFolder({
             teamId={activeTeamId}
             organizationId={activeOrg?.id ?? ""}
             userName={currentUser?.user.name ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "blader-bowel-form":
@@ -176,7 +791,12 @@ export default function CareFileFolder({
             residentId={residentId}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
-            onClose={() => setIsDialogOpen(false)}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "moving-handling-form":
@@ -188,11 +808,43 @@ export default function CareFileFolder({
             residentId={residentId}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
-            onClose={() => setIsDialogOpen(false)}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
           />
         );
       case "long-term-fall-risk-form":
-        return <>FORM TO DO - LONG TERM FALL RISK</>;
+        return (
+          <LongTermFallRiskDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+          />
+        );
+      case "care-plan-form":
+        return (
+          <CarePlanDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
       // case 'discharge':
       //   return <DischargeDialog />;
       default:
@@ -252,7 +904,10 @@ export default function CareFileFolder({
                       <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
                         {form.value}
                       </p>
-                      <FormStatusBadge status={formState.status} />
+                      <FormStatusBadge
+                        status={formState.status}
+                        isAudited={formState.isAudited}
+                      />
                     </div>
                     {showDownload && (
                       <DownloadIcon
@@ -266,22 +921,176 @@ export default function CareFileFolder({
                   </div>
                 );
               })}
-              <p className="text-muted-foreground text-sm font-medium mt-10">
-                Files
-              </p>
-              <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                Shortly you will be able to upload files here.
+              {carePlan && (
+                <>
+                  <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                    <p className="text-muted-foreground text-sm font-medium">
+                      Care plans
+                    </p>
+                    <CarePlanDialog
+                      teamId={activeTeamId}
+                      organizationId={activeOrg?.id ?? ""}
+                      residentId={residentId}
+                      userId={currentUser?.user.id ?? ""}
+                      userName={currentUser?.user.name ?? ""}
+                      resident={resident}
+                    />
+                  </div>
+                  {/* LIST OF CARE PLANS */}
+                  <div className="space-y-2">
+                    {(() => {
+                      console.log("=== CARE PLANS RENDERING DEBUG ===");
+                      console.log("carePlan prop:", carePlan);
+                      console.log("allCarePlanForms:", allCarePlanForms);
+                      console.log(
+                        "allCarePlanForms?.length:",
+                        allCarePlanForms?.length
+                      );
+                      console.log(
+                        "condition check (allCarePlanForms && allCarePlanForms.length > 0):",
+                        allCarePlanForms && allCarePlanForms.length > 0
+                      );
+                      if (allCarePlanForms) {
+                        console.log(
+                          "Forms to render:",
+                          allCarePlanForms.map((f) => ({
+                            id: f._id,
+                            creationTime: f._creationTime
+                          }))
+                        );
+                      }
+                      console.log("=================================");
+                      return null;
+                    })()}
+                    {allCarePlanForms && allCarePlanForms.length > 0 ? (
+                      allCarePlanForms
+                        .sort((a, b) => b._creationTime - a._creationTime)
+                        .map((form, index) => (
+                          <PdfFileItem
+                            key={form._id}
+                            isCarePlan
+                            file={{
+                              formKey: "care-plan-form",
+                              formId: form._id,
+                              name:
+                                form.nameOfCarePlan || "Care Plan Assessment",
+                              completedAt: form._creationTime,
+                              isLatest: index === 0
+                            }}
+                          />
+                        ))
+                    ) : (
+                      <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                        No care plans generated yet. Complete and submit care
+                        plan.
+                        {allCarePlanForms === undefined && " (Loading...)"}
+                        {allCarePlanForms &&
+                          allCarePlanForms.length === 0 &&
+                          " (No forms found)"}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Files
+                </p>
+                <UploadFileModal
+                  folderName={folderName}
+                  residentId={residentId}
+                />
+              </div>
+              <div className="space-y-2">
+                {/* Generated PDFs from forms */}
+                {getAllPdfFiles.length > 0 && (
+                  <>
+                    {getAllPdfFiles.map((file) => (
+                      <PdfFileItem
+                        key={`${file.formKey}-${file.formId}`}
+                        file={file}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Custom uploaded PDFs */}
+                {customPdfs && customPdfs.length > 0 && (
+                  <>
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Custom uploaded files:
+                    </p>
+                    {customPdfs.map((pdf) => (
+                      <CustomPdfItem key={pdf._id} pdf={pdf} />
+                    ))}
+                  </>
+                )}
+
+                {/* Show message if no files at all */}
+                {!getAllPdfFiles.length &&
+                  (!customPdfs || !customPdfs.length) && (
+                    <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                      No PDF files available. Complete and submit forms to
+                      generate PDFs, or upload custom files.
+                    </div>
+                  )}
               </div>
               <p className="text-muted-foreground text-sm font-medium mt-10">
                 Manager audit
               </p>
-              {/* <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                No audit needed for this folder.
-              </div> */}
-              <p>Audit needed for</p>
+              {unauditedForms && unauditedForms.length > 0 ? (
+                <div className="space-y-2">
+                  {unauditedForms.map((form: any) => (
+                    <div
+                      key={`${form.formType}-${form.formId}`}
+                      className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-primary">
+                          {getFormDisplayName(form.formType)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Completed:{" "}
+                          {new Date(form.lastUpdated).toLocaleDateString(
+                            "en-GB",
+                            {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric"
+                            }
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleOpenReview(form.formType, form.formId)
+                          }
+                        >
+                          Audit
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/50 text-muted-foreground text-xs">
+                  {unauditedForms === undefined
+                    ? "Loading audit status..."
+                    : "All forms in this folder have been audited"}
+                </div>
+              )}
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
-              <Button variant="outline" size="sm" disabled>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadFolder}
+                disabled={!forms || forms.length === 0}
+              >
                 <DownloadIcon />
                 Download folder
               </Button>
@@ -293,5 +1102,40 @@ export default function CareFileFolder({
         <DialogContent className="">{renderDialogContent()}</DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Wrapper component to fetch storage ID and pass to EmailPDF
+interface EmailPDFWithStorageIdProps {
+  formKey: string;
+  formId: string;
+  filename: string;
+  residentName?: string;
+}
+
+function EmailPDFWithStorageId({
+  formKey,
+  formId,
+  filename,
+  residentName
+}: EmailPDFWithStorageIdProps) {
+  const storageId = useQuery(api.emailHelpers.getPDFStorageId, {
+    formKey,
+    formId
+  });
+
+  // Don't render if we don't have a storage ID yet
+  if (!storageId) {
+    return (
+      <div className="h-4 w-4 bg-muted-foreground/20 rounded animate-pulse" />
+    );
+  }
+
+  return (
+    <EmailPDF
+      pdfStorageId={storageId}
+      filename={filename}
+      residentName={residentName}
+    />
   );
 }

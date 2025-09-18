@@ -48,106 +48,223 @@ interface InfectionPreventionDialogProps {
   organizationId: string;
   resident: Resident;
   userName: string;
+  onClose?: () => void;
+  initialData?: any; // Data from existing assessment for editing
+  isEditMode?: boolean; // Whether this is an edit/review mode
 }
 
 export default function InfectionPreventionDialog({
   resident,
   teamId,
   organizationId,
-  userName
+  userName,
+  onClose,
+  initialData,
+  isEditMode = false
 }: InfectionPreventionDialogProps) {
   const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
   const submitInfectionPreventionAssessmentMutation = useMutation(
     api.careFiles.infectionPrevention.submitInfectionPreventionAssessment
   );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
     resolver: zodResolver(InfectionPreventionAssessmentSchema),
     mode: "onChange",
-    defaultValues: {
-      // Metadata
-      residentId: resident._id,
-      organizationId: organizationId,
-      teamId: teamId,
+    defaultValues: initialData
+      ? {
+          // Use existing data for editing
+          // Metadata
+          residentId: resident._id,
+          organizationId: organizationId,
+          teamId: teamId,
 
-      // 1. Person's details
-      name: resident.firstName + " " + resident.lastName,
-      dateOfBirth: resident.dateOfBirth,
-      homeAddress: "",
-      assessmentType: "Pre-admission",
-      informationProvidedBy: "",
-      admittedFrom: "",
-      consultantGP: "",
-      reasonForAdmission: "",
-      dateOfAdmission: undefined,
+          // 1. Person's details
+          name:
+            initialData.name ?? resident.firstName + " " + resident.lastName,
+          dateOfBirth: initialData.dateOfBirth ?? resident.dateOfBirth,
+          homeAddress: initialData.homeAddress ?? "",
+          assessmentType: initialData.assessmentType ?? "Pre-admission",
+          informationProvidedBy: initialData.informationProvidedBy ?? "",
+          admittedFrom: initialData.admittedFrom ?? "",
+          consultantGP: initialData.consultantGP ?? "",
+          reasonForAdmission: initialData.reasonForAdmission ?? "",
+          dateOfAdmission: initialData.dateOfAdmission ?? undefined,
 
-      // 2. Acute Respiratory Illness (ARI)
-      newContinuousCough: undefined,
-      worseningCough: undefined,
-      temperatureHigh: undefined,
-      otherRespiratorySymptoms: "",
-      testedForCovid19: undefined,
-      testedForInfluenzaA: undefined,
-      testedForInfluenzaB: undefined,
-      testedForRespiratoryScreen: undefined,
-      influenzaB: false,
-      respiratoryScreen: false,
+          // 2. Acute Respiratory Illness (ARI)
+          newContinuousCough: initialData.newContinuousCough ?? undefined,
+          worseningCough: initialData.worseningCough ?? undefined,
+          temperatureHigh: initialData.temperatureHigh ?? undefined,
+          otherRespiratorySymptoms: initialData.otherRespiratorySymptoms ?? "",
+          testedForCovid19: initialData.testedForCovid19 ?? undefined,
+          testedForInfluenzaA: initialData.testedForInfluenzaA ?? undefined,
+          testedForInfluenzaB: initialData.testedForInfluenzaB ?? undefined,
+          testedForRespiratoryScreen:
+            initialData.testedForRespiratoryScreen ?? undefined,
+          influenzaB: initialData.influenzaB ?? false,
+          respiratoryScreen: initialData.respiratoryScreen ?? false,
 
-      // 3. Exposure
-      exposureToPatientsCovid: undefined,
-      exposureToStaffCovid: undefined,
-      isolationRequired: undefined,
-      isolationDetails: "",
-      furtherTreatmentRequired: undefined,
+          // 3. Exposure
+          exposureToPatientsCovid:
+            initialData.exposureToPatientsCovid ?? undefined,
+          exposureToStaffCovid: initialData.exposureToStaffCovid ?? undefined,
+          isolationRequired: initialData.isolationRequired ?? undefined,
+          isolationDetails: initialData.isolationDetails ?? "",
+          furtherTreatmentRequired:
+            initialData.furtherTreatmentRequired ?? undefined,
 
-      // 4. Diarrhea and Vomiting
-      diarrheaVomitingCurrentSymptoms: undefined,
-      diarrheaVomitingContactWithOthers: undefined,
-      diarrheaVomitingFamilyHistory72h: undefined,
+          // 4. Diarrhea and Vomiting
+          diarrheaVomitingCurrentSymptoms:
+            initialData.diarrheaVomitingCurrentSymptoms ?? undefined,
+          diarrheaVomitingContactWithOthers:
+            initialData.diarrheaVomitingContactWithOthers ?? undefined,
+          diarrheaVomitingFamilyHistory72h:
+            initialData.diarrheaVomitingFamilyHistory72h ?? undefined,
 
-      // 5. Clostridium Difficile
-      clostridiumActive: undefined,
-      clostridiumHistory: undefined,
-      clostridiumStoolCount72h: "",
-      clostridiumLastPositiveSpecimenDate: undefined,
-      clostridiumResult: "",
-      clostridiumTreatmentReceived: "",
-      clostridiumTreatmentComplete: undefined,
-      ongoingDetails: "",
-      ongoingDateCommenced: "",
-      ongoingLengthOfCourse: "",
-      ongoingFollowUpRequired: "",
+          // 5. Clostridium Difficile
+          clostridiumActive: initialData.clostridiumActive ?? undefined,
+          clostridiumHistory: initialData.clostridiumHistory ?? undefined,
+          clostridiumStoolCount72h: initialData.clostridiumStoolCount72h ?? "",
+          clostridiumLastPositiveSpecimenDate:
+            initialData.clostridiumLastPositiveSpecimenDate ?? undefined,
+          clostridiumResult: initialData.clostridiumResult ?? "",
+          clostridiumTreatmentReceived:
+            initialData.clostridiumTreatmentReceived ?? "",
+          clostridiumTreatmentComplete:
+            initialData.clostridiumTreatmentComplete ?? undefined,
+          ongoingDetails: initialData.ongoingDetails ?? "",
+          ongoingDateCommenced: initialData.ongoingDateCommenced ?? "",
+          ongoingLengthOfCourse: initialData.ongoingLengthOfCourse ?? "",
+          ongoingFollowUpRequired: initialData.ongoingFollowUpRequired ?? "",
 
-      // 6. MRSA / MSSA
-      mrsaMssaColonised: undefined,
-      mrsaMssaInfected: undefined,
-      mrsaMssaLastPositiveSwabDate: "",
-      mrsaMssaSitesPositive: "",
-      mrsaMssaTreatmentReceived: "",
-      mrsaMssaTreatmentComplete: undefined,
-      mrsaMssaDetails: "",
-      mrsaMssaDateCommenced: new Date().getTime(),
-      mrsaMssaLengthOfCourse: "",
-      mrsaMssaFollowUpRequired: "",
+          // 6. MRSA / MSSA
+          mrsaMssaColonised: initialData.mrsaMssaColonised ?? undefined,
+          mrsaMssaInfected: initialData.mrsaMssaInfected ?? undefined,
+          mrsaMssaLastPositiveSwabDate:
+            initialData.mrsaMssaLastPositiveSwabDate ?? "",
+          mrsaMssaSitesPositive: initialData.mrsaMssaSitesPositive ?? "",
+          mrsaMssaTreatmentReceived:
+            initialData.mrsaMssaTreatmentReceived ?? "",
+          mrsaMssaTreatmentComplete:
+            initialData.mrsaMssaTreatmentComplete ?? undefined,
+          mrsaMssaDetails: initialData.mrsaMssaDetails ?? "",
+          mrsaMssaDateCommenced:
+            initialData.mrsaMssaDateCommenced ?? new Date().getTime(),
+          mrsaMssaLengthOfCourse: initialData.mrsaMssaLengthOfCourse ?? "",
+          mrsaMssaFollowUpRequired: initialData.mrsaMssaFollowUpRequired ?? "",
 
-      // 7. Multi-drug resistant organisms
-      esbl: undefined,
-      vreGre: undefined,
-      cpe: undefined,
-      otherMultiDrugResistance: "",
-      relevantInformationMultiDrugResistance: "",
+          // 7. Multi-drug resistant organisms
+          esbl: initialData.esbl ?? undefined,
+          vreGre: initialData.vreGre ?? undefined,
+          cpe: initialData.cpe ?? undefined,
+          otherMultiDrugResistance: initialData.otherMultiDrugResistance ?? "",
+          relevantInformationMultiDrugResistance:
+            initialData.relevantInformationMultiDrugResistance ?? "",
 
-      // 8. Other Information
-      awarenessOfInfection: undefined,
-      lastFluVaccinationDate: new Date().getTime(),
+          // 8. Other Information
+          awarenessOfInfection: initialData.awarenessOfInfection ?? undefined,
+          lastFluVaccinationDate:
+            initialData.lastFluVaccinationDate ?? new Date().getTime(),
 
-      // 9. Assessment Completion
-      completedBy: userName,
-      jobRole: "",
-      signature: userName,
-      completionDate: new Date().getTime()
-    }
+          // 9. Assessment Completion
+          completedBy: isEditMode
+            ? userName
+            : (initialData.completedBy ?? userName),
+          jobRole: initialData.jobRole ?? "",
+          signature: isEditMode
+            ? userName
+            : (initialData.signature ?? userName),
+          completionDate: isEditMode
+            ? new Date().getTime()
+            : (initialData.completionDate ?? new Date().getTime())
+        }
+      : {
+          // Default values for new forms
+          // Metadata
+          residentId: resident._id,
+          organizationId: organizationId,
+          teamId: teamId,
+
+          // 1. Person's details
+          name: resident.firstName + " " + resident.lastName,
+          dateOfBirth: resident.dateOfBirth,
+          homeAddress: "",
+          assessmentType: "Pre-admission",
+          informationProvidedBy: "",
+          admittedFrom: "",
+          consultantGP: "",
+          reasonForAdmission: "",
+          dateOfAdmission: undefined,
+
+          // 2. Acute Respiratory Illness (ARI)
+          newContinuousCough: undefined,
+          worseningCough: undefined,
+          temperatureHigh: undefined,
+          otherRespiratorySymptoms: "",
+          testedForCovid19: undefined,
+          testedForInfluenzaA: undefined,
+          testedForInfluenzaB: undefined,
+          testedForRespiratoryScreen: undefined,
+          influenzaB: false,
+          respiratoryScreen: false,
+
+          // 3. Exposure
+          exposureToPatientsCovid: undefined,
+          exposureToStaffCovid: undefined,
+          isolationRequired: undefined,
+          isolationDetails: "",
+          furtherTreatmentRequired: undefined,
+
+          // 4. Diarrhea and Vomiting
+          diarrheaVomitingCurrentSymptoms: undefined,
+          diarrheaVomitingContactWithOthers: undefined,
+          diarrheaVomitingFamilyHistory72h: undefined,
+
+          // 5. Clostridium Difficile
+          clostridiumActive: undefined,
+          clostridiumHistory: undefined,
+          clostridiumStoolCount72h: "",
+          clostridiumLastPositiveSpecimenDate: undefined,
+          clostridiumResult: "",
+          clostridiumTreatmentReceived: "",
+          clostridiumTreatmentComplete: undefined,
+          ongoingDetails: "",
+          ongoingDateCommenced: "",
+          ongoingLengthOfCourse: "",
+          ongoingFollowUpRequired: "",
+
+          // 6. MRSA / MSSA
+          mrsaMssaColonised: undefined,
+          mrsaMssaInfected: undefined,
+          mrsaMssaLastPositiveSwabDate: "",
+          mrsaMssaSitesPositive: "",
+          mrsaMssaTreatmentReceived: "",
+          mrsaMssaTreatmentComplete: undefined,
+          mrsaMssaDetails: "",
+          mrsaMssaDateCommenced: new Date().getTime(),
+          mrsaMssaLengthOfCourse: "",
+          mrsaMssaFollowUpRequired: "",
+
+          // 7. Multi-drug resistant organisms
+          esbl: undefined,
+          vreGre: undefined,
+          cpe: undefined,
+          otherMultiDrugResistance: "",
+          relevantInformationMultiDrugResistance: "",
+
+          // 8. Other Information
+          awarenessOfInfection: undefined,
+          lastFluVaccinationDate: new Date().getTime(),
+
+          // 9. Assessment Completion
+          completedBy: userName,
+          jobRole: "",
+          signature: userName,
+          completionDate: new Date().getTime()
+        }
   });
 
   function onSubmit(
@@ -183,13 +300,39 @@ export default function InfectionPreventionDialog({
           completionDate: new Date(values.completionDate).toISOString()
         };
 
-        const data =
-          await submitInfectionPreventionAssessmentMutation(formattedValues);
+        if (isEditMode) {
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "infectionPreventionAssessment",
+            formData: formattedValues,
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: resident._id as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
+          });
+          console.log("Review submitted successfully:", data);
+          if (data.hasChanges) {
+            toast.success("Form reviewed and updated successfully!");
+          } else {
+            toast.success("Form reviewed and approved without changes!");
+          }
+        } else {
+          // Normal submission for new forms
+          const data =
+            await submitInfectionPreventionAssessmentMutation(formattedValues);
+          console.log("Assessment submitted successfully:", data);
+          toast.success(
+            "Infection Prevention Assessment submitted successfully!"
+          );
+        }
 
-        console.log("Assessment submitted successfully:", data);
-        toast.success(
-          "Infection Prevention Assessment submitted successfully!"
-        );
+        // Close the dialog after successful submission with slight delay to allow data refresh
+        setTimeout(() => {
+          onClose?.();
+        }, 500);
       } catch (error) {
         console.error("Error submitting form:", error);
         toast.error("Failed to submit assessment. Please try again.");
