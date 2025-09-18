@@ -52,7 +52,8 @@ import {
   Shield,
   Activity,
   Mail,
-  Signature
+  Signature,
+  ChevronDownIcon
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -162,6 +163,7 @@ export function ComprehensiveIncidentForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
   const [doiPopoverOpen, setDoiPopoverOpen] = React.useState(false);
+  const [dobPopoverOpen, setDobPopoverOpen] = React.useState(false);
   const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = React.useState(false);
   const createIncident = useMutation(api.incidents.create);
   
@@ -709,14 +711,14 @@ export function ComprehensiveIncidentForm({
                         name="injuredPersonDOB"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel requiredxf>Date of Birth</FormLabel>
-                            <Popover modal>
+                            <FormLabel required>Date of Birth</FormLabel>
+                            <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
                               <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
                                     variant="outline"
                                     className={cn(
-                                      "w-full pl-3 text-left font-normal",
+                                      "w-full pl-3 text-left font-normal justify-between",
                                       !field.value && "text-muted-foreground"
                                     )}
                                   >
@@ -725,17 +727,19 @@ export function ComprehensiveIncidentForm({
                                     ) : (
                                       <span>Pick date of birth</span>
                                     )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
                                   </Button>
                                 </FormControl>
                               </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                                 <Calendar
                                   mode="single"
                                   selected={field.value}
+                                  captionLayout="dropdown"
                                   onSelect={(date) => {
                                     if (date) {
                                       field.onChange(date);
+                                      setDobPopoverOpen(false);
                                     }
                                   }}
                                   disabled={(date) =>
@@ -776,7 +780,7 @@ export function ComprehensiveIncidentForm({
                                   <Button
                                     variant="outline"
                                     className={cn(
-                                      "w-full pl-3 text-left font-normal",
+                                      "w-full pl-3 text-left font-normal justify-between",
                                       !field.value && "text-muted-foreground"
                                     )}
                                   >
@@ -785,14 +789,15 @@ export function ComprehensiveIncidentForm({
                                     ) : (
                                       <span>Pick admission date</span>
                                     )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
                                   </Button>
                                 </FormControl>
                               </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                                 <Calendar
                                   mode="single"
                                   selected={field.value}
+                                  captionLayout="dropdown"
                                   onSelect={(date) => {
                                     if (date) {
                                       field.onChange(date);
