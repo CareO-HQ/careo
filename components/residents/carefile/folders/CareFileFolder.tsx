@@ -35,6 +35,7 @@ import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
 import UploadFileModal from "./UploadFileModal";
 import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
 import CarePlanDialog from "../dialogs/CarePlanDialog";
+import EmailPDF from "../EmailPDF";
 
 interface CareFileFolderProps {
   folderName: string;
@@ -151,42 +152,10 @@ export default function CareFileFolder({
   const queryCondition = hasCarePlanProp && hasResidentId;
   const queryArgs = queryCondition ? { residentId } : "skip";
 
-  console.log("=== QUERY CONDITION DETAILED DEBUG ===");
-  console.log("folderName:", folderName);
-  console.log("carePlan prop:", carePlan);
-  console.log("hasCarePlanProp:", hasCarePlanProp);
-  console.log("hasResidentId:", hasResidentId);
-  console.log("residentId value:", residentId);
-  console.log(
-    "queryCondition (hasCarePlanProp && hasResidentId):",
-    queryCondition
-  );
-  console.log("queryArgs:", queryArgs);
-  console.log("=====================================");
-
   const allCarePlanForms = useQuery(
     api.careFiles.carePlan.getCarePlanAssessmentsByResident,
     queryArgs
   );
-
-  // Debug logging for care plan forms
-  console.log("=== CARE PLAN DEBUG INFO ===");
-  console.log("folderName:", folderName);
-  console.log("folderFormKeys:", folderFormKeys);
-  console.log(
-    "includes care-plan-form:",
-    folderFormKeys.includes("care-plan-form")
-  );
-  console.log("residentId:", residentId);
-  console.log("carePlan prop:", carePlan);
-  console.log("allCarePlanForms:", allCarePlanForms);
-  console.log(
-    "query condition result:",
-    folderFormKeys.includes("care-plan-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
-  console.log("===============================");
 
   // Helper function to get all PDFs from all form submissions
   const getAllPdfFiles = useMemo(() => {
@@ -296,22 +265,6 @@ export default function CareFileFolder({
       (a, b) => b.completedAt - a.completedAt
     );
 
-    // Debug logging for getAllPdfFiles
-    console.log("=== GET ALL PDF FILES DEBUG ===");
-    console.log("Total pdfFiles collected:", pdfFiles.length);
-    console.log(
-      "Care plan files excluded from files section (shown in dedicated section)"
-    );
-    console.log(
-      "All collected files:",
-      pdfFiles.map((f) => ({
-        formKey: f.formKey,
-        formId: f.formId,
-        name: f.name
-      }))
-    );
-    console.log("===============================");
-
     return sortedPdfFiles;
   }, [
     allPreAdmissionForms,
@@ -368,17 +321,6 @@ export default function CareFileFolder({
                   : "skip"
     );
 
-    // Debug logging for PDF URL fetching
-    if (file.formKey === "care-plan-form") {
-      console.log("=== PDF FILE ITEM DEBUG (CARE PLAN) ===");
-      console.log("file:", file);
-      console.log("pdfUrl query result:", pdfUrl);
-      console.log("query args:", {
-        assessmentId: file.formId as Id<"carePlanAssessments">
-      });
-      console.log("======================================");
-    }
-
     if (!pdfUrl) return null;
 
     return (
@@ -413,18 +355,21 @@ export default function CareFileFolder({
           </div>
         </div>
 
-        <DownloadIcon
-          className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-          onClick={async () => {
-            try {
-              await downloadFromUrl(pdfUrl, `${file.name}.pdf`);
-              toast.success("PDF downloaded successfully");
-            } catch (error) {
-              console.error("Error downloading PDF:", error);
-              toast.error("Failed to download PDF");
-            }
-          }}
-        />
+        <div className="flex items-center gap-2">
+          <EmailPDF />
+          <DownloadIcon
+            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+            onClick={async () => {
+              try {
+                await downloadFromUrl(pdfUrl, `${file.name}.pdf`);
+                toast.success("PDF downloaded successfully");
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                toast.error("Failed to download PDF");
+              }
+            }}
+          />
+        </div>
       </div>
     );
   };
