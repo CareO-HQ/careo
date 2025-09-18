@@ -16,7 +16,7 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import {
   DownloadIcon,
   Edit2,
@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import JSZip from "jszip";
 import BladderBowelDialog from "../dialogs/ContinenceDialog";
 import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
 import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
@@ -271,8 +272,7 @@ export default function CareFileFolder({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
-    allLongTermFallsForms,
-    allCarePlanForms
+    allLongTermFallsForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -379,12 +379,12 @@ export default function CareFileFolder({
     );
   };
 
-  // Mutation to create audit records
-  const createAudit = useMutation(api.managerAudits.createAudit);
-
   // Mutations for PDF management
   const renamePdf = useMutation(api.careFilePdfs.renamePdf);
   const deletePdf = useMutation(api.careFilePdfs.deletePdf);
+  const getAllFilesForDownload = useAction(
+    api.careFilePdfs.getAllFilesForFolderDownload
+  );
 
   // Handler for renaming PDFs
   const handleRenamePdf = async (pdfId: string, newName: string) => {
@@ -613,6 +613,86 @@ export default function CareFileFolder({
     document.body.removeChild(a);
   };
 
+  // Download all files in folder as ZIP
+  const handleDownloadFolder = async () => {
+    if (!forms || !residentId) {
+      toast.error("No files available to download");
+      return;
+    }
+
+    try {
+      toast.info("Preparing files for download...");
+
+      // Get all file URLs from the server
+      const files = await getAllFilesForDownload({
+        residentId,
+        folderName,
+        forms: forms || [],
+        includeCareplanFiles: carePlan
+      });
+
+      if (files.length === 0) {
+        toast.error("No files found to download");
+        return;
+      }
+
+      // Create a new JSZip instance
+      const zip = new JSZip();
+
+      // Download all files and add to ZIP
+      const downloadPromises = files.map(async (file) => {
+        try {
+          const response = await fetch(file.url);
+          if (!response.ok) {
+            throw new Error(`Failed to download ${file.filename}`);
+          }
+          const blob = await response.blob();
+
+          // Organize files into folders within the ZIP
+          const folderPath =
+            file.type === "custom_pdf"
+              ? "Uploaded Files/"
+              : file.type === "care_plan"
+                ? "Care Plans/"
+                : "Generated Forms/";
+
+          zip.file(folderPath + file.filename, blob);
+        } catch (error) {
+          console.error(`Error downloading ${file.filename}:`, error);
+          toast.error(`Failed to download ${file.filename}`);
+        }
+      });
+
+      await Promise.all(downloadPromises);
+
+      // Generate ZIP file
+      toast.info("Creating ZIP archive...");
+      const content = await zip.generateAsync({ type: "blob" });
+
+      // Create download
+      const residentName = resident
+        ? `${resident.firstName}-${resident.lastName}`
+        : "resident";
+      const zipFilename = `${folderName}-${residentName}-files.zip`;
+
+      const downloadUrl = window.URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = zipFilename;
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+
+      toast.success(`Downloaded ${files.length} files successfully`);
+    } catch (error) {
+      console.error("Error creating folder download:", error);
+      toast.error("Failed to download folder");
+    }
+  };
+
   const handleOpenReview = (formType: string, formId: string) => {
     // Store the form info for fetching data
     setReviewFormData({
@@ -633,29 +713,6 @@ export default function CareFileFolder({
 
     setActiveDialogKey(dialogKeyMap[formType]);
     setIsDialogOpen(true);
-  };
-
-  const handleCreateAudit = async (formType: string, formId: string) => {
-    if (!activeOrg?.id || !activeTeamId || !currentUser?.user.id) {
-      toast.error("Missing required information for audit creation");
-      return;
-    }
-
-    try {
-      await createAudit({
-        formType: formType as any,
-        formId: formId,
-        residentId: residentId,
-        auditedBy: currentUser.user.id,
-        auditNotes: "Form audited and approved",
-        teamId: activeTeamId,
-        organizationId: activeOrg.id
-      });
-      toast.success("Audit record created successfully");
-    } catch (error) {
-      console.error("Error creating audit:", error);
-      toast.error("Failed to create audit record");
-    }
   };
 
   // Map form types to display names
@@ -1022,7 +1079,12 @@ export default function CareFileFolder({
               )}
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
-              <Button variant="outline" size="sm" disabled>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadFolder}
+                disabled={!forms || forms.length === 0}
+              >
                 <DownloadIcon />
                 Download folder
               </Button>

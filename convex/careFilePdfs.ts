@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, action } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { api } from "./_generated/api";
 
 /**
  * Generate an upload URL for PDF files
@@ -203,5 +204,215 @@ export const getPdfWithUserInfo = query({
       ...pdf,
       uploaderName: uploader?.name
     };
+  }
+});
+
+/**
+ * Get all files and URLs for folder download
+ */
+export const getAllFilesForFolderDownload = action({
+  args: {
+    residentId: v.id("residents"),
+    folderName: v.string(),
+    forms: v.array(
+      v.object({
+        key: v.string(),
+        value: v.string(),
+        type: v.optional(v.string()),
+        description: v.optional(v.string())
+      })
+    ),
+    includeCareplanFiles: v.boolean()
+  },
+  returns: v.array(
+    v.object({
+      filename: v.string(),
+      url: v.string(),
+      type: v.union(
+        v.literal("custom_pdf"),
+        v.literal("form_pdf"),
+        v.literal("care_plan")
+      )
+    })
+  ),
+  handler: async (ctx, args) => {
+    const files: Array<{
+      filename: string;
+      url: string;
+      type: "custom_pdf" | "form_pdf" | "care_plan";
+    }> = [];
+
+    // Get custom uploaded PDFs
+    const customPdfs = await ctx.runQuery(
+      api.careFilePdfs.getPdfsByResidentAndFolder,
+      {
+        residentId: args.residentId,
+        folderName: args.folderName
+      }
+    );
+
+    for (const pdf of customPdfs) {
+      const url = await ctx.storage.getUrl(pdf.fileId);
+      if (url) {
+        files.push({
+          filename: `${pdf.name}.pdf`,
+          url,
+          type: "custom_pdf"
+        });
+      }
+    }
+
+    // Get resident info for filename generation
+    const resident = await ctx.runQuery(api.residents.getById, {
+      residentId: args.residentId
+    });
+    const residentName = resident
+      ? `${resident.firstName}-${resident.lastName}`
+      : "resident";
+
+    // Get generated form PDFs
+    for (const form of args.forms) {
+      try {
+        let url: string | null = null;
+        let filename = "";
+
+        switch (form.key) {
+          case "preAdmission-form": {
+            const forms = await ctx.runQuery(
+              api.careFiles.preadmission.getPreAdmissionFormsByResident,
+              { residentId: args.residentId }
+            );
+            if (forms && forms.length > 0) {
+              const latestForm = forms.sort(
+                (a, b) => b._creationTime - a._creationTime
+              )[0];
+              url = await ctx.runQuery(api.careFiles.preadmission.getPDFUrl, {
+                formId: latestForm._id
+              });
+              filename = `pre-admission-assessment-${residentName}.pdf`;
+            }
+            break;
+          }
+          case "infection-prevention": {
+            const forms = await ctx.runQuery(
+              api.careFiles.infectionPrevention
+                .getInfectionPreventionAssessmentsByResident,
+              { residentId: args.residentId }
+            );
+            if (forms && forms.length > 0) {
+              const latestForm = forms.sort(
+                (a, b) => b._creationTime - a._creationTime
+              )[0];
+              url = await ctx.runQuery(
+                api.careFiles.infectionPrevention.getPDFUrl,
+                {
+                  assessmentId: latestForm._id
+                }
+              );
+              filename = `infection-prevention-assessment-${residentName}.pdf`;
+            }
+            break;
+          }
+          case "blader-bowel-form": {
+            const forms = await ctx.runQuery(
+              api.careFiles.bladderBowel.getBladderBowelAssessmentsByResident,
+              { residentId: args.residentId }
+            );
+            if (forms && forms.length > 0) {
+              const latestForm = forms.sort(
+                (a, b) => b._creationTime - a._creationTime
+              )[0];
+              url = await ctx.runQuery(api.careFiles.bladderBowel.getPDFUrl, {
+                assessmentId: latestForm._id
+              });
+              filename = `bladder-bowel-assessment-${residentName}.pdf`;
+            }
+            break;
+          }
+          case "moving-handling-form": {
+            const forms = await ctx.runQuery(
+              api.careFiles.movingHandling
+                .getMovingHandlingAssessmentsByResident,
+              { residentId: args.residentId }
+            );
+            if (forms && forms.length > 0) {
+              const latestForm = forms.sort(
+                (a, b) => b._creationTime - a._creationTime
+              )[0];
+              url = await ctx.runQuery(api.careFiles.movingHandling.getPDFUrl, {
+                assessmentId: latestForm._id
+              });
+              filename = `moving-handling-assessment-${residentName}.pdf`;
+            }
+            break;
+          }
+          case "long-term-fall-risk-form": {
+            // Get organization ID from the resident
+            const orgId = resident?.organizationId;
+            if (orgId) {
+              const form = await ctx.runQuery(
+                api.careFiles.longTermFalls.getLatestAssessmentByResident,
+                { residentId: args.residentId, organizationId: orgId }
+              );
+              if (form) {
+                url = await ctx.runQuery(
+                  api.careFiles.longTermFalls.getPDFUrl,
+                  {
+                    assessmentId: form._id
+                  }
+                );
+                filename = `long-term-falls-assessment-${residentName}.pdf`;
+              }
+            }
+            break;
+          }
+        }
+
+        if (url && filename) {
+          files.push({
+            filename,
+            url,
+            type: "form_pdf"
+          });
+        }
+      } catch (error) {
+        console.error(`Error getting PDF for form ${form.key}:`, error);
+        // Continue with other forms
+      }
+    }
+
+    // Get care plan files if requested
+    if (args.includeCareplanFiles) {
+      try {
+        const carePlans = await ctx.runQuery(
+          api.careFiles.carePlan.getCarePlanAssessmentsByResident,
+          { residentId: args.residentId }
+        );
+
+        if (carePlans && carePlans.length > 0) {
+          for (const plan of carePlans) {
+            try {
+              const url = await ctx.runQuery(api.careFiles.carePlan.getPDFUrl, {
+                assessmentId: plan._id
+              });
+              if (url) {
+                const planName = plan.nameOfCarePlan || "Care Plan Assessment";
+                files.push({
+                  filename: `${planName}-${residentName}.pdf`,
+                  url,
+                  type: "care_plan"
+                });
+              }
+            } catch (error) {
+              console.error(`Error getting care plan PDF:`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error getting care plans:", error);
+      }
+    }
+
+    return files;
   }
 });
