@@ -21,12 +21,24 @@ import {
   Clock,
   User,
   Plus,
-  Filter,
-  Shield,
-  Eye
+  Download,
+  Eye,
+  FileDown,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
+import { ComprehensiveIncidentForm } from "./components/comprehensive-incident-form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 type IncidentsPageProps = {
   params: Promise<{ id: string }>;
@@ -35,7 +47,21 @@ type IncidentsPageProps = {
 export default function IncidentsPage({ params }: IncidentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const [showReportForm, setShowReportForm] = React.useState(false);
+  const [selectedIncident, setSelectedIncident] = React.useState<any>(null);
+  const [showViewDialog, setShowViewDialog] = React.useState(false);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const itemsPerPage = 5;
+
   const resident = useQuery(api.residents.getById, {
+    residentId: id as Id<"residents">
+  });
+
+  const incidents = useQuery(api.incidents.getByResident, {
+    residentId: id as Id<"residents">
+  });
+
+  const incidentStats = useQuery(api.incidents.getIncidentStats, {
     residentId: id as Id<"residents">
   });
 
@@ -79,59 +105,191 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     return age;
   };
 
-  const calculateLengthOfStay = (admissionDate: string) => {
-    const today = new Date();
-    const admission = new Date(admissionDate);
-    const diffTime = Math.abs(today.getTime() - admission.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 30) {
-      return `${diffDays} days`;
-    } else if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30);
-      return `${months} month${months > 1 ? 's' : ''}`;
-    } else {
-      const years = Math.floor(diffDays / 365);
-      const remainingMonths = Math.floor((diffDays % 365) / 30);
-      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
+  const handleViewIncident = (incidentId: string) => {
+    const incident = incidents?.find(i => i._id === incidentId);
+    if (incident) {
+      setSelectedIncident(incident);
+      setShowViewDialog(true);
     }
   };
 
-  // Mock incident data - in a real app, this would come from the API
-  const mockIncidents = [
-    {
-      id: 1,
-      date: "2024-02-28",
-      time: "14:30",
-      type: "Fall",
-      severity: "Minor",
-      location: "Bedroom",
-      description: "Resident slipped getting out of bed. No injuries sustained.",
-      reportedBy: "Sarah Mitchell",
-      actionTaken: "Assisted resident back to bed, vital signs checked, no medical attention required.",
-      followUp: "Increased supervision during transfers"
-    },
-    {
-      id: 2,
-      date: "2024-02-15",
-      time: "09:15",
-      type: "Medication Error",
-      severity: "Low",
-      location: "Dining Room",
-      description: "Wrong medication administered at breakfast.",
-      reportedBy: "John Davies",
-      actionTaken: "Doctor notified immediately, resident monitored for adverse reactions.",
-      followUp: "Additional staff training on medication administration"
+  const handleDownloadIncident = async (incidentId: string) => {
+    try {
+      const incident = incidents?.find(i => i._id === incidentId);
+      if (!incident) {
+        toast.error("Incident not found");
+        return;
+      }
+
+      // Generate PDF content
+      const pdfContent = generateIncidentPDF(incident);
+
+      // Create a blob and download
+      const blob = new Blob([pdfContent], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `incident-report-${incident.date}-${incidentId.slice(-6)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Incident report downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading incident:", error);
+      toast.error("Failed to download incident report");
     }
-  ];
+  };
+
+  const generateIncidentPDF = (incident: any) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Incident Report - ${incident.date}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            h2 { color: #555; margin-top: 20px; }
+            .section { margin-bottom: 20px; }
+            .field { margin-bottom: 10px; }
+            .label { font-weight: bold; color: #666; }
+            .value { margin-left: 10px; }
+            .header { background: #f5f5f5; padding: 10px; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Incident Report</h1>
+            <div class="field">
+              <span class="label">Resident:</span>
+              <span class="value">${fullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Report Date:</span>
+              <span class="value">${incident.date} ${incident.time}</span>
+            </div>
+          </div>
+          
+          <div class="section">
+            <h2>Incident Details</h2>
+            <div class="field">
+              <span class="label">Type:</span>
+              <span class="value">${incident.incidentTypes?.join(", ") || "N/A"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Level:</span>
+              <span class="value">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "N/A"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Location:</span>
+              <span class="value">${incident.homeName} - ${incident.unit}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Description</h2>
+            <p>${incident.detailedDescription || "No description provided"}</p>
+          </div>
+
+          <div class="section">
+            <h2>Injured Person</h2>
+            <div class="field">
+              <span class="label">Name:</span>
+              <span class="value">${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}</span>
+            </div>
+            <div class="field">
+              <span class="label">DOB:</span>
+              <span class="value">${incident.injuredPersonDOB}</span>
+            </div>
+            <div class="field">
+              <span class="label">Status:</span>
+              <span class="value">${incident.injuredPersonStatus?.join(", ") || "N/A"}</span>
+            </div>
+          </div>
+
+          ${incident.treatmentTypes && incident.treatmentTypes.length > 0 ? `
+          <div class="section">
+            <h2>Treatment</h2>
+            <div class="field">
+              <span class="label">Types:</span>
+              <span class="value">${incident.treatmentTypes.join(", ")}</span>
+            </div>
+            ${incident.treatmentDetails ? `
+            <div class="field">
+              <span class="label">Details:</span>
+              <span class="value">${incident.treatmentDetails}</span>
+            </div>
+            ` : ''}
+          </div>
+          ` : ''}
+
+          <div class="section">
+            <h2>Report Completion</h2>
+            <div class="field">
+              <span class="label">Completed By:</span>
+              <span class="value">${incident.completedByFullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Job Title:</span>
+              <span class="value">${incident.completedByJobTitle}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date Completed:</span>
+              <span class="value">${incident.dateCompleted}</span>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  // Pagination logic
+  const totalIncidents = incidents?.length || 0;
+  const totalPages = Math.ceil(totalIncidents / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedIncidents = incidents?.slice(startIndex, endIndex) || [];
+  const showPagination = totalIncidents > itemsPerPage;
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  // Format incident data for display
+  const formattedIncidents = incidents?.map(incident => ({
+    id: incident._id,
+    date: incident.date,
+    time: incident.time,
+    type: incident.type,
+    severity: incident.severity,
+    location: incident.location,
+    description: incident.description,
+    reportedBy: incident.reportedBy,
+    actionTaken: incident.immediateAction,
+    followUp: incident.followUpRequired || "No follow-up required"
+  })) || [];
 
   const mockFallsRiskAssessment = {
     lastAssessment: "2024-02-01",
@@ -167,17 +325,31 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     switch (type.toLowerCase()) {
       case 'fall':
         return { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' };
-      case 'medication error':
+      case 'medication_error':
         return { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700' };
       case 'injury':
         return { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' };
+      case 'behavioral':
+        return { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' };
+      case 'skin_integrity':
+        return { bg: 'bg-pink-100', border: 'border-pink-200', text: 'text-pink-700' };
       default:
         return { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700' };
     }
   };
 
+  const formatTypeLabel = (type: string) => {
+    return type.split('_').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+
+  const formatSeverityLabel = (severity: string) => {
+    return severity.charAt(0).toUpperCase() + severity.slice(1);
+  };
+
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-6xl">
       {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
         <Button
@@ -240,21 +412,10 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             <div className="flex flex-col space-y-3">
               <Button
                 className="bg-black hover:bg-gray-800 text-white"
+                onClick={() => setShowReportForm(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Report Incident
-              </Button>
-              <Button
-                onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
-                className="bg-black hover:bg-gray-800 text-white w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-              <Button
-                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
-              >
-                <FileText className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -292,297 +453,437 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             <div className="flex items-center gap-2">
               <Button
                 className="bg-black hover:bg-gray-800 text-white"
+                onClick={() => setShowReportForm(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Report Incident
               </Button>
-              <Button
-                onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
-                className="bg-black hover:bg-gray-800 text-white flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-              <Button
-                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
-              >
-                <FileText className="w-4 h-4" />
-              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Falls Risk Assessment */}
-      <Card>
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <Shield className="w-5 h-5 text-blue-600" />
-              <span>Falls Risk Assessment</span>
-            </div>
-            <Badge 
-              variant="outline"
-              className={getSeverityColor(mockFallsRiskAssessment.riskLevel).bg + ' ' + 
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).border + ' ' +
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).text}
-            >
-              {mockFallsRiskAssessment.riskLevel} Risk - {mockFallsRiskAssessment.score}/10
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-blue-600" />
-              <span>Falls Risk Assessment</span>
-            </div>
-            <Badge 
-              variant="outline"
-              className={getSeverityColor(mockFallsRiskAssessment.riskLevel).bg + ' ' + 
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).border + ' ' +
-                         getSeverityColor(mockFallsRiskAssessment.riskLevel).text}
-            >
-              {mockFallsRiskAssessment.riskLevel} Risk - {mockFallsRiskAssessment.score}/10
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-gray-600">Risk Score</span>
-                <span className="text-lg font-bold">
-                  {mockFallsRiskAssessment.score}/{mockFallsRiskAssessment.maxScore}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-orange-500 h-3 rounded-full" 
-                  style={{ width: `${(mockFallsRiskAssessment.score / mockFallsRiskAssessment.maxScore) * 100}%` }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Last assessed: {mockFallsRiskAssessment.lastAssessment}
-              </p>
-            </div>
-            
-            <div>
-              <h4 className="font-medium mb-3">Risk Factors</h4>
-              <div className="space-y-2">
-                {mockFallsRiskAssessment.factors.map((factor, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm">
-                    <span className={factor.present ? "text-gray-900" : "text-gray-400"}>
-                      {factor.factor}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500">
-                        {factor.points} pts
-                      </span>
-                      <Badge 
-                        variant={factor.present ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
-                        {factor.present ? "Present" : "Not Present"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Recent Incidents */}
-      <Card>
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
-              <span>Recent Incidents</span>
-            </div>
-            <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700">
-              {mockIncidents.length} total incidents
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
-              <span>Recent Incidents</span>
-            </div>
-            <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700">
-              {mockIncidents.length} total incidents
-            </Badge>
-          </CardTitle>
+      <Card className="border-0">
+        <CardHeader className="">
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <FileText className="w-5 h-5 text-gray-600" />
+              </div>
+              <span className="text-gray-900">Recent Incidents</span>
+            </CardTitle>
+            <Badge className="bg-gray-100 text-gray-700">{incidents?.length || 0} Total</Badge>
+          </div>
         </CardHeader>
-        <CardContent>
-          {mockIncidents.length > 0 ? (
-            <div className="space-y-4">
-              {mockIncidents.map((incident) => (
-                <Card key={incident.id} className="border border-gray-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-orange-100 rounded-lg">
-                          <TrendingDown className="w-4 h-4 text-orange-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2 mb-1">
-                            <Badge 
-                              variant="outline"
-                              className={getTypeColor(incident.type).bg + ' ' + 
-                                       getTypeColor(incident.type).border + ' ' +
-                                       getTypeColor(incident.type).text}
-                            >
-                              {incident.type}
-                            </Badge>
-                            <Badge 
-                              variant="outline"
-                              className={getSeverityColor(incident.severity).bg + ' ' + 
-                                       getSeverityColor(incident.severity).border + ' ' +
-                                       getSeverityColor(incident.severity).text}
-                            >
-                              {incident.severity}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>{incident.date}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-3 h-3" />
-                              <span>{incident.time}</span>
-                            </div>
-                            <span>Location: {incident.location}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="font-medium">Description:</span>
-                        <p className="text-gray-700 mt-1">{incident.description}</p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium">Action Taken:</span>
-                        <p className="text-gray-700 mt-1">{incident.actionTaken}</p>
-                      </div>
-                      
-                      <div>
-                        <span className="font-medium">Follow-up:</span>
-                        <p className="text-gray-700 mt-1">{incident.followUp}</p>
-                      </div>
-                      
-                      <div className="flex items-center space-x-1 text-gray-500 pt-2 border-t">
-                        <User className="w-3 h-3" />
-                        <span>Reported by: {incident.reportedBy}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+        <CardContent className="p-6">
+          {!incidents || incidents.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No incidents recorded</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Click the Report New Incident button to add the first incident
+              </p>
             </div>
           ) : (
-            <div className="text-center py-8">
-              <TrendingDown className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No incidents recorded</p>
-              <p className="text-sm text-gray-400 mt-1">This is great news for resident safety</p>
+            <div className="space-y-3">
+              {paginatedIncidents.map((incident) => (
+                <div
+                  key={incident._id}
+                  className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
+                >
+                  <div className="flex items-start space-x-3 flex-1">
+                    <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                      <FileText className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-semibold text-gray-900">
+                          {incident.incidentTypes?.join(", ") || "Incident"}
+                        </h4>
+                        <Badge
+                          className={`text-xs border-0 ${
+                            incident.incidentLevel === "death" ? "bg-red-100 text-red-800" :
+                            incident.incidentLevel === "permanent_harm" ? "bg-red-100 text-red-800" :
+                            incident.incidentLevel === "minor_injury" ? "bg-yellow-100 text-yellow-800" :
+                            incident.incidentLevel === "no_harm" ? "bg-green-100 text-green-800" :
+                            "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {incident.incidentLevel
+                            ?.replace("_", " ")
+                            .toLowerCase()
+                            .replace(/\b\w/g, (c) => c.toUpperCase())}
+
+                        </Badge>
+                      </div>
+                    
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{new Date(incident.date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{incident.time}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <User className="w-3 h-3" />
+                          <span>{incident.completedByFullName}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleViewIncident(incident._id)}
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleDownloadIncident(incident._id)}
+                      title="Download PDF"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Pagination Controls */}
+              {showPagination && (
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="text-sm text-gray-500">
+                    Showing {startIndex + 1}-{Math.min(endIndex, totalIncidents)} of {totalIncidents} incidents
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevious}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(page)}
+                          className="h-8 w-8 p-0"
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNext}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Safety Measures */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Shield className="w-5 h-5 text-green-600" />
-            <span>Current Safety Measures</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <h4 className="font-medium text-green-800 mb-2">Fall Prevention</h4>
-              <ul className="text-sm text-green-700 space-y-1">
-                <li>• Non-slip mats in bathroom</li>
-                <li>• Bed rails installed</li>
-                <li>• Call bell within reach</li>
-                <li>• Regular mobility assessments</li>
-              </ul>
-            </div>
-            
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">Monitoring</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• 15-minute safety checks</li>
-                <li>• Motion sensor alerts</li>
-                <li>• Staff handover reports</li>
-                <li>• Family contact protocol</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Incident Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-gray-600" />
-            <span>Incident Summary</span>
+      <Card className="border-0">
+        <CardHeader className="">
+          <CardTitle className="flex items-center space-x-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <FileText className="w-5 h-5 text-gray-600" />
+            </div>
+            <span className="text-gray-900">Incident Summary</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
-              <div className="text-2xl font-bold text-orange-600">
-                {mockIncidents.length}
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 p-4 border border-orange-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-orange-600 mb-1">
+                  {incidentStats?.totalIncidents || 0}
+                </div>
+                <p className="text-sm font-medium text-orange-700">Total Incidents</p>
               </div>
-              <p className="text-sm text-orange-700">Total Incidents</p>
-            </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
-              <div className="text-2xl font-bold text-red-600">
-                {mockIncidents.filter(i => i.type === 'Fall').length}
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <AlertTriangle className="w-16 h-16 text-orange-600" />
               </div>
-              <p className="text-sm text-red-700">Falls Recorded</p>
             </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">
-                {mockFallsRiskAssessment.score}/10
+
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-red-50 to-red-100 p-4 border border-red-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-red-600 mb-1">
+                  {incidentStats?.fallsCount || 0}
+                </div>
+                <p className="text-sm font-medium text-red-700">Falls Recorded</p>
               </div>
-              <p className="text-sm text-blue-700">Risk Score</p>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <TrendingDown className="w-16 h-16 text-red-600" />
+              </div>
             </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="text-2xl font-bold text-green-600">15</div>
-              <p className="text-sm text-green-700">Days Incident-Free</p>
+
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-4 border border-blue-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-blue-600 mb-1">
+                  {mockFallsRiskAssessment.score}/10
+                </div>
+                <p className="text-sm font-medium text-blue-700">Risk Score</p>
+              </div>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <svg className="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-green-50 to-green-100 p-4 border border-green-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-green-600 mb-1">
+                  {incidentStats?.daysSinceLastIncident || 0}
+                </div>
+                <p className="text-sm font-medium text-green-700">Days Incident-Free</p>
+              </div>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <svg className="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Report Incident Form */}
+      {resident && (
+        <ComprehensiveIncidentForm
+          residentId={id}
+          residentName={`${resident.firstName} ${resident.lastName}`}
+          isOpen={showReportForm}
+          onClose={() => setShowReportForm(false)}
+          onSuccess={() => {
+            // Refresh incidents data when a new report is submitted
+            setShowReportForm(false);
+          }}
+        />
+      )}
 
+      {/* View Incident Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Incident Report Details</DialogTitle>
+            <DialogDescription>
+              Complete incident report for {fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {selectedIncident && (
+              <div className="space-y-6">
+                {/* Incident Overview */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Incident Overview</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Date & Time</p>
+                      <p className="font-medium">{selectedIncident.date} at {selectedIncident.time}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Incident Level</p>
+                      <Badge
+                        variant={
+                          selectedIncident.incidentLevel === "death" ? "destructive" :
+                            selectedIncident.incidentLevel === "permanent_harm" ? "destructive" :
+                              selectedIncident.incidentLevel === "minor_injury" ? "secondary" :
+                                "outline"
+                        }
+                      >
+                        {selectedIncident.incidentLevel?.replace("_", " ").toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Location</p>
+                      <p className="font-medium">{selectedIncident.homeName} - {selectedIncident.unit}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Incident Types</p>
+                      <p className="font-medium">{selectedIncident.incidentTypes?.join(", ") || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
 
-      {/* Development Notice */}
-      <Card className="bg-orange-50 border-orange-200">
-        <CardContent className="p-6 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-orange-100 rounded-full">
-              <AlertTriangle className="w-8 h-8 text-orange-600" />
-            </div>
+                {/* Description */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Detailed Description</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{selectedIncident.detailedDescription}</p>
+                </div>
+
+                {/* Injured Person Details */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Injured Person Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Name</p>
+                      <p className="font-medium">{selectedIncident.injuredPersonFirstName} {selectedIncident.injuredPersonSurname}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Date of Birth</p>
+                      <p className="font-medium">{selectedIncident.injuredPersonDOB}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Status</p>
+                      <p className="font-medium">{selectedIncident.injuredPersonStatus?.join(", ") || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Health Care Number</p>
+                      <p className="font-medium">{selectedIncident.healthCareNumber || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Injury Details */}
+                {(selectedIncident.injuryDescription || selectedIncident.bodyPartInjured) && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Injury Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {selectedIncident.injuryDescription && (
+                        <div>
+                          <p className="text-sm text-gray-500">Injury Description</p>
+                          <p className="font-medium">{selectedIncident.injuryDescription}</p>
+                        </div>
+                      )}
+                      {selectedIncident.bodyPartInjured && (
+                        <div>
+                          <p className="text-sm text-gray-500">Body Part Injured</p>
+                          <p className="font-medium">{selectedIncident.bodyPartInjured}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Treatment */}
+                {(selectedIncident.treatmentTypes?.length > 0 || selectedIncident.treatmentDetails) && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Treatment</h3>
+                    <div className="space-y-3">
+                      {selectedIncident.treatmentTypes?.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500">Treatment Types</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {selectedIncident.treatmentTypes.map((type: string, index: number) => (
+                              <Badge key={index} variant="secondary">{type}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedIncident.treatmentDetails && (
+                        <div>
+                          <p className="text-sm text-gray-500">Treatment Details</p>
+                          <p className="font-medium">{selectedIncident.treatmentDetails}</p>
+                        </div>
+                      )}
+                      {selectedIncident.vitalSigns && (
+                        <div>
+                          <p className="text-sm text-gray-500">Vital Signs</p>
+                          <p className="font-medium">{selectedIncident.vitalSigns}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Witnesses */}
+                {(selectedIncident.witness1Name || selectedIncident.witness2Name) && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Witnesses</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {selectedIncident.witness1Name && (
+                        <div>
+                          <p className="text-sm text-gray-500">Witness 1</p>
+                          <p className="font-medium">{selectedIncident.witness1Name}</p>
+                          {selectedIncident.witness1Contact && (
+                            <p className="text-sm text-gray-600">{selectedIncident.witness1Contact}</p>
+                          )}
+                        </div>
+                      )}
+                      {selectedIncident.witness2Name && (
+                        <div>
+                          <p className="text-sm text-gray-500">Witness 2</p>
+                          <p className="font-medium">{selectedIncident.witness2Name}</p>
+                          {selectedIncident.witness2Contact && (
+                            <p className="text-sm text-gray-600">{selectedIncident.witness2Contact}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions Taken */}
+                {selectedIncident.nurseActions?.length > 0 && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Nurse Actions Taken</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedIncident.nurseActions.map((action: string, index: number) => (
+                        <Badge key={index} variant="outline">{action}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Report Completion */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Report Completion</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Completed By</p>
+                      <p className="font-medium">{selectedIncident.completedByFullName}</p>
+                      <p className="text-sm text-gray-600">{selectedIncident.completedByJobTitle}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Date Completed</p>
+                      <p className="font-medium">{selectedIncident.dateCompleted}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setShowViewDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => handleDownloadIncident(selectedIncident._id)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download Report
+            </Button>
           </div>
-          <h3 className="text-lg font-semibold text-orange-800 mb-2">Enhanced Features Coming Soon</h3>
-          <p className="text-orange-600 text-sm">
-            Advanced incident reporting, analytics, automated risk assessments, and comprehensive safety tracking features are in development.
-          </p>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

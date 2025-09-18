@@ -559,7 +559,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
               <div className="space-y-4 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-4 sm:space-y-0">
                 {/* Day Report Card */}
                 <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="p-3 sm:p-4">
+                  <CardContent className="">
                     <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
                       {/* Icon and Text */}
                       <div className="flex items-center gap-3">
@@ -567,9 +567,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                           <Sun className="w-5 h-5 text-amber-600" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-sm sm:text-base">Day Report</h3>
+                          {/* <h3 className="font-semibold text-sm sm:text-base">Day Report</h3> */}
                           <p className="text-xs sm:text-sm text-muted-foreground">8:00 AM - 8:00 PM</p>
-                          <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p>
+                          {/* <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p> */}
                         </div>
                       </div>
 
@@ -682,7 +682,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 </Card>
                 {/* Night Report Card */}
                 <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="p-3 sm:p-4">
+                  <CardContent className="">
                     <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
                       {/* Icon and Text */}
                       <div className="flex items-center gap-3">
@@ -690,9 +690,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                           <Moon className="w-5 h-5 text-indigo-600" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-sm sm:text-base">Night Report</h3>
+                          {/* <h3 className="font-semibold text-sm sm:text-base">Night Report</h3> */}
                           <p className="text-xs sm:text-sm text-muted-foreground">8:00 PM - 8:00 AM</p>
-                          <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p>
+                          {/* <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p> */}
                         </div>
                       </div>
 

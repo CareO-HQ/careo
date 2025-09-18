@@ -25,6 +25,7 @@ import type * as emails from "../emails.js";
 import type * as files_image from "../files/image.js";
 import type * as foodFluidLogs from "../foodFluidLogs.js";
 import type * as http from "../http.js";
+import type * as incidents from "../incidents.js";
 import type * as labels from "../labels.js";
 import type * as managerAudits from "../managerAudits.js";
 import type * as medication from "../medication.js";
@@ -36,6 +37,7 @@ import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as schemas_managerAudits from "../schemas/managerAudits.js";
 import type * as teams from "../teams.js";
 import type * as user from "../user.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -69,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   "files/image": typeof files_image;
   foodFluidLogs: typeof foodFluidLogs;
   http: typeof http;
+  incidents: typeof incidents;
   labels: typeof labels;
   managerAudits: typeof managerAudits;
   medication: typeof medication;
@@ -80,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/managerAudits": typeof schemas_managerAudits;
   teams: typeof teams;
   user: typeof user;
+  users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

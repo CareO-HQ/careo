@@ -102,3 +102,43 @@ export const getTeam = query({
     }
   }
 });
+
+// Simple query to get team name by ID without auth restrictions
+export const getTeamName = query({
+  args: {
+    teamId: v.string()
+  },
+  handler: async (ctx, { teamId }) => {
+    try {
+      const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "team",
+        where: [{ field: "id", value: teamId }]
+      });
+
+      return team ? { id: team.id, name: team.name } : null;
+    } catch (error) {
+      console.error("Error getting team name:", error);
+      return null;
+    }
+  }
+});
+
+// Simple query to get organization name by ID
+export const getOrganizationName = query({
+  args: {
+    organizationId: v.string()
+  },
+  handler: async (ctx, { organizationId }) => {
+    try {
+      const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "organization",
+        where: [{ field: "id", value: organizationId }]
+      });
+
+      return organization ? { id: organization.id, name: organization.name } : null;
+    } catch (error) {
+      console.error("Error getting organization name:", error);
+      return null;
+    }
+  }
+});

@@ -5,13 +5,12 @@ import { authClient } from "@/lib/auth-client";
 import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
-import { CalendarIcon, ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
+import {  ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import {
   Popover,
   PopoverContent,

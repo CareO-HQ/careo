@@ -515,7 +515,7 @@ export default function FoodFluidDocumentsPage({ params }: DocumentsPageProps) {
               <div className="space-y-4">
                 {/* Daily Report Card */}
                 <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="p-3 sm:p-4">
+                  <CardContent className="">
                     <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
                       {/* Icon and Text */}
                       <div className="flex items-center gap-3">
@@ -524,7 +524,7 @@ export default function FoodFluidDocumentsPage({ params }: DocumentsPageProps) {
                         </div>
                         <div>
                           <h3 className="font-semibold text-sm sm:text-base">Daily Food & Fluid Report</h3>
-                          <p className="text-xs sm:text-sm text-muted-foreground">Complete daily log</p>
+                  
                           <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p>
                         </div>
                       </div>

@@ -169,7 +169,7 @@ export function CreateAppointmentForm({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (optional)</FormLabel>
+                  <FormLabel>Description</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="Additional details about the appointment"
@@ -187,7 +187,7 @@ export function CreateAppointmentForm({
               name="startTime"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date & Time *</FormLabel>
+                  <FormLabel required>Date & Time</FormLabel>
                   <FormControl>
                     <FormDateTimePicker
                       value={field.value}
@@ -207,7 +207,7 @@ export function CreateAppointmentForm({
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location *</FormLabel>
+                  <FormLabel required>Location</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="e.g., General Hospital, Room 205"
@@ -225,7 +225,7 @@ export function CreateAppointmentForm({
               name="staffId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assigned Staff (optional)</FormLabel>
+                  <FormLabel>Assigned Staff</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
