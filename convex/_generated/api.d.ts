@@ -20,6 +20,8 @@ import type * as careFiles_movingHandling from "../careFiles/movingHandling.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
 import type * as crons from "../crons.js";
 import type * as diet from "../diet.js";
+import type * as emailHelpers from "../emailHelpers.js";
+import type * as emails from "../emails.js";
 import type * as files_image from "../files/image.js";
 import type * as foodFluidLogs from "../foodFluidLogs.js";
 import type * as http from "../http.js";
@@ -62,6 +64,8 @@ declare const fullApi: ApiFromModules<{
   "careFiles/preadmission": typeof careFiles_preadmission;
   crons: typeof crons;
   diet: typeof diet;
+  emailHelpers: typeof emailHelpers;
+  emails: typeof emails;
   "files/image": typeof files_image;
   foodFluidLogs: typeof foodFluidLogs;
   http: typeof http;

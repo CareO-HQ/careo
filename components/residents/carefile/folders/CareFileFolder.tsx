@@ -356,7 +356,12 @@ export default function CareFileFolder({
         </div>
 
         <div className="flex items-center gap-2">
-          <EmailPDF />
+          <EmailPDFWithStorageId
+            formKey={file.formKey}
+            formId={file.formId}
+            filename={`${file.name}.pdf`}
+            residentName={resident?.fullName}
+          />
           <DownloadIcon
             className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
             onClick={async () => {
@@ -1024,5 +1029,40 @@ export default function CareFileFolder({
         <DialogContent className="">{renderDialogContent()}</DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Wrapper component to fetch storage ID and pass to EmailPDF
+interface EmailPDFWithStorageIdProps {
+  formKey: string;
+  formId: string;
+  filename: string;
+  residentName?: string;
+}
+
+function EmailPDFWithStorageId({
+  formKey,
+  formId,
+  filename,
+  residentName
+}: EmailPDFWithStorageIdProps) {
+  const storageId = useQuery(api.emailHelpers.getPDFStorageId, {
+    formKey,
+    formId
+  });
+
+  // Don't render if we don't have a storage ID yet
+  if (!storageId) {
+    return (
+      <div className="h-4 w-4 bg-muted-foreground/20 rounded animate-pulse" />
+    );
+  }
+
+  return (
+    <EmailPDF
+      pdfStorageId={storageId}
+      filename={filename}
+      residentName={residentName}
+    />
   );
 }
