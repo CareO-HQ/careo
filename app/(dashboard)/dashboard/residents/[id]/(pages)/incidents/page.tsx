@@ -23,13 +23,16 @@ import {
   Plus,
   Download,
   Eye,
-  FileDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Map,
+  ClipboardCheck,
+  FileBarChart
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 import { ComprehensiveIncidentForm } from "./components/comprehensive-incident-form";
+import { NHSReportForm } from "./components/nhs-report-form";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +53,12 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [showReportForm, setShowReportForm] = React.useState(false);
   const [selectedIncident, setSelectedIncident] = React.useState<any>(null);
   const [showViewDialog, setShowViewDialog] = React.useState(false);
+  const [showNHSReportForm, setShowNHSReportForm] = React.useState(false);
+  const [nhsReportIncident, setNhsReportIncident] = React.useState<any>(null);
+  const [showNHSReportView, setShowNHSReportView] = React.useState(false);
+  const [selectedNHSReport, setSelectedNHSReport] = React.useState<any>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [user, setUser] = React.useState<any>(null);
   const itemsPerPage = 5;
 
   const resident = useQuery(api.residents.getById, {
@@ -64,6 +72,27 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const incidentStats = useQuery(api.incidents.getIncidentStats, {
     residentId: id as Id<"residents">
   });
+
+  // Get trust incident reports for all incidents
+  const trustReports = useQuery(api.trustIncidentReports.getByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
+  // Get user info
+  React.useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { authClient } = await import("@/lib/auth-client");
+        const session = await authClient.getSession();
+        if (session?.data) {
+          setUser(session.data);
+        }
+      } catch (error) {
+        console.error("Error getting user:", error);
+      }
+    };
+    getUser();
+  }, []);
 
   if (resident === undefined) {
     return (
@@ -147,6 +176,85 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     } catch (error) {
       console.error("Error downloading incident:", error);
       toast.error("Failed to download incident report");
+    }
+  };
+
+  const handleNHSReport = (incidentId: string) => {
+    const incident = incidents?.find(i => i._id === incidentId);
+    if (!incident) {
+      toast.error("Incident not found");
+      return;
+    }
+
+    setNhsReportIncident(incident);
+    setShowNHSReportForm(true);
+  };
+
+  const handleNHSReportCreated = (reportId: string) => {
+    // Optionally download the NHS report immediately after creation
+    const incident = nhsReportIncident;
+    if (incident) {
+      const trustReport = trustReports?.find(r => r.incidentId === incident._id && r.reportType === "nhs");
+      if (trustReport) {
+        generateAndDownloadNHSReport(incident, trustReport);
+      }
+    }
+  };
+
+  const generateAndDownloadNHSReport = (incident: any, trustReport: any) => {
+    const nhsContent = generateNHSReportWithTrust(incident, trustReport);
+    const blob = new Blob([nhsContent], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nhs-report-${incident.date}-${incident._id.slice(-6)}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    toast.success("NHS report downloaded successfully");
+  };
+
+  const handleBodyMap = (incidentId: string) => {
+    const incident = incidents?.find(i => i._id === incidentId);
+    if (!incident) {
+      toast.error("Incident not found");
+      return;
+    }
+
+    // For now, we'll show a message. In production, this would open a body map interface
+    toast.info("Body map feature will open an interactive body diagram to mark injury locations");
+    
+    // You could navigate to a body map page or open a dialog
+    // router.push(`/dashboard/residents/${id}/incidents/${incidentId}/body-map`);
+  };
+
+  const handlePS1Report = async (incidentId: string) => {
+    try {
+      const incident = incidents?.find(i => i._id === incidentId);
+      if (!incident) {
+        toast.error("Incident not found");
+        return;
+      }
+
+      // Generate PS1 (Patient Safety Incident) report content
+      const ps1Content = generatePS1Report(incident);
+
+      // Create a blob and download
+      const blob = new Blob([ps1Content], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ps1-report-${incident.date}-${incidentId.slice(-6)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("PS1 report generated successfully");
+    } catch (error) {
+      console.error("Error generating PS1 report:", error);
+      toast.error("Failed to generate PS1 report");
     }
   };
 
@@ -253,6 +361,455 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     `;
   };
 
+  const generateNHSReportWithTrust = (incident: any, trustReport: any) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>NHS Incident Report - ${incident.date}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            h1 { color: #005eb8; border-bottom: 3px solid #005eb8; padding-bottom: 10px; }
+            h2 { color: #003087; margin-top: 25px; background: #e8f4fd; padding: 8px; }
+            .header { background: #005eb8; color: white; padding: 20px; margin: -20px -20px 20px -20px; }
+            .section { margin-bottom: 25px; padding: 15px; border: 1px solid #d4e4f1; }
+            .field { margin-bottom: 12px; }
+            .label { font-weight: bold; color: #003087; display: inline-block; width: 180px; }
+            .value { margin-left: 10px; }
+            .nhs-logo { font-size: 24px; font-weight: bold; }
+            .critical { background: #fee; padding: 10px; border-left: 4px solid #d5281b; }
+            .trust-header { background: #e8f4fd; padding: 15px; margin-bottom: 20px; border-left: 4px solid #005eb8; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="nhs-logo">NHS</div>
+            <h1 style="color: white; border: none;">Patient Safety Incident Report</h1>
+          </div>
+          
+          <div class="trust-header">
+            <h2 style="margin: 0; background: none; color: #003087;">Trust Information</h2>
+            <div class="field" style="margin-top: 10px;">
+              <span class="label">NHS Trust:</span>
+              <span class="value" style="font-weight: bold; font-size: 16px;">${trustReport.trustName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Report Generated:</span>
+              <span class="value">${new Date(trustReport.createdAt).toLocaleString()}</span>
+            </div>
+            <div class="field">
+              <span class="label">Generated By:</span>
+              <span class="value">${trustReport.createdByName}</span>
+            </div>
+          </div>
+          
+          <div class="section">
+            <h2>Incident Information</h2>
+            <div class="field">
+              <span class="label">NHS Number:</span>
+              <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Patient Name:</span>
+              <span class="value">${fullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date of Birth:</span>
+              <span class="value">${incident.injuredPersonDOB}</span>
+            </div>
+            <div class="field">
+              <span class="label">Incident Date/Time:</span>
+              <span class="value">${incident.date} ${incident.time}</span>
+            </div>
+            <div class="field">
+              <span class="label">Location:</span>
+              <span class="value">${incident.homeName} - ${incident.unit}</span>
+            </div>
+          </div>
+          
+          <div class="section">
+            <h2>Incident Classification</h2>
+            <div class="field">
+              <span class="label">Incident Type:</span>
+              <span class="value">${incident.incidentTypes?.join(", ") || "Unspecified"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Severity Level:</span>
+              <span class="value">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "Not Assessed"}</span>
+            </div>
+            ${incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm" ? `
+            <div class="critical">
+              <strong>CRITICAL INCIDENT:</strong> This incident requires immediate escalation and reporting to NHS England.
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="section">
+            <h2>Clinical Details</h2>
+            <div class="field">
+              <span class="label">Injuries Sustained:</span>
+              <span class="value">${incident.injuryTypes?.join(", ") || "None recorded"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Treatment Provided:</span>
+              <span class="value">${incident.treatmentTypes?.join(", ") || "None recorded"}</span>
+            </div>
+            ${incident.treatmentDetails ? `
+            <div class="field">
+              <span class="label">Treatment Details:</span>
+              <span class="value">${incident.treatmentDetails}</span>
+            </div>
+            ` : ''}
+            <div class="field">
+              <span class="label">Medical Professional Notified:</span>
+              <span class="value">${incident.medicalProfessionalNotified || "Yes"}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Incident Description</h2>
+            <p>${incident.detailedDescription || "No description provided"}</p>
+          </div>
+
+          ${trustReport.additionalNotes ? `
+          <div class="section">
+            <h2>Additional NHS Trust Notes</h2>
+            <p>${trustReport.additionalNotes}</p>
+          </div>
+          ` : ''}
+
+          <div class="section">
+            <h2>Reporting Information</h2>
+            <div class="field">
+              <span class="label">Incident Reported By:</span>
+              <span class="value">${incident.completedByFullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Job Title:</span>
+              <span class="value">${incident.completedByJobTitle}</span>
+            </div>
+            <div class="field">
+              <span class="label">Incident Date Reported:</span>
+              <span class="value">${incident.dateCompleted}</span>
+            </div>
+            <div class="field">
+              <span class="label">NHS Report Created By:</span>
+              <span class="value">${trustReport.createdByName}</span>
+            </div>
+            <div class="field">
+              <span class="label">NHS Report Date:</span>
+              <span class="value">${new Date(trustReport.createdAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <p style="font-size: 12px; color: #666;">
+              This report has been generated by <strong>${trustReport.trustName}</strong> for NHS reporting purposes. 
+              Please ensure all serious incidents are reported through the appropriate NHS reporting channels including NRLS (National Reporting and Learning System).
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const generateNHSReport = (incident: any) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>NHS Incident Report - ${incident.date}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            h1 { color: #005eb8; border-bottom: 3px solid #005eb8; padding-bottom: 10px; }
+            h2 { color: #003087; margin-top: 25px; background: #e8f4fd; padding: 8px; }
+            .header { background: #005eb8; color: white; padding: 20px; margin: -20px -20px 20px -20px; }
+            .section { margin-bottom: 25px; padding: 15px; border: 1px solid #d4e4f1; }
+            .field { margin-bottom: 12px; }
+            .label { font-weight: bold; color: #003087; display: inline-block; width: 180px; }
+            .value { margin-left: 10px; }
+            .nhs-logo { font-size: 24px; font-weight: bold; }
+            .critical { background: #fee; padding: 10px; border-left: 4px solid #d5281b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="nhs-logo">NHS</div>
+            <h1 style="color: white; border: none;">Patient Safety Incident Report</h1>
+          </div>
+          
+          <div class="section">
+            <h2>Incident Information</h2>
+            <div class="field">
+              <span class="label">NHS Number:</span>
+              <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Patient Name:</span>
+              <span class="value">${fullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date of Birth:</span>
+              <span class="value">${incident.injuredPersonDOB}</span>
+            </div>
+            <div class="field">
+              <span class="label">Incident Date/Time:</span>
+              <span class="value">${incident.date} ${incident.time}</span>
+            </div>
+            <div class="field">
+              <span class="label">Location:</span>
+              <span class="value">${incident.homeName} - ${incident.unit}</span>
+            </div>
+          </div>
+          
+          <div class="section">
+            <h2>Incident Classification</h2>
+            <div class="field">
+              <span class="label">Incident Type:</span>
+              <span class="value">${incident.incidentTypes?.join(", ") || "Unspecified"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Severity Level:</span>
+              <span class="value">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "Not Assessed"}</span>
+            </div>
+            ${incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm" ? `
+            <div class="critical">
+              <strong>CRITICAL INCIDENT:</strong> This incident requires immediate escalation and reporting to NHS England.
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="section">
+            <h2>Clinical Details</h2>
+            <div class="field">
+              <span class="label">Injuries Sustained:</span>
+              <span class="value">${incident.injuryTypes?.join(", ") || "None recorded"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Treatment Provided:</span>
+              <span class="value">${incident.treatmentTypes?.join(", ") || "None recorded"}</span>
+            </div>
+            ${incident.treatmentDetails ? `
+            <div class="field">
+              <span class="label">Treatment Details:</span>
+              <span class="value">${incident.treatmentDetails}</span>
+            </div>
+            ` : ''}
+            <div class="field">
+              <span class="label">Medical Professional Notified:</span>
+              <span class="value">${incident.medicalProfessionalNotified || "Yes"}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Incident Description</h2>
+            <p>${incident.detailedDescription || "No description provided"}</p>
+          </div>
+
+          <div class="section">
+            <h2>Reporting Information</h2>
+            <div class="field">
+              <span class="label">Reported By:</span>
+              <span class="value">${incident.completedByFullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Job Title:</span>
+              <span class="value">${incident.completedByJobTitle}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date Reported:</span>
+              <span class="value">${incident.dateCompleted}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <p style="font-size: 12px; color: #666;">
+              This report has been generated for NHS reporting purposes. 
+              Please ensure all serious incidents are reported through the appropriate NHS reporting channels including NRLS (National Reporting and Learning System).
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const generatePS1Report = (incident: any) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>PS1 Report - ${incident.date}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            h1 { color: #1d70b8; border-bottom: 2px solid #1d70b8; padding-bottom: 10px; }
+            h2 { color: #003078; margin-top: 20px; }
+            .section { margin-bottom: 20px; padding: 15px; background: #f3f5f6; }
+            .field { margin-bottom: 10px; display: flex; }
+            .label { font-weight: bold; color: #003078; min-width: 200px; }
+            .value { flex: 1; }
+            .header-info { background: #1d70b8; color: white; padding: 15px; margin: -20px -20px 20px -20px; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { border: 1px solid #b1b4b6; padding: 8px; text-align: left; }
+            th { background: #dee0e2; font-weight: bold; }
+            .severity-high { color: #d4351c; font-weight: bold; }
+            .severity-medium { color: #f47738; font-weight: bold; }
+            .severity-low { color: #00703c; }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+            <h1 style="color: white; border: none; margin: 0;">Patient Safety Incident Report (PS1)</h1>
+            <p style="margin: 5px 0;">Care Quality Commission Notification</p>
+          </div>
+          
+          <div class="section">
+            <h2>1. Organisation & Location Details</h2>
+            <div class="field">
+              <span class="label">Organisation:</span>
+              <span class="value">${incident.homeName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Unit/Ward:</span>
+              <span class="value">${incident.unit}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date of Incident:</span>
+              <span class="value">${incident.date}</span>
+            </div>
+            <div class="field">
+              <span class="label">Time of Incident:</span>
+              <span class="value">${incident.time}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>2. Person Affected</h2>
+            <div class="field">
+              <span class="label">Name:</span>
+              <span class="value">${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date of Birth:</span>
+              <span class="value">${incident.injuredPersonDOB}</span>
+            </div>
+            <div class="field">
+              <span class="label">NHS Number:</span>
+              <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Person Status:</span>
+              <span class="value">${incident.injuredPersonStatus?.join(", ") || "Resident"}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>3. Incident Details</h2>
+            <table>
+              <tr>
+                <th>Category</th>
+                <th>Details</th>
+              </tr>
+              <tr>
+                <td>Incident Type(s)</td>
+                <td>${incident.incidentTypes?.join(", ") || "Not specified"}</td>
+              </tr>
+              <tr>
+                <td>Severity Level</td>
+                <td class="${
+                  incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm" ? "severity-high" :
+                  incident.incidentLevel === "minor_injury" ? "severity-medium" : "severity-low"
+                }">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "Not Assessed"}</td>
+              </tr>
+              <tr>
+                <td>Injuries</td>
+                <td>${incident.injuryTypes?.join(", ") || "None"}</td>
+              </tr>
+              <tr>
+                <td>Body Parts Affected</td>
+                <td>${incident.bodyPartsInjured?.join(", ") || "Not specified"}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="section">
+            <h2>4. Incident Description</h2>
+            <p style="background: white; padding: 10px; border: 1px solid #b1b4b6;">
+              ${incident.detailedDescription || "No description provided"}
+            </p>
+          </div>
+
+          <div class="section">
+            <h2>5. Immediate Action Taken</h2>
+            <div class="field">
+              <span class="label">Treatment Provided:</span>
+              <span class="value">${incident.treatmentTypes?.join(", ") || "None"}</span>
+            </div>
+            ${incident.treatmentDetails ? `
+            <div class="field">
+              <span class="label">Treatment Details:</span>
+              <span class="value">${incident.treatmentDetails}</span>
+            </div>
+            ` : ''}
+            <div class="field">
+              <span class="label">Medical Professional Notified:</span>
+              <span class="value">${incident.medicalProfessionalNotified || "Yes"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Family Notified:</span>
+              <span class="value">${incident.familyNotified || "Yes"}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>6. Contributing Factors</h2>
+            <div class="field">
+              <span class="label">Environmental Factors:</span>
+              <span class="value">${incident.environmentalFactors?.join(", ") || "None identified"}</span>
+            </div>
+            <div class="field">
+              <span class="label">Other Factors:</span>
+              <span class="value">${incident.contributingFactors || "None identified"}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>7. Report Details</h2>
+            <div class="field">
+              <span class="label">Report Completed By:</span>
+              <span class="value">${incident.completedByFullName}</span>
+            </div>
+            <div class="field">
+              <span class="label">Job Title:</span>
+              <span class="value">${incident.completedByJobTitle}</span>
+            </div>
+            <div class="field">
+              <span class="label">Date Completed:</span>
+              <span class="value">${incident.dateCompleted}</span>
+            </div>
+            <div class="field">
+              <span class="label">Time Completed:</span>
+              <span class="value">${incident.timeCompleted || "Not recorded"}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>8. Regulatory Requirements</h2>
+            <p>☐ CQC Notification Required (for serious injuries/deaths)</p>
+            <p>☐ Safeguarding Referral Made</p>
+            <p>☐ RIDDOR Report Submitted (if applicable)</p>
+            <p>☐ Insurance Company Notified</p>
+            <p>☐ Root Cause Analysis Initiated</p>
+          </div>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #b1b4b6; font-size: 12px; color: #666;">
+            <p><strong>PS1 Report Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p>This report should be submitted to the CQC within the required timeframe. Serious injuries and deaths must be reported immediately.</p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
   // Pagination logic
   const totalIncidents = incidents?.length || 0;
   const totalPages = Math.ceil(totalIncidents / itemsPerPage);
@@ -346,6 +903,23 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
   const formatSeverityLabel = (severity: string) => {
     return severity.charAt(0).toUpperCase() + severity.slice(1);
+  };
+
+  // Get trust reports for a specific incident
+  const getTrustReportsForIncident = (incidentId: string) => {
+    return trustReports?.filter(report => report.incidentId === incidentId) || [];
+  };
+
+  const handleViewNHSReport = (report: any, incident: any) => {
+    setSelectedNHSReport({ report, incident });
+    setShowNHSReportView(true);
+  };
+
+  const handleDownloadNHSReportFromBadge = (report: any) => {
+    const incident = incidents?.find(i => i._id === report.incidentId);
+    if (incident) {
+      generateAndDownloadNHSReport(incident, report);
+    }
   };
 
   return (
@@ -517,6 +1091,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                             .replace(/\b\w/g, (c) => c.toUpperCase())}
 
                         </Badge>
+                    
                       </div>
                     
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -533,9 +1108,26 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           <span>{incident.completedByFullName}</span>
                         </div>
                       </div>
+                      <div className="mt-2">
+                            {/* Trust Report Indicators */}
+                            {getTrustReportsForIncident(incident._id).map((report) => (
+                          <Badge
+                            key={report._id}
+                            variant="outline"
+                            className="text-xs bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
+                            title={`NHS Report by ${report.trustName} - Click to view`}
+                            onClick={() => handleViewNHSReport(report, incident)}
+                          >
+                            <FileBarChart className="w-3 h-3 mr-1" />
+                            NHS
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
+                    
                   </div>
-                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start">
+                  
+                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start flex-wrap">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -553,6 +1145,33 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                       title="Download PDF"
                     >
                       <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleNHSReport(incident._id)}
+                      title="Generate NHS Report"
+                    >
+                      <FileBarChart className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleBodyMap(incident._id)}
+                      title="Body Map"
+                    >
+                      <Map className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handlePS1Report(incident._id)}
+                      title="Generate APP1 Report"
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -881,6 +1500,187 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               <Download className="w-4 h-4 mr-2" />
               Download Report
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NHS Report Form */}
+      {nhsReportIncident && (
+        <NHSReportForm
+          isOpen={showNHSReportForm}
+          onClose={() => {
+            setShowNHSReportForm(false);
+            setNhsReportIncident(null);
+          }}
+          incidentId={nhsReportIncident._id}
+          residentId={id}
+          incident={nhsReportIncident}
+          user={user}
+          onReportCreated={handleNHSReportCreated}
+        />
+      )}
+
+      {/* NHS Report View Dialog */}
+      <Dialog open={showNHSReportView} onOpenChange={setShowNHSReportView}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FileBarChart className="w-5 h-5 text-blue-600" />
+              </div>
+              NHS Trust Report Details
+            </DialogTitle>
+            <DialogDescription>
+              View the saved NHS trust incident report information
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedNHSReport && (
+            <div className="space-y-6">
+              {/* Trust Information Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                  Trust Information
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">NHS Trust Name</p>
+                    <p className="text-blue-900 font-semibold text-lg">
+                      {selectedNHSReport.report.trustName}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">Report Generated</p>
+                    <p className="text-blue-900">
+                      {new Date(selectedNHSReport.report.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">Created By</p>
+                    <p className="text-blue-900">{selectedNHSReport.report.createdByName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">Report Type</p>
+                    <Badge className="bg-blue-600 text-white">
+                      NHS Report
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Incident Summary */}
+              <div className="border rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">Associated Incident</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Date & Time</p>
+                    <p className="font-medium">
+                      {selectedNHSReport.incident.date} {selectedNHSReport.incident.time}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Incident Type</p>
+                    <p className="font-medium">
+                      {selectedNHSReport.incident.incidentTypes?.join(", ") || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Severity Level</p>
+                    <Badge
+                      className={`text-xs ${
+                        selectedNHSReport.incident.incidentLevel === "death" || 
+                        selectedNHSReport.incident.incidentLevel === "permanent_harm" 
+                          ? "bg-red-100 text-red-800" :
+                        selectedNHSReport.incident.incidentLevel === "minor_injury" 
+                          ? "bg-yellow-100 text-yellow-800" :
+                          "bg-green-100 text-green-800"
+                      }`}
+                    >
+                      {selectedNHSReport.incident.incidentLevel?.replace("_", " ").toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Location</p>
+                    <p className="font-medium">
+                      {selectedNHSReport.incident.homeName} - {selectedNHSReport.incident.unit}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Notes */}
+              {selectedNHSReport.report.additionalNotes && (
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Additional NHS Trust Notes</h3>
+                  <div className="bg-gray-50 p-3 rounded border-l-4 border-blue-500">
+                    <p className="text-gray-700 whitespace-pre-wrap">
+                      {selectedNHSReport.report.additionalNotes}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Report Data */}
+              {selectedNHSReport.report.reportData && (
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Report Metadata</h3>
+                  <div className="bg-gray-50 p-3 rounded text-sm">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-gray-500">Report ID:</span>
+                        <span className="ml-2 font-mono text-xs">
+                          {selectedNHSReport.report._id.slice(-8)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Status:</span>
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          Generated
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Regulatory Information */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-amber-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <div className="text-sm">
+                    <p className="font-medium text-amber-800 mb-1">NHS Reporting Compliance</p>
+                    <p className="text-amber-700">
+                      This report has been generated for NHS trust reporting purposes and contains 
+                      all necessary information for regulatory compliance. Ensure this report is 
+                      submitted through appropriate NHS channels including NRLS if required.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-4 border-t">
+            <div className="text-sm text-gray-500">
+              Report saved on {selectedNHSReport && new Date(selectedNHSReport.report.createdAt).toLocaleDateString()}
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (selectedNHSReport) {
+                    handleDownloadNHSReportFromBadge(selectedNHSReport.report);
+                  }
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Report
+              </Button>
+              <Button onClick={() => setShowNHSReportView(false)}>
+                Close
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -37,6 +37,7 @@ import type * as residents from "../residents.js";
 import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as schemas_managerAudits from "../schemas/managerAudits.js";
 import type * as teams from "../teams.js";
+import type * as trustIncidentReports from "../trustIncidentReports.js";
 import type * as user from "../user.js";
 import type * as users from "../users.js";
 
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/carefiles": typeof schemas_carefiles;
   "schemas/managerAudits": typeof schemas_managerAudits;
   teams: typeof teams;
+  trustIncidentReports: typeof trustIncidentReports;
   user: typeof user;
   users: typeof users;
 }>;

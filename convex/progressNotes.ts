@@ -32,28 +32,9 @@ export const create = mutation({
       v.literal("behavioral"),
       v.literal("other")
     ),
-    subject: v.string(),
+    date: v.string(),
+    time: v.string(),
     note: v.string(),
-    mood: v.optional(
-      v.union(
-        v.literal("happy"),
-        v.literal("calm"),
-        v.literal("anxious"),
-        v.literal("agitated"),
-        v.literal("confused"),
-        v.literal("sad"),
-        v.literal("neutral")
-      )
-    ),
-    participation: v.optional(
-      v.union(
-        v.literal("engaged"),
-        v.literal("partially_engaged"),
-        v.literal("refused"),
-        v.literal("sleeping"),
-        v.literal("not_applicable")
-      )
-    ),
     authorId: v.string(),
     authorName: v.string(),
     createdAt: v.string(),
@@ -81,28 +62,9 @@ export const update = mutation({
         v.literal("other")
       )
     ),
-    subject: v.optional(v.string()),
-    note: v.optional(v.string()),
-    mood: v.optional(
-      v.union(
-        v.literal("happy"),
-        v.literal("calm"),
-        v.literal("anxious"),
-        v.literal("agitated"),
-        v.literal("confused"),
-        v.literal("sad"),
-        v.literal("neutral")
-      )
-    ),
-    participation: v.optional(
-      v.union(
-        v.literal("engaged"),
-        v.literal("partially_engaged"),
-        v.literal("refused"),
-        v.literal("sleeping"),
-        v.literal("not_applicable")
-      )
-    )
+    date: v.optional(v.string()),
+    time: v.optional(v.string()),
+    note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const { noteId, ...updateData } = args;
@@ -194,7 +156,6 @@ export const search = query({
     // Filter by search term
     const searchLower = args.searchTerm.toLowerCase();
     return notes.filter(note => 
-      note.subject.toLowerCase().includes(searchLower) ||
       note.note.toLowerCase().includes(searchLower)
     );
   },

@@ -1579,28 +1579,9 @@ export default defineSchema({
       v.literal("behavioral"),
       v.literal("other")
     ),
-    subject: v.string(),
+    date: v.string(),
+    time: v.string(),
     note: v.string(),
-    mood: v.optional(
-      v.union(
-        v.literal("happy"),
-        v.literal("calm"),
-        v.literal("anxious"),
-        v.literal("agitated"),
-        v.literal("confused"),
-        v.literal("sad"),
-        v.literal("neutral")
-      )
-    ),
-    participation: v.optional(
-      v.union(
-        v.literal("engaged"),
-        v.literal("partially_engaged"),
-        v.literal("refused"),
-        v.literal("sleeping"),
-        v.literal("not_applicable")
-      )
-    ),
     authorId: v.string(),
     authorName: v.string(),
     createdAt: v.string(),
@@ -1609,5 +1590,25 @@ export default defineSchema({
   })
     .index("by_residentId", ["residentId"])
     .index("by_createdAt", ["createdAt"])
-    .index("by_type", ["type"])
+    .index("by_type", ["type"]),
+
+  // Trust Incident Reports table
+  trustIncidentReports: defineTable({
+    incidentId: v.id("incidents"),
+    residentId: v.id("residents"),
+    trustName: v.string(),
+    reportType: v.union(
+      v.literal("nhs"),
+      v.literal("ps1"),
+      v.literal("trust_internal")
+    ),
+    additionalNotes: v.optional(v.string()),
+    createdBy: v.string(),
+    createdByName: v.string(),
+    createdAt: v.string(),
+    reportData: v.optional(v.any()) // Store any additional report-specific data
+  })
+    .index("by_incidentId", ["incidentId"])
+    .index("by_residentId", ["residentId"])
+    .index("by_reportType", ["reportType"])
 });

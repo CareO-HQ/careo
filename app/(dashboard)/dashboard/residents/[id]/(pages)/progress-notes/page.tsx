@@ -11,11 +11,15 @@ import { toast } from "sonner";
 import { z } from "zod";
 import {
   Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription
+  CardContent
 } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -48,11 +52,10 @@ import {
   Plus,
   Clock,
   User,
-  Calendar,
+  Calendar as CalendarIcon2,
+  CalendarIcon,
   Edit,
   Trash2,
-  Search,
-  Filter,
   NotebookPen,
   Eye,
   Download,
@@ -64,7 +67,6 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 type ProgressNotesPageProps = {
@@ -73,10 +75,11 @@ type ProgressNotesPageProps = {
 
 const progressNoteSchema = z.object({
   type: z.enum(["daily", "incident", "medical", "behavioral", "other"]),
-  subject: z.string().min(1, "Subject is required"),
+  date: z.date({
+    required_error: "Date is required",
+  }),
+  time: z.string().min(1, "Time is required"),
   note: z.string().min(10, "Note must be at least 10 characters"),
-  mood: z.enum(["happy", "calm", "anxious", "agitated", "confused", "sad", "neutral"]).optional(),
-  participation: z.enum(["engaged", "partially_engaged", "refused", "sleeping", "not_applicable"]).optional(),
 });
 
 type ProgressNoteFormData = z.infer<typeof progressNoteSchema>;
@@ -86,8 +89,8 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<string>("all");
+  const [searchQuery] = useState("");
+  const [filterType] = useState<string>("all");
   const [user, setUser] = useState<any>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedNote, setSelectedNote] = useState<any>(null);
@@ -128,10 +131,9 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     resolver: zodResolver(progressNoteSchema),
     defaultValues: {
       type: "daily",
-      subject: "",
+      date: new Date(),
+      time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       note: "",
-      mood: "neutral",
-      participation: "not_applicable",
     },
   });
 
@@ -140,13 +142,19 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       if (editingNote) {
         await updateProgressNote({
           noteId: editingNote._id,
-          ...data,
+          type: data.type,
+          date: format(data.date, 'yyyy-MM-dd'),
+          time: data.time,
+          note: data.note,
         });
         toast.success("Progress note updated successfully");
       } else {
         await createProgressNote({
           residentId: id as Id<"residents">,
-          ...data,
+          type: data.type,
+          date: format(data.date, 'yyyy-MM-dd'),
+          time: data.time,
+          note: data.note,
           authorId: user?.id || "",
           authorName: user?.name || "Unknown",
           createdAt: new Date().toISOString(),
@@ -166,10 +174,9 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     setEditingNote(note);
     form.reset({
       type: note.type,
-      subject: note.subject,
+      date: new Date(note.date),
+      time: note.time,
       note: note.note,
-      mood: note.mood,
-      participation: note.participation,
     });
     setIsDialogOpen(true);
   };
@@ -210,7 +217,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Progress Note - ${note.subject}</title>
+          <title>Progress Note - ${note.type} - ${format(new Date(note.createdAt), "PPP")}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
             h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
@@ -231,7 +238,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
             </div>
             <div class="field">
               <span class="label">Date:</span>
-              <span class="value">${format(new Date(note.createdAt), "PPpp")}</span>
+              <span class="value">${format(new Date(note.createdAt), "PPp")}</span>
             </div>
           </div>
           
@@ -242,21 +249,9 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
               <span class="value">${note.type}</span>
             </div>
             <div class="field">
-              <span class="label">Subject:</span>
-              <span class="value">${note.subject}</span>
+              <span class="label">Time:</span>
+              <span class="value">${note.time}</span>
             </div>
-            ${note.mood ? `
-            <div class="field">
-              <span class="label">Mood:</span>
-              <span class="value">${note.mood}</span>
-            </div>
-            ` : ''}
-            ${note.participation && note.participation !== 'not_applicable' ? `
-            <div class="field">
-              <span class="label">Participation:</span>
-              <span class="value">${note.participation.replace('_', ' ')}</span>
-            </div>
-            ` : ''}
           </div>
 
           <div class="section">
@@ -281,9 +276,9 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   };
 
   const filteredNotes = progressNotes?.filter((note: any) => {
-    const matchesSearch = 
-      note.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.note.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch =
+      note.note.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.type.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterType === "all" || note.type === filterType;
     return matchesSearch && matchesFilter;
   }) || [];
@@ -463,19 +458,22 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 </div>
               </div>
             </div>
-            <Button onClick={() => {
-              setEditingNote(null);
-              form.reset();
-              setIsDialogOpen(true);
-            }}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Progress Note
-            </Button>
+            <div className="flex gap-4">
+              <Button onClick={() => {
+                setEditingNote(null);
+                form.reset();
+                setIsDialogOpen(true);
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Progress Note
+              </Button>
+              <Button onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}>All Notes</Button>
+            </div>
           </div>
 
           {/* Mobile Add Button */}
           <div className="sm:hidden mt-4">
-            <Button 
+            <Button
               className="w-full"
               onClick={() => {
                 setEditingNote(null);
@@ -490,7 +488,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </CardContent>
       </Card>
 
-    
+
 
       {/* Progress Notes List */}
       {paginatedNotes.length > 0 ? (
@@ -498,13 +496,13 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           <div className="space-y-4">
             {paginatedNotes.map((note: any) => {
               return (
-                <Card key={note._id} >
-                  <CardContent className="p-4">
+                <Card key={note._id} className="border-0">
+                  <CardContent >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                       <div className="flex-1 space-y-3">
-                  
+
                         <div>
-                          <h3 className="font-semibold text-base">{note.subject}</h3>
+                          <h3 className="font-semibold text-base">{note.type.charAt(0).toUpperCase() + note.type.slice(1)} Note</h3>
                           <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
                             {note.note}
                           </p>
@@ -516,12 +514,12 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                             {note.authorName}
                           </span>
                           <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                            <CalendarIcon2 className="h-3 w-3" />
                             {format(new Date(note.createdAt), "MMM d, yyyy")}
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {format(new Date(note.createdAt), "h:mm a")}
+                            {note.time}
                           </span>
                         </div>
                       </div>
@@ -610,8 +608,8 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
             <NotebookPen className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Progress Notes Found</h3>
             <p className="text-muted-foreground text-center">
-              {searchQuery || filterType !== "all" 
-                ? "No notes match your search criteria." 
+              {searchQuery || filterType !== "all"
+                ? "No notes match your search criteria."
                 : `Start documenting daily progress by adding the first note for ${fullName}.`}
             </p>
             {(!searchQuery && filterType === "all") && (
@@ -645,41 +643,27 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                   <p className="font-medium">{selectedNote.type}</p>
                 </div>
                 <div>
+                  <Label className="text-sm text-muted-foreground">Time</Label>
+                  <p className="font-medium">{selectedNote.time}</p>
+                </div>
+                <div>
                   <Label className="text-sm text-muted-foreground">Date</Label>
                   <p className="font-medium">
-                    {format(new Date(selectedNote.createdAt), "PPpp")}
+                    {format(new Date(selectedNote.createdAt), "PPp")}
                   </p>
                 </div>
                 <div>
                   <Label className="text-sm text-muted-foreground">Author</Label>
                   <p className="font-medium">{selectedNote.authorName}</p>
                 </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Mood</Label>
-              
-                </div>
               </div>
-              
+
               <Separator />
-              
-              <div>
-                <Label className="text-sm text-muted-foreground">Subject</Label>
-                <p className="font-semibold text-lg mt-1">{selectedNote.subject}</p>
-              </div>
-              
+
               <div>
                 <Label className="text-sm text-muted-foreground">Note Content</Label>
                 <p className="mt-2 whitespace-pre-wrap">{selectedNote.note}</p>
               </div>
-
-              {selectedNote.participation && selectedNote.participation !== "not_applicable" && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Participation Level</Label>
-                  <Badge variant="outline" className="mt-1">
-                    {selectedNote.participation.replace("_", " ")}
-                  </Badge>
-                </div>
-              )}
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button
@@ -718,7 +702,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
                   name="type"
@@ -746,54 +730,67 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
-                  name="mood"
+                  name="time"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Resident Mood</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select mood" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="happy">😊 Happy</SelectItem>
-                          <SelectItem value="calm">😌 Calm</SelectItem>
-                          <SelectItem value="anxious">😟 Anxious</SelectItem>
-                          <SelectItem value="agitated">😤 Agitated</SelectItem>
-                          <SelectItem value="confused">😕 Confused</SelectItem>
-                          <SelectItem value="sad">😢 Sad</SelectItem>
-                          <SelectItem value="neutral">😐 Neutral</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Time</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="time"
+                          {...field}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="subject"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Subject</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Brief summary of the note"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}
@@ -803,39 +800,11 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                     <FormLabel>Progress Note</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Detailed observation or incident description..."
+                        placeholder="Enter detailed progress note..."
                         className="min-h-[150px]"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="participation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Participation Level</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select participation" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="engaged">Fully Engaged</SelectItem>
-                        <SelectItem value="partially_engaged">Partially Engaged</SelectItem>
-                        <SelectItem value="refused">Refused</SelectItem>
-                        <SelectItem value="sleeping">Sleeping</SelectItem>
-                        <SelectItem value="not_applicable">Not Applicable</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -862,8 +831,8 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </DialogContent>
       </Dialog>
 
-  {/* Stats Cards */}
-  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="border-0">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -882,7 +851,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 <p className="text-sm text-muted-foreground">Daily Notes</p>
                 <p className="text-2xl font-bold">{noteStats.daily}</p>
               </div>
-              <Calendar className="h-8 w-8 text-blue-600 opacity-20" />
+              <CalendarIcon2 className="h-8 w-8 text-blue-600 opacity-20" />
             </div>
           </CardContent>
         </Card>
@@ -910,7 +879,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </Card>
       </div>
 
-  
+
     </div>
   );
 }
