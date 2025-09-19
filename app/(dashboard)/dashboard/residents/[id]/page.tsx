@@ -25,7 +25,8 @@ import {
   TrendingDown,
   User,
   Users,
-  Utensils
+  Utensils,
+  NotebookPen
 } from "lucide-react";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -333,6 +334,28 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     <h3 className="font-semibold">Additional Info</h3>
                     <p className="text-sm text-muted-foreground">
                       Notes & documents
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+          {/* Progress Notes Card */}
+          <Card
+            className="cursor-pointer shadow-none"
+            onClick={() => handleCardClick("progress-notes")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <NotebookPen className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Progress Notes</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Daily nursing notes
                     </p>
                   </div>
                 </div>

@@ -31,6 +31,7 @@ import type * as managerAudits from "../managerAudits.js";
 import type * as medication from "../medication.js";
 import type * as migrations from "../migrations.js";
 import type * as personalCare from "../personalCare.js";
+import type * as progressNotes from "../progressNotes.js";
 import type * as quickCareNotes from "../quickCareNotes.js";
 import type * as residents from "../residents.js";
 import type * as schemas_carefiles from "../schemas/carefiles.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   medication: typeof medication;
   migrations: typeof migrations;
   personalCare: typeof personalCare;
+  progressNotes: typeof progressNotes;
   quickCareNotes: typeof quickCareNotes;
   residents: typeof residents;
   "schemas/carefiles": typeof schemas_carefiles;

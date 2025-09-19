@@ -1567,5 +1567,47 @@ export default defineSchema({
 
     .index("by_carePlanNumber", ["carePlanNumber"])
 
-    .index("by_date", ["date"])
+    .index("by_date", ["date"]),
+
+  // Progress Notes table
+  progressNotes: defineTable({
+    residentId: v.id("residents"),
+    type: v.union(
+      v.literal("daily"),
+      v.literal("incident"),
+      v.literal("medical"),
+      v.literal("behavioral"),
+      v.literal("other")
+    ),
+    subject: v.string(),
+    note: v.string(),
+    mood: v.optional(
+      v.union(
+        v.literal("happy"),
+        v.literal("calm"),
+        v.literal("anxious"),
+        v.literal("agitated"),
+        v.literal("confused"),
+        v.literal("sad"),
+        v.literal("neutral")
+      )
+    ),
+    participation: v.optional(
+      v.union(
+        v.literal("engaged"),
+        v.literal("partially_engaged"),
+        v.literal("refused"),
+        v.literal("sleeping"),
+        v.literal("not_applicable")
+      )
+    ),
+    authorId: v.string(),
+    authorName: v.string(),
+    createdAt: v.string(),
+    updatedAt: v.optional(v.string()),
+    attachments: v.optional(v.array(v.id("_storage")))
+  })
+    .index("by_residentId", ["residentId"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_type", ["type"])
 });
