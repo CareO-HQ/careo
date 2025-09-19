@@ -9,9 +9,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
-  CardContent
+  CardContent,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -23,7 +26,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -68,6 +70,7 @@ import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type ProgressNotesPageProps = {
   params: Promise<{ id: string }>;
@@ -289,7 +292,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedNotes = filteredNotes.slice(startIndex, endIndex);
-  const showPagination = totalNotes > itemsPerPage;
+  const showPagination = totalNotes > 0; // Always show pagination when there are notes
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -396,9 +399,10 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </div>
       </div>
 
-      {/* Resident Info Card */}
+      {/* Resident Info Card - Matching incidents pattern */}
       <Card className="border-0">
         <CardContent className="p-4">
+          {/* Mobile Layout */}
           <div className="flex flex-col space-y-4 sm:hidden">
             <div className="flex items-center space-x-3">
               <Avatar className="w-12 h-12 flex-shrink-0">
@@ -412,280 +416,330 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <h2 className="font-semibold truncate">{fullName}</h2>
-                <p className="text-sm text-muted-foreground">
-                  Room {resident.roomNumber}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Age</p>
-                <p className="font-medium">{calculateAge(resident.dateOfBirth)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">NHS</p>
-                <p className="font-medium truncate">{resident.nhsHealthNumber || "N/A"}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Status</p>
-                <Badge variant="outline" className="text-xs">Active</Badge>
-              </div>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-4">
-              <Avatar className="w-16 h-16">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-lg bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h2 className="text-xl font-semibold">{fullName}</h2>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
-                  <span>Room {resident.roomNumber}</span>
-                  <span>•</span>
-                  <span>Age {calculateAge(resident.dateOfBirth)}</span>
-                  <span>•</span>
-                  <span>NHS: {resident.nhsHealthNumber || "N/A"}</span>
+                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
+                    <NotebookPen className="w-3 h-3 mr-1" />
+                    Progress Notes
+                  </Badge>
                 </div>
               </div>
             </div>
-            <div className="flex gap-4">
-              <Button onClick={() => {
-                setEditingNote(null);
-                form.reset();
-                setIsDialogOpen(true);
-              }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Progress Note
-              </Button>
-              <Button onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}>All Notes</Button>
-            </div>
-          </div>
-
-          {/* Mobile Add Button */}
-          <div className="sm:hidden mt-4">
-            <Button
-              className="w-full"
-              onClick={() => {
-                setEditingNote(null);
-                form.reset();
-                setIsDialogOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Progress Note
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-
-
-      {/* Progress Notes List */}
-      {paginatedNotes.length > 0 ? (
-        <>
-          <div className="space-y-4">
-            {paginatedNotes.map((note: any) => {
-              return (
-                <Card key={note._id} className="border-0">
-                  <CardContent >
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="flex-1 space-y-3">
-
-                        <div>
-                          <h3 className="font-semibold text-base">{note.type.charAt(0).toUpperCase() + note.type.slice(1)} Note</h3>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
-                            {note.note}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {note.authorName}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <CalendarIcon2 className="h-3 w-3" />
-                            {format(new Date(note.createdAt), "MMM d, yyyy")}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {note.time}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewNote(note)}
-                        >
-                          <Eye className="h-4 w-4" />
-                          <span className="ml-2 hidden sm:inline">View</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(note)}
-                        >
-                          <Edit className="h-4 w-4" />
-                          <span className="ml-2 hidden sm:inline">Edit</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadNote(note)}
-                        >
-                          <Download className="h-4 w-4" />
-                          <span className="ml-2 hidden sm:inline">Download</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(note._id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Pagination */}
-          {showPagination && (
-            <div className="flex justify-center items-center space-x-2 mt-6">
+            <div className="flex flex-col space-y-3">
               <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrevious}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={page === currentPage ? "default" : "outline"}
-                    size="sm"
-                    className="w-8 h-8 p-0"
-                    onClick={() => handlePageChange(page)}
-                  >
-                    {page}
-                  </Button>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNext}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </>
-      ) : (
-        <Card className="border-0">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <NotebookPen className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Progress Notes Found</h3>
-            <p className="text-muted-foreground text-center">
-              {searchQuery || filterType !== "all"
-                ? "No notes match your search criteria."
-                : `Start documenting daily progress by adding the first note for ${fullName}.`}
-            </p>
-            {(!searchQuery && filterType === "all") && (
-              <Button
-                className="mt-4"
+                className="bg-black hover:bg-gray-800 text-white"
                 onClick={() => {
                   setEditingNote(null);
                   form.reset();
                   setIsDialogOpen(true);
                 }}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Add First Note
+                <Plus className="w-4 h-4 mr-2" />
+                Add Progress Note
               </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          </div>
 
-      {/* View Dialog */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Progress Note Details</DialogTitle>
-          </DialogHeader>
-          {selectedNote && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm text-muted-foreground">Type</Label>
-                  <p className="font-medium">{selectedNote.type}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Time</Label>
-                  <p className="font-medium">{selectedNote.time}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Date</Label>
-                  <p className="font-medium">
-                    {format(new Date(selectedNote.createdAt), "PPp")}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Author</Label>
-                  <p className="font-medium">{selectedNote.authorName}</p>
-                </div>
-              </div>
-
-              <Separator />
-
+          {/* Desktop Layout */}
+          <div className="hidden sm:flex sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-3">
+              <Avatar className="w-15 h-15">
+                <AvatarImage
+                  src={resident.imageUrl}
+                  alt={fullName}
+                  className="border"
+                />
+                <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
               <div>
-                <Label className="text-sm text-muted-foreground">Note Content</Label>
-                <p className="mt-2 whitespace-pre-wrap">{selectedNote.note}</p>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => handleDownloadNote(selectedNote)}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowViewDialog(false);
-                    handleEdit(selectedNote);
-                  }}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
+                <h3 className="font-semibold">{fullName}</h3>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
+                    Room {resident.roomNumber || "N/A"}
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
+                    <CalendarIcon2 className="w-3 h-3 mr-1" />
+                    {calculateAge(resident.dateOfBirth)} years old
+                  </Badge>
+                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
+                    <NotebookPen className="w-3 h-3 mr-1" />
+                    Progress Notes
+                  </Badge>
+                </div>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                className="bg-black hover:bg-gray-800 text-white"
+                onClick={() => {
+                  setEditingNote(null);
+                  form.reset();
+                  setIsDialogOpen(true);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Progress Note
+              </Button>
+
+              <Button
+             onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}
+              >
+                All Notes
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+
+      {/* Recent Progress Notes - Matching incidents pattern */}
+      <Card className="border-0">
+        <CardHeader className="">
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <FileText className="w-5 h-5 text-gray-600" />
+              </div>
+              <span className="text-gray-900">Recent Progress Notes</span>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-gray-100 text-gray-700">{progressNotes?.length || 0} Total</Badge>
+           
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {!progressNotes || progressNotes.length === 0 ? (
+            <div className="text-center py-8">
+              <NotebookPen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No progress notes recorded</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Click the Add Progress Note button to add the first note
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {paginatedNotes.map((note: any) => (
+                <div
+                  key={note._id}
+                  className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
+                >
+                  <div className="flex items-start space-x-3 flex-1">
+                    <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                      <NotebookPen className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-semibold text-gray-900">
+                          {note.type.charAt(0).toUpperCase() + note.type.slice(1)} Note
+                        </h4>
+                        <Badge
+                          className={`text-xs border-0 ${
+                            note.type === "incident" ? "bg-red-100 text-red-800" :
+                            note.type === "medical" ? "bg-blue-100 text-blue-800" :
+                            note.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
+                            note.type === "daily" ? "bg-green-100 text-green-800" :
+                            "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {note.type.charAt(0).toUpperCase() + note.type.slice(1)}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <CalendarIcon2 className="w-3 h-3" />
+                          <span>{format(new Date(note.createdAt), "MMM d, yyyy")}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{note.time}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <User className="w-3 h-3" />
+                          <span>{note.authorName}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleViewNote(note)}
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleDownloadNote(note)}
+                      title="Download PDF"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleEdit(note)}
+                      title="Edit Note"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                      onClick={() => handleDelete(note._id)}
+                      title="Delete Note"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Pagination Controls */}
+              {showPagination && (
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="text-sm text-gray-500">
+                    Showing {startIndex + 1}-{Math.min(endIndex, totalNotes)} of {totalNotes} progress notes
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevious}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(page)}
+                          className="h-8 w-8 p-0"
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNext}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* View Progress Note Dialog - Matching incidents pattern */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Progress Note Details</DialogTitle>
+            <DialogDescription>
+              Complete progress note for {fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {selectedNote && (
+              <div className="space-y-6">
+                {/* Note Overview */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Note Overview</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Date & Time</p>
+                      <p className="font-medium">{format(new Date(selectedNote.createdAt), "PPp")}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Note Type</p>
+                      <Badge
+                        className={`${
+                          selectedNote.type === "incident" ? "bg-red-100 text-red-800" :
+                          selectedNote.type === "medical" ? "bg-blue-100 text-blue-800" :
+                          selectedNote.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
+                          selectedNote.type === "daily" ? "bg-green-100 text-green-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Time Recorded</p>
+                      <p className="font-medium">{selectedNote.time}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Author</p>
+                      <p className="font-medium">{selectedNote.authorName}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Note Content */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Note Content</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{selectedNote.note}</p>
+                </div>
+
+                {/* Metadata */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Created By</p>
+                      <p className="font-medium">{selectedNote.authorName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Date Created</p>
+                      <p className="font-medium">{format(new Date(selectedNote.createdAt), "PPP")}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setShowViewDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setShowViewDialog(false);
+                handleEdit(selectedNote);
+              }}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Note
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -792,6 +846,33 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 />
               </div>
 
+              {/* Staff Field */}
+              <div className="grid grid-cols-1 gap-4">
+                <div className="flex flex-col space-y-2">
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Staff Member
+                  </label>
+                  <div className="flex items-center space-x-3 p-3 border border-gray-200 rounded-md bg-gray-50">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <User className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {user?.name || "Current User"}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {user?.email || "user@example.com"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    This note will be recorded under your name and cannot be changed.
+                  </p>
+                </div>
+              </div>
+
               <FormField
                 control={form.control}
                 name="note"
@@ -831,53 +912,68 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="border-0">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Notes</p>
-                <p className="text-2xl font-bold">{noteStats.total}</p>
-              </div>
-              <FileText className="h-8 w-8 text-purple-600 opacity-20" />
+      {/* Care Notes Summary - Matching incidents pattern */}
+      <Card className="border-0">
+        <CardHeader className="">
+          <CardTitle className="flex items-center space-x-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <FileText className="w-5 h-5 text-gray-600" />
             </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Daily Notes</p>
-                <p className="text-2xl font-bold">{noteStats.daily}</p>
+            <span className="text-gray-900">Care Notes Summary</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 p-4 border border-purple-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-purple-600 mb-1">
+                  {noteStats.total}
+                </div>
+                <p className="text-sm font-medium text-purple-700">Total Notes</p>
               </div>
-              <CalendarIcon2 className="h-8 w-8 text-blue-600 opacity-20" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Medical</p>
-                <p className="text-2xl font-bold">{noteStats.medical}</p>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <FileText className="w-16 h-16 text-purple-600" />
               </div>
-              <Plus className="h-8 w-8 text-green-600 opacity-20" />
             </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Incidents</p>
-                <p className="text-2xl font-bold">{noteStats.incident}</p>
+
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-4 border border-blue-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-blue-600 mb-1">
+                  {noteStats.daily}
+                </div>
+                <p className="text-sm font-medium text-blue-700">Daily Notes</p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-red-600 opacity-20" />
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <CalendarIcon2 className="w-16 h-16 text-blue-600" />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-green-50 to-green-100 p-4 border border-green-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-green-600 mb-1">
+                  {noteStats.medical}
+                </div>
+                <p className="text-sm font-medium text-green-700">Medical Notes</p>
+              </div>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <Plus className="w-16 h-16 text-green-600" />
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-red-50 to-red-100 p-4 border border-red-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-red-600 mb-1">
+                  {noteStats.incident}
+                </div>
+                <p className="text-sm font-medium text-red-700">Incident Notes</p>
+              </div>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <AlertTriangle className="w-16 h-16 text-red-600" />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
 
     </div>

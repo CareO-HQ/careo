@@ -460,6 +460,8 @@ export default function ProgressNotesDocumentsPage({ params }: DocumentsPageProp
         </div>
       </div>
 
+      
+
       {/* Date Filter */}
       <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-6">
         <div className="flex items-center space-x-2 sm:space-x-0">

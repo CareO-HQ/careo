@@ -816,7 +816,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedIncidents = incidents?.slice(startIndex, endIndex) || [];
-  const showPagination = totalIncidents > itemsPerPage;
+  const showPagination = totalIncidents > 0; // Always show pagination when there are incidents
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -991,6 +991,8 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                 <Plus className="w-4 h-4 mr-2" />
                 Report Incident
               </Button>
+
+              
             </div>
           </div>
 
