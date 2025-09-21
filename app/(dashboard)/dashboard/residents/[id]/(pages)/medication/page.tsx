@@ -169,7 +169,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </div>
 
       {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
+      <Card className="border-0 ">
         <CardContent className="p-4">
           {/* Mobile Layout */}
           <div className="flex flex-col space-y-4 sm:hidden">
@@ -268,7 +268,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Today's Medication Schedule */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -325,7 +325,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Active Medications */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -351,7 +351,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {mockMedications.map((medication) => (
-              <Card key={medication.id} className="border border-gray-200">
+              <Card key={medication.id} className="border border-gray-200 shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
@@ -394,7 +394,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Medication Overview */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -430,7 +430,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Medication Actions */}
-      <Card>
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Pill className="w-5 h-5 text-green-600" />
@@ -457,7 +457,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Development Notice */}
-      <Card className="bg-blue-50 border-blue-200">
+      <Card className="bg-blue-50 border-blue-200 shadow-sm">
         <CardContent className="p-6 text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-blue-100 rounded-full">

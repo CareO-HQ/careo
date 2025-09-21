@@ -1610,5 +1610,33 @@ export default defineSchema({
   })
     .index("by_incidentId", ["incidentId"])
     .index("by_residentId", ["residentId"])
-    .index("by_reportType", ["reportType"])
+    .index("by_reportType", ["reportType"]),
+
+  // Vitals/Health Monitoring table
+  vitals: defineTable({
+    residentId: v.id("residents"),
+    vitalType: v.union(
+      v.literal("temperature"),
+      v.literal("bloodPressure"),
+      v.literal("heartRate"),
+      v.literal("respiratoryRate"),
+      v.literal("oxygenSaturation"),
+      v.literal("weight"),
+      v.literal("height"),
+      v.literal("glucoseLevel"),
+      v.literal("painLevel")
+    ),
+    value: v.string(),
+    value2: v.optional(v.string()), // For blood pressure diastolic
+    unit: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    recordedBy: v.string(),
+    recordDate: v.string(),
+    recordTime: v.string(),
+    createdAt: v.number(),
+    createdBy: v.string(),
+  })
+    .index("byResident", ["residentId"])
+    .index("byResidentAndType", ["residentId", "vitalType"])
+    .index("byDate", ["recordDate"])
 });

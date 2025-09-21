@@ -94,22 +94,18 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const [editingNote, setEditingNote] = useState<any>(null);
   const [searchQuery] = useState("");
   const [filterType] = useState<string>("all");
-  const [user, setUser] = useState<any>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedNote, setSelectedNote] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<any>(null);
   const itemsPerPage = 5;
 
-  // Get user info
-  React.useEffect(() => {
-    const getUser = async () => {
-      const session = await authClient.getSession();
-      if (session?.data) {
-        setUser(session.data);
-      }
-    };
-    getUser();
-  }, []);
+  // Auth data - matching daily care pattern
+  const { data: user } = authClient.useSession();
+  
+  // Current user info for staff display
+  const currentUserName = user?.user?.name || user?.user?.email?.split('@')[0] || "";
 
   // Get resident data
   const resident = useQuery(api.residents.getById, {
@@ -158,8 +154,8 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           date: format(data.date, 'yyyy-MM-dd'),
           time: data.time,
           note: data.note,
-          authorId: user?.id || "",
-          authorName: user?.name || "Unknown",
+          authorId: user?.user?.id || "",
+          authorName: currentUserName || "Unknown",
           createdAt: new Date().toISOString(),
         });
         toast.success("Progress note added successfully");
@@ -184,16 +180,28 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (noteId: Id<"progressNotes">) => {
-    if (confirm("Are you sure you want to delete this progress note?")) {
-      try {
-        await deleteProgressNote({ noteId });
-        toast.success("Progress note deleted successfully");
-      } catch (error) {
-        toast.error("Failed to delete progress note");
-        console.error("Error deleting progress note:", error);
-      }
+  const handleDelete = (note: any) => {
+    setNoteToDelete(note);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!noteToDelete) return;
+    
+    try {
+      await deleteProgressNote({ noteId: noteToDelete._id });
+      toast.success("Progress note deleted successfully");
+      setShowDeleteDialog(false);
+      setNoteToDelete(null);
+    } catch (error) {
+      toast.error("Failed to delete progress note");
+      console.error("Error deleting progress note:", error);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteDialog(false);
+    setNoteToDelete(null);
   };
 
   const handleViewNote = (note: any) => {
@@ -600,7 +608,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                       size="sm"
                       variant="ghost"
                       className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                      onClick={() => handleDelete(note._id)}
+                      onClick={() => handleDelete(note)}
                       title="Delete Note"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -846,27 +854,16 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 />
               </div>
 
-              {/* Staff Field */}
+              {/* Staff Field - Matching daily care pattern */}
               <div className="grid grid-cols-1 gap-4">
-                <div className="flex flex-col space-y-2">
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Staff Member
-                  </label>
-                  <div className="flex items-center space-x-3 p-3 border border-gray-200 rounded-md bg-gray-50">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                        <User className="w-4 h-4 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {user?.name || "Current User"}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {user?.email || "user@example.com"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Staff</Label>
+                  <Input
+                    value={currentUserName || "Current User"}
+                    disabled
+                    className="h-9 bg-gray-50 text-gray-600"
+                    placeholder="Current user"
+                  />
                   <p className="text-xs text-gray-500">
                     This note will be recorded under your name and cannot be changed.
                   </p>
@@ -975,6 +972,68 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </CardContent>
       </Card>
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <span>Delete Progress Note</span>
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this progress note? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {noteToDelete && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 border rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Badge
+                    className={`text-xs ${
+                      noteToDelete.type === "incident" ? "bg-red-100 text-red-800" :
+                      noteToDelete.type === "medical" ? "bg-blue-100 text-blue-800" :
+                      noteToDelete.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
+                      noteToDelete.type === "daily" ? "bg-green-100 text-green-800" :
+                      "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {noteToDelete.type.charAt(0).toUpperCase() + noteToDelete.type.slice(1)}
+                  </Badge>
+                  <span className="text-sm text-gray-500">
+                    {format(new Date(noteToDelete.createdAt), "MMM d, yyyy")} at {noteToDelete.time}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700 line-clamp-3">
+                  {noteToDelete.note}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Created by: {noteToDelete.authorName}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={cancelDelete}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Note
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
