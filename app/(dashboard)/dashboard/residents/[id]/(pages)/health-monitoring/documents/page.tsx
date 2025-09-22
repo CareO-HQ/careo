@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { toast } from "sonner";
 
 type HealthMonitoringDocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -71,6 +71,10 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
   const [dateFilter, setDateFilter] = React.useState<string>("all");
   const [startDate, setStartDate] = React.useState("");
   const [endDate, setEndDate] = React.useState("");
+  
+  // State for PDF download
+  const [downloadStartDate, setDownloadStartDate] = React.useState("");
+  const [downloadEndDate, setDownloadEndDate] = React.useState("");
 
   // Vital type options with their properties
   const vitalTypeOptions = {
@@ -208,40 +212,321 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     });
   }, [allVitals, searchTerm, vitalTypeFilter, dateFilter, startDate, endDate]);
 
-  // Export functionality
-  const handleExport = () => {
-    if (!filteredVitals || filteredVitals.length === 0) return;
+  // PDF download functionality
+  const handleDownloadPDF = () => {
+    if (!resident) {
+      toast.error('Resident data not available');
+      return;
+    }
 
-    // Create CSV content
-    const headers = ["Date", "Time", "Vital Type", "Value", "Unit", "Notes", "Recorded By"];
-    const rows = filteredVitals.map((vital: any) => {
-      const vitalType = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label || vital.vitalType;
-      return [
-        vital.recordDate,
-        vital.recordTime,
-        vitalType,
-        vital.vitalType === "bloodPressure" && vital.value2 ? `${vital.value}/${vital.value2}` : vital.value,
-        vital.unit || "",
-        vital.notes || "",
-        vital.recordedBy
-      ];
+    // Validate date range for large datasets
+    if (!downloadStartDate || !downloadEndDate) {
+      toast.error('Please select both start and end dates for PDF download');
+      return;
+    }
+
+    const startDateTime = new Date(downloadStartDate);
+    const endDateTime = new Date(downloadEndDate);
+    
+    if (startDateTime > endDateTime) {
+      toast.error('Start date cannot be after end date');
+      return;
+    }
+
+    // Filter vitals for the selected date range
+    const filteredForDownload = allVitals?.filter((vital: any) => {
+      const vitalDate = new Date(vital.recordDate);
+      return vitalDate >= startDateTime && vitalDate <= endDateTime;
+    }) || [];
+
+    if (filteredForDownload.length === 0) {
+      toast.error('No vitals found in the selected date range');
+      return;
+    }
+
+    if (filteredForDownload.length > 500) {
+      toast.error('Too many records selected. Please choose a smaller date range (max 500 records)');
+      return;
+    }
+
+    const htmlContent = generatePDFContent({
+      resident,
+      vitals: filteredForDownload,
+      startDate: downloadStartDate,
+      endDate: downloadEndDate
     });
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
+    generatePDFFromHTML(htmlContent);
+    toast.success('Vitals report will open for printing');
+  };
 
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `vitals-history-${resident?.firstName}-${resident?.lastName}-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const generatePDFContent = ({
+    resident,
+    vitals,
+    startDate,
+    endDate
+  }: {
+    resident: any;
+    vitals: any[];
+    startDate: string;
+    endDate: string;
+  }) => {
+    const fullName = `${resident.firstName} ${resident.lastName}`;
+    const formattedStartDate = new Date(startDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const formattedEndDate = new Date(endDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Group vitals by date for better organization
+    const vitalsByDate = vitals.reduce((acc: any, vital: any) => {
+      if (!acc[vital.recordDate]) {
+        acc[vital.recordDate] = [];
+      }
+      acc[vital.recordDate].push(vital);
+      return acc;
+    }, {});
+
+    const sortedDates = Object.keys(vitalsByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    let vitalsHTML = '';
+    
+    sortedDates.forEach(date => {
+      const dayVitals = vitalsByDate[date];
+      const formattedDate = new Date(date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      vitalsHTML += `
+        <div class="date-section">
+          <h3 class="date-header">${formattedDate}</h3>
+          <table class="vitals-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Vital Type</th>
+                <th>Value</th>
+                <th>Notes</th>
+                <th>Recorded By</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      dayVitals
+        .sort((a: any, b: any) => b.recordTime.localeCompare(a.recordTime))
+        .forEach((vital: any) => {
+          const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
+          const vitalLabel = vitalConfig?.label || vital.vitalType;
+          const formattedValue = formatVitalValue(vital);
+
+          vitalsHTML += `
+            <tr>
+              <td>${vital.recordTime}</td>
+              <td>${vitalLabel}</td>
+              <td><strong>${formattedValue}</strong></td>
+              <td>${vital.notes || '—'}</td>
+              <td>${vital.recordedBy}</td>
+            </tr>
+          `;
+        });
+
+      vitalsHTML += `
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+
+    return `
+      <div class="header">
+        <div class="logo-section">
+          <h1>Vitals History Report</h1>
+          <p class="facility-name">Care Facility Health Monitoring</p>
+        </div>
+      </div>
+      
+      <div class="resident-info">
+        <h2>Resident Information</h2>
+        <div class="info-grid">
+          <div><strong>Name:</strong> ${fullName}</div>
+          <div><strong>Room:</strong> ${resident.roomNumber || 'N/A'}</div>
+          <div><strong>NHS Number:</strong> ${resident.nhsHealthNumber || 'N/A'}</div>
+          <div><strong>Report Period:</strong> ${formattedStartDate} to ${formattedEndDate}</div>
+        </div>
+      </div>
+
+      <div class="summary">
+        <h2>Summary</h2>
+        <div class="summary-stats">
+          <div><strong>Total Records:</strong> ${vitals.length}</div>
+          <div><strong>Date Range:</strong> ${sortedDates.length} days</div>
+          <div><strong>Generated:</strong> ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+        </div>
+      </div>
+
+      <div class="vitals-content">
+        <h2>Vitals Records</h2>
+        ${vitalsHTML}
+      </div>
+
+      <div class="footer">
+        <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+      </div>
+    `;
+  };
+
+  const generatePDFFromHTML = (content: string) => {
+    // Create a new window for PDF generation
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Generate HTML content for the PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Vitals History Report</title>
+          <style>
+            @media print {
+              @page {
+                size: A4;
+                margin: 2cm;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              margin: 0;
+              padding: 20px;
+            }
+            .header {
+              border-bottom: 3px solid #10b981;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+              text-align: center;
+            }
+            .header h1 {
+              color: #10b981;
+              margin: 0;
+              font-size: 28px;
+            }
+            .facility-name {
+              color: #666;
+              margin: 5px 0 0 0;
+            }
+            .resident-info, .summary {
+              background: #f8f9fa;
+              padding: 20px;
+              border-radius: 8px;
+              margin-bottom: 30px;
+            }
+            .resident-info h2, .summary h2, .vitals-content h2 {
+              color: #10b981;
+              border-bottom: 2px solid #10b981;
+              padding-bottom: 10px;
+              margin-top: 0;
+            }
+            .info-grid, .summary-stats {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-top: 15px;
+            }
+            .date-section {
+              margin-bottom: 40px;
+              page-break-inside: avoid;
+            }
+            .date-header {
+              background: #10b981;
+              color: white;
+              padding: 10px 15px;
+              margin: 0 0 15px 0;
+              border-radius: 5px;
+              font-size: 18px;
+            }
+            .vitals-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+            }
+            .vitals-table th {
+              background: #f1f5f9;
+              border: 1px solid #d1d5db;
+              padding: 12px 8px;
+              text-align: left;
+              font-weight: bold;
+              color: #374151;
+            }
+            .vitals-table td {
+              border: 1px solid #d1d5db;
+              padding: 10px 8px;
+              vertical-align: top;
+            }
+            .vitals-table tr:nth-child(even) {
+              background-color: #f9fafb;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              text-align: center;
+              color: #666;
+              font-size: 12px;
+            }
+            .no-print {
+              text-align: center;
+              margin-top: 30px;
+            }
+            .no-print button {
+              padding: 10px 20px;
+              margin: 0 10px;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+              font-size: 14px;
+            }
+            .print-btn {
+              background: #10b981;
+              color: white;
+            }
+            .close-btn {
+              background: #6b7280;
+              color: white;
+            }
+          </style>
+        </head>
+        <body>
+          ${content}
+          <div class="no-print">
+            <button class="print-btn" onclick="window.print()">Print PDF</button>
+            <button class="close-btn" onclick="window.close()">Close</button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Auto-trigger print dialog
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    };
   };
 
   if (resident === undefined) {
@@ -320,14 +605,33 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
             </div>
           </div>
         </div>
-        <Button 
-          onClick={handleExport}
-          disabled={!filteredVitals || filteredVitals.length === 0}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <Input
+              type="date"
+              value={downloadStartDate}
+              onChange={(e) => setDownloadStartDate(e.target.value)}
+              className="w-40"
+              placeholder="Start date"
+            />
+            <span className="text-sm text-gray-500">to</span>
+            <Input
+              type="date"
+              value={downloadEndDate}
+              onChange={(e) => setDownloadEndDate(e.target.value)}
+              className="w-40"
+              placeholder="End date"
+            />
+          </div>
+          <Button 
+            onClick={handleDownloadPDF}
+            disabled={!downloadStartDate || !downloadEndDate}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download PDF
+          </Button>
+        </div>
       </div>
 
       {/* Resident Info Card */}
