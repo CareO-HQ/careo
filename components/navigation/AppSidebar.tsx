@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import {
+  ClipboardCheckIcon,
   FolderIcon,
   MessageCircleQuestionMarkIcon,
   PillIcon,
@@ -72,6 +73,16 @@ export function AppSidebar() {
                 <Link href="/dashboard/files">
                   <FolderIcon />
                   <span>Files</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Audit */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/audit">
+                  <ClipboardCheckIcon />
+                  <span>Audit</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
