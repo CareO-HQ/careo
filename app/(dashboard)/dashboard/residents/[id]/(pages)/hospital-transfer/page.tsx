@@ -28,7 +28,7 @@ import {
   AlertTriangle,
   FileText,
   Shield,
-  Download,
+  Printer,
   Edit,
   FileCheck
 } from "lucide-react";
@@ -429,6 +429,378 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
     setEditCurrentStep(1);
     setIsEditPassportDialogOpen(true);
+  };
+
+  // Handler for printing individual passport
+  const handlePrintPassport = (passport: any) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const formatDate = (dateString: string) => {
+      return new Date(dateString).toLocaleDateString();
+    };
+
+    const formatDateTime = (dateString: string) => {
+      return new Date(dateString).toLocaleString();
+    };
+
+    const formatAssistanceLevel = (level: string) => {
+      return level.charAt(0).toUpperCase() + level.slice(1);
+    };
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Hospital Passport - ${passport.generalDetails.personName}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .section {
+              margin-bottom: 30px;
+              page-break-inside: avoid;
+            }
+            .section-title {
+              font-size: 18px;
+              font-weight: bold;
+              color: #2563eb;
+              border-bottom: 1px solid #e5e7eb;
+              padding-bottom: 8px;
+              margin-bottom: 15px;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-bottom: 15px;
+            }
+            .info-item {
+              margin-bottom: 10px;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #374151;
+            }
+            .info-value {
+              margin-top: 2px;
+              color: #6b7280;
+            }
+            .full-width {
+              grid-column: 1 / -1;
+            }
+            .checkbox-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 10px;
+              margin: 10px 0;
+            }
+            .checkbox-item {
+              display: flex;
+              align-items: center;
+              gap: 5px;
+            }
+            @media print {
+              body { margin: 0; padding: 15px; }
+              .section { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Hospital Passport</h1>
+            <h2>${passport.generalDetails.personName}</h2>
+            <p>Generated: ${formatDateTime(passport.createdAt)}</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">General & Transfer Details</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Name of Person</div>
+                <div class="info-value">${passport.generalDetails.personName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Known As</div>
+                <div class="info-value">${passport.generalDetails.knownAs}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Date of Birth</div>
+                <div class="info-value">${formatDate(passport.generalDetails.dateOfBirth)}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">NHS Number</div>
+                <div class="info-value">${passport.generalDetails.nhsNumber}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Religion</div>
+                <div class="info-value">${passport.generalDetails.religion || 'Not specified'}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Weight on Transfer</div>
+                <div class="info-value">${passport.generalDetails.weightOnTransfer || 'Not specified'}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Care Type</div>
+                <div class="info-value">${formatAssistanceLevel(passport.generalDetails.careType || 'Not specified')}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Transfer Date/Time</div>
+                <div class="info-value">${formatDateTime(passport.generalDetails.transferDateTime)}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Accompanied By</div>
+                <div class="info-value">${passport.generalDetails.accompaniedBy || 'Not specified'}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">English First Language</div>
+                <div class="info-value">${passport.generalDetails.englishFirstLanguage === 'yes' ? 'Yes' : 'No'}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">First Language</div>
+                <div class="info-value">${passport.generalDetails.firstLanguage || 'Not specified'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Care Home & Hospital Information</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Care Home Name</div>
+                <div class="info-value">${passport.generalDetails.careHomeName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Care Home Phone</div>
+                <div class="info-value">${passport.generalDetails.careHomePhone}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">Care Home Address</div>
+                <div class="info-value">${passport.generalDetails.careHomeAddress}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Hospital Name</div>
+                <div class="info-value">${passport.generalDetails.hospitalName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Hospital Phone</div>
+                <div class="info-value">${passport.generalDetails.hospitalPhone || 'Not specified'}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">Hospital Address</div>
+                <div class="info-value">${passport.generalDetails.hospitalAddress}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Contact Information</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Next of Kin Name</div>
+                <div class="info-value">${passport.generalDetails.nextOfKinName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Next of Kin Phone</div>
+                <div class="info-value">${passport.generalDetails.nextOfKinPhone}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">Next of Kin Address</div>
+                <div class="info-value">${passport.generalDetails.nextOfKinAddress}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">GP Name</div>
+                <div class="info-value">${passport.generalDetails.gpName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">GP Phone</div>
+                <div class="info-value">${passport.generalDetails.gpPhone}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">GP Address</div>
+                <div class="info-value">${passport.generalDetails.gpAddress}</div>
+              </div>
+              ${passport.generalDetails.careManagerName ? `
+              <div class="info-item">
+                <div class="info-label">Care Manager Name</div>
+                <div class="info-value">${passport.generalDetails.careManagerName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Care Manager Phone</div>
+                <div class="info-value">${passport.generalDetails.careManagerPhone || 'Not specified'}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">Care Manager Address</div>
+                <div class="info-value">${passport.generalDetails.careManagerAddress || 'Not specified'}</div>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Medical & Care Needs</div>
+            <div class="info-item full-width">
+              <div class="info-label">Situation</div>
+              <div class="info-value">${passport.medicalCareNeeds.situation}</div>
+            </div>
+            <div class="info-item full-width">
+              <div class="info-label">Background</div>
+              <div class="info-value">${passport.medicalCareNeeds.background}</div>
+            </div>
+            <div class="info-item full-width">
+              <div class="info-label">Assessment</div>
+              <div class="info-value">${passport.medicalCareNeeds.assessment}</div>
+            </div>
+            <div class="info-item full-width">
+              <div class="info-label">Recommendations</div>
+              <div class="info-value">${passport.medicalCareNeeds.recommendations}</div>
+            </div>
+            <div class="info-item full-width">
+              <div class="info-label">Past Medical History</div>
+              <div class="info-value">${passport.medicalCareNeeds.pastMedicalHistory}</div>
+            </div>
+            <div class="info-item full-width">
+              <div class="info-label">Known Allergies</div>
+              <div class="info-value">${passport.medicalCareNeeds.knownAllergies || 'None specified'}</div>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <div class="info-label">Care Assistance Levels</div>
+              <div class="info-grid" style="margin-top: 10px;">
+                <div class="info-item">
+                  <div class="info-label">Mobility Assistance</div>
+                  <div class="info-value">${formatAssistanceLevel(passport.medicalCareNeeds.mobilityAssistance)}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Toileting Assistance</div>
+                  <div class="info-value">${formatAssistanceLevel(passport.medicalCareNeeds.toiletingAssistance)}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Nutritional Assistance</div>
+                  <div class="info-value">${formatAssistanceLevel(passport.medicalCareNeeds.nutritionalAssistance)}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Personal Hygiene Assistance</div>
+                  <div class="info-value">${formatAssistanceLevel(passport.medicalCareNeeds.personalHygieneAssistance)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Skin, Medication & Attachments</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Skin Integrity Assistance</div>
+                <div class="info-value">${formatAssistanceLevel(passport.skinMedicationAttachments.skinIntegrityAssistance)}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Braden Score</div>
+                <div class="info-value">${passport.skinMedicationAttachments.bradenScore || 'Not specified'}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">Skin State on Transfer</div>
+                <div class="info-value">${passport.skinMedicationAttachments.skinStateOnTransfer}</div>
+              </div>
+              <div class="info-item full-width">
+                <div class="info-label">Current Medication Regime</div>
+                <div class="info-value">${passport.skinMedicationAttachments.currentMedicationRegime}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Last Medication Date/Time</div>
+                <div class="info-value">${formatDateTime(passport.skinMedicationAttachments.lastMedicationDateTime)}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Last Meal/Drink Date/Time</div>
+                <div class="info-value">${passport.skinMedicationAttachments.lastMealDrinkDateTime ? formatDateTime(passport.skinMedicationAttachments.lastMealDrinkDateTime) : 'Not specified'}</div>
+              </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <div class="info-label">Attachments</div>
+              <div class="checkbox-grid">
+                <div class="checkbox-item">
+                  <span>${passport.skinMedicationAttachments.attachments.currentMedications ? '✓' : '☐'}</span>
+                  <span>Current Medications</span>
+                </div>
+                <div class="checkbox-item">
+                  <span>${passport.skinMedicationAttachments.attachments.bodyMap ? '✓' : '☐'}</span>
+                  <span>Body Map</span>
+                </div>
+                <div class="checkbox-item">
+                  <span>${passport.skinMedicationAttachments.attachments.observations ? '✓' : '☐'}</span>
+                  <span>Observations</span>
+                </div>
+                <div class="checkbox-item">
+                  <span>${passport.skinMedicationAttachments.attachments.dnacprForm ? '✓' : '☐'}</span>
+                  <span>DNACPR Form</span>
+                </div>
+                <div class="checkbox-item">
+                  <span>${passport.skinMedicationAttachments.attachments.enteralFeedingRegime ? '✓' : '☐'}</span>
+                  <span>Enteral Feeding Regime</span>
+                </div>
+                <div class="checkbox-item">
+                  <span>${passport.skinMedicationAttachments.attachments.other ? '✓' : '☐'}</span>
+                  <span>Other</span>
+                </div>
+              </div>
+              ${passport.skinMedicationAttachments.attachments.otherSpecify ? `
+              <div class="info-item" style="margin-top: 10px;">
+                <div class="info-label">Other Specify</div>
+                <div class="info-value">${passport.skinMedicationAttachments.attachments.otherSpecify}</div>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Sign-off</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Signature</div>
+                <div class="info-value">${passport.signOff.signature}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Printed Name</div>
+                <div class="info-value">${passport.signOff.printedName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Designation</div>
+                <div class="info-value">${passport.signOff.designation}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Contact Phone</div>
+                <div class="info-value">${passport.signOff.contactPhone}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Completed Date</div>
+                <div class="info-value">${formatDate(passport.signOff.completedDate)}</div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
+    // Wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.close();
+    };
   };
 
   // Handler for editing existing passport
@@ -952,13 +1324,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                         variant="outline"
                         size="sm"
                         className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={() => {
-                          // TODO: Implement download functionality
-                          console.log("Download passport:", passport._id);
-                        }}
+                        onClick={() => handlePrintPassport(passport)}
                       >
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
+                        <Printer className="w-4 h-4 mr-1" />
+                        Print
                       </Button>
                     </div>
                   </div>
