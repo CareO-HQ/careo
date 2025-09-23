@@ -372,6 +372,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                           <p className="text-xs text-gray-600">
                             <span className="font-medium">Phone:</span> {contact.phoneNumber}
                           </p>
+                          {contact.address && (
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Address:</span> {contact.address}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}

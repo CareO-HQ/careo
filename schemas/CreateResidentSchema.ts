@@ -48,7 +48,7 @@ export const CreateResidentSchema = z.object({
           .min(1, { message: "Relationship is required" }),
         address: z
           .string()
-          .min(1, { message: "Emergency contact address is required" }),
+          .optional(),
         isPrimary: z.boolean().optional()
       })
     )

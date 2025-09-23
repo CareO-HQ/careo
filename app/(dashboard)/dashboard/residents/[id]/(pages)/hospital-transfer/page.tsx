@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
@@ -46,9 +46,23 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     residentId: id as Id<"residents">
   });
 
+  const dietInformation = useQuery(api.diet.getDietByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
   // Get today's date and time
   const today = new Date().toISOString().split('T')[0];
   const now = new Date().toISOString().slice(0, 16);
+
+  // Helper function to format allergies from diet information
+  const formatAllergies = (allergies: any[]) => {
+    if (!allergies || !Array.isArray(allergies) || allergies.length === 0) {
+      return "";
+    }
+    return allergies.map(item =>
+      typeof item === 'string' ? item : item.allergy
+    ).join(', ');
+  };
 
   // Multi-step form state
   const [currentStep, setCurrentStep] = React.useState(1);
@@ -77,14 +91,14 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         hospitalAddress: "",
         hospitalPhone: "",
         nextOfKinName: resident?.emergencyContacts?.[0]?.name || "",
-        nextOfKinAddress: "",
+        nextOfKinAddress: resident?.emergencyContacts?.[0]?.address || "",
         nextOfKinPhone: resident?.emergencyContacts?.[0]?.phoneNumber || "",
         gpName: resident?.gpName || "",
-        gpAddress: "",
+        gpAddress: resident?.gpAddress || "",
         gpPhone: resident?.gpPhone || "",
-        careManagerName: "",
-        careManagerAddress: "",
-        careManagerPhone: "",
+        careManagerName: resident?.careManagerName || "",
+        careManagerAddress: resident?.careManagerAddress || "",
+        careManagerPhone: resident?.careManagerPhone || "",
       },
       medicalCareNeeds: {
         situation: "",
@@ -92,7 +106,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         assessment: "",
         recommendations: "",
         pastMedicalHistory: "",
-        knownAllergies: "",
+        knownAllergies: formatAllergies(dietInformation?.allergies || []),
         historyOfConfusion: "no",
         learningDisabilityMentalHealth: "",
         communicationIssues: "",
@@ -151,6 +165,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Auth data
   const { data: user } = authClient.useSession();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
 
   // Update form with resident data when resident loads
   React.useEffect(() => {
@@ -164,14 +179,30 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       // Update contact information
       if (resident.emergencyContacts?.[0]) {
         form.setValue('generalDetails.nextOfKinName', resident.emergencyContacts[0].name || "");
+        form.setValue('generalDetails.nextOfKinAddress', resident.emergencyContacts[0].address || "");
         form.setValue('generalDetails.nextOfKinPhone', resident.emergencyContacts[0].phoneNumber || "");
       }
 
       // Update GP information
       form.setValue('generalDetails.gpName', resident.gpName || "");
+      form.setValue('generalDetails.gpAddress', resident.gpAddress || "");
       form.setValue('generalDetails.gpPhone', resident.gpPhone || "");
+
+      // Update Care Manager information
+      form.setValue('generalDetails.careManagerName', resident.careManagerName || "");
+      form.setValue('generalDetails.careManagerAddress', resident.careManagerAddress || "");
+      form.setValue('generalDetails.careManagerPhone', resident.careManagerPhone || "");
     }
   }, [resident, form]);
+
+  // Update form with diet information when it loads
+  React.useEffect(() => {
+    if (dietInformation) {
+      // Update known allergies from diet information
+      const allergiesString = formatAllergies(dietInformation.allergies || []);
+      form.setValue('medicalCareNeeds.knownAllergies', allergiesString);
+    }
+  }, [dietInformation, form, formatAllergies]);
 
   // Update staff field when user data loads
   React.useEffect(() => {
@@ -195,22 +226,73 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
-  // Mock mutations (you'll need to implement these in your Convex schema)
-  // const createHospitalTransfer = useMutation(api.hospitalTransfers.createHospitalTransfer);
-  // const getRecentTransfers = useQuery(api.hospitalTransfers.getRecentTransfers, {
-  //   residentId: id as Id<"residents">
-  // });
+  // Mutations for updating data
+  const updateEmergencyContactMutation = useMutation(api.residents.updateEmergencyContact);
+  const updateResidentMutation = useMutation(api.residents.update);
+  const createHospitalPassportMutation = useMutation(api.hospitalPassports.create);
 
   const handleSubmit = async (data: HospitalPassportFormData) => {
     try {
-      // Implement hospital passport generation
-      console.log("Hospital Passport Data:", data);
-      // await createHospitalPassport({
-      //   residentId: id as Id<"residents">,
-      //   ...data,
-      // });
+      // Update Next of Kin information in emergencyContacts table
+      if (resident?.emergencyContacts?.[0]?._id) {
+        const primaryContact = resident.emergencyContacts[0];
+        const hasNextOfKinChanges =
+          data.generalDetails.nextOfKinName !== primaryContact.name ||
+          data.generalDetails.nextOfKinAddress !== primaryContact.address ||
+          data.generalDetails.nextOfKinPhone !== primaryContact.phoneNumber;
 
-      toast.success("Hospital Passport generated successfully");
+        if (hasNextOfKinChanges) {
+          await updateEmergencyContactMutation({
+            contactId: primaryContact._id,
+            name: data.generalDetails.nextOfKinName,
+            address: data.generalDetails.nextOfKinAddress || undefined,
+            phoneNumber: data.generalDetails.nextOfKinPhone,
+          });
+        }
+      }
+
+      // Update GP and Care Manager information in residents table
+      const hasResidentChanges =
+        data.generalDetails.gpName !== resident?.gpName ||
+        data.generalDetails.gpAddress !== resident?.gpAddress ||
+        data.generalDetails.gpPhone !== resident?.gpPhone ||
+        data.generalDetails.careManagerName !== resident?.careManagerName ||
+        data.generalDetails.careManagerAddress !== resident?.careManagerAddress ||
+        data.generalDetails.careManagerPhone !== resident?.careManagerPhone;
+
+      if (hasResidentChanges) {
+        await updateResidentMutation({
+          residentId: id as Id<"residents">,
+          gpName: data.generalDetails.gpName,
+          gpAddress: data.generalDetails.gpAddress,
+          gpPhone: data.generalDetails.gpPhone,
+          careManagerName: data.generalDetails.careManagerName,
+          careManagerAddress: data.generalDetails.careManagerAddress,
+          careManagerPhone: data.generalDetails.careManagerPhone,
+        });
+      }
+
+      // Save Hospital Passport data to database
+      if (!activeOrganization?.id || !user?.user?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      const hospitalPassportId = await createHospitalPassportMutation({
+        residentId: id as Id<"residents">,
+        generalDetails: data.generalDetails,
+        medicalCareNeeds: data.medicalCareNeeds,
+        skinMedicationAttachments: data.skinMedicationAttachments,
+        signOff: data.signOff,
+        organizationId: activeOrganization.id,
+        teamId: resident?.teamId || "",
+        createdBy: user.user.id,
+        status: "completed",
+      });
+
+      console.log("Hospital Passport saved with ID:", hospitalPassportId);
+
+      toast.success("Hospital Passport generated and saved successfully");
       form.reset();
       setIsTransferDialogOpen(false);
       setCurrentStep(1);

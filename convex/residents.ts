@@ -121,7 +121,7 @@ export const createEmergencyContact = mutation({
     name: v.string(),
     phoneNumber: v.string(),
     relationship: v.string(),
-    address: v.string(),
+    address: v.optional(v.string()),
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string()
   },
@@ -215,6 +215,33 @@ export const getByTeamId = query({
     }
 
     return results;
+  }
+});
+
+export const updateEmergencyContact = mutation({
+  args: {
+    contactId: v.id("emergencyContacts"),
+    name: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    relationship: v.optional(v.string()),
+    address: v.optional(v.string()),
+    isPrimary: v.optional(v.boolean()),
+  },
+  returns: v.id("emergencyContacts"),
+  handler: async (ctx, args) => {
+    const { contactId, ...updateFields } = args;
+
+    // Remove undefined fields
+    const fieldsToUpdate: Record<string, any> = Object.fromEntries(
+      Object.entries(updateFields).filter(([_, value]) => value !== undefined)
+    );
+
+    // Add updatedAt timestamp
+    fieldsToUpdate.updatedAt = Date.now();
+
+    await ctx.db.patch(contactId, fieldsToUpdate);
+
+    return contactId;
   }
 });
 

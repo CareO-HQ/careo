@@ -248,7 +248,7 @@ export default defineSchema({
     name: v.string(),
     phoneNumber: v.string(),
     relationship: v.string(),
-    address: v.string(),
+    address: v.optional(v.string()),
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string(),
     createdAt: v.number(),
@@ -1576,5 +1576,136 @@ export default defineSchema({
 
     .index("by_carePlanNumber", ["carePlanNumber"])
 
-    .index("by_date", ["date"])
+    .index("by_date", ["date"]),
+
+  // Hospital Passport records
+  hospitalPassports: defineTable({
+    residentId: v.id("residents"),
+
+    // General & Transfer Details
+    generalDetails: v.object({
+      personName: v.string(),
+      knownAs: v.string(),
+      dateOfBirth: v.string(),
+      nhsNumber: v.string(),
+      religion: v.optional(v.string()),
+      weightOnTransfer: v.optional(v.string()),
+      careType: v.optional(v.union(v.literal("nursing"), v.literal("residential"), v.literal("ld"), v.literal("mental_health"))),
+      transferDateTime: v.string(),
+      accompaniedBy: v.optional(v.string()),
+      englishFirstLanguage: v.union(v.literal("yes"), v.literal("no")),
+      firstLanguage: v.optional(v.string()),
+      careHomeName: v.string(),
+      careHomeAddress: v.string(),
+      careHomePhone: v.string(),
+      hospitalName: v.string(),
+      hospitalAddress: v.string(),
+      hospitalPhone: v.optional(v.string()),
+      nextOfKinName: v.string(),
+      nextOfKinAddress: v.string(),
+      nextOfKinPhone: v.string(),
+      gpName: v.string(),
+      gpAddress: v.string(),
+      gpPhone: v.string(),
+      careManagerName: v.optional(v.string()),
+      careManagerAddress: v.optional(v.string()),
+      careManagerPhone: v.optional(v.string()),
+    }),
+
+    // Medical & Care Needs
+    medicalCareNeeds: v.object({
+      // SBAR Format
+      situation: v.string(),
+      background: v.string(),
+      assessment: v.string(),
+      recommendations: v.string(),
+
+      // Medical History
+      pastMedicalHistory: v.string(),
+      knownAllergies: v.optional(v.string()),
+      historyOfConfusion: v.optional(v.union(v.literal("yes"), v.literal("no"), v.literal("sometimes"))),
+      learningDisabilityMentalHealth: v.optional(v.string()),
+
+      // Communication & Aids
+      communicationIssues: v.optional(v.string()),
+      hearingAid: v.boolean(),
+      glasses: v.boolean(),
+      otherAids: v.optional(v.string()),
+
+      // Mobility
+      mobilityAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      mobilityAids: v.optional(v.string()),
+      historyOfFalls: v.boolean(),
+      dateOfLastFall: v.optional(v.string()),
+
+      // Toileting
+      toiletingAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      continenceStatus: v.optional(v.union(v.literal("continent"), v.literal("urine"), v.literal("faeces"), v.literal("both"), v.literal("na"))),
+
+      // Nutrition
+      nutritionalAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      dietType: v.optional(v.string()),
+      swallowingDifficulties: v.boolean(),
+      enteralNutrition: v.boolean(),
+      mustScore: v.optional(v.string()),
+
+      // Personal Care
+      personalHygieneAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      topDentures: v.boolean(),
+      bottomDentures: v.boolean(),
+      denturesAccompanying: v.boolean(),
+    }),
+
+    // Skin, Medication & Attachments
+    skinMedicationAttachments: v.object({
+      // Skin Care
+      skinIntegrityAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      bradenScore: v.optional(v.string()),
+      skinStateOnTransfer: v.string(),
+      currentSkinCareRegime: v.optional(v.string()),
+      pressureRelievingEquipment: v.optional(v.string()),
+      knownToTVN: v.boolean(),
+      tvnName: v.optional(v.string()),
+
+      // Medication
+      currentMedicationRegime: v.string(),
+      lastMedicationDateTime: v.string(),
+      lastMealDrinkDateTime: v.optional(v.string()),
+
+      // Attachments
+      attachments: v.object({
+        currentMedications: v.boolean(),
+        bodyMap: v.boolean(),
+        observations: v.boolean(),
+        dnacprForm: v.boolean(),
+        enteralFeedingRegime: v.boolean(),
+        other: v.boolean(),
+        otherSpecify: v.optional(v.string()),
+      }),
+    }),
+
+    // Sign-off Section
+    signOff: v.object({
+      signature: v.string(),
+      printedName: v.string(),
+      designation: v.string(),
+      contactPhone: v.string(),
+      completedDate: v.string(),
+    }),
+
+    // Metadata
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    pdfFileId: v.optional(v.id("_storage")),
+    status: v.union(v.literal("draft"), v.literal("completed")),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_created_by", ["createdBy"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"])
 });

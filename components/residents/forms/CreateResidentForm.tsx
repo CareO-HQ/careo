@@ -64,6 +64,7 @@ export function CreateResidentForm({
   const createResidentMutation = useMutation(api.residents.create);
   const updateResidentMutation = useMutation(api.residents.update);
   const createEmergencyContactMutation = useMutation(api.residents.createEmergencyContact);
+  const updateEmergencyContactMutation = useMutation(api.residents.updateEmergencyContact);
   const generateUploadUrlMutation = useMutation(api.files.image.generateUploadUrl);
   const sendImageMutation = useMutation(api.files.image.sendImage);
 
@@ -241,9 +242,38 @@ export function CreateResidentForm({
             careManagerName: values.careManagerDetails?.name,
             careManagerAddress: values.careManagerDetails?.address,
             careManagerPhone: values.careManagerDetails?.phoneNumber,
-            // Note: Health conditions, risks, dependencies, and emergency contacts
-            // would need separate mutation handlers for proper editing.
           });
+
+          // Update emergency contacts
+          if (values.emergencyContacts && residentData.emergencyContacts) {
+            for (let i = 0; i < values.emergencyContacts.length; i++) {
+              const formContact = values.emergencyContacts[i];
+              const existingContact = residentData.emergencyContacts[i];
+
+              if (existingContact?._id) {
+                // Update existing contact
+                await updateEmergencyContactMutation({
+                  contactId: existingContact._id,
+                  name: formContact.name,
+                  phoneNumber: formContact.phoneNumber,
+                  relationship: formContact.relationship,
+                  address: formContact.address,
+                  isPrimary: formContact.isPrimary,
+                });
+              } else {
+                // Create new contact if form has more contacts than existing
+                await createEmergencyContactMutation({
+                  residentId: residentData._id,
+                  name: formContact.name,
+                  phoneNumber: formContact.phoneNumber,
+                  relationship: formContact.relationship,
+                  address: formContact.address || "",
+                  isPrimary: formContact.isPrimary || false,
+                  organizationId: activeOrganization.id,
+                });
+              }
+            }
+          }
 
           if (selectedFile) {
             const uploadUrl = await generateUploadUrlMutation();
@@ -294,7 +324,7 @@ export function CreateResidentForm({
                 name: contact.name,
                 phoneNumber: contact.phoneNumber,
                 relationship: contact.relationship,
-                address: contact.address,
+                address: contact.address || "",
                 isPrimary: contact.isPrimary || false,
                 organizationId: activeOrganization.id,
               });
@@ -987,7 +1017,7 @@ export function CreateResidentForm({
                         name={`emergencyContacts.${index}.address`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel required>Address</FormLabel>
+                            <FormLabel>Address</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="123 Main St, City, State"

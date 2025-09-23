@@ -165,7 +165,7 @@ export function HospitalPassportDialog({
                         name="generalDetails.personName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabelRequired required>Name of Person in our Care</FormLabelRequired>
+                            <FormLabelRequired required>Name of Person </FormLabelRequired>
                             <FormControl>
                               <Input {...field} readOnly className="bg-gray-50 text-gray-700" />
                             </FormControl>
