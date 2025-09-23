@@ -18,7 +18,6 @@ import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery, useAction } from "convex/react";
 import {
-  BookOpenCheckIcon,
   DownloadIcon,
   Edit2,
   FileIcon,
@@ -41,6 +40,7 @@ import EmailPDF from "../EmailPDF";
 import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 
 interface CareFileFolderProps {
+  index: number;
   folderName: string;
   carePlan: boolean;
   description: string;
@@ -56,6 +56,7 @@ interface CareFileFolderProps {
 }
 
 export default function CareFileFolder({
+  index,
   folderName,
   carePlan,
   description,
@@ -859,8 +860,11 @@ export default function CareFileFolder({
           <div className="w-full flex flex-row justify-between items-center gap-2 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-1 group">
             <div className="flex flex-row items-center gap-2">
               <FolderIcon className="size-4 text-muted-foreground/70 group-hover:text-primary" />
-              <p className="text-primary">{folderName}</p>
-              {forms?.length && (
+
+              <p className="text-primary">
+                {index + 1}. {folderName}
+              </p>
+              {forms && forms.length >= 1 && (
                 <p className="text-muted-foreground text-xs">
                   {forms?.length} {forms?.length === 1 ? "form" : "forms"}
                 </p>
