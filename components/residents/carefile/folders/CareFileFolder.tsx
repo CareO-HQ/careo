@@ -945,12 +945,6 @@ export default function CareFileFolder({
                 const formState = getFormState(formKey);
                 const showDownload = canDownloadPdf(formKey);
 
-                console.log(
-                  "🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎🔎 FORM STATE",
-                  formState
-                );
-                console.log("FORM KEY", formKey);
-
                 return (
                   <div
                     key={form.key}
