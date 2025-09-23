@@ -121,6 +121,7 @@ export const createEmergencyContact = mutation({
     name: v.string(),
     phoneNumber: v.string(),
     relationship: v.string(),
+    address: v.string(),
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string()
   },
@@ -133,6 +134,7 @@ export const createEmergencyContact = mutation({
       name: args.name,
       phoneNumber: args.phoneNumber,
       relationship: args.relationship,
+      address: args.address,
       isPrimary: args.isPrimary ?? false,
       organizationId: args.organizationId,
       createdAt: now,

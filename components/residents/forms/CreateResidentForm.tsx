@@ -95,7 +95,7 @@ export function CreateResidentForm({
         },
         emergencyContacts: residentData.emergencyContacts?.length > 0
           ? residentData.emergencyContacts
-          : [{ name: "", phoneNumber: "", relationship: "", isPrimary: true }],
+          : [{ name: "", phoneNumber: "", relationship: "", address: "", isPrimary: true }],
         gpDetails: {
           name: residentData.gpName || "",
           address: residentData.gpAddress || "",
@@ -131,6 +131,7 @@ export function CreateResidentForm({
           name: "",
           phoneNumber: "",
           relationship: "",
+          address: "",
           isPrimary: true,
         },
       ],
@@ -293,6 +294,7 @@ export function CreateResidentForm({
                 name: contact.name,
                 phoneNumber: contact.phoneNumber,
                 relationship: contact.relationship,
+                address: contact.address,
                 isPrimary: contact.isPrimary || false,
                 organizationId: activeOrganization.id,
               });
@@ -894,6 +896,7 @@ export function CreateResidentForm({
                       name: "",
                       phoneNumber: "",
                       relationship: "",
+                      address: "",
                       isPrimary: false
                     })
                   }
@@ -927,7 +930,7 @@ export function CreateResidentForm({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name={`emergencyContacts.${index}.name`}
@@ -971,6 +974,23 @@ export function CreateResidentForm({
                             <FormControl>
                               <Input
                                 placeholder="Daughter"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`emergencyContacts.${index}.address`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel required>Address</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="123 Main St, City, State"
                                 disabled={isLoading}
                                 {...field}
                               />

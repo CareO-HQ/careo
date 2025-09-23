@@ -25,7 +25,8 @@ import {
   Mail,
   FileText,
   Users,
-  Edit3
+  Edit3,
+  PhoneCall
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -340,8 +341,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-red-600" />
-              <span>Emergency Contacts</span>
+              <Phone className="w-5 h-5 text-blue-600" />
+              <span>Key Contacts</span>
             </CardTitle>
           </CardHeader>
           <CardContent>

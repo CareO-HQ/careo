@@ -248,6 +248,7 @@ export default defineSchema({
     name: v.string(),
     phoneNumber: v.string(),
     relationship: v.string(),
+    address: v.string(),
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string(),
     createdAt: v.number(),

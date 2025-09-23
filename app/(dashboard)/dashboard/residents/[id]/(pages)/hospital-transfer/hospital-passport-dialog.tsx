@@ -70,22 +70,22 @@ export function HospitalPassportDialog({
   onSubmit,
   residentName,
   currentStep,
-  setCurrentStep,
+
   handleNextStep,
   prevStep,
 }: HospitalPassportDialogProps) {
   const totalSteps = 4;
 
-  const steps = [
-    { id: 1, name: "General & Transfer Details", icon: Home },
-    { id: 2, name: "Medical & Care Needs", icon: Stethoscope },
-    { id: 3, name: "Skin, Medication & Attachments", icon: Pill },
-    { id: 4, name: "Sign-off", icon: FileText },
-  ];
+  // const steps = [
+  //   { id: 1, name: "General & Transfer Details", icon: Home },
+  //   { id: 2, name: "Medical & Care Needs", icon: Stethoscope },
+  //   { id: 3, name: "Skin, Medication & Attachments", icon: Pill },
+  //   { id: 4, name: "Sign-off", icon: FileText },
+  // ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1000px] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-full max-w-5xl mx-auto max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Hospital Passport for {residentName}</DialogTitle>
           <DialogDescription>
@@ -94,7 +94,7 @@ export function HospitalPassportDialog({
         </DialogHeader>
 
         {/* Step Indicator */}
-        <div className="flex items-center justify-between mb-6 px-2">
+        {/* <div className="flex items-center justify-between mb-6 px-2">
           {steps.map((step, index) => {
             const Icon = step.icon;
             return (
@@ -147,7 +147,7 @@ export function HospitalPassportDialog({
               </div>
             );
           })}
-        </div>
+        </div> */}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-hidden flex flex-col">
