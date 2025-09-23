@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { HospitalPassportDialog } from "./hospital-passport-dialog";
 import { ViewPassportDialog } from "./view-passport-dialog";
+import { TransferLogDialog } from "./transfer-log-dialog";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
@@ -55,6 +56,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   });
 
   const hospitalPassports = useQuery(api.hospitalPassports.getByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
+  const transferLogs = useQuery(api.hospitalTransferLogs.getByResidentId, {
     residentId: id as Id<"residents">
   });
 
@@ -172,6 +177,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [isTransferDialogOpen, setIsTransferDialogOpen] = React.useState(false);
   const [isEditPassportDialogOpen, setIsEditPassportDialogOpen] = React.useState(false);
   const [isViewPassportDialogOpen, setIsViewPassportDialogOpen] = React.useState(false);
+  const [isTransferLogDialogOpen, setIsTransferLogDialogOpen] = React.useState(false);
   const [selectedPassport, setSelectedPassport] = React.useState<any>(null);
   const [editingPassport, setEditingPassport] = React.useState<any>(null);
 
@@ -243,6 +249,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const updateResidentMutation = useMutation(api.residents.update);
   const createHospitalPassportMutation = useMutation(api.hospitalPassports.create);
   const updateHospitalPassportMutation = useMutation(api.hospitalPassports.update);
+  const createTransferLogMutation = useMutation(api.hospitalTransferLogs.create);
 
   // Create separate form for editing
   const editForm = useForm<HospitalPassportFormData>({
@@ -803,6 +810,35 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     };
   };
 
+  // Handler for creating transfer log
+  const handleTransferLogSubmit = async (data: any) => {
+    try {
+      if (!activeOrganization?.id || !user?.user?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      await createTransferLogMutation({
+        residentId: id as Id<"residents">,
+        date: data.date,
+        hospitalName: data.hospitalName,
+        reason: data.reason,
+        outcome: data.outcome,
+        followUp: data.followUp,
+        filesChanged: data.filesChanged,
+        organizationId: activeOrganization.id,
+        teamId: resident?.teamId || "",
+        createdBy: user.user.id,
+      });
+
+      toast.success("Transfer log added successfully");
+      setIsTransferLogDialogOpen(false);
+    } catch (error) {
+      console.error("Error creating transfer log:", error);
+      toast.error("Failed to add transfer log");
+    }
+  };
+
   // Handler for editing existing passport
   const handleEditSubmit = async (data: HospitalPassportFormData) => {
     try {
@@ -1234,13 +1270,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               Generate Hospital Passport
             </Button>
             <Button
-            variant="outline"
-             className="h-16 text-lg "
-              onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
+              className="h-16 text-lg bg-green-500 hover:bg-green-700 text-white"
+              onClick={() => setIsTransferLogDialogOpen(true)}
             >
-              <Plus className="w-6 h-6 mr-3" />
-              Add Transfer History
+              <Ambulance className="w-6 h-6 mr-3" />
+              Add Transfer Log
             </Button>
+         
           </div>
         </CardContent>
       </Card>
@@ -1377,30 +1413,126 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         </CardContent>
       </Card>
 
-      {/* Recent Transfers */}
+      {/* Recent Transfer Logs */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Clock className="w-5 h-5 text-gray-600" />
-            <span>Recent Transfers</span>
+            <span>Transfer Logs</span>
             <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 ml-auto">
-              Last 30 days
+              {transferLogs?.length || 0} Total
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Mock data - replace with actual query results */}
-          <div className="text-center py-8">
-            <div className="flex justify-center mb-4">
-              <div className="p-3 bg-green-100 rounded-full">
-                <Ambulance className="w-8 h-8 text-green-600" />
-              </div>
+          {transferLogs && transferLogs.length > 0 ? (
+            <div className="space-y-3">
+              {transferLogs.slice(0, 5).map((log: any) => (
+                <div key={log._id} className="p-3 border rounded-lg bg-white">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-semibold text-sm text-gray-900">
+                          {log.hospitalName}
+                        </h4>
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-red-50 text-red-700 border-red-200"
+                        >
+                          Transfer
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
+                        <span className="flex items-center">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          {new Date(log.date).toLocaleDateString()}
+                        </span>
+                        <span>•</span>
+                        <span>Added {new Date(log.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-gray-500">Reason</span>
+                        <p className="text-gray-700 font-medium mt-1">{log.reason}</p>
+                      </div>
+                      {log.outcome && (
+                        <div>
+                          <span className="text-gray-500">Outcome</span>
+                          <p className="text-gray-700 font-medium mt-1">{log.outcome}</p>
+                        </div>
+                      )}
+                      {log.followUp && (
+                        <div className="md:col-span-2">
+                          <span className="text-gray-500">Follow Up</span>
+                          <p className="text-gray-700 font-medium mt-1">{log.followUp}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {log.filesChanged && (log.filesChanged.carePlan || log.filesChanged.riskAssessment || log.filesChanged.other) && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <span className="text-xs text-gray-500">Files Updated:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {log.filesChanged.carePlan && (
+                            <Badge variant="outline" className="text-xs">
+                              Care Plan
+                            </Badge>
+                          )}
+                          {log.filesChanged.riskAssessment && (
+                            <Badge variant="outline" className="text-xs">
+                              Risk Assessment
+                            </Badge>
+                          )}
+                          {log.filesChanged.other && (
+                            <Badge variant="outline" className="text-xs">
+                              {log.filesChanged.other}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {transferLogs.length > 5 && (
+                <div className="text-center pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    View All {transferLogs.length} Logs
+                  </Button>
+                </div>
+              )}
             </div>
-            <p className="text-gray-600 font-medium mb-2">No recent transfers</p>
-            <p className="text-sm text-gray-500">
-              No hospital transfers recorded for {fullName} in the last 30 days
-            </p>
-          </div>
+          ) : (
+            <div className="text-center py-6">
+              <div className="flex justify-center mb-3">
+                <div className="p-2 bg-gray-100 rounded-full">
+                  <Ambulance className="w-6 h-6 text-gray-400" />
+                </div>
+              </div>
+              <p className="text-gray-600 font-medium text-sm mb-1">No transfer logs</p>
+              <p className="text-xs text-gray-500 mb-3">
+                Start tracking hospital transfers
+              </p>
+              <Button
+                size="sm"
+                onClick={() => setIsTransferLogDialogOpen(true)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add Transfer Log
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1437,6 +1569,14 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         onOpenChange={setIsViewPassportDialogOpen}
         passport={selectedPassport}
         resident={resident}
+      />
+
+      {/* Transfer Log Dialog */}
+      <TransferLogDialog
+        open={isTransferLogDialogOpen}
+        onOpenChange={setIsTransferLogDialogOpen}
+        onSubmit={handleTransferLogSubmit}
+        residentName={fullName}
       />
     </div>
   );

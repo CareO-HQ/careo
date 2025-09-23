@@ -1707,5 +1707,33 @@ export default defineSchema({
     .index("by_team", ["teamId"])
     .index("by_created_by", ["createdBy"])
     .index("by_status", ["status"])
-    .index("by_created_at", ["createdAt"])
+    .index("by_created_at", ["createdAt"]),
+
+  // Hospital Transfer Logs
+  hospitalTransferLogs: defineTable({
+    residentId: v.id("residents"),
+    date: v.string(),
+    hospitalName: v.string(),
+    reason: v.string(),
+    outcome: v.optional(v.string()),
+    followUp: v.optional(v.string()),
+    filesChanged: v.optional(v.object({
+      carePlan: v.boolean(),
+      riskAssessment: v.boolean(),
+      other: v.optional(v.string()),
+    })),
+
+    // Metadata
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_created_by", ["createdBy"])
+    .index("by_date", ["date"])
+    .index("by_created_at", ["createdAt"]),
 });
