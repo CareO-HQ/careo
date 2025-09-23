@@ -1,14 +1,14 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
+import { HospitalPassportSchema, HospitalPassportFormData } from "./types";
 import {
   Card,
   CardContent,
@@ -16,31 +16,6 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import {
   ArrowLeft,
   Ambulance,
@@ -52,51 +27,17 @@ import {
   Phone,
   AlertTriangle,
   FileText,
-  MapPin
+  Shield
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { HospitalPassportDialog } from "./hospital-passport-dialog";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
 };
 
-// Hospital Transfer Schema
-const HospitalTransferSchema = z.object({
-  transferType: z.enum(["emergency", "planned", "urgent", "routine"]),
-  reason: z.string().min(1, "Reason for transfer is required"),
-  symptoms: z.string().optional(),
-  vitalSigns: z.object({
-    temperature: z.string().optional(),
-    bloodPressure: z.string().optional(),
-    pulse: z.string().optional(),
-    respirations: z.string().optional(),
-    oxygenSaturation: z.string().optional(),
-  }).optional(),
-  consciousness: z.enum(["alert", "confused", "drowsy", "unconscious"]).optional(),
-  mobility: z.enum(["walking", "wheelchair", "stretcher", "bed"]).optional(),
-  medications: z.string().optional(),
-  allergies: z.string().optional(),
-  nextOfKinContacted: z.boolean().optional(),
-  nextOfKinName: z.string().optional(),
-  nextOfKinPhone: z.string().optional(),
-  gpContacted: z.boolean().optional(),
-  gpName: z.string().optional(),
-  gpPhone: z.string().optional(),
-  hospitalName: z.string().min(1, "Hospital name is required"),
-  ambulanceService: z.string().optional(),
-  ambulanceTime: z.string().optional(),
-  departureTime: z.string().optional(),
-  accompanyingStaff: z.string().optional(),
-  handoverNotes: z.string().optional(),
-  personalItems: z.string().optional(),
-  reportingStaff: z.string().min(1, "Reporting staff is required"),
-  transferDate: z.string().min(1, "Transfer date is required"),
-  transferTime: z.string().min(1, "Transfer time is required"),
-});
-
-type HospitalTransferFormData = z.infer<typeof HospitalTransferSchema>;
 
 export default function HospitalTransferPage({ params }: HospitalTransferPageProps) {
   const { id } = React.use(params);
@@ -105,43 +46,103 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     residentId: id as Id<"residents">
   });
 
-  // Get today's date
+  // Get today's date and time
   const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString().slice(0, 16);
+
+  // Multi-step form state
+  const [currentStep, setCurrentStep] = React.useState(1);
+  const totalSteps = 4;
 
   // Form setup
-  const form = useForm<HospitalTransferFormData>({
-    resolver: zodResolver(HospitalTransferSchema),
+  const form = useForm<HospitalPassportFormData>({
+    resolver: zodResolver(HospitalPassportSchema),
     defaultValues: {
-      transferType: "emergency",
-      reason: "",
-      symptoms: "",
-      vitalSigns: {
-        temperature: "",
-        bloodPressure: "",
-        pulse: "",
-        respirations: "",
-        oxygenSaturation: "",
+      generalDetails: {
+        personName: `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim(),
+        knownAs: resident?.firstName || "",
+        dateOfBirth: resident?.dateOfBirth || "",
+        nhsNumber: resident?.nhsHealthNumber || "",
+        religion: "",
+        weightOnTransfer: "",
+        careType: "residential",
+        transferDateTime: now,
+        accompaniedBy: "",
+        englishFirstLanguage: "yes",
+        firstLanguage: "",
+        careHomeName: "",
+        careHomeAddress: "",
+        careHomePhone: "",
+        hospitalName: "",
+        hospitalAddress: "",
+        hospitalPhone: "",
+        nextOfKinName: resident?.emergencyContacts?.[0]?.name || "",
+        nextOfKinAddress: "",
+        nextOfKinPhone: resident?.emergencyContacts?.[0]?.phoneNumber || "",
+        gpName: resident?.gpName || "",
+        gpAddress: "",
+        gpPhone: resident?.gpPhone || "",
+        careManagerName: "",
+        careManagerAddress: "",
+        careManagerPhone: "",
       },
-      consciousness: "alert",
-      mobility: "walking",
-      medications: "",
-      allergies: "",
-      nextOfKinContacted: false,
-      nextOfKinName: "",
-      nextOfKinPhone: "",
-      gpContacted: false,
-      gpName: "",
-      gpPhone: "",
-      hospitalName: "",
-      ambulanceService: "",
-      ambulanceTime: "",
-      departureTime: "",
-      accompanyingStaff: "",
-      handoverNotes: "",
-      personalItems: "",
-      reportingStaff: "",
-      transferDate: today,
-      transferTime: "",
+      medicalCareNeeds: {
+        situation: "",
+        background: "",
+        assessment: "",
+        recommendations: "",
+        pastMedicalHistory: "",
+        knownAllergies: "",
+        historyOfConfusion: "no",
+        learningDisabilityMentalHealth: "",
+        communicationIssues: "",
+        hearingAid: false,
+        glasses: false,
+        otherAids: "",
+        mobilityAssistance: "independent",
+        mobilityAids: "",
+        historyOfFalls: false,
+        dateOfLastFall: "",
+        toiletingAssistance: "independent",
+        continenceStatus: "continent",
+        nutritionalAssistance: "independent",
+        dietType: "",
+        swallowingDifficulties: false,
+        enteralNutrition: false,
+        mustScore: "",
+        personalHygieneAssistance: "independent",
+        topDentures: false,
+        bottomDentures: false,
+        denturesAccompanying: false,
+      },
+      skinMedicationAttachments: {
+        skinIntegrityAssistance: "independent",
+        bradenScore: "",
+        skinStateOnTransfer: "",
+        currentSkinCareRegime: "",
+        pressureRelievingEquipment: "",
+        knownToTVN: false,
+        tvnName: "",
+        currentMedicationRegime: "",
+        lastMedicationDateTime: now,
+        lastMealDrinkDateTime: now,
+        attachments: {
+          currentMedications: false,
+          bodyMap: false,
+          observations: false,
+          dnacprForm: false,
+          enteralFeedingRegime: false,
+          other: false,
+          otherSpecify: "",
+        },
+      },
+      signOff: {
+        signature: "",
+        printedName: "",
+        designation: "",
+        contactPhone: "",
+        completedDate: today,
+      },
     },
   });
 
@@ -155,9 +156,23 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   React.useEffect(() => {
     if (user?.user) {
       const staffName = user.user.name || user.user.email?.split('@')[0] || "";
-      form.setValue('reportingStaff', staffName);
+      form.setValue('signOff.printedName', staffName);
+      form.setValue('signOff.signature', staffName);
     }
   }, [user, form]);
+
+  // Navigation helpers
+  const nextStep = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
 
   // Mock mutations (you'll need to implement these in your Convex schema)
   // const createHospitalTransfer = useMutation(api.hospitalTransfers.createHospitalTransfer);
@@ -165,20 +180,85 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   //   residentId: id as Id<"residents">
   // });
 
-  const handleSubmit = async (data: HospitalTransferFormData) => {
+  const handleSubmit = async (data: HospitalPassportFormData) => {
     try {
-      // Implement hospital transfer creation
-      // await createHospitalTransfer({
+      // Implement hospital passport generation
+      console.log("Hospital Passport Data:", data);
+      // await createHospitalPassport({
       //   residentId: id as Id<"residents">,
       //   ...data,
       // });
 
-      toast.success("Hospital transfer record created successfully");
+      toast.success("Hospital Passport generated successfully");
       form.reset();
       setIsTransferDialogOpen(false);
+      setCurrentStep(1);
     } catch (error) {
-      console.error("Error creating hospital transfer record:", error);
-      toast.error("Failed to create hospital transfer record");
+      console.error("Error generating hospital passport:", error);
+      toast.error("Failed to generate Hospital Passport");
+    }
+  };
+
+  // Step validation before moving to next step
+  const validateCurrentStep = async () => {
+    let fieldsToValidate: any[] = [];
+
+    switch (currentStep) {
+      case 1:
+        fieldsToValidate = [
+          'generalDetails.personName',
+          'generalDetails.knownAs',
+          'generalDetails.dateOfBirth',
+          'generalDetails.nhsNumber',
+          'generalDetails.transferDateTime',
+          'generalDetails.careHomeName',
+          'generalDetails.careHomeAddress',
+          'generalDetails.careHomePhone',
+          'generalDetails.hospitalName',
+          'generalDetails.hospitalAddress',
+          'generalDetails.nextOfKinName',
+          'generalDetails.nextOfKinAddress',
+          'generalDetails.nextOfKinPhone',
+          'generalDetails.gpName',
+          'generalDetails.gpAddress',
+          'generalDetails.gpPhone',
+        ];
+        break;
+      case 2:
+        fieldsToValidate = [
+          'medicalCareNeeds.situation',
+          'medicalCareNeeds.background',
+          'medicalCareNeeds.assessment',
+          'medicalCareNeeds.recommendations',
+          'medicalCareNeeds.pastMedicalHistory',
+        ];
+        break;
+      case 3:
+        fieldsToValidate = [
+          'skinMedicationAttachments.skinStateOnTransfer',
+          'skinMedicationAttachments.currentMedicationRegime',
+          'skinMedicationAttachments.lastMedicationDateTime',
+        ];
+        break;
+      case 4:
+        fieldsToValidate = [
+          'signOff.signature',
+          'signOff.printedName',
+          'signOff.designation',
+          'signOff.contactPhone',
+          'signOff.completedDate',
+        ];
+        break;
+    }
+
+    const result = await form.trigger(fieldsToValidate as any);
+    return result;
+  };
+
+  const handleNextStep = async () => {
+    const isValid = await validateCurrentStep();
+    if (isValid) {
+      nextStep();
     }
   };
 
@@ -195,23 +275,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     return age;
   };
 
-  const calculateLengthOfStay = (admissionDate: string) => {
-    const today = new Date();
-    const admission = new Date(admissionDate);
-    const diffTime = Math.abs(today.getTime() - admission.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 30) {
-      return `${diffDays} days`;
-    } else if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30);
-      return `${months} month${months > 1 ? 's' : ''}`;
-    } else {
-      const years = Math.floor(diffDays / 365);
-      const remainingMonths = Math.floor((diffDays % 365) / 30);
-      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
-    }
-  };
 
   if (resident === undefined) {
     return (
@@ -270,8 +333,8 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-red-100 rounded-lg">
-            <Ambulance className="w-6 h-6 text-red-600" />
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Ambulance className="w-6 h-6 text-blue-600" />
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">Hospital Transfer</h1>
@@ -313,10 +376,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               <Button
                 variant="outline"
                 onClick={() => setIsTransferDialogOpen(true)}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Record Transfer
+                Generate Hospital Passport
               </Button>
               <Button
                 variant="outline"
@@ -363,10 +426,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               <Button
                 variant="outline"
                 onClick={() => setIsTransferDialogOpen(true)}
-                className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
+                className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
               >
                 <Plus className="w-4 h-4" />
-                <span>Record Transfer</span>
+                <span>Generate Hospital Passport</span>
               </Button>
               <Button
                 variant="outline"
@@ -390,7 +453,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center space-x-2 mb-2">
                 <Phone className="w-4 h-4 text-blue-600" />
@@ -426,6 +489,41 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 {resident.nhsHealthNumber || "Not specified"}
               </p>
             </div>
+
+            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+              <div className="flex items-center space-x-2 mb-2">
+                <Shield className="w-4 h-4 text-red-600" />
+                <span className="font-medium text-red-900">Known Risks</span>
+              </div>
+              {resident.risks && Array.isArray(resident.risks) && resident.risks.length > 0 ? (
+                <div className="space-y-1">
+                  {resident.risks.slice(0, 3).map((risk: any, index: number) => {
+                    const riskText = typeof risk === 'string' ? risk : risk.risk;
+                    const riskLevel = typeof risk === 'object' ? risk.level : undefined;
+                    return (
+                      <div key={index} className="flex items-center space-x-1">
+                        <span className="text-xs text-red-800">•</span>
+                        <span className="text-xs text-red-800 truncate">{riskText}</span>
+                        {riskLevel && (
+                          <Badge variant="outline" className={`text-[10px] px-1 py-0 h-4 ${
+                            riskLevel === 'high' ? 'bg-red-100 text-red-700 border-red-300' :
+                            riskLevel === 'medium' ? 'bg-orange-100 text-orange-700 border-orange-300' :
+                            'bg-yellow-100 text-yellow-700 border-yellow-300'
+                          }`}>
+                            {riskLevel}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {resident.risks.length > 3 && (
+                    <span className="text-xs text-red-600 font-medium">+{resident.risks.length - 3} more</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-red-600">No risks identified</p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -434,21 +532,22 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Ambulance className="w-5 h-5 text-red-600" />
+            <Ambulance className="w-5 h-5 text-blue-600" />
             <span>Transfer Recording</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              className="h-16 text-lg bg-red-600 hover:bg-red-700 text-white"
+              className="h-16 text-lg bg-blue-500 hover:bg-blue-700 text-white"
               onClick={() => setIsTransferDialogOpen(true)}
             >
-              <Ambulance className="w-6 h-6 mr-3" />
-              Record Hospital Transfer
+              <FileText className="w-6 h-6 mr-3" />
+              Generate Hospital Passport
             </Button>
             <Button
-             className="h-16 text-lg bg-orange-600 hover:bg-orange-700 text-white"
+            variant="outline"
+             className="h-16 text-lg "
               onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
             >
               <Eye className="w-6 h-6 mr-3" />
@@ -485,451 +584,18 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         </CardContent>
       </Card>
 
-      {/* Hospital Transfer Dialog */}
-      <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Record Hospital Transfer for {fullName}</DialogTitle>
-            <DialogDescription>
-              Record detailed information about hospital transfer or emergency admission.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              
-              {/* Transfer Details */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-red-900">Transfer Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="transferDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Transfer Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="transferTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Transfer Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="transferType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Transfer Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select transfer type..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="emergency">Emergency</SelectItem>
-                            <SelectItem value="urgent">Urgent</SelectItem>
-                            <SelectItem value="planned">Planned</SelectItem>
-                            <SelectItem value="routine">Routine</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="hospitalName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Hospital/Destination</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter hospital name..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Medical Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-blue-900">Medical Information</h4>
-                <FormField
-                  control={form.control}
-                  name="reason"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Reason for Transfer</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe the reason for hospital transfer..."
-                          className="min-h-[60px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="symptoms"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Current Symptoms</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe current symptoms and observations..."
-                          className="min-h-[60px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="consciousness"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Level of Consciousness</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select consciousness level..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="alert">Alert</SelectItem>
-                            <SelectItem value="confused">Confused</SelectItem>
-                            <SelectItem value="drowsy">Drowsy</SelectItem>
-                            <SelectItem value="unconscious">Unconscious</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="mobility"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mobility Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select mobility status..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="walking">Walking</SelectItem>
-                            <SelectItem value="wheelchair">Wheelchair</SelectItem>
-                            <SelectItem value="stretcher">Stretcher</SelectItem>
-                            <SelectItem value="bed">Bed-bound</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Vital Signs */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-green-900">Vital Signs</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="vitalSigns.temperature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Temperature (°C)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="36.5" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="vitalSigns.bloodPressure"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Blood Pressure</FormLabel>
-                        <FormControl>
-                          <Input placeholder="120/80" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="vitalSigns.pulse"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pulse (bpm)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="72" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="vitalSigns.respirations"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Respirations</FormLabel>
-                        <FormControl>
-                          <Input placeholder="16" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="vitalSigns.oxygenSaturation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>O2 Sat (%)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="98" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Contact Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-purple-900">Contact Information</h4>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <FormField
-                      control={form.control}
-                      name="nextOfKinContacted"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel className="cursor-pointer">
-                            Next of Kin Contacted
-                          </FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {form.watch('nextOfKinContacted') && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-6">
-                      <FormField
-                        control={form.control}
-                        name="nextOfKinName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Next of Kin Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter name..." {...field} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="nextOfKinPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Phone Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter phone number..." {...field} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex items-center space-x-2">
-                    <FormField
-                      control={form.control}
-                      name="gpContacted"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel className="cursor-pointer">
-                            GP Contacted
-                          </FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {form.watch('gpContacted') && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-6">
-                      <FormField
-                        control={form.control}
-                        name="gpName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>GP Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter GP name..." {...field} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="gpPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>GP Phone</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter GP phone..." {...field} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Additional Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">Additional Information</h4>
-                <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="medications"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Current Medications</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="List current medications..."
-                            className="min-h-[60px]"
-                            {...field}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="allergies"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Known Allergies</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter known allergies..." {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="handoverNotes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Handover Notes</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Important information for hospital staff..."
-                            className="min-h-[60px]"
-                            {...field}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Staff Information */}
-              <FormField
-                control={form.control}
-                name="reportingStaff"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reporting Staff Member</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        disabled
-                        className="bg-gray-50 text-gray-600"
-                        placeholder="Current user"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsTransferDialogOpen(false);
-                    form.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-red-600 hover:bg-red-700">
-                  Record Hospital Transfer
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* Hospital Passport Dialog */}
+      <HospitalPassportDialog
+        open={isTransferDialogOpen}
+        onOpenChange={setIsTransferDialogOpen}
+        form={form}
+        onSubmit={handleSubmit}
+        residentName={fullName}
+        currentStep={currentStep}
+        setCurrentStep={setCurrentStep}
+        handleNextStep={handleNextStep}
+        prevStep={prevStep}
+      />
     </div>
   );
 }
