@@ -155,9 +155,8 @@ export function HospitalPassportDialog({
               {/* Step 1: General & Transfer Details */}
               {currentStep === 1 && (
                 <div className="space-y-6">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-blue-900 mb-4 flex items-center">
-                      <User className="w-5 h-5 mr-2" />
+                  <div className="p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4 flex items-center">
                       Person in Care Information
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -168,7 +167,7 @@ export function HospitalPassportDialog({
                           <FormItem>
                             <FormLabelRequired required>Name of Person in our Care</FormLabelRequired>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} readOnly className="bg-gray-50 text-gray-700" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -194,7 +193,7 @@ export function HospitalPassportDialog({
                           <FormItem>
                             <FormLabelRequired required>Date of Birth</FormLabelRequired>
                             <FormControl>
-                              <Input type="date" {...field} />
+                              <Input type="date" {...field} readOnly className="bg-gray-50 text-gray-700" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -207,7 +206,7 @@ export function HospitalPassportDialog({
                           <FormItem>
                             <FormLabelRequired required>NHS Number</FormLabelRequired>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} readOnly className="bg-gray-50 text-gray-700" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -321,14 +320,14 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-green-900 mb-4 flex items-center">
-                      <Home className="w-5 h-5 mr-2" />
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4 flex items-center">
+                      
                       Transfer Locations
                     </h3>
                     <div className="space-y-4">
                       <div>
-                        <h4 className="font-medium mb-2">Care Home Details</h4>
+                        <h4 className="font-medium my-5">Care Home Details</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -373,7 +372,7 @@ export function HospitalPassportDialog({
                       </div>
 
                       <div>
-                        <h4 className="font-medium mb-2">Hospital/Facility Details</h4>
+                        <h4 className="font-medium my-5">Hospital/Facility Being Transferred Details</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -418,14 +417,14 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-purple-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-purple-900 mb-4 flex items-center">
-                      <Phone className="w-5 h-5 mr-2" />
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium mb-4 flex items-center">
+                     
                       Contact Information
                     </h3>
                     <div className="space-y-4">
                       <div>
-                        <h4 className="font-medium mb-2">Next of Kin/Representative</h4>
+                        <h4 className="font-medium my-5">Next of Kin/Representative</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -470,7 +469,7 @@ export function HospitalPassportDialog({
                       </div>
 
                       <div>
-                        <h4 className="font-medium mb-2">GP Details</h4>
+                        <h4 className="font-medium my-5">GP Details</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -515,7 +514,7 @@ export function HospitalPassportDialog({
                       </div>
 
                       <div>
-                        <h4 className="font-medium mb-2">Care Manager (Optional)</h4>
+                        <h4 className="font-medium my-5">Care Manager (Optional)</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -563,8 +562,8 @@ export function HospitalPassportDialog({
               {/* Step 2: Medical & Care Needs */}
               {currentStep === 2 && (
                 <div className="space-y-6">
-                  <div className="bg-red-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-red-900 mb-4">Reason for Transfer (SBAR)</h3>
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4">Reason for Transfer</h3>
                     <div className="space-y-4">
                       <FormField
                         control={form.control}
@@ -637,8 +636,8 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-blue-900 mb-4">Medical History</h3>
+                  <div className="p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4">Medical History</h3>
                     <div className="space-y-4">
                       <FormField
                         control={form.control}
@@ -708,8 +707,8 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-green-900 mb-4">Communication & Mobility</h3>
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium mb-4">Communication & Mobility</h3>
                     <div className="space-y-4">
                       <FormField
                         control={form.control}
@@ -833,8 +832,8 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-yellow-900 mb-4">Care Needs</h3>
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4">Care Needs</h3>
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
@@ -1035,8 +1034,8 @@ export function HospitalPassportDialog({
               {/* Step 3: Skin, Medication & Attachments */}
               {currentStep === 3 && (
                 <div className="space-y-6">
-                  <div className="bg-orange-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-orange-900 mb-4">Skin Care</h3>
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4">Skin Care</h3>
                     <div className="space-y-4">
                       <FormField
                         control={form.control}
@@ -1145,9 +1144,9 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-pink-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-pink-900 mb-4 flex items-center">
-                      <Pill className="w-5 h-5 mr-2" />
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4 flex items-center">
+                     
                       Medication
                     </h3>
                     <div className="space-y-4">
@@ -1196,9 +1195,9 @@ export function HospitalPassportDialog({
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-gray-900 mb-4 flex items-center">
-                      <Paperclip className="w-5 h-5 mr-2" />
+                  <div className="p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4 flex items-center">
+                    
                       Attachments
                     </h3>
                     <div className="space-y-2">
@@ -1315,9 +1314,8 @@ export function HospitalPassportDialog({
               {/* Step 4: Sign-off */}
               {currentStep === 4 && (
                 <div className="space-y-6">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-gray-900 mb-4 flex items-center">
-                      <FileText className="w-5 h-5 mr-2" />
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4 flex items-center">
                       Sign-off Section
                     </h3>
                     <div className="space-y-4">
@@ -1328,7 +1326,7 @@ export function HospitalPassportDialog({
                           <FormItem>
                             <FormLabelRequired required>Printed Name of Person Completing Form</FormLabelRequired>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} readOnly className="bg-gray-50 text-gray-700" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1382,8 +1380,9 @@ export function HospitalPassportDialog({
                             <FormControl>
                               <Textarea
                                 {...field}
-                                className="min-h-[80px]"
+                                className="min-h-[80px] bg-gray-50 text-gray-700"
                                 placeholder="Type your full name as electronic signature"
+                                readOnly
                               />
                             </FormControl>
                             <FormMessage />

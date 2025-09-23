@@ -152,6 +152,27 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   // Auth data
   const { data: user } = authClient.useSession();
 
+  // Update form with resident data when resident loads
+  React.useEffect(() => {
+    if (resident) {
+      const fullName = `${resident.firstName || ""} ${resident.lastName || ""}`.trim();
+      form.setValue('generalDetails.personName', fullName);
+      form.setValue('generalDetails.knownAs', resident.firstName || "");
+      form.setValue('generalDetails.dateOfBirth', resident.dateOfBirth || "");
+      form.setValue('generalDetails.nhsNumber', resident.nhsHealthNumber || "");
+
+      // Update contact information
+      if (resident.emergencyContacts?.[0]) {
+        form.setValue('generalDetails.nextOfKinName', resident.emergencyContacts[0].name || "");
+        form.setValue('generalDetails.nextOfKinPhone', resident.emergencyContacts[0].phoneNumber || "");
+      }
+
+      // Update GP information
+      form.setValue('generalDetails.gpName', resident.gpName || "");
+      form.setValue('generalDetails.gpPhone', resident.gpPhone || "");
+    }
+  }, [resident, form]);
+
   // Update staff field when user data loads
   React.useEffect(() => {
     if (user?.user) {

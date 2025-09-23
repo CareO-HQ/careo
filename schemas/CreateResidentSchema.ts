@@ -49,5 +49,19 @@ export const CreateResidentSchema = z.object({
         isPrimary: z.boolean().optional()
       })
     )
-    .min(1, { message: "At least one emergency contact is required" })
+    .min(1, { message: "At least one emergency contact is required" }),
+
+  // GP Details
+  gpDetails: z.object({
+    name: z.string().optional(),
+    address: z.string().optional(),
+    phoneNumber: z.string().optional(),
+  }).optional(),
+
+  // Care Manager Details
+  careManagerDetails: z.object({
+    name: z.string().optional(),
+    address: z.string().optional(),
+    phoneNumber: z.string().optional(),
+  }).optional()
 });
