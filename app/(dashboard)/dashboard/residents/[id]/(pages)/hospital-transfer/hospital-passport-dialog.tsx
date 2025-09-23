@@ -61,6 +61,7 @@ interface HospitalPassportDialogProps {
   setCurrentStep: (step: number) => void;
   handleNextStep: () => void;
   prevStep: () => void;
+  isEditMode?: boolean;
 }
 
 export function HospitalPassportDialog({
@@ -70,9 +71,9 @@ export function HospitalPassportDialog({
   onSubmit,
   residentName,
   currentStep,
-
   handleNextStep,
   prevStep,
+  isEditMode = false,
 }: HospitalPassportDialogProps) {
   const totalSteps = 4;
 
@@ -87,9 +88,14 @@ export function HospitalPassportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-5xl mx-auto max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Hospital Passport for {residentName}</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? "Edit Hospital Passport" : "Hospital Passport"} for {residentName}
+          </DialogTitle>
           <DialogDescription>
-            Complete all required information for the hospital transfer. Fields marked with * are mandatory.
+            {isEditMode
+              ? "Update the hospital passport information. Fields marked with * are mandatory."
+              : "Complete all required information for the hospital transfer. Fields marked with * are mandatory."
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -150,7 +156,7 @@ export function HospitalPassportDialog({
         </div> */}
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-hidden flex flex-col">
+          <form onSubmit={(e) => e.preventDefault()} className="flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto px-1">
               {/* Step 1: General & Transfer Details */}
               {currentStep === 1 && (
@@ -1424,8 +1430,12 @@ export function HospitalPassportDialog({
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  Generate Passport
+                <Button
+                  type="button"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => form.handleSubmit(onSubmit)()}
+                >
+                  {isEditMode ? "Update Passport" : "Generate Passport"}
                   <Check className="w-4 h-4 ml-2" />
                 </Button>
               )}

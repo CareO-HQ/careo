@@ -27,12 +27,16 @@ import {
   Phone,
   AlertTriangle,
   FileText,
-  Shield
+  Shield,
+  Download,
+  Edit,
+  FileCheck
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { HospitalPassportDialog } from "./hospital-passport-dialog";
+import { ViewPassportDialog } from "./view-passport-dialog";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
@@ -47,6 +51,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   });
 
   const dietInformation = useQuery(api.diet.getDietByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
+  const hospitalPassports = useQuery(api.hospitalPassports.getByResidentId, {
     residentId: id as Id<"residents">
   });
 
@@ -162,6 +170,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Dialog states
   const [isTransferDialogOpen, setIsTransferDialogOpen] = React.useState(false);
+  const [isEditPassportDialogOpen, setIsEditPassportDialogOpen] = React.useState(false);
+  const [isViewPassportDialogOpen, setIsViewPassportDialogOpen] = React.useState(false);
+  const [selectedPassport, setSelectedPassport] = React.useState<any>(null);
+  const [editingPassport, setEditingPassport] = React.useState<any>(null);
 
   // Auth data
   const { data: user } = authClient.useSession();
@@ -230,6 +242,221 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const updateEmergencyContactMutation = useMutation(api.residents.updateEmergencyContact);
   const updateResidentMutation = useMutation(api.residents.update);
   const createHospitalPassportMutation = useMutation(api.hospitalPassports.create);
+  const updateHospitalPassportMutation = useMutation(api.hospitalPassports.update);
+
+  // Create separate form for editing
+  const editForm = useForm<HospitalPassportFormData>({
+    resolver: zodResolver(HospitalPassportSchema),
+    defaultValues: {
+      generalDetails: {
+        personName: "",
+        knownAs: "",
+        dateOfBirth: "",
+        nhsNumber: "",
+        religion: "",
+        weightOnTransfer: "",
+        careType: "residential",
+        transferDateTime: now,
+        accompaniedBy: "",
+        englishFirstLanguage: "yes",
+        firstLanguage: "",
+        careHomeName: "",
+        careHomeAddress: "",
+        careHomePhone: "",
+        hospitalName: "",
+        hospitalAddress: "",
+        hospitalPhone: "",
+        nextOfKinName: "",
+        nextOfKinAddress: "",
+        nextOfKinPhone: "",
+        gpName: "",
+        gpAddress: "",
+        gpPhone: "",
+        careManagerName: "",
+        careManagerAddress: "",
+        careManagerPhone: "",
+      },
+      medicalCareNeeds: {
+        situation: "",
+        background: "",
+        assessment: "",
+        recommendations: "",
+        pastMedicalHistory: "",
+        knownAllergies: "",
+        historyOfConfusion: "no",
+        learningDisabilityMentalHealth: "",
+        communicationIssues: "",
+        hearingAid: false,
+        glasses: false,
+        otherAids: "",
+        mobilityAssistance: "independent",
+        mobilityAids: "",
+        historyOfFalls: false,
+        dateOfLastFall: "",
+        toiletingAssistance: "independent",
+        continenceStatus: "continent",
+        nutritionalAssistance: "independent",
+        dietType: "",
+        swallowingDifficulties: false,
+        enteralNutrition: false,
+        mustScore: "",
+        personalHygieneAssistance: "independent",
+        topDentures: false,
+        bottomDentures: false,
+        denturesAccompanying: false,
+      },
+      skinMedicationAttachments: {
+        skinIntegrityAssistance: "independent",
+        bradenScore: "",
+        skinStateOnTransfer: "",
+        currentSkinCareRegime: "",
+        pressureRelievingEquipment: "",
+        knownToTVN: false,
+        tvnName: "",
+        currentMedicationRegime: "",
+        lastMedicationDateTime: now,
+        lastMealDrinkDateTime: now,
+        attachments: {
+          currentMedications: false,
+          bodyMap: false,
+          observations: false,
+          dnacprForm: false,
+          enteralFeedingRegime: false,
+          other: false,
+          otherSpecify: "",
+        },
+      },
+      signOff: {
+        signature: "",
+        printedName: "",
+        designation: "",
+        contactPhone: "",
+        completedDate: today,
+      },
+    },
+  });
+
+  // Edit step state
+  const [editCurrentStep, setEditCurrentStep] = React.useState(1);
+
+  // Edit navigation helpers
+  const editNextStep = () => {
+    if (editCurrentStep < totalSteps) {
+      setEditCurrentStep(editCurrentStep + 1);
+    }
+  };
+
+  const editPrevStep = () => {
+    if (editCurrentStep > 1) {
+      setEditCurrentStep(editCurrentStep - 1);
+    }
+  };
+
+  // Edit step validation
+  const validateEditCurrentStep = async () => {
+    let fieldsToValidate: any[] = [];
+
+    switch (editCurrentStep) {
+      case 1:
+        fieldsToValidate = [
+          'generalDetails.personName',
+          'generalDetails.knownAs',
+          'generalDetails.dateOfBirth',
+          'generalDetails.nhsNumber',
+          'generalDetails.transferDateTime',
+          'generalDetails.careHomeName',
+          'generalDetails.careHomeAddress',
+          'generalDetails.careHomePhone',
+          'generalDetails.hospitalName',
+          'generalDetails.hospitalAddress',
+          'generalDetails.nextOfKinName',
+          'generalDetails.nextOfKinAddress',
+          'generalDetails.nextOfKinPhone',
+          'generalDetails.gpName',
+          'generalDetails.gpAddress',
+          'generalDetails.gpPhone',
+        ];
+        break;
+      case 2:
+        fieldsToValidate = [
+          'medicalCareNeeds.situation',
+          'medicalCareNeeds.background',
+          'medicalCareNeeds.assessment',
+          'medicalCareNeeds.recommendations',
+          'medicalCareNeeds.pastMedicalHistory',
+        ];
+        break;
+      case 3:
+        fieldsToValidate = [
+          'skinMedicationAttachments.skinStateOnTransfer',
+          'skinMedicationAttachments.currentMedicationRegime',
+          'skinMedicationAttachments.lastMedicationDateTime',
+        ];
+        break;
+      case 4:
+        fieldsToValidate = [
+          'signOff.signature',
+          'signOff.printedName',
+          'signOff.designation',
+          'signOff.contactPhone',
+          'signOff.completedDate',
+        ];
+        break;
+    }
+
+    const result = await editForm.trigger(fieldsToValidate as any);
+    return result;
+  };
+
+  const handleEditNextStep = async () => {
+    const isValid = await validateEditCurrentStep();
+    if (isValid) {
+      editNextStep();
+    }
+  };
+
+  // Handler to open edit dialog and populate form
+  const handleEditPassport = (passport: any) => {
+    setEditingPassport(passport);
+
+    // Populate the edit form with existing passport data
+    editForm.reset({
+      generalDetails: passport.generalDetails,
+      medicalCareNeeds: passport.medicalCareNeeds,
+      skinMedicationAttachments: passport.skinMedicationAttachments,
+      signOff: passport.signOff,
+    });
+
+    setEditCurrentStep(1);
+    setIsEditPassportDialogOpen(true);
+  };
+
+  // Handler for editing existing passport
+  const handleEditSubmit = async (data: HospitalPassportFormData) => {
+    try {
+      if (!editingPassport?._id) {
+        toast.error("No passport selected for editing");
+        return;
+      }
+
+      // Update the hospital passport
+      await updateHospitalPassportMutation({
+        hospitalPassportId: editingPassport._id,
+        generalDetails: data.generalDetails,
+        medicalCareNeeds: data.medicalCareNeeds,
+        skinMedicationAttachments: data.skinMedicationAttachments,
+        signOff: data.signOff,
+      });
+
+      toast.success("Hospital Passport updated successfully");
+      setIsEditPassportDialogOpen(false);
+      setEditingPassport(null);
+      setEditCurrentStep(1);
+    } catch (error) {
+      console.error("Error updating hospital passport:", error);
+      toast.error("Failed to update Hospital Passport");
+    }
+  };
 
   const handleSubmit = async (data: HospitalPassportFormData) => {
     try {
@@ -476,14 +703,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
             <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                onClick={() => setIsTransferDialogOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Generate Hospital Passport
-              </Button>
+          
               <Button
                 variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
@@ -526,14 +746,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsTransferDialogOpen(true)}
-                className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Generate Hospital Passport</span>
-              </Button>
+       
               <Button
                 variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
@@ -645,7 +858,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               className="h-16 text-lg bg-blue-500 hover:bg-blue-700 text-white"
               onClick={() => setIsTransferDialogOpen(true)}
             >
-              <FileText className="w-6 h-6 mr-3" />
+              <Plus className="w-6 h-6 mr-3" />
               Generate Hospital Passport
             </Button>
             <Button
@@ -653,10 +866,145 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
              className="h-16 text-lg "
               onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
             >
-              <Eye className="w-6 h-6 mr-3" />
-              View Transfer History
+              <Plus className="w-6 h-6 mr-3" />
+              Add Transfer History
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Hospital Passports */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <FileCheck className="w-5 h-5 text-green-600" />
+            <span>Hospital Passports</span>
+            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 ml-auto">
+              {hospitalPassports?.length || 0} Generated
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {hospitalPassports && hospitalPassports.length > 0 ? (
+            <div className="space-y-4">
+              {hospitalPassports.map((passport: any, index: number) => (
+                <div key={passport._id} className="p-4 border rounded-lg bg-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <FileCheck className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-sm text-gray-900">
+                          Hospital Passport #{hospitalPassports.length - index}
+                        </h4>
+                        <div className="flex items-center space-x-4 text-xs text-gray-500">
+                          <span>Generated: {new Date(passport.createdAt).toLocaleDateString()}</span>
+                          <span>At: {new Date(passport.createdAt).toLocaleTimeString()}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              passport.status === 'completed'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            }`}
+                          >
+                            {passport.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={() => {
+                          setSelectedPassport(passport);
+                          setIsViewPassportDialogOpen(true);
+                        }}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        onClick={() => handleEditPassport(passport)}
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                        onClick={() => {
+                          // TODO: Implement PDF generation
+                          console.log("Generate PDF for passport:", passport._id);
+                        }}
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={() => {
+                          // TODO: Implement download functionality
+                          console.log("Download passport:", passport._id);
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Passport Summary */}
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <span className="font-medium text-gray-700">Transfer To:</span>
+                        <p className="text-gray-600 mt-1">{passport.generalDetails.hospitalName}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Transfer Date:</span>
+                        <p className="text-gray-600 mt-1">
+                          {new Date(passport.generalDetails.transferDateTime).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Completed By:</span>
+                        <p className="text-gray-600 mt-1">{passport.signOff.printedName}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="flex justify-center mb-4">
+                <div className="p-3 bg-gray-100 rounded-full">
+                  <FileCheck className="w-8 h-8 text-gray-400" />
+                </div>
+              </div>
+              <p className="text-gray-600 font-medium mb-2">No Hospital Passports Generated</p>
+              <p className="text-sm text-gray-500 mb-4">
+                Generate a Hospital Passport to prepare for emergency transfers
+              </p>
+              <Button
+                onClick={() => setIsTransferDialogOpen(true)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Generate First Passport
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -698,6 +1046,28 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         setCurrentStep={setCurrentStep}
         handleNextStep={handleNextStep}
         prevStep={prevStep}
+      />
+
+      {/* Edit Passport Dialog */}
+      <HospitalPassportDialog
+        open={isEditPassportDialogOpen}
+        onOpenChange={setIsEditPassportDialogOpen}
+        form={editForm}
+        onSubmit={handleEditSubmit}
+        residentName={fullName}
+        currentStep={editCurrentStep}
+        setCurrentStep={setEditCurrentStep}
+        handleNextStep={handleEditNextStep}
+        prevStep={editPrevStep}
+        isEditMode={true}
+      />
+
+      {/* View Passport Dialog */}
+      <ViewPassportDialog
+        open={isViewPassportDialogOpen}
+        onOpenChange={setIsViewPassportDialogOpen}
+        passport={selectedPassport}
+        resident={resident}
       />
     </div>
   );
