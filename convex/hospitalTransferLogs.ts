@@ -16,6 +16,14 @@ export const create = mutation({
       riskAssessment: v.boolean(),
       other: v.optional(v.string()),
     })),
+    medicationChanges: v.optional(v.object({
+      medicationsAdded: v.boolean(),
+      addedMedications: v.optional(v.string()),
+      medicationsRemoved: v.boolean(),
+      removedMedications: v.optional(v.string()),
+      medicationsModified: v.boolean(),
+      modifiedMedications: v.optional(v.string()),
+    })),
     organizationId: v.string(),
     teamId: v.string(),
     createdBy: v.string(),
@@ -32,6 +40,7 @@ export const create = mutation({
       outcome: args.outcome,
       followUp: args.followUp,
       filesChanged: args.filesChanged,
+      medicationChanges: args.medicationChanges,
       organizationId: args.organizationId,
       teamId: args.teamId,
       createdBy: args.createdBy,
@@ -104,6 +113,14 @@ export const update = mutation({
       riskAssessment: v.boolean(),
       other: v.optional(v.string()),
     })),
+    medicationChanges: v.optional(v.object({
+      medicationsAdded: v.boolean(),
+      addedMedications: v.optional(v.string()),
+      medicationsRemoved: v.boolean(),
+      removedMedications: v.optional(v.string()),
+      medicationsModified: v.boolean(),
+      modifiedMedications: v.optional(v.string()),
+    })),
   },
   returns: v.id("hospitalTransferLogs"),
   handler: async (ctx, args) => {
@@ -114,6 +131,7 @@ export const update = mutation({
       outcome: args.outcome,
       followUp: args.followUp,
       filesChanged: args.filesChanged,
+      medicationChanges: args.medicationChanges,
       updatedAt: Date.now(),
     });
 

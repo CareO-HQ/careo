@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, X } from "lucide-react";
+import { Calendar, X, Pill } from "lucide-react";
 
 // Form validation schema
 const TransferLogSchema = z.object({
@@ -36,6 +36,14 @@ const TransferLogSchema = z.object({
     carePlan: z.boolean(),
     riskAssessment: z.boolean(),
     other: z.string().optional(),
+  }).optional(),
+  medicationChanges: z.object({
+    medicationsAdded: z.boolean(),
+    addedMedications: z.string().optional(),
+    medicationsRemoved: z.boolean(),
+    removedMedications: z.string().optional(),
+    medicationsModified: z.boolean(),
+    modifiedMedications: z.string().optional(),
   }).optional(),
 });
 
@@ -74,6 +82,14 @@ export function TransferLogDialog({
         riskAssessment: false,
         other: "",
       },
+      medicationChanges: {
+        medicationsAdded: false,
+        addedMedications: "",
+        medicationsRemoved: false,
+        removedMedications: "",
+        medicationsModified: false,
+        modifiedMedications: "",
+      },
     },
   });
 
@@ -92,6 +108,14 @@ export function TransferLogDialog({
             riskAssessment: transferLog.filesChanged?.riskAssessment || false,
             other: transferLog.filesChanged?.other || "",
           },
+          medicationChanges: {
+            medicationsAdded: transferLog.medicationChanges?.medicationsAdded || false,
+            addedMedications: transferLog.medicationChanges?.addedMedications || "",
+            medicationsRemoved: transferLog.medicationChanges?.medicationsRemoved || false,
+            removedMedications: transferLog.medicationChanges?.removedMedications || "",
+            medicationsModified: transferLog.medicationChanges?.medicationsModified || false,
+            modifiedMedications: transferLog.medicationChanges?.modifiedMedications || "",
+          },
         });
       } else {
         form.reset({
@@ -104,6 +128,14 @@ export function TransferLogDialog({
             carePlan: false,
             riskAssessment: false,
             other: "",
+          },
+          medicationChanges: {
+            medicationsAdded: false,
+            addedMedications: "",
+            medicationsRemoved: false,
+            removedMedications: "",
+            medicationsModified: false,
+            modifiedMedications: "",
           },
         });
       }
@@ -288,6 +320,139 @@ export function TransferLogDialog({
                       </FormItem>
                     )}
                   />
+                </div>
+              </div>
+
+              {/* Medication Changes */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-gray-900 border-b pb-2 flex items-center space-x-2">
+                  <Pill className="w-4 h-4 text-blue-600" />
+                  <span>Medication Changes</span>
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Record any medication changes that occurred during or after the hospital transfer.
+                </p>
+
+                <div className="space-y-4">
+                  {/* Medications Added */}
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name="medicationChanges.medicationsAdded"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="cursor-pointer text-green-700 font-medium">
+                            Medications Added
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationChanges.addedMedications"
+                      render={({ field }) => (
+                        <FormItem className={`ml-6 ${!form.watch('medicationChanges.medicationsAdded') ? 'opacity-50' : ''}`}>
+                          <FormLabel>Medications Added (list names and dosages)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="e.g., Metformin 500mg twice daily, Lisinopril 10mg once daily"
+                              className="min-h-[60px]"
+                              disabled={!form.watch('medicationChanges.medicationsAdded')}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Medications Removed */}
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name="medicationChanges.medicationsRemoved"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="cursor-pointer text-red-700 font-medium">
+                            Medications Removed/Discontinued
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationChanges.removedMedications"
+                      render={({ field }) => (
+                        <FormItem className={`ml-6 ${!form.watch('medicationChanges.medicationsRemoved') ? 'opacity-50' : ''}`}>
+                          <FormLabel>Medications Removed (list names and reasons)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="e.g., Warfarin discontinued due to bleeding risk, Aspirin stopped per hospital recommendation"
+                              className="min-h-[60px]"
+                              disabled={!form.watch('medicationChanges.medicationsRemoved')}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Medications Modified */}
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name="medicationChanges.medicationsModified"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="cursor-pointer text-orange-700 font-medium">
+                            Medications Modified (dosage/frequency changes)
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationChanges.modifiedMedications"
+                      render={({ field }) => (
+                        <FormItem className={`ml-6 ${!form.watch('medicationChanges.medicationsModified') ? 'opacity-50' : ''}`}>
+                          <FormLabel>Medications Modified (list changes)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="e.g., Furosemide increased from 20mg to 40mg daily, Insulin units adjusted per hospital protocol"
+                              className="min-h-[60px]"
+                              disabled={!form.watch('medicationChanges.medicationsModified')}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

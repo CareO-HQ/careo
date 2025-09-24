@@ -21,7 +21,6 @@ import {
   Ambulance,
   User,
   Calendar,
-  Clock,
   Plus,
   Eye,
   Phone,
@@ -31,10 +30,21 @@ import {
   Printer,
   Edit,
   FileCheck,
-  Trash2
+  Trash2,
+  Pill,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
 import { HospitalPassportDialog } from "./hospital-passport-dialog";
 import { ViewPassportDialog } from "./view-passport-dialog";
@@ -189,8 +199,22 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [isEditPassportDialogOpen, setIsEditPassportDialogOpen] = React.useState(false);
   const [isViewPassportDialogOpen, setIsViewPassportDialogOpen] = React.useState(false);
   const [isTransferLogDialogOpen, setIsTransferLogDialogOpen] = React.useState(false);
+  const [isEditTransferLogDialogOpen, setIsEditTransferLogDialogOpen] = React.useState(false);
   const [selectedPassport, setSelectedPassport] = React.useState<any>(null);
   const [editingPassport, setEditingPassport] = React.useState<any>(null);
+  const [editingTransferLog, setEditingTransferLog] = React.useState<any>(null);
+
+  // Confirmation dialog states - separate states to prevent conflicts
+  const [showDeletePassportDialog, setShowDeletePassportDialog] = React.useState(false);
+  const [showDeleteTransferLogDialog, setShowDeleteTransferLogDialog] = React.useState(false);
+  const [passportToDelete, setPassportToDelete] = React.useState<any>(null);
+  const [transferLogToDelete, setTransferLogToDelete] = React.useState<any>(null);
+
+  // Loading states for operations
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [isEditingPassport, setIsEditingPassport] = React.useState(false);
 
   // Auth data
   const { data: user } = authClient.useSession();
@@ -262,6 +286,8 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const updateHospitalPassportMutation = useMutation(api.hospitalPassports.update);
   const deleteHospitalPassportMutation = useMutation(api.hospitalPassports.deleteHospitalPassport);
   const createTransferLogMutation = useMutation(api.hospitalTransferLogs.create);
+  const updateTransferLogMutation = useMutation(api.hospitalTransferLogs.update);
+  const deleteTransferLogMutation = useMutation(api.hospitalTransferLogs.deleteTransferLog);
 
   // Create separate form for editing
   const editForm = useForm<HospitalPassportFormData>({
@@ -436,35 +462,103 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Handler to open edit dialog and populate form
   const handleEditPassport = (passport: any) => {
-    setEditingPassport(passport);
+    // Validation checks
+    if (!passport || !passport._id) {
+      toast.error("Invalid passport selected for editing");
+      return;
+    }
 
-    // Populate the edit form with existing passport data
-    editForm.reset({
-      generalDetails: passport.generalDetails,
-      medicalCareNeeds: passport.medicalCareNeeds,
-      skinMedicationAttachments: passport.skinMedicationAttachments,
-      signOff: passport.signOff,
-    });
+    if (isCreating || isUpdating || isDeleting || isEditingPassport) {
+      toast.error("Please wait for the current operation to complete");
+      return;
+    }
 
-    setEditCurrentStep(1);
-    setIsEditPassportDialogOpen(true);
+    try {
+      setEditingPassport(passport);
+
+      // Populate the edit form with existing passport data
+      editForm.reset({
+        generalDetails: passport.generalDetails || {},
+        medicalCareNeeds: passport.medicalCareNeeds || {},
+        skinMedicationAttachments: passport.skinMedicationAttachments || {},
+        signOff: passport.signOff || {},
+      });
+
+      setEditCurrentStep(1);
+      setIsEditPassportDialogOpen(true);
+    } catch (error) {
+      console.error('Error setting up edit form:', error);
+      toast.error("Failed to open edit form. Please try again.");
+    }
   };
 
-  // Handler for printing individual passport
+  // Handler for printing individual passport with current resident data
   const handlePrintPassport = (passport: any) => {
+    // Validation checks
+    if (!passport || !resident) {
+      toast.error("Unable to print passport - missing data");
+      return;
+    }
+
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) {
+      toast.error("Unable to open print window. Please check your browser's popup settings.");
+      return;
+    }
 
     const formatDate = (dateString: string) => {
-      return new Date(dateString).toLocaleDateString();
+      try {
+        return new Date(dateString).toLocaleDateString();
+      } catch {
+        return dateString || 'Not specified';
+      }
     };
 
     const formatDateTime = (dateString: string) => {
-      return new Date(dateString).toLocaleString();
+      try {
+        return new Date(dateString).toLocaleString();
+      } catch {
+        return dateString || 'Not specified';
+      }
     };
 
     const formatAssistanceLevel = (level: string) => {
-      return level.charAt(0).toUpperCase() + level.slice(1);
+      return level ? level.charAt(0).toUpperCase() + level.slice(1) : 'Not specified';
+    };
+
+    // Create a dynamic passport object that combines current resident data with passport medical data
+    const dynamicPassport = {
+      ...passport,
+      generalDetails: {
+        // Use current resident data for personal info
+        personName: fullName,
+        knownAs: resident.firstName || '',
+        dateOfBirth: resident.dateOfBirth || '',
+        nhsNumber: resident.nhsHealthNumber || '',
+        religion: passport.generalDetails.religion || '',
+        weightOnTransfer: passport.generalDetails.weightOnTransfer || '',
+        careType: passport.generalDetails.careType || 'residential',
+        transferDateTime: passport.generalDetails.transferDateTime || '',
+        accompaniedBy: passport.generalDetails.accompaniedBy || '',
+        englishFirstLanguage: passport.generalDetails.englishFirstLanguage || 'yes',
+        firstLanguage: passport.generalDetails.firstLanguage || '',
+        // Use current resident data for contact info
+        careHomeName: passport.generalDetails.careHomeName || '',
+        careHomeAddress: passport.generalDetails.careHomeAddress || '',
+        careHomePhone: passport.generalDetails.careHomePhone || '',
+        hospitalName: passport.generalDetails.hospitalName || '',
+        hospitalAddress: passport.generalDetails.hospitalAddress || '',
+        hospitalPhone: passport.generalDetails.hospitalPhone || '',
+        nextOfKinName: resident.emergencyContacts?.[0]?.name || '',
+        nextOfKinAddress: resident.emergencyContacts?.[0]?.address || '',
+        nextOfKinPhone: resident.emergencyContacts?.[0]?.phoneNumber || '',
+        gpName: resident.gpName || '',
+        gpAddress: resident.gpAddress || '',
+        gpPhone: resident.gpPhone || '',
+        careManagerName: resident.careManagerName || '',
+        careManagerAddress: resident.careManagerAddress || '',
+        careManagerPhone: resident.careManagerPhone || '',
+      }
     };
 
     const printContent = `
@@ -539,8 +633,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         <body>
           <div class="header">
             <h1>Hospital Passport</h1>
-            <h2>${passport.generalDetails.personName}</h2>
-            <p>Generated: ${formatDateTime(passport.createdAt)}</p>
+            <h2>${dynamicPassport.generalDetails.personName}</h2>
+            <p>Generated: ${formatDateTime(new Date().toISOString())} (Current Data)</p>
+            <p style="font-size: 12px; color: #666;">Original Passport: ${formatDateTime(passport.createdAt)}</p>
           </div>
 
           <div class="section">
@@ -548,47 +643,47 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             <div class="info-grid">
               <div class="info-item">
                 <div class="info-label">Name of Person</div>
-                <div class="info-value">${passport.generalDetails.personName}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.personName}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Known As</div>
-                <div class="info-value">${passport.generalDetails.knownAs}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.knownAs}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Date of Birth</div>
-                <div class="info-value">${formatDate(passport.generalDetails.dateOfBirth)}</div>
+                <div class="info-value">${formatDate(dynamicPassport.generalDetails.dateOfBirth)}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">NHS Number</div>
-                <div class="info-value">${passport.generalDetails.nhsNumber}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.nhsNumber}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Religion</div>
-                <div class="info-value">${passport.generalDetails.religion || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.religion || 'Not specified'}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Weight on Transfer</div>
-                <div class="info-value">${passport.generalDetails.weightOnTransfer || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.weightOnTransfer || 'Not specified'}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Care Type</div>
-                <div class="info-value">${formatAssistanceLevel(passport.generalDetails.careType || 'Not specified')}</div>
+                <div class="info-value">${formatAssistanceLevel(dynamicPassport.generalDetails.careType || 'Not specified')}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Transfer Date/Time</div>
-                <div class="info-value">${formatDateTime(passport.generalDetails.transferDateTime)}</div>
+                <div class="info-value">${formatDateTime(dynamicPassport.generalDetails.transferDateTime)}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Accompanied By</div>
-                <div class="info-value">${passport.generalDetails.accompaniedBy || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.accompaniedBy || 'Not specified'}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">English First Language</div>
-                <div class="info-value">${passport.generalDetails.englishFirstLanguage === 'yes' ? 'Yes' : 'No'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.englishFirstLanguage === 'yes' ? 'Yes' : 'No'}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">First Language</div>
-                <div class="info-value">${passport.generalDetails.firstLanguage || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.firstLanguage || 'Not specified'}</div>
               </div>
             </div>
           </div>
@@ -598,27 +693,27 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             <div class="info-grid">
               <div class="info-item">
                 <div class="info-label">Care Home Name</div>
-                <div class="info-value">${passport.generalDetails.careHomeName}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.careHomeName}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Care Home Phone</div>
-                <div class="info-value">${passport.generalDetails.careHomePhone}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.careHomePhone}</div>
               </div>
               <div class="info-item full-width">
                 <div class="info-label">Care Home Address</div>
-                <div class="info-value">${passport.generalDetails.careHomeAddress}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.careHomeAddress}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Hospital Name</div>
-                <div class="info-value">${passport.generalDetails.hospitalName}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.hospitalName}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Hospital Phone</div>
-                <div class="info-value">${passport.generalDetails.hospitalPhone || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.hospitalPhone || 'Not specified'}</div>
               </div>
               <div class="info-item full-width">
                 <div class="info-label">Hospital Address</div>
-                <div class="info-value">${passport.generalDetails.hospitalAddress}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.hospitalAddress}</div>
               </div>
             </div>
           </div>
@@ -628,40 +723,40 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             <div class="info-grid">
               <div class="info-item">
                 <div class="info-label">Next of Kin Name</div>
-                <div class="info-value">${passport.generalDetails.nextOfKinName}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.nextOfKinName}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Next of Kin Phone</div>
-                <div class="info-value">${passport.generalDetails.nextOfKinPhone}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.nextOfKinPhone}</div>
               </div>
               <div class="info-item full-width">
                 <div class="info-label">Next of Kin Address</div>
-                <div class="info-value">${passport.generalDetails.nextOfKinAddress}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.nextOfKinAddress}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">GP Name</div>
-                <div class="info-value">${passport.generalDetails.gpName}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.gpName}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">GP Phone</div>
-                <div class="info-value">${passport.generalDetails.gpPhone}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.gpPhone}</div>
               </div>
               <div class="info-item full-width">
                 <div class="info-label">GP Address</div>
-                <div class="info-value">${passport.generalDetails.gpAddress}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.gpAddress}</div>
               </div>
-              ${passport.generalDetails.careManagerName ? `
+              ${dynamicPassport.generalDetails.careManagerName ? `
               <div class="info-item">
                 <div class="info-label">Care Manager Name</div>
-                <div class="info-value">${passport.generalDetails.careManagerName}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.careManagerName}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Care Manager Phone</div>
-                <div class="info-value">${passport.generalDetails.careManagerPhone || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.careManagerPhone || 'Not specified'}</div>
               </div>
               <div class="info-item full-width">
                 <div class="info-label">Care Manager Address</div>
-                <div class="info-value">${passport.generalDetails.careManagerAddress || 'Not specified'}</div>
+                <div class="info-value">${dynamicPassport.generalDetails.careManagerAddress || 'Not specified'}</div>
               </div>
               ` : ''}
             </div>
@@ -812,52 +907,202 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       </html>
     `;
 
-    printWindow.document.write(printContent);
-    printWindow.document.close();
+    const doc = printWindow.document;
+    doc.open();
+    doc.write(printContent);
+    doc.close();
 
     // Wait for content to load then print
     printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
+      try {
+        printWindow.print();
+        printWindow.close();
+      } catch (error) {
+        console.error('Error printing:', error);
+        toast.error("Print failed. Please try again.");
+        printWindow.close();
+      }
     };
+
+    // Fallback timeout in case onload doesn't fire
+    setTimeout(() => {
+      try {
+        if (!printWindow.closed) {
+          printWindow.print();
+        }
+      } catch (error) {
+        console.warn('Print fallback failed:', error);
+      }
+    }, 500);
   };
 
-  // Handler for creating transfer log
+  // Handler for creating/updating transfer log
   const handleTransferLogSubmit = async (data: any) => {
-    try {
-      if (!activeOrganization?.id || !user?.user?.id) {
-        toast.error("Missing organization or user information");
-        return;
-      }
+    // Validation checks
+    if (!data?.date || !data?.hospitalName || !data?.reason) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
 
-      await createTransferLogMutation({
-        residentId: residentId,
-        date: data.date,
-        hospitalName: data.hospitalName,
-        reason: data.reason,
-        outcome: data.outcome,
-        followUp: data.followUp,
-        filesChanged: data.filesChanged,
-        organizationId: activeOrganization.id,
-        teamId: resident?.teamId || "",
-        createdBy: user.user.id,
+    if (!activeOrganization?.id || !user?.user?.id) {
+      toast.error("Authentication error. Please refresh the page and try again.");
+      return;
+    }
+
+    if (!resident?._id) {
+      toast.error("Resident information not found. Please refresh the page.");
+      return;
+    }
+
+    if (isCreating || isUpdating) {
+      return; // Prevent multiple submissions
+    }
+
+    try {
+      if (editingTransferLog) {
+        if (!editingTransferLog._id) {
+          toast.error("Invalid transfer log selected for editing");
+          return;
+        }
+
+        setIsUpdating(true);
+
+        await updateTransferLogMutation({
+          transferLogId: editingTransferLog._id,
+          date: data.date,
+          hospitalName: data.hospitalName.trim(),
+          reason: data.reason.trim(),
+          outcome: data.outcome?.trim() || "",
+          followUp: data.followUp?.trim() || "",
+          filesChanged: data.filesChanged || {
+            carePlan: false,
+            riskAssessment: false,
+            other: ""
+          },
+          medicationChanges: data.medicationChanges || {
+            medicationsAdded: false,
+            addedMedications: "",
+            medicationsRemoved: false,
+            removedMedications: "",
+            medicationsModified: false,
+            modifiedMedications: ""
+          },
+        });
+
+        toast.success("Transfer log updated successfully");
+        setIsEditTransferLogDialogOpen(false);
+        setEditingTransferLog(null);
+      } else {
+        setIsCreating(true);
+
+        await createTransferLogMutation({
+          residentId: residentId,
+          date: data.date,
+          hospitalName: data.hospitalName.trim(),
+          reason: data.reason.trim(),
+          outcome: data.outcome?.trim() || "",
+          followUp: data.followUp?.trim() || "",
+          filesChanged: data.filesChanged || {
+            carePlan: false,
+            riskAssessment: false,
+            other: ""
+          },
+          medicationChanges: data.medicationChanges || {
+            medicationsAdded: false,
+            addedMedications: "",
+            medicationsRemoved: false,
+            removedMedications: "",
+            medicationsModified: false,
+            modifiedMedications: ""
+          },
+          organizationId: activeOrganization.id,
+          teamId: resident?.teamId || "",
+          createdBy: user.user.id,
+        });
+
+        toast.success("Transfer log added successfully");
+        setIsTransferLogDialogOpen(false);
+      }
+    } catch (error) {
+      console.error("Error with transfer log:", error);
+      const action = editingTransferLog ? "update" : "add";
+      toast.error(`Failed to ${action} transfer log. Please try again.`);
+    } finally {
+      setIsCreating(false);
+      setIsUpdating(false);
+    }
+  };
+
+  // Handler for editing transfer log
+  const handleEditTransferLog = (transferLog: any) => {
+    // Validation checks
+    if (!transferLog || !transferLog._id) {
+      toast.error("Invalid transfer log selected for editing");
+      return;
+    }
+
+    if (isCreating || isUpdating || isDeleting || isEditingPassport) {
+      toast.error("Please wait for the current operation to complete");
+      return;
+    }
+
+    setEditingTransferLog(transferLog);
+    setIsEditTransferLogDialogOpen(true);
+  };
+
+  // Handler for opening transfer log delete dialog
+  const handleDeleteTransferLog = (transferLog: any) => {
+    if (!transferLog?._id) {
+      toast.error("Invalid transfer log selected");
+      return;
+    }
+    setTransferLogToDelete(transferLog);
+    setShowDeleteTransferLogDialog(true);
+  };
+
+  // Handler for confirming transfer log deletion
+  const confirmDeleteTransferLog = async () => {
+    if (!transferLogToDelete?._id || isDeleting) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+
+      await deleteTransferLogMutation({
+        transferLogId: transferLogToDelete._id,
       });
 
-      toast.success("Transfer log added successfully");
-      setIsTransferLogDialogOpen(false);
+      toast.success("Transfer log deleted successfully");
+      setShowDeleteTransferLogDialog(false);
+      setTransferLogToDelete(null);
     } catch (error) {
-      console.error("Error creating transfer log:", error);
-      toast.error("Failed to add transfer log");
+      console.error("Error deleting transfer log:", error);
+      toast.error("Failed to delete transfer log. Please try again.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   // Handler for editing existing passport
   const handleEditSubmit = async (data: HospitalPassportFormData) => {
+    // Validation checks
+    if (!data?.generalDetails?.personName || !data?.generalDetails?.dateOfBirth) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (!editingPassport?._id) {
+      toast.error("No passport selected for editing");
+      return;
+    }
+
+    if (isEditingPassport) {
+      return; // Prevent multiple submissions
+    }
+
     try {
-      if (!editingPassport?._id) {
-        toast.error("No passport selected for editing");
-        return;
-      }
+      setIsEditingPassport(true);
 
       // Update the hospital passport
       await updateHospitalPassportMutation({
@@ -874,41 +1119,70 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       setEditCurrentStep(1);
     } catch (error) {
       console.error("Error updating hospital passport:", error);
-      toast.error("Failed to update Hospital Passport");
+      toast.error("Failed to update Hospital Passport. Please try again.");
+    } finally {
+      setIsEditingPassport(false);
     }
   };
 
-  // Handler for deleting passport
-  const handleDeletePassport = async (passport: any) => {
+  // Handler for opening passport delete dialog
+  const handleDeletePassport = (passport: any) => {
+    if (!passport?._id) {
+      toast.error("Invalid passport selected");
+      return;
+    }
+    setPassportToDelete(passport);
+    setShowDeletePassportDialog(true);
+  };
+
+  // Handler for confirming passport deletion
+  const confirmDeletePassport = async () => {
+    if (!passportToDelete?._id || isDeleting) {
+      return;
+    }
+
     try {
-      if (!passport?._id) {
-        toast.error("No passport selected for deletion");
-        return;
-      }
+      setIsDeleting(true);
 
-      // Show confirmation dialog
-      const confirmed = window.confirm(
-        `Are you sure you want to delete this Hospital Passport?\n\nThis action cannot be undone.`
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      // Delete the hospital passport
       await deleteHospitalPassportMutation({
-        hospitalPassportId: passport._id,
+        hospitalPassportId: passportToDelete._id,
       });
 
       toast.success("Hospital Passport deleted successfully");
+      setShowDeletePassportDialog(false);
+      setPassportToDelete(null);
     } catch (error) {
       console.error("Error deleting hospital passport:", error);
-      toast.error("Failed to delete Hospital Passport");
+      toast.error("Failed to delete Hospital Passport. Please try again.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const handleSubmit = async (data: HospitalPassportFormData) => {
+    // Validation checks
+    if (!data?.generalDetails?.personName || !data?.generalDetails?.dateOfBirth) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (!activeOrganization?.id || !user?.user?.id) {
+      toast.error("Authentication error. Please refresh the page and try again.");
+      return;
+    }
+
+    if (!resident?._id) {
+      toast.error("Resident information not found. Please refresh the page.");
+      return;
+    }
+
+    if (isCreating) {
+      return; // Prevent multiple submissions
+    }
+
     try {
+      setIsCreating(true);
+
       // Update Next of Kin information in emergencyContacts table
       if (resident?.emergencyContacts?.[0]?._id) {
         const primaryContact = resident.emergencyContacts[0];
@@ -920,46 +1194,53 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         if (hasNextOfKinChanges) {
           await updateEmergencyContactMutation({
             contactId: primaryContact._id,
-            name: data.generalDetails.nextOfKinName,
-            address: data.generalDetails.nextOfKinAddress || undefined,
-            phoneNumber: data.generalDetails.nextOfKinPhone,
+            name: data.generalDetails.nextOfKinName?.trim() || "",
+            address: data.generalDetails.nextOfKinAddress?.trim() || undefined,
+            phoneNumber: data.generalDetails.nextOfKinPhone?.trim() || "",
           });
         }
       }
 
       // Update GP and Care Manager information in residents table
       const hasResidentChanges =
-        data.generalDetails.gpName !== resident?.gpName ||
-        data.generalDetails.gpAddress !== resident?.gpAddress ||
-        data.generalDetails.gpPhone !== resident?.gpPhone ||
-        data.generalDetails.careManagerName !== resident?.careManagerName ||
-        data.generalDetails.careManagerAddress !== resident?.careManagerAddress ||
-        data.generalDetails.careManagerPhone !== resident?.careManagerPhone;
+        (data.generalDetails.gpName?.trim() || "") !== (resident?.gpName || "") ||
+        (data.generalDetails.gpAddress?.trim() || "") !== (resident?.gpAddress || "") ||
+        (data.generalDetails.gpPhone?.trim() || "") !== (resident?.gpPhone || "") ||
+        (data.generalDetails.careManagerName?.trim() || "") !== (resident?.careManagerName || "") ||
+        (data.generalDetails.careManagerAddress?.trim() || "") !== (resident?.careManagerAddress || "") ||
+        (data.generalDetails.careManagerPhone?.trim() || "") !== (resident?.careManagerPhone || "");
 
       if (hasResidentChanges) {
         await updateResidentMutation({
           residentId: residentId,
-          gpName: data.generalDetails.gpName,
-          gpAddress: data.generalDetails.gpAddress,
-          gpPhone: data.generalDetails.gpPhone,
-          careManagerName: data.generalDetails.careManagerName,
-          careManagerAddress: data.generalDetails.careManagerAddress,
-          careManagerPhone: data.generalDetails.careManagerPhone,
+          gpName: data.generalDetails.gpName?.trim() || "",
+          gpAddress: data.generalDetails.gpAddress?.trim() || "",
+          gpPhone: data.generalDetails.gpPhone?.trim() || "",
+          careManagerName: data.generalDetails.careManagerName?.trim() || "",
+          careManagerAddress: data.generalDetails.careManagerAddress?.trim() || "",
+          careManagerPhone: data.generalDetails.careManagerPhone?.trim() || "",
         });
       }
 
-      // Save Hospital Passport data to database
-      if (!activeOrganization?.id || !user?.user?.id) {
-        toast.error("Missing organization or user information");
-        return;
-      }
-
+      // Create Hospital Passport
       const hospitalPassportId = await createHospitalPassportMutation({
         residentId: residentId,
-        generalDetails: data.generalDetails,
+        generalDetails: {
+          ...data.generalDetails,
+          personName: data.generalDetails.personName.trim(),
+          knownAs: data.generalDetails.knownAs?.trim() || "",
+          hospitalName: data.generalDetails.hospitalName?.trim() || "",
+          careHomeName: data.generalDetails.careHomeName?.trim() || "",
+        },
         medicalCareNeeds: data.medicalCareNeeds,
         skinMedicationAttachments: data.skinMedicationAttachments,
-        signOff: data.signOff,
+        signOff: {
+          ...data.signOff,
+          signature: data.signOff.signature.trim(),
+          printedName: data.signOff.printedName.trim(),
+          designation: data.signOff.designation.trim(),
+          contactPhone: data.signOff.contactPhone.trim(),
+        },
         organizationId: activeOrganization.id,
         teamId: resident?.teamId || "",
         createdBy: user.user.id,
@@ -974,7 +1255,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       setCurrentStep(1);
     } catch (error) {
       console.error("Error generating hospital passport:", error);
-      toast.error("Failed to generate Hospital Passport");
+      toast.error("Failed to generate Hospital Passport. Please try again.");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -1041,19 +1324,44 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    
-    return age;
-  };
+  // Memoized age calculation to prevent unnecessary recalculations
+  const calculateAge = React.useCallback((dateOfBirth: string) => {
+    if (!dateOfBirth) return 'Unknown';
+    try {
+      const today = new Date();
+      const birthDate = new Date(dateOfBirth);
 
+      if (isNaN(birthDate.getTime())) return 'Invalid Date';
+
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
+      return age < 0 ? 0 : age;
+    } catch (error) {
+      console.warn('Error calculating age:', error);
+      return 'Unknown';
+    }
+  }, []);
+
+  // Memoized values to prevent unnecessary re-renders - moved before early returns
+  const fullName = React.useMemo(() => {
+    if (!resident?.firstName || !resident?.lastName) return 'Unknown Resident';
+    return `${resident.firstName} ${resident.lastName}`;
+  }, [resident?.firstName, resident?.lastName]);
+
+  const initials = React.useMemo(() => {
+    if (!resident?.firstName || !resident?.lastName) return 'UR';
+    return `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  }, [resident?.firstName, resident?.lastName]);
+
+  // Memoized current age to prevent recalculating on every render
+  const currentAge = React.useMemo(() => {
+    return calculateAge(resident?.dateOfBirth || '');
+  }, [resident?.dateOfBirth, calculateAge]);
 
   if (resident === undefined) {
     return (
@@ -1086,9 +1394,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       </div>
     );
   }
-
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -1155,7 +1460,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           
               <Button
                 variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
+                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
                 className="w-full"
               >
                 <Eye className="w-4 h-4 mr-2" />
@@ -1181,11 +1486,11 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 <h3 className="font-semibold">{fullName}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
+                    Room {resident?.roomNumber || "N/A"}
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
                     <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
+                    {typeof currentAge === 'number' ? `${currentAge} years old` : currentAge}
                   </Badge>
                   <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
                     <AlertTriangle className="w-3 h-3 mr-1" />
@@ -1198,19 +1503,20 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
        
               <Button
                 variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
+                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
                 className="flex items-center space-x-2"
               >
                 <Eye className="w-4 h-4 mr-2" />
                 Transfer History
               </Button>
               <Button
-              className=" bg-green-500 hover:bg-green-700 text-white"
-              onClick={() => setIsTransferLogDialogOpen(true)}
-            >
-              <Ambulance className="w-6 h-6 mr-3" />
-              Add Transfer Log
-            </Button>
+                className=" bg-green-500 hover:bg-green-700 text-white"
+                onClick={() => setIsTransferLogDialogOpen(true)}
+                disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+              >
+                <Ambulance className="w-6 h-6 mr-3" />
+                Add Transfer Log
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -1344,40 +1650,40 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="font-medium text-gray-600">Age:</span>
-                        <span className="text-gray-800">{calculateAge(resident.dateOfBirth)} years</span>
+                        <span className="text-gray-800">{currentAge} years</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="font-medium text-gray-600">NHS:</span>
                         <span className="text-gray-800 font-mono text-xs">
-                          {resident.nhsHealthNumber || "Not specified"}
+                          {resident?.nhsHealthNumber || "Not specified"}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="font-medium text-gray-600">DOB:</span>
                         <span className="text-gray-800">
-                          {new Date(resident.dateOfBirth).toLocaleDateString()}
+                          {resident?.dateOfBirth
+                            ? (() => {
+                                try {
+                                  return new Date(resident.dateOfBirth).toLocaleDateString();
+                                } catch {
+                                  return "Invalid date";
+                                }
+                              })()
+                            : "Not specified"}
                         </span>
                       </div>
                     </div>
 
                     {/* Passport Info */}
                     <div className="mt-3 pt-3 border-t border-indigo-200">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="text-xs text-indigo-700">
                           <span className="font-medium">Passport Created:</span>{" "}
                           {new Date(hospitalPassports[0].createdAt).toLocaleDateString()}
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${
-                            hospitalPassports[0].status === 'completed'
-                              ? 'bg-green-50 text-green-700 border-green-200'
-                              : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                          }`}
-                        >
-                          {hospitalPassports[0].status}
-                        </Badge>
+        
                       </div>
+                    
                     </div>
                   </div>
                 </div>
@@ -1389,9 +1695,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     size="sm"
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
                     onClick={() => {
-                      setSelectedPassport(hospitalPassports[0]);
+                      // Create dynamic passport with current resident data for viewing
+                      const dynamicPassportForView = {
+                        ...hospitalPassports[0],
+                        generalDetails: {
+                          ...hospitalPassports[0].generalDetails,
+                          // Use current resident data
+                          personName: fullName,
+                          knownAs: resident.firstName || '',
+                          dateOfBirth: resident.dateOfBirth || '',
+                          nhsNumber: resident.nhsHealthNumber || '',
+                          nextOfKinName: resident.emergencyContacts?.[0]?.name || '',
+                          nextOfKinAddress: resident.emergencyContacts?.[0]?.address || '',
+                          nextOfKinPhone: resident.emergencyContacts?.[0]?.phoneNumber || '',
+                          gpName: resident.gpName || '',
+                          gpAddress: resident.gpAddress || '',
+                          gpPhone: resident.gpPhone || '',
+                          careManagerName: resident.careManagerName || '',
+                          careManagerAddress: resident.careManagerAddress || '',
+                          careManagerPhone: resident.careManagerPhone || '',
+                        }
+                      };
+                      setSelectedPassport(dynamicPassportForView);
                       setIsViewPassportDialogOpen(true);
                     }}
+                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
                     <Eye className="w-4 h-4 mr-2" />
                     View
@@ -1401,6 +1729,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     size="sm"
                     className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
                     onClick={() => handleEditPassport(hospitalPassports[0])}
+                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
                     <Edit className="w-4 h-4 mr-2" />
                     Edit
@@ -1410,6 +1739,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     size="sm"
                     className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
                     onClick={() => handlePrintPassport(hospitalPassports[0])}
+                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
                     <Printer className="w-4 h-4 mr-2" />
                     Print
@@ -1419,6 +1749,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     size="sm"
                     className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                     onClick={() => handleDeletePassport(hospitalPassports[0])}
+                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete
@@ -1426,14 +1757,17 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 </div>
               </div>
 
-              {/* Quick Info Grid */}
+              {/* Quick Info Grid - Shows Current Resident Data */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-indigo-200">
                 <div className="text-center">
                   <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
-                    Transfer To
+                    GP Contact
                   </div>
                   <div className="mt-1 text-sm text-gray-900 font-medium">
-                    {hospitalPassports[0].generalDetails.hospitalName || "Not specified"}
+                    {resident?.gpName || "Not specified"}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {resident?.gpPhone || "No phone"}
                   </div>
                 </div>
                 <div className="text-center">
@@ -1441,15 +1775,21 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     Next of Kin
                   </div>
                   <div className="mt-1 text-sm text-gray-900 font-medium">
-                    {hospitalPassports[0].generalDetails.nextOfKinName || "Not specified"}
+                    {resident?.emergencyContacts?.[0]?.name || "Not specified"}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {resident?.emergencyContacts?.[0]?.phoneNumber || "No phone"}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
-                    Emergency Contact
+                    Care Manager
                   </div>
                   <div className="mt-1 text-sm text-gray-900 font-medium">
-                    {hospitalPassports[0].generalDetails.nextOfKinPhone || "Not specified"}
+                    {resident?.careManagerName || "Not specified"}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {resident?.careManagerPhone || "No phone"}
                   </div>
                 </div>
               </div>
@@ -1467,10 +1807,20 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 </p>
                 <Button
                   onClick={() => setIsTransferDialogOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 text-base"
+                  disabled={isCreating || isUpdating || isDeleting}
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Generate Hospital Passport
+                  {isCreating ? (
+                    <>
+                      <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5 mr-2" />
+                      Generate Hospital Passport
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -1480,124 +1830,142 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
 
 
-      {/* Recent Transfer Logs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="w-5 h-5 text-gray-600" />
-            <span>Transfer Logs</span>
-            <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 ml-auto">
-              {transferLogs?.length || 0} Total
-            </Badge>
-          </CardTitle>
+      {/* Recent Transfer Logs - Matching progress-notes pattern */}
+      <Card className="border-0">
+        <CardHeader className="">
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Ambulance className="w-5 h-5 text-gray-600" />
+              </div>
+              <span className="text-gray-900">Recent Transfer Logs</span>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-gray-100 text-gray-700">{transferLogs?.length || 0} Total</Badge>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          {transferLogs && transferLogs.length > 0 ? (
+        <CardContent className="p-6">
+          {!transferLogs || !Array.isArray(transferLogs) || transferLogs.length === 0 ? (
+            <div className="text-center py-8">
+              <Ambulance className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No transfer logs recorded</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Start tracking hospital transfers and admissions
+              </p>
+            </div>
+          ) : (
             <div className="space-y-3">
               {transferLogs.slice(0, 5).map((log: any) => (
-                <div key={log._id} className="p-3 border rounded-lg bg-white">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-semibold text-sm text-gray-900">
-                          {log.hospitalName}
-                        </h4>
-                        <Badge
-                          variant="outline"
-                          className="text-xs bg-red-50 text-red-700 border-red-200"
-                        >
+                <div
+                  key={log._id}
+                  className="flex flex-col md:flex-row md:items-start md:justify-between p-4 rounded-lg border"
+                >
+                  <div className="flex items-start space-x-3 flex-1">
+                    <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                      <Ambulance className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-semibold text-gray-900">{log.hospitalName}</h4>
+                        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
                           Transfer
                         </Badge>
                       </div>
-                      <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
+                      <p className="text-gray-600 text-sm mb-2">{log.reason}</p>
+
+                      {/* Medication Changes Display */}
+                      {log.medicationChanges && (
+                        log.medicationChanges.medicationsAdded ||
+                        log.medicationChanges.medicationsRemoved ||
+                        log.medicationChanges.medicationsModified
+                      ) && (
+                        <div className="mb-2 space-y-1">
+                          {log.medicationChanges.medicationsAdded && (
+                            <div className="flex items-center text-xs">
+                              <Badge variant="outline" className="mr-2 bg-green-50 text-green-700 border-green-200">
+                                <Pill className="w-3 h-3 mr-1" />
+                                Added
+                              </Badge>
+                              <span className="text-green-700 font-medium">
+                                {log.medicationChanges.addedMedications || "Medications added"}
+                              </span>
+                            </div>
+                          )}
+                          {log.medicationChanges.medicationsRemoved && (
+                            <div className="flex items-center text-xs">
+                              <Badge variant="outline" className="mr-2 bg-red-50 text-red-700 border-red-200">
+                                <Pill className="w-3 h-3 mr-1" />
+                                Removed
+                              </Badge>
+                              <span className="text-red-700 font-medium">
+                                {log.medicationChanges.removedMedications || "Medications removed"}
+                              </span>
+                            </div>
+                          )}
+                          {log.medicationChanges.medicationsModified && (
+                            <div className="flex items-center text-xs">
+                              <Badge variant="outline" className="mr-2 bg-orange-50 text-orange-700 border-orange-200">
+                                <Pill className="w-3 h-3 mr-1" />
+                                Modified
+                              </Badge>
+                              <span className="text-orange-700 font-medium">
+                                {log.medicationChanges.modifiedMedications || "Medications modified"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center">
                           <Calendar className="w-3 h-3 mr-1" />
                           {new Date(log.date).toLocaleDateString()}
                         </span>
                         <span>•</span>
                         <span>Added {new Date(log.createdAt).toLocaleDateString()}</span>
+                        {log.outcome && (
+                          <>
+                            <span>•</span>
+                            <span className="text-green-600 font-medium">{log.outcome}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Summary */}
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-gray-500">Reason</span>
-                        <p className="text-gray-700 font-medium mt-1">{log.reason}</p>
-                      </div>
-                      {log.outcome && (
-                        <div>
-                          <span className="text-gray-500">Outcome</span>
-                          <p className="text-gray-700 font-medium mt-1">{log.outcome}</p>
-                        </div>
-                      )}
-                      {log.followUp && (
-                        <div className="md:col-span-2">
-                          <span className="text-gray-500">Follow Up</span>
-                          <p className="text-gray-700 font-medium mt-1">{log.followUp}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {log.filesChanged && (log.filesChanged.carePlan || log.filesChanged.riskAssessment || log.filesChanged.other) && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <span className="text-xs text-gray-500">Files Updated:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {log.filesChanged.carePlan && (
-                            <Badge variant="outline" className="text-xs">
-                              Care Plan
-                            </Badge>
-                          )}
-                          {log.filesChanged.riskAssessment && (
-                            <Badge variant="outline" className="text-xs">
-                              Risk Assessment
-                            </Badge>
-                          )}
-                          {log.filesChanged.other && (
-                            <Badge variant="outline" className="text-xs">
-                              {log.filesChanged.other}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  {/* Action Buttons */}
+                  <div className="flex flex-col space-y-2 mt-2 md:mt-0 md:ml-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                      onClick={() => handleEditTransferLog(log)}
+                      disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      onClick={() => handleDeleteTransferLog(log)}
+                      disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
               {transferLogs.length > 5 && (
-                <div className="text-center pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-blue-600 hover:text-blue-700"
-                  >
-                    View All {transferLogs.length} Logs
+                <div className="text-center pt-4 border-t">
+                  <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                    View All {transferLogs.length} Transfer Logs
                   </Button>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <div className="flex justify-center mb-3">
-                <div className="p-2 bg-gray-100 rounded-full">
-                  <Ambulance className="w-6 h-6 text-gray-400" />
-                </div>
-              </div>
-              <p className="text-gray-600 font-medium text-sm mb-1">No transfer logs</p>
-              <p className="text-xs text-gray-500 mb-3">
-                Start tracking hospital transfers
-              </p>
-              <Button
-                size="sm"
-                onClick={() => setIsTransferLogDialogOpen(true)}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add Transfer Log
-              </Button>
             </div>
           )}
         </CardContent>
@@ -1606,7 +1974,14 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       {/* Hospital Passport Dialog */}
       <HospitalPassportDialog
         open={isTransferDialogOpen}
-        onOpenChange={setIsTransferDialogOpen}
+        onOpenChange={(open) => {
+          setIsTransferDialogOpen(open);
+          if (!open) {
+            // Reset form state when dialog is closed
+            form.reset();
+            setCurrentStep(1);
+          }
+        }}
         form={form}
         onSubmit={handleSubmit}
         residentName={fullName}
@@ -1619,7 +1994,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       {/* Edit Passport Dialog */}
       <HospitalPassportDialog
         open={isEditPassportDialogOpen}
-        onOpenChange={setIsEditPassportDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditPassportDialogOpen(open);
+          if (!open) {
+            // Clean up editing state when dialog is closed
+            setEditingPassport(null);
+            setEditCurrentStep(1);
+            editForm.reset();
+          }
+        }}
         form={editForm}
         onSubmit={handleEditSubmit}
         residentName={fullName}
@@ -1633,7 +2016,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       {/* View Passport Dialog */}
       <ViewPassportDialog
         open={isViewPassportDialogOpen}
-        onOpenChange={setIsViewPassportDialogOpen}
+        onOpenChange={(open) => {
+          setIsViewPassportDialogOpen(open);
+          if (!open) {
+            // Clean up selected passport when dialog is closed
+            setSelectedPassport(null);
+          }
+        }}
         passport={selectedPassport}
         resident={resident}
       />
@@ -1641,10 +2030,125 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       {/* Transfer Log Dialog */}
       <TransferLogDialog
         open={isTransferLogDialogOpen}
-        onOpenChange={setIsTransferLogDialogOpen}
+        onOpenChange={(open) => {
+          setIsTransferLogDialogOpen(open);
+          if (!open) {
+            // Reset any form state when dialog is closed
+            // No specific form state to reset for this dialog
+          }
+        }}
         onSubmit={handleTransferLogSubmit}
         residentName={fullName}
       />
+
+      {/* Edit Transfer Log Dialog */}
+      <TransferLogDialog
+        open={isEditTransferLogDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditTransferLogDialogOpen(open);
+          if (!open) {
+            // Clean up editing state when dialog is closed
+            setEditingTransferLog(null);
+          }
+        }}
+        onSubmit={handleTransferLogSubmit}
+        residentName={fullName}
+        transferLog={editingTransferLog}
+        isEditMode={true}
+      />
+
+      {/* Delete Passport Confirmation Dialog */}
+      <AlertDialog
+        open={showDeletePassportDialog}
+        onOpenChange={(open) => {
+          if (isDeleting) return; // Prevent closing during deletion
+          setShowDeletePassportDialog(open);
+          if (!open) {
+            setPassportToDelete(null); // Clear item when dialog is closed
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              Delete Hospital Passport
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this Hospital Passport? This action cannot be undone and will permanently remove
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePassport}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Passport
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Transfer Log Confirmation Dialog */}
+      <AlertDialog
+        open={showDeleteTransferLogDialog}
+        onOpenChange={(open) => {
+          if (isDeleting) return; // Prevent closing during deletion
+          setShowDeleteTransferLogDialog(open);
+          if (!open) {
+            setTransferLogToDelete(null); // Clear item when dialog is closed
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              Delete Transfer Log
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this transfer log? This action cannot be undone.
+          
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteTransferLog}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Transfer Log
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

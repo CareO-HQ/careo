@@ -96,6 +96,12 @@ function ViewPassportDialogComponent({
                   <span className="font-semibold text-gray-900">{passport.generalDetails.personName}</span>
                   <span className="text-sm">Generated on {formatDateTime(passport.createdAt)}</span>
                   <span className="text-sm">Room {resident?.roomNumber || 'N/A'} • NHS: {passport.generalDetails.nhsNumber}</span>
+                  <div className="flex items-center space-x-2 mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-xs text-green-700 font-medium">
+                      Showing current resident data (Contact info auto-updated)
+                    </span>
+                  </div>
                 </div>
               </DialogDescription>
             </div>
