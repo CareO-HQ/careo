@@ -30,7 +30,8 @@ import {
   Shield,
   Printer,
   Edit,
-  FileCheck
+  FileCheck,
+  Trash2
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -47,35 +48,45 @@ type HospitalTransferPageProps = {
 export default function HospitalTransferPage({ params }: HospitalTransferPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+
+  // Memoize the resident ID to prevent unnecessary re-renders
+  const residentId = React.useMemo(() => id as Id<"residents">, [id]);
+
   const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
+    residentId
   });
 
-  const dietInformation = useQuery(api.diet.getDietByResidentId, {
-    residentId: id as Id<"residents">
-  });
+  // Only fetch diet information if resident exists
+  const dietInformation = useQuery(
+    api.diet.getDietByResidentId,
+    resident ? { residentId } : "skip"
+  );
 
-  const hospitalPassports = useQuery(api.hospitalPassports.getByResidentId, {
-    residentId: id as Id<"residents">
-  });
+  // Only fetch hospital passports if resident exists
+  const hospitalPassports = useQuery(
+    api.hospitalPassports.getByResidentId,
+    resident ? { residentId } : "skip"
+  );
 
-  const transferLogs = useQuery(api.hospitalTransferLogs.getByResidentId, {
-    residentId: id as Id<"residents">
-  });
+  // Only fetch transfer logs if resident exists
+  const transferLogs = useQuery(
+    api.hospitalTransferLogs.getByResidentId,
+    resident ? { residentId } : "skip"
+  );
 
   // Get today's date and time
   const today = new Date().toISOString().split('T')[0];
   const now = new Date().toISOString().slice(0, 16);
 
   // Helper function to format allergies from diet information
-  const formatAllergies = (allergies: any[]) => {
+  const formatAllergies = React.useCallback((allergies: any[]) => {
     if (!allergies || !Array.isArray(allergies) || allergies.length === 0) {
       return "";
     }
     return allergies.map(item =>
       typeof item === 'string' ? item : item.allergy
     ).join(', ');
-  };
+  }, []);
 
   // Multi-step form state
   const [currentStep, setCurrentStep] = React.useState(1);
@@ -249,6 +260,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const updateResidentMutation = useMutation(api.residents.update);
   const createHospitalPassportMutation = useMutation(api.hospitalPassports.create);
   const updateHospitalPassportMutation = useMutation(api.hospitalPassports.update);
+  const deleteHospitalPassportMutation = useMutation(api.hospitalPassports.deleteHospitalPassport);
   const createTransferLogMutation = useMutation(api.hospitalTransferLogs.create);
 
   // Create separate form for editing
@@ -819,7 +831,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       }
 
       await createTransferLogMutation({
-        residentId: id as Id<"residents">,
+        residentId: residentId,
         date: data.date,
         hospitalName: data.hospitalName,
         reason: data.reason,
@@ -866,6 +878,35 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
+  // Handler for deleting passport
+  const handleDeletePassport = async (passport: any) => {
+    try {
+      if (!passport?._id) {
+        toast.error("No passport selected for deletion");
+        return;
+      }
+
+      // Show confirmation dialog
+      const confirmed = window.confirm(
+        `Are you sure you want to delete this Hospital Passport?\n\nThis action cannot be undone.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      // Delete the hospital passport
+      await deleteHospitalPassportMutation({
+        hospitalPassportId: passport._id,
+      });
+
+      toast.success("Hospital Passport deleted successfully");
+    } catch (error) {
+      console.error("Error deleting hospital passport:", error);
+      toast.error("Failed to delete Hospital Passport");
+    }
+  };
+
   const handleSubmit = async (data: HospitalPassportFormData) => {
     try {
       // Update Next of Kin information in emergencyContacts table
@@ -897,7 +938,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
       if (hasResidentChanges) {
         await updateResidentMutation({
-          residentId: id as Id<"residents">,
+          residentId: residentId,
           gpName: data.generalDetails.gpName,
           gpAddress: data.generalDetails.gpAddress,
           gpPhone: data.generalDetails.gpPhone,
@@ -914,7 +955,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       }
 
       const hospitalPassportId = await createHospitalPassportMutation({
-        residentId: id as Id<"residents">,
+        residentId: residentId,
         generalDetails: data.generalDetails,
         medicalCareNeeds: data.medicalCareNeeds,
         skinMedicationAttachments: data.skinMedicationAttachments,
@@ -1163,6 +1204,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 <Eye className="w-4 h-4 mr-2" />
                 Transfer History
               </Button>
+              <Button
+              className=" bg-green-500 hover:bg-green-700 text-white"
+              onClick={() => setIsTransferLogDialogOpen(true)}
+            >
+              <Ambulance className="w-6 h-6 mr-3" />
+              Add Transfer Log
+            </Button>
             </div>
           </div>
         </CardContent>
@@ -1252,166 +1300,185 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         </CardContent>
       </Card>
 
-      {/* Transfer Actions */}
+      {/* Hospital Passport Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Ambulance className="w-5 h-5 text-blue-600" />
-            <span>Transfer Recording</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              className="h-16 text-lg bg-blue-500 hover:bg-blue-700 text-white"
-              onClick={() => setIsTransferDialogOpen(true)}
-            >
-              <Plus className="w-6 h-6 mr-3" />
-              Generate Hospital Passport
-            </Button>
-            <Button
-              className="h-16 text-lg bg-green-500 hover:bg-green-700 text-white"
-              onClick={() => setIsTransferLogDialogOpen(true)}
-            >
-              <Ambulance className="w-6 h-6 mr-3" />
-              Add Transfer Log
-            </Button>
-         
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Hospital Passports */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FileCheck className="w-5 h-5 text-green-600" />
-            <span>Hospital Passports</span>
-            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 ml-auto">
-              {hospitalPassports?.length || 0} Generated
-            </Badge>
+            <FileText className="w-5 h-5 text-indigo-600" />
+            <span>Hospital Passport</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {hospitalPassports && hospitalPassports.length > 0 ? (
-            <div className="space-y-4">
-              {hospitalPassports.map((passport: any, index: number) => (
-                <div key={passport._id} className="p-4 border rounded-lg bg-white">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <FileCheck className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm text-gray-900">
-                          Hospital Passport #{hospitalPassports.length - index}
-                        </h4>
-                        <div className="flex items-center space-x-4 text-xs text-gray-500">
-                          <span>Generated: {new Date(passport.createdAt).toLocaleDateString()}</span>
-                          <span>At: {new Date(passport.createdAt).toLocaleTimeString()}</span>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${
-                              passport.status === 'completed'
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            }`}
-                          >
-                            {passport.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        onClick={() => {
-                          setSelectedPassport(passport);
-                          setIsViewPassportDialogOpen(true);
-                        }}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                        onClick={() => handleEditPassport(passport)}
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                        onClick={() => {
-                          // TODO: Implement PDF generation
-                          console.log("Generate PDF for passport:", passport._id);
-                        }}
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        PDF
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={() => handlePrintPassport(passport)}
-                      >
-                        <Printer className="w-4 h-4 mr-1" />
-                        Print
-                      </Button>
+            // Show the single passport for this resident
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
+              {/* Passport Header */}
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                  {/* Passport Photo */}
+                  <div className="relative">
+                    <Avatar className="w-20 h-20 border-4 border-white shadow-lg">
+                      <AvatarImage
+                        src={resident.imageUrl}
+                        alt={fullName}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xl font-bold">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
+                      <FileCheck className="w-3 h-3 text-white" />
                     </div>
                   </div>
 
-                  {/* Passport Summary */}
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                      <div>
-                        <span className="font-medium text-gray-700">Transfer To:</span>
-                        <p className="text-gray-600 mt-1">{passport.generalDetails.hospitalName}</p>
+                  {/* Basic Info */}
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900 mb-1">{fullName}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-600">Room:</span>
+                        <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                          {resident.roomNumber || "N/A"}
+                        </Badge>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Transfer Date:</span>
-                        <p className="text-gray-600 mt-1">
-                          {new Date(passport.generalDetails.transferDateTime).toLocaleDateString()}
-                        </p>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-600">Age:</span>
+                        <span className="text-gray-800">{calculateAge(resident.dateOfBirth)} years</span>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Completed By:</span>
-                        <p className="text-gray-600 mt-1">{passport.signOff.printedName}</p>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-600">NHS:</span>
+                        <span className="text-gray-800 font-mono text-xs">
+                          {resident.nhsHealthNumber || "Not specified"}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-600">DOB:</span>
+                        <span className="text-gray-800">
+                          {new Date(resident.dateOfBirth).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Passport Info */}
+                    <div className="mt-3 pt-3 border-t border-indigo-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-indigo-700">
+                          <span className="font-medium">Passport Created:</span>{" "}
+                          {new Date(hospitalPassports[0].createdAt).toLocaleDateString()}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${
+                            hospitalPassports[0].status === 'completed'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          }`}
+                        >
+                          {hospitalPassports[0].status}
+                        </Badge>
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="flex justify-center mb-4">
-                <div className="p-3 bg-gray-100 rounded-full">
-                  <FileCheck className="w-8 h-8 text-gray-400" />
+
+                {/* Action Buttons */}
+                <div className="flex flex-col space-y-2 ml-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                    onClick={() => {
+                      setSelectedPassport(hospitalPassports[0]);
+                      setIsViewPassportDialogOpen(true);
+                    }}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                    onClick={() => handleEditPassport(hospitalPassports[0])}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                    onClick={() => handlePrintPassport(hospitalPassports[0])}
+                  >
+                    <Printer className="w-4 h-4 mr-2" />
+                    Print
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    onClick={() => handleDeletePassport(hospitalPassports[0])}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </Button>
                 </div>
               </div>
-              <p className="text-gray-600 font-medium mb-2">No Hospital Passports Generated</p>
-              <p className="text-sm text-gray-500 mb-4">
-                Generate a Hospital Passport to prepare for emergency transfers
-              </p>
-              <Button
-                onClick={() => setIsTransferDialogOpen(true)}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Generate First Passport
-              </Button>
+
+              {/* Quick Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-indigo-200">
+                <div className="text-center">
+                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
+                    Transfer To
+                  </div>
+                  <div className="mt-1 text-sm text-gray-900 font-medium">
+                    {hospitalPassports[0].generalDetails.hospitalName || "Not specified"}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
+                    Next of Kin
+                  </div>
+                  <div className="mt-1 text-sm text-gray-900 font-medium">
+                    {hospitalPassports[0].generalDetails.nextOfKinName || "Not specified"}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
+                    Emergency Contact
+                  </div>
+                  <div className="mt-1 text-sm text-gray-900 font-medium">
+                    {hospitalPassports[0].generalDetails.nextOfKinPhone || "Not specified"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Show generate passport button when no passport exists
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
+              <div className="flex flex-col items-center">
+                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                  <FileText className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Hospital Passport</h3>
+                <p className="text-sm text-gray-600 mb-4 max-w-md">
+                  Generate a Hospital Passport to have quick access to essential patient information for emergency transfers.
+                </p>
+                <Button
+                  onClick={() => setIsTransferDialogOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 text-base"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Generate Hospital Passport
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+
 
       {/* Recent Transfer Logs */}
       <Card>

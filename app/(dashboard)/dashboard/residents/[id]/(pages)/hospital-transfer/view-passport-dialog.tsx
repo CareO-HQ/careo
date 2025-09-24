@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,13 +20,14 @@ interface ViewPassportDialogProps {
   resident?: any;
 }
 
-export function ViewPassportDialog({
+function ViewPassportDialogComponent({
   open,
   onOpenChange,
   passport,
   resident
 }: ViewPassportDialogProps) {
-  if (!passport) return null;
+  // Early return if dialog is not open to prevent unnecessary renders
+  if (!open || !passport) return null;
 
   const formatDateTime = (dateTimeString: string) => {
     try {
@@ -400,3 +402,6 @@ export function ViewPassportDialog({
     </Dialog>
   );
 }
+
+// Export memoized component to prevent unnecessary re-renders
+export const ViewPassportDialog = React.memo(ViewPassportDialogComponent);
