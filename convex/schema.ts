@@ -1722,6 +1722,14 @@ export default defineSchema({
       riskAssessment: v.boolean(),
       other: v.optional(v.string()),
     })),
+    medicationChanges: v.optional(v.object({
+      medicationsAdded: v.boolean(),
+      addedMedications: v.optional(v.string()),
+      medicationsRemoved: v.boolean(),
+      removedMedications: v.optional(v.string()),
+      medicationsModified: v.boolean(),
+      modifiedMedications: v.optional(v.string()),
+    })),
 
     // Metadata
     organizationId: v.string(),

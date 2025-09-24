@@ -49,6 +49,7 @@ import { useRouter } from "next/navigation";
 import { HospitalPassportDialog } from "./hospital-passport-dialog";
 import { ViewPassportDialog } from "./view-passport-dialog";
 import { TransferLogDialog } from "./transfer-log-dialog";
+import { ViewTransferLogDialog } from "./view-transfer-log-dialog";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
@@ -200,9 +201,11 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [isViewPassportDialogOpen, setIsViewPassportDialogOpen] = React.useState(false);
   const [isTransferLogDialogOpen, setIsTransferLogDialogOpen] = React.useState(false);
   const [isEditTransferLogDialogOpen, setIsEditTransferLogDialogOpen] = React.useState(false);
+  const [isViewTransferLogDialogOpen, setIsViewTransferLogDialogOpen] = React.useState(false);
   const [selectedPassport, setSelectedPassport] = React.useState<any>(null);
   const [editingPassport, setEditingPassport] = React.useState<any>(null);
   const [editingTransferLog, setEditingTransferLog] = React.useState<any>(null);
+  const [selectedTransferLog, setSelectedTransferLog] = React.useState<any>(null);
 
   // Confirmation dialog states - separate states to prevent conflicts
   const [showDeletePassportDialog, setShowDeletePassportDialog] = React.useState(false);
@@ -938,31 +941,44 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Handler for creating/updating transfer log
   const handleTransferLogSubmit = async (data: any) => {
+    console.log('=== Transfer Log Submit Debug ===');
+    console.log('Data received:', data);
+    console.log('activeOrganization:', activeOrganization);
+    console.log('user:', user);
+    console.log('resident:', resident);
+    console.log('isCreating:', isCreating);
+    console.log('isUpdating:', isUpdating);
+    console.log('editingTransferLog:', editingTransferLog);
+
     // Validation checks
     if (!data?.date || !data?.hospitalName || !data?.reason) {
+      console.log('Validation failed: missing required fields');
       toast.error("Please fill in all required fields");
-      return;
+      throw new Error("Missing required fields");
     }
 
     if (!activeOrganization?.id || !user?.user?.id) {
+      console.log('Validation failed: authentication error');
       toast.error("Authentication error. Please refresh the page and try again.");
-      return;
+      throw new Error("Authentication error");
     }
 
     if (!resident?._id) {
+      console.log('Validation failed: resident not found');
       toast.error("Resident information not found. Please refresh the page.");
-      return;
+      throw new Error("Resident not found");
     }
 
     if (isCreating || isUpdating) {
-      return; // Prevent multiple submissions
+      console.log('Validation failed: operation in progress');
+      throw new Error("Operation already in progress"); // Prevent multiple submissions
     }
 
     try {
       if (editingTransferLog) {
         if (!editingTransferLog._id) {
           toast.error("Invalid transfer log selected for editing");
-          return;
+          throw new Error("Invalid transfer log");
         }
 
         setIsUpdating(true);
@@ -993,9 +1009,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         setIsEditTransferLogDialogOpen(false);
         setEditingTransferLog(null);
       } else {
+        console.log('Creating new transfer log...');
         setIsCreating(true);
 
-        await createTransferLogMutation({
+        const result = await createTransferLogMutation({
           residentId: residentId,
           date: data.date,
           hospitalName: data.hospitalName.trim(),
@@ -1020,6 +1037,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           createdBy: user.user.id,
         });
 
+        console.log('Transfer log created successfully:', result);
         toast.success("Transfer log added successfully");
         setIsTransferLogDialogOpen(false);
       }
@@ -1082,6 +1100,16 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Handler for viewing transfer log
+  const handleViewTransferLog = (transferLog: any) => {
+    if (!transferLog?._id) {
+      toast.error("Invalid transfer log selected");
+      return;
+    }
+    setSelectedTransferLog(transferLog);
+    setIsViewTransferLogDialogOpen(true);
   };
 
   // Handler for editing existing passport
@@ -1457,7 +1485,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
             <div className="flex flex-col space-y-3">
-          
+
               <Button
                 variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
@@ -1500,15 +1528,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
             <div className="flex items-center gap-2">
-       
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-                className="flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Transfer History
-              </Button>
               <Button
                 className=" bg-green-500 hover:bg-green-700 text-white"
                 onClick={() => setIsTransferLogDialogOpen(true)}
@@ -1516,6 +1535,14 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               >
                 <Ambulance className="w-6 h-6 mr-3" />
                 Add Transfer Log
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
+                className="flex items-center space-x-2"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Transfer History
               </Button>
             </div>
           </div>
@@ -1544,7 +1571,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 {resident.gpPhone || "No phone number"}
               </p>
             </div>
-            
+
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="flex items-center space-x-2 mb-2">
                 <User className="w-4 h-4 text-green-600" />
@@ -1583,11 +1610,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                         <span className="text-xs text-red-800">•</span>
                         <span className="text-xs text-red-800 truncate">{riskText}</span>
                         {riskLevel && (
-                          <Badge variant="outline" className={`text-[10px] px-1 py-0 h-4 ${
-                            riskLevel === 'high' ? 'bg-red-100 text-red-700 border-red-300' :
-                            riskLevel === 'medium' ? 'bg-orange-100 text-orange-700 border-orange-300' :
-                            'bg-yellow-100 text-yellow-700 border-yellow-300'
-                          }`}>
+                          <Badge variant="outline" className={`text-[10px] px-1 py-0 h-4 ${riskLevel === 'high' ? 'bg-red-100 text-red-700 border-red-300' :
+                              riskLevel === 'medium' ? 'bg-orange-100 text-orange-700 border-orange-300' :
+                                'bg-yellow-100 text-yellow-700 border-yellow-300'
+                            }`}>
                             {riskLevel}
                           </Badge>
                         )}
@@ -1617,19 +1643,30 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         <CardContent>
           {hospitalPassports && hospitalPassports.length > 0 ? (
             // Show the single passport for this resident
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
-              {/* Passport Header */}
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center space-x-4">
-                  {/* Passport Photo */}
-                  <div className="relative">
-                    <Avatar className="w-20 h-20 border-4 border-white shadow-lg">
+            <div className="bg-white border-2 border-gray-200 rounded-lg shadow-sm overflow-hidden max-w-sm mx-auto">
+              {/* NHS Header - Compact */}
+              <div className="bg-blue-500 text-white p-3 text-center">
+                <img
+                  src="https://logodownload.org/wp-content/uploads/2021/04/nhs-logo-3.png"
+                  alt="NHS Logo"
+                  className="w-12 h-auto mx-auto mb-1 bg-white rounded p-1"
+                />
+                <h2 className="text-sm font-bold">HOSPITAL PASSPORT</h2>
+                <p className="text-xs opacity-90">National Health Service</p>
+              </div>
+
+              {/* Patient Photo and Basic Info - Compact */}
+              <div className="p-4">
+                <div className="flex flex-col items-center mb-4">
+                  {/* Passport Photo - Smaller */}
+                  <div className="relative mb-3">
+                    <Avatar className="w-20 h-20 border-2 border-gray-300 shadow-md">
                       <AvatarImage
                         src={resident.imageUrl}
                         alt={fullName}
                         className="object-cover"
                       />
-                      <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xl font-bold">
+                      <AvatarFallback className="bg-gray-100 text-gray-700 text-lg font-bold">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
@@ -1638,62 +1675,58 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     </div>
                   </div>
 
-                  {/* Basic Info */}
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">{fullName}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-600">Room:</span>
-                        <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-                          {resident.roomNumber || "N/A"}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-600">Age:</span>
-                        <span className="text-gray-800">{currentAge} years</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-600">NHS:</span>
-                        <span className="text-gray-800 font-mono text-xs">
-                          {resident?.nhsHealthNumber || "Not specified"}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-600">DOB:</span>
-                        <span className="text-gray-800">
-                          {resident?.dateOfBirth
-                            ? (() => {
-                                try {
-                                  return new Date(resident.dateOfBirth).toLocaleDateString();
-                                } catch {
-                                  return "Invalid date";
-                                }
-                              })()
-                            : "Not specified"}
-                        </span>
-                      </div>
-                    </div>
+                  {/* Patient Name - Smaller */}
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">{fullName}</h3>
 
-                    {/* Passport Info */}
-                    <div className="mt-3 pt-3 border-t border-indigo-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-xs text-indigo-700">
-                          <span className="font-medium">Passport Created:</span>{" "}
-                          {new Date(hospitalPassports[0].createdAt).toLocaleDateString()}
-                        </div>
-        
-                      </div>
-                    
+                  {/* Key Information Grid - Compact */}
+                  <div className="w-full space-y-2">
+                    <div className="flex justify-between border-b border-gray-200 pb-1">
+                      <span className="font-medium text-gray-600 text-xs">NHS:</span>
+                      <span className="text-gray-900 font-mono text-xs">
+                        {resident?.nhsHealthNumber || "Not specified"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b border-gray-200 pb-1">
+                      <span className="font-medium text-gray-600 text-xs">DOB:</span>
+                      <span className="text-gray-900 text-xs">
+                        {resident?.dateOfBirth
+                          ? (() => {
+                            try {
+                              return new Date(resident.dateOfBirth).toLocaleDateString();
+                            } catch {
+                              return "Invalid date";
+                            }
+                          })()
+                          : "Not specified"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b border-gray-200 pb-1">
+                      <span className="font-medium text-gray-600 text-xs">Age:</span>
+                      <span className="text-gray-900 text-xs">{currentAge} years</span>
+                    </div>
+                    <div className="flex justify-between border-b border-gray-200 pb-1">
+                      <span className="font-medium text-gray-600 text-xs">Room:</span>
+                      <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-1 py-0 h-4">
+                        {resident.roomNumber || "N/A"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Passport Info - Smaller */}
+                  <div className="mt-3 pt-2 border-t border-gray-200 text-center">
+                    <div className="text-xs text-gray-500">
+                      <span className="font-medium">Created:</span>{" "}
+                      {new Date(hospitalPassports[0].createdAt).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-col space-y-2 ml-4">
+                {/* Action Buttons - Compact */}
+                <div className="flex items-center justify-center space-x-1 pt-2 border-t border-gray-200">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
                     onClick={() => {
                       // Create dynamic passport with current resident data for viewing
                       const dynamicPassportForView = {
@@ -1721,76 +1754,39 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     }}
                     disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
-                    <Eye className="w-4 h-4 mr-2" />
+                    <Eye className="w-3 h-3 mr-1" />
                     View
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
                     onClick={() => handleEditPassport(hospitalPassports[0])}
                     disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
-                    <Edit className="w-4 h-4 mr-2" />
+                    <Edit className="w-3 h-3 mr-1" />
                     Edit
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
                     onClick={() => handlePrintPassport(hospitalPassports[0])}
                     disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
-                    <Printer className="w-4 h-4 mr-2" />
+                    <Printer className="w-3 h-3 mr-1" />
                     Print
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
                     onClick={() => handleDeletePassport(hospitalPassports[0])}
                     disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                   >
-                    <Trash2 className="w-4 h-4 mr-2" />
+                    <Trash2 className="w-3 h-3 mr-1" />
                     Delete
                   </Button>
-                </div>
-              </div>
-
-              {/* Quick Info Grid - Shows Current Resident Data */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-indigo-200">
-                <div className="text-center">
-                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
-                    GP Contact
-                  </div>
-                  <div className="mt-1 text-sm text-gray-900 font-medium">
-                    {resident?.gpName || "Not specified"}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {resident?.gpPhone || "No phone"}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
-                    Next of Kin
-                  </div>
-                  <div className="mt-1 text-sm text-gray-900 font-medium">
-                    {resident?.emergencyContacts?.[0]?.name || "Not specified"}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {resident?.emergencyContacts?.[0]?.phoneNumber || "No phone"}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wide">
-                    Care Manager
-                  </div>
-                  <div className="mt-1 text-sm text-gray-900 font-medium">
-                    {resident?.careManagerName || "Not specified"}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {resident?.careManagerPhone || "No phone"}
-                  </div>
                 </div>
               </div>
             </div>
@@ -1872,50 +1868,65 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                           Transfer
                         </Badge>
                       </div>
-                      <p className="text-gray-600 text-sm mb-2">{log.reason}</p>
+                      <p className="text-gray-600 text-sm mb-3">{log.reason}</p>
 
-                      {/* Medication Changes Display */}
+                      {/* Files Changed Display */}
+                      {log.filesChanged && (log.filesChanged.carePlan || log.filesChanged.riskAssessment || log.filesChanged.other) && (
+                        <div className="mb-2">
+                          <div className="flex items-center flex-wrap gap-1 text-xs">
+                            <span className="text-gray-500 font-medium mr-1">Files Updated:</span>
+                            {log.filesChanged.carePlan && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                <FileText className="w-3 h-3 mr-1" />
+                                Care Plan
+                              </Badge>
+                            )}
+                            {log.filesChanged.riskAssessment && (
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                <FileText className="w-3 h-3 mr-1" />
+                                Risk Assessment
+                              </Badge>
+                            )}
+                            {log.filesChanged.other && (
+                              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                <FileText className="w-3 h-3 mr-1" />
+                                {log.filesChanged.other.split(',').map((item: string) => item.trim()).join(',')}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Medication Changes Display - Inline */}
                       {log.medicationChanges && (
                         log.medicationChanges.medicationsAdded ||
                         log.medicationChanges.medicationsRemoved ||
                         log.medicationChanges.medicationsModified
                       ) && (
-                        <div className="mb-2 space-y-1">
-                          {log.medicationChanges.medicationsAdded && (
-                            <div className="flex items-center text-xs">
-                              <Badge variant="outline" className="mr-2 bg-green-50 text-green-700 border-green-200">
-                                <Pill className="w-3 h-3 mr-1" />
-                                Added
-                              </Badge>
-                              <span className="text-green-700 font-medium">
-                                {log.medicationChanges.addedMedications || "Medications added"}
-                              </span>
+                          <div className="mb-2">
+                            <div className="flex items-center flex-wrap gap-1 text-xs">
+                              <span className="text-gray-500 font-medium mr-1">Medications:</span>
+                              {log.medicationChanges.medicationsAdded && (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  <Pill className="w-3 h-3 mr-1" />
+                                  Added
+                                </Badge>
+                              )}
+                              {log.medicationChanges.medicationsRemoved && (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                  <Pill className="w-3 h-3 mr-1" />
+                                  Removed
+                                </Badge>
+                              )}
+                              {log.medicationChanges.medicationsModified && (
+                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                  <Pill className="w-3 h-3 mr-1" />
+                                  Modified
+                                </Badge>
+                              )}
                             </div>
-                          )}
-                          {log.medicationChanges.medicationsRemoved && (
-                            <div className="flex items-center text-xs">
-                              <Badge variant="outline" className="mr-2 bg-red-50 text-red-700 border-red-200">
-                                <Pill className="w-3 h-3 mr-1" />
-                                Removed
-                              </Badge>
-                              <span className="text-red-700 font-medium">
-                                {log.medicationChanges.removedMedications || "Medications removed"}
-                              </span>
-                            </div>
-                          )}
-                          {log.medicationChanges.medicationsModified && (
-                            <div className="flex items-center text-xs">
-                              <Badge variant="outline" className="mr-2 bg-orange-50 text-orange-700 border-orange-200">
-                                <Pill className="w-3 h-3 mr-1" />
-                                Modified
-                              </Badge>
-                              <span className="text-orange-700 font-medium">
-                                {log.medicationChanges.modifiedMedications || "Medications modified"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        )}
 
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center">
@@ -1935,25 +1946,35 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-col space-y-2 mt-2 md:mt-0 md:ml-4">
+                  <div className="flex items-center space-x-1 mt-2 md:mt-0 md:ml-4">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                      className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
+                      onClick={() => handleViewTransferLog(log)}
+                      disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                    >
+                      <Eye className="w-3 h-3 mr-1" />
+                      View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
                       onClick={() => handleEditTransferLog(log)}
                       disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                     >
-                      <Edit className="w-4 h-4 mr-2" />
+                      <Edit className="w-3 h-3 mr-1" />
                       Edit
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
                       onClick={() => handleDeleteTransferLog(log)}
                       disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
+                      <Trash2 className="w-3 h-3 mr-1" />
                       Delete
                     </Button>
                   </div>
@@ -2033,8 +2054,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         onOpenChange={(open) => {
           setIsTransferLogDialogOpen(open);
           if (!open) {
-            // Reset any form state when dialog is closed
-            // No specific form state to reset for this dialog
+            // No specific cleanup needed for new dialog
           }
         }}
         onSubmit={handleTransferLogSubmit}
@@ -2055,6 +2075,21 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         residentName={fullName}
         transferLog={editingTransferLog}
         isEditMode={true}
+      />
+
+      {/* View Transfer Log Dialog */}
+      <ViewTransferLogDialog
+        open={isViewTransferLogDialogOpen}
+        onOpenChange={(open) => {
+          setIsViewTransferLogDialogOpen(open);
+          if (!open) {
+            // Clean up selected transfer log when dialog is closed
+            setSelectedTransferLog(null);
+          }
+        }}
+        transferLog={selectedTransferLog}
+        residentName={fullName}
+        currentUser={user}
       />
 
       {/* Delete Passport Confirmation Dialog */}
@@ -2122,7 +2157,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             </AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this transfer log? This action cannot be undone.
-          
+
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
