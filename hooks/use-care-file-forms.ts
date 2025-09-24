@@ -49,6 +49,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const admissionAssessments = useQuery(
+    api.careFiles.admission.getAdmissionAssessmentsByResident,
+    { residentId }
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -64,6 +69,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
   const latestLongTermFallsAssessment = longTermFallsAssessment;
+  const latestAdmissionAssessment = admissionAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
 
   const preAdmissionPdfUrl = useQuery(
     api.careFiles.preadmission.getPDFUrl,
@@ -98,6 +106,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const admissionPdfUrl = useQuery(
+    api.careFiles.admission.getPDFUrl,
+    latestAdmissionAssessment
+      ? { assessmentId: latestAdmissionAssessment._id }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -110,13 +125,15 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ids.push(latestMovingHandlingAssessment._id);
     if (latestLongTermFallsAssessment)
       ids.push(latestLongTermFallsAssessment._id);
+    if (latestAdmissionAssessment) ids.push(latestAdmissionAssessment._id);
     return ids;
   }, [
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
-    latestLongTermFallsAssessment
+    latestLongTermFallsAssessment,
+    latestAdmissionAssessment
   ]);
 
   const auditStatus = useQuery(
@@ -141,6 +158,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log("  bladderBowelAssessments:", bladderBowelAssessments);
   console.log("  movingHandlingAssessments:", movingHandlingAssessments);
   console.log("  longTermFallsAssessment:", longTermFallsAssessment);
+  console.log("  admissionAssessments:", admissionAssessments);
   console.log("formIds:", formIds);
   console.log("auditStatus:", auditStatus);
   console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
@@ -160,6 +178,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     "latestLongTermFallsAssessment ID:",
     latestLongTermFallsAssessment?._id
   );
+  console.log("latestAdmissionAssessment ID:", latestAdmissionAssessment?._id);
 
   // Helper function to determine form status
   const getFormStatus = (
@@ -170,8 +189,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   ): CareFileFormStatus => {
     if (!hasData) return "not-started";
     if (savedAsDraft) return "in-progress";
+    // If we have a valid PDF URL, consider it completed even if pdfFileId isn't synced yet
+    if (pdfUrl) return "completed";
     if (!hasPdfFileId) return "pdf-generating";
-    if (hasPdfFileId && !pdfUrl) return "pdf-generating";
     return "completed";
   };
 
@@ -337,8 +357,39 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: longTermFallsAudit?.auditedBy
     };
 
+    // Admission assessment
+    const hasAdmissionData = !!latestAdmissionAssessment;
+    const admissionHasPdfFileId = !!latestAdmissionAssessment?.pdfFileId;
+    const admissionAudit = latestAdmissionAssessment
+      ? auditStatus?.[latestAdmissionAssessment._id as string]
+      : undefined;
+
+    console.log("Admission audit lookup:");
+    console.log("  Form ID:", latestAdmissionAssessment?._id);
+    console.log("  Audit found:", admissionAudit);
+    console.log("  Is audited:", admissionAudit?.isAudited);
+
+    state["admission-form"] = {
+      status: getFormStatus(
+        hasAdmissionData,
+        latestAdmissionAssessment?.status === "draft",
+        admissionHasPdfFileId,
+        admissionPdfUrl
+      ),
+      hasData: hasAdmissionData,
+      hasPdfFileId: admissionHasPdfFileId,
+      pdfUrl: admissionPdfUrl,
+      lastUpdated: latestAdmissionAssessment?._creationTime,
+      completedAt:
+        latestAdmissionAssessment?.status !== "draft"
+          ? latestAdmissionAssessment?.submittedAt
+          : undefined,
+      isAudited: admissionAudit?.isAudited || false,
+      auditedAt: admissionAudit?.auditedAt,
+      auditedBy: admissionAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
-    // state["admission-form"] = { ... };
     // state["discharge-form"] = { ... };
 
     return state;
@@ -348,11 +399,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
     latestLongTermFallsAssessment,
+    latestAdmissionAssessment,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
     movingHandlingPdfUrl,
     longTermFallsPdfUrl,
+    admissionPdfUrl,
     auditStatus
   ]);
 
@@ -378,7 +431,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
 
   const canDownloadPdf = (formKey: CareFileFormKey): boolean => {
     const state = getFormState(formKey);
-    return state.hasPdfFileId === true && !!state.pdfUrl;
+    return !!state.pdfUrl;
   };
 
   const areAllFormsCompleted = (formKeys: CareFileFormKey[]): boolean => {
@@ -420,6 +473,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
-    latestLongTermFallsAssessment
+    latestLongTermFallsAssessment,
+    latestAdmissionAssessment,
+    // All assessments for reference
+    admissionAssessments
   };
 }

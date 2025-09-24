@@ -158,3 +158,99 @@ export const longTermFallsRiskAssessments = defineTable({
   savedAsDraft: v.optional(v.boolean()),
   createdBy: v.string()
 });
+
+export const admissionAssesments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  firstName: v.string(),
+  lastName: v.string(),
+  dateOfBirth: v.number(),
+  bedroomNumber: v.string(),
+  admittedFrom: v.optional(v.string()),
+  religion: v.optional(v.string()),
+  telephoneNumber: v.optional(v.string()),
+  gender: v.optional(v.union(v.literal("MALE"), v.literal("FEMALE"))),
+  NHSNumber: v.string(),
+  ethnicity: v.optional(v.string()),
+
+  // Next of kin
+  kinFirstName: v.string(),
+  kinLastName: v.string(),
+  kinRelationship: v.string(),
+  kinTelephoneNumber: v.string(),
+  kinAddress: v.string(),
+  kinEmail: v.string(),
+
+  // Emergency contacts
+  emergencyContactName: v.string(),
+  emergencyContactTelephoneNumber: v.string(),
+  emergencyContactRelationship: v.string(),
+  emergencyContactPhoneNumber: v.string(),
+
+  // Care manager
+  careManagerName: v.optional(v.string()),
+  careManagerTelephoneNumber: v.optional(v.string()),
+  careManagerRelationship: v.optional(v.string()),
+  careManagerPhoneNumber: v.optional(v.string()),
+  careManagerAddress: v.optional(v.string()),
+  careManagerJobRole: v.optional(v.string()),
+
+  // GP
+  GPName: v.optional(v.string()),
+  GPAddress: v.optional(v.string()),
+  GPPhoneNumber: v.optional(v.string()),
+
+  // Allergies
+  allergies: v.optional(v.string()),
+
+  // Medications
+  medicalHistory: v.optional(v.string()),
+
+  // Prescribed medications
+  prescribedMedications: v.optional(v.string()),
+
+  //
+  consentCapacityRights: v.optional(v.string()),
+  medication: v.optional(v.string()),
+
+  // Skin integrity
+  skinIntegrityEquipment: v.optional(v.string()),
+  skinIntegrityWounds: v.optional(v.string()),
+
+  // Sleep
+  bedtimeRoutine: v.optional(v.string()),
+
+  // Infection control
+  currentInfection: v.optional(v.string()),
+  antibioticsPrescribed: v.boolean(),
+
+  // Breathing
+  prescribedBreathing: v.optional(v.string()),
+
+  // Mobility
+  mobilityIndependent: v.boolean(),
+  assistanceRequired: v.optional(v.string()),
+  equipmentRequired: v.optional(v.string()),
+
+  // Nutrition
+  weight: v.string(),
+  height: v.string(),
+  iddsiFood: v.string(),
+  iddsiFluid: v.string(),
+  dietType: v.string(),
+  nutritionalSupplements: v.optional(v.string()),
+  nutritionalAssistanceRequired: v.optional(v.string()),
+  chockingRisk: v.boolean(),
+  additionalComments: v.optional(v.string()),
+
+  // Continence
+  continence: v.optional(v.string()),
+
+  // Hygiene
+  hygiene: v.optional(v.string())
+});

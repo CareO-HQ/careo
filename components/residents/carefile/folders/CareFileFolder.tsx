@@ -18,7 +18,6 @@ import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useMutation, useQuery, useAction } from "convex/react";
 import {
-  BookOpenCheckIcon,
   DownloadIcon,
   Edit2,
   FileIcon,
@@ -39,8 +38,10 @@ import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
 import CarePlanDialog from "../dialogs/CarePlanDialog";
 import EmailPDF from "../EmailPDF";
 import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
+import AdmissionDialog from "../dialogs/AdmissionDialog";
 
 interface CareFileFolderProps {
+  index: number;
   folderName: string;
   carePlan: boolean;
   description: string;
@@ -56,6 +57,7 @@ interface CareFileFolderProps {
 }
 
 export default function CareFileFolder({
+  index,
   folderName,
   carePlan,
   description,
@@ -146,6 +148,13 @@ export default function CareFileFolder({
           residentId: residentId as Id<"residents">,
           organizationId: activeOrg?.id ?? ""
         }
+      : "skip"
+  );
+
+  const allAdmissionForms = useQuery(
+    api.careFiles.admission.getAdmissionAssessmentsByResident,
+    folderFormKeys.includes("admission-form") && residentId
+      ? { residentId }
       : "skip"
   );
 
@@ -246,6 +255,22 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Admission forms
+    if (allAdmissionForms) {
+      const sortedForms = [...allAdmissionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "admission-form",
+          formId: form._id,
+          name: "Admission Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -274,7 +299,8 @@ export default function CareFileFolder({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
-    allLongTermFallsForms
+    allLongTermFallsForms,
+    allAdmissionForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -304,7 +330,9 @@ export default function CareFileFolder({
                 ? api.careFiles.longTermFalls.getPDFUrl
                 : file.formKey === "care-plan-form"
                   ? api.careFiles.carePlan.getPDFUrl
-                  : ("skip" as any),
+                  : file.formKey === "admission-form"
+                    ? api.careFiles.admission.getPDFUrl
+                    : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -322,7 +350,9 @@ export default function CareFileFolder({
                   }
                 : file.formKey === "care-plan-form"
                   ? { assessmentId: file.formId as Id<"carePlanAssessments"> }
-                  : "skip"
+                  : file.formKey === "admission-form"
+                    ? { assessmentId: file.formId as Id<"admissionAssesments"> }
+                    : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -561,6 +591,8 @@ export default function CareFileFolder({
           switch (key) {
             case "preAdmission-form":
               return `pre-admission-form-${baseName}.pdf`;
+            case "admission-form":
+              return `admission-form-${baseName}.pdf`;
             case "infection-prevention":
               return `infection-prevention-assessment-${baseName}.pdf`;
             case "blader-bowel-form":
@@ -571,6 +603,8 @@ export default function CareFileFolder({
               return `long-term-falls-assessment-${baseName}.pdf`;
             case "care-plan-form":
               return `care-plan-assessment-${baseName}.pdf`;
+            case "admission-form":
+              return `admission-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -713,7 +747,8 @@ export default function CareFileFolder({
       bladderBowelAssessment: "blader-bowel-form",
       preAdmissionCareFile: "preAdmission-form",
       carePlanAssessment: "care-plan-form",
-      longTermFallsRiskAssessment: "long-term-fall-risk-form"
+      longTermFallsRiskAssessment: "long-term-fall-risk-form",
+      admissionAssesment: "admission-form"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -728,7 +763,8 @@ export default function CareFileFolder({
       bladderBowelAssessment: "Bladder & Bowel Assessment",
       movingHandlingAssessment: "Moving & Handling Assessment",
       longTermFallsRiskAssessment: "Long Term Falls Risk Assessment",
-      carePlanAssessment: "Care Plan Assessment"
+      carePlanAssessment: "Care Plan Assessment",
+      admissionAssesment: "Admission Assessment"
     };
     return mapping[formType] || formType;
   };
@@ -759,6 +795,22 @@ export default function CareFileFolder({
             organizationId={activeOrg?.id ?? ""}
             careHomeName={activeOrg?.name ?? ""}
             resident={resident}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+      case "admission-form":
+        return (
+          <AdmissionDialog
+            resident={resident}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            residentId={residentId}
             initialData={editData}
             isEditMode={isReviewMode}
             onClose={() => {
@@ -859,8 +911,11 @@ export default function CareFileFolder({
           <div className="w-full flex flex-row justify-between items-center gap-2 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-1 group">
             <div className="flex flex-row items-center gap-2">
               <FolderIcon className="size-4 text-muted-foreground/70 group-hover:text-primary" />
-              <p className="text-primary">{folderName}</p>
-              {forms?.length && (
+
+              <p className="text-primary">
+                {index + 1}. {folderName}
+              </p>
+              {forms && forms.length >= 1 && (
                 <p className="text-muted-foreground text-xs">
                   {forms?.length} {forms?.length === 1 ? "form" : "forms"}
                 </p>
