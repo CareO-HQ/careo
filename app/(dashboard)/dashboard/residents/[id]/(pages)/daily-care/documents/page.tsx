@@ -33,14 +33,12 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { DateSectionSkeleton, ReportDialogSkeleton } from "@/components/ui/skeleton-loaders";
-import { 
-  formatDateToLocal, 
-  getLocalHour, 
-  isNightShift, 
+import {
+  formatDateToLocal,
+  isNightShift,
   isDayShift,
-  formatTimeTo12Hour,
   getYesterdayDate,
-  formatDateForDisplay 
+  formatDateForDisplay
 } from "@/lib/date-utils";
 
 type DocumentsPageProps = {
@@ -55,9 +53,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     date: string;
     activities: any[];
   } | null>(null);
-  const [dateFilter, setDateFilter] = React.useState<string>("");
+  const [dateFilter] = React.useState<string>("");
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>();
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
@@ -94,23 +92,23 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   // Filter dates based on search
   const filteredDates = React.useMemo(() => {
     if (!availableDates) return [];
-    
+
     let filtered = availableDates;
-    
+
     // Filter by text search
     if (dateFilter) {
-      filtered = filtered.filter(date => 
-        date.includes(dateFilter) || 
+      filtered = filtered.filter(date =>
+        date.includes(dateFilter) ||
         new Date(date).toLocaleDateString().includes(dateFilter)
       );
     }
-    
+
     // Filter by calendar selection
     if (selectedDate) {
       const selectedDateString = formatDateToLocal(selectedDate);
       filtered = filtered.filter(date => date === selectedDateString);
     }
-    
+
     return filtered;
   }, [availableDates, dateFilter, selectedDate]);
 
@@ -229,16 +227,16 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
       <div class="activities">
         <h2>Activities Log</h2>
-        ${report.activities && report.activities.length > 0 
-          ? report.activities.map((activity: any) => `
+        ${report.activities && report.activities.length > 0
+        ? report.activities.map((activity: any) => `
               <div class="activity-item">
                 <div class="activity-content">
                   <h4>${activity.taskType}</h4>
                   <div class="time">
-                    ${activity.completedAt 
-                      ? `Completed at: ${new Date(activity.completedAt).toLocaleTimeString()}`
-                      : 'Time: Pending'
-                    }
+                    ${activity.completedAt
+            ? `Completed at: ${new Date(activity.completedAt).toLocaleTimeString()}`
+            : 'Time: Pending'
+          }
                   </div>
                   ${activity.notes ? `<div class="notes">Notes: ${activity.notes}</div>` : ''}
                 </div>
@@ -247,12 +245,12 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 </div>
               </div>
             `).join('')
-          : `
+        : `
               <div style="text-align: center; padding: 40px; color: #64748B;">
                 <p>No activities logged for this ${type} shift.</p>
               </div>
             `
-        }
+      }
       </div>
 
       <div class="footer">
@@ -428,7 +426,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    
+
     // Auto-trigger print dialog
     printWindow.onload = () => {
       setTimeout(() => {
@@ -548,374 +546,379 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
         <>
           <div className="space-y-6">
             {paginatedDates.map((date) => (
-            <div key={date} className="space-y-3">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center space-x-2">
-                <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm sm:text-base">
-                  {formatDateForDisplay(date)}
-                </span>
-              </h2>
+              <div key={date} className="space-y-3">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center space-x-2">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="text-sm sm:text-base">
+                    {formatDateForDisplay(date)}
+                  </span>
+                </h2>
 
-              <div className="space-y-4 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-4 sm:space-y-0">
-                {/* Day Report Card */}
-                <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="">
-                    <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
-                      {/* Icon and Text */}
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-50 rounded-md">
-                          <Sun className="w-5 h-5 text-amber-600" />
+                <div className="space-y-4 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-4 sm:space-y-0">
+                  {/* Day Report Card */}
+                  <Card className="cursor-pointer shadow-none w-full">
+                    <CardContent className="">
+                      <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
+                        {/* Icon and Text */}
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-amber-50 rounded-md">
+                            <Sun className="w-5 h-5 text-amber-600" />
+                          </div>
+                          <div>
+                            {/* <h3 className="font-semibold text-sm sm:text-base">Day Report</h3> */}
+                            <p className="text-xs sm:text-sm text-muted-foreground">8:00 AM - 8:00 PM</p>
+                            {/* <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p> */}
+                          </div>
                         </div>
-                        <div>
-                          {/* <h3 className="font-semibold text-sm sm:text-base">Day Report</h3> */}
-                          <p className="text-xs sm:text-sm text-muted-foreground">8:00 AM - 8:00 PM</p>
-                          {/* <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p> */}
-                        </div>
-                      </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'day')} className="flex items-center text-xs sm:text-sm px-2 py-1">
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center space-x-2">
-                                <Sun className="w-5 h-5 text-amber-600" />
-                                <span className="text-sm sm:text-base">Day Report - {new Date(date).toLocaleDateString()}</span>
-                              </DialogTitle>
-                              <DialogDescription>
-                                All activities logged from 8:00 AM to 8:00 PM
-                              </DialogDescription>
-                            </DialogHeader>
-                            
-                            <div className="space-y-4">
-                              {selectedReport?.type === 'day' && selectedReport?.date === date && (
-                                selectedReportData === undefined ? (
-                                  <ReportDialogSkeleton />
-                                ) : (
-                                  <div className="space-y-3">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                      <div>
-                                        <h4 className="font-medium text-amber-800">Shift Period</h4>
-                                        <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-amber-800">Total Activities</h4>
-                                        <p className="text-sm text-amber-700">{(() => {
-                                          // Filter day shift activities (8am-8pm)
-                                          const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => 
-                                            isDayShift(task.createdAt)
-                                          );
-                                          return dayActivities.length;
-                                        })()}</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-amber-800">Completion Rate</h4>
-                                        <p className="text-sm text-amber-700">
-                                          {(() => {
-                                            const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => 
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'day')} className="flex items-center text-xs sm:text-sm px-2 py-1">
+                                <Eye className="w-3 h-3 mr-1" />
+                                View
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center space-x-2">
+                                  <Sun className="w-5 h-5 text-amber-600" />
+                                  <span className="text-sm sm:text-base">Day Report - {new Date(date).toLocaleDateString()}</span>
+                                </DialogTitle>
+                                <DialogDescription>
+                                  All activities logged from 8:00 AM to 8:00 PM
+                                </DialogDescription>
+                              </DialogHeader>
+
+                              <div className="space-y-4">
+                                {selectedReport?.type === 'day' && selectedReport?.date === date && (
+                                  selectedReportData === undefined ? (
+                                    <ReportDialogSkeleton />
+                                  ) : (
+                                    <div className="space-y-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                        <div>
+                                          <h4 className="font-medium text-amber-800">Shift Period</h4>
+                                          <p className="text-sm text-amber-700">8:00 AM - 8:00 PM</p>
+                                        </div>
+                                        <div>
+                                          <h4 className="font-medium text-amber-800">Total Activities</h4>
+                                          <p className="text-sm text-amber-700">{(() => {
+                                            // Filter day shift activities (8am-8pm)
+                                            const dayActivities = (selectedReportData?.tasks || []).filter((task: any) =>
                                               isDayShift(task.createdAt)
                                             );
-                                            return dayActivities.length > 0 
-                                              ? Math.round((dayActivities.filter((a: any) => a.status === 'completed').length / dayActivities.length) * 100)
-                                              : 0;
-                                          })()}%
-                                        </p>
+                                            return dayActivities.length;
+                                          })()}</p>
+                                        </div>
+                                        <div>
+                                          <h4 className="font-medium text-amber-800">Completion Rate</h4>
+                                          <p className="text-sm text-amber-700">
+                                            {(() => {
+                                              const dayActivities = (selectedReportData?.tasks || []).filter((task: any) =>
+                                                isDayShift(task.createdAt)
+                                              );
+                                              return dayActivities.length > 0
+                                                ? Math.round((dayActivities.filter((a: any) => a.status === 'completed').length / dayActivities.length) * 100)
+                                                : 0;
+                                            })()}%
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <h4 className="font-medium">Activities Log</h4>
+                                        {(() => {
+                                          const dayActivities = (selectedReportData?.tasks || []).filter((task: any) =>
+                                            isDayShift(task.createdAt)
+                                          );
+                                          return dayActivities.length > 0 ? (
+                                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                              {dayActivities.map((activity: any, index: number) => (
+                                                <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                                  <div className="flex justify-between items-start">
+                                                    <div>
+                                                      <p className="font-medium">{activity.taskType}</p>
+                                                      <p className="text-sm text-muted-foreground">
+                                                        {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                      </p>
+                                                      {activity.notes && (
+                                                        <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                                                      )}
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${activity.status === 'completed'
+                                                      ? 'bg-green-100 text-green-800'
+                                                      : 'bg-yellow-100 text-yellow-800'
+                                                      }`}>
+                                                      {activity.status}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
+                                          );
+                                        })()}
                                       </div>
                                     </div>
+                                  )
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
 
-                                    <div className="space-y-2">
-                                      <h4 className="font-medium">Activities Log</h4>
-                                      {(() => {
-                                        const dayActivities = (selectedReportData?.tasks || []).filter((task: any) => 
-                                          isDayShift(task.createdAt)
-                                        );
-                                        return dayActivities.length > 0 ? (
-                                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                                            {dayActivities.map((activity: any, index: number) => (
-                                            <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                                              <div className="flex justify-between items-start">
-                                                <div>
-                                                  <p className="font-medium">{activity.taskType}</p>
-                                                  <p className="text-sm text-muted-foreground">
-                                                    {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                                  </p>
-                                                  {activity.notes && (
-                                                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
-                                                  )}
-                                                </div>
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                  activity.status === 'completed' 
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-yellow-100 text-yellow-800'
-                                                }`}>
-                                                  {activity.status}
-                                                </span>
+                          <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'day')} className="flex items-center text-xs sm:text-sm px-2 py-1">
+                            <Download className="w-3 h-3 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  {/* Night Report Card */}
+                  <Card className="cursor-pointer shadow-none w-full">
+                    <CardContent className="">
+                      <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
+                        {/* Icon and Text */}
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-indigo-50 rounded-md">
+                            <Moon className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div>
+                            {/* <h3 className="font-semibold text-sm sm:text-base">Night Report</h3> */}
+                            <p className="text-xs sm:text-sm text-muted-foreground">8:00 PM - 8:00 AM</p>
+                            {/* <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p> */}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'night')} className="flex items-center text-xs sm:text-sm px-2 py-1">
+                                <Eye className="w-3 h-3 mr-1" />
+                                View
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center space-x-2">
+                                  <Moon className="w-5 h-5 text-indigo-600" />
+                                  <span className="text-sm sm:text-base">Night Report - {new Date(date).toLocaleDateString()}</span>
+                                </DialogTitle>
+                                <DialogDescription>
+                                  All activities logged from 8:00 PM to 8:00 AM
+                                </DialogDescription>
+                              </DialogHeader>
+
+                              <div className="space-y-4">
+                                {selectedReport?.type === 'night' && selectedReport?.date === date && (
+                                  selectedReportData === undefined ? (
+                                    <ReportDialogSkeleton />
+                                  ) : (
+                                    (() => {
+                                      // Combine today's and yesterday's data for night shift
+                                      const allNightActivities = [
+                                        ...(selectedReportData?.tasks || []),
+                                        ...(yesterdayReportData?.tasks || [])
+                                      ];
+
+                                      // Filter for night shift activities (8pm-8am)
+                                      const nightShiftActivities = allNightActivities.filter(activity =>
+                                        isNightShift(activity.createdAt)
+                                      );
+
+                                      // Separate personal care and daily activities
+                                      const personalCareActivities = nightShiftActivities.filter(activity =>
+                                        activity.taskType !== 'daily_activity_record'
+                                      );
+                                      const dailyActivities = nightShiftActivities.filter(activity =>
+                                        activity.taskType === 'daily_activity_record'
+                                      );
+
+                                      return (
+                                        <div className="space-y-3">
+                                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                            <div>
+                                              <h4 className="font-medium text-indigo-800">Shift Period</h4>
+                                              <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
+                                            </div>
+                                            <div>
+                                              <h4 className="font-medium text-indigo-800">Total Activities</h4>
+                                              <p className="text-sm text-indigo-700">{nightShiftActivities.length}</p>
+                                            </div>
+                                            <div>
+                                              <h4 className="font-medium text-indigo-800">Completion Rate</h4>
+                                              <p className="text-sm text-indigo-700">
+                                                {nightShiftActivities.length > 0
+                                                  ? Math.round((nightShiftActivities.filter((a: any) => a.status === 'completed').length / nightShiftActivities.length) * 100)
+                                                  : 0}%
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          {/* Personal Care Activities Section */}
+                                          <div className="space-y-2">
+                                            <div className="flex items-center space-x-2">
+                                              <div className="w-4 h-4 bg-blue-600 rounded"></div>
+                                              <h4 className="font-medium text-blue-900">Personal Care Activities</h4>
+                                              <span className="text-sm text-muted-foreground">({personalCareActivities.length})</span>
+                                            </div>
+                                            {personalCareActivities.length > 0 ? (
+                                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                {personalCareActivities
+                                                  .sort((a, b) => {
+                                                    const dateA = a.createdAt || a.completedAt || 0;
+                                                    const dateB = b.createdAt || b.completedAt || 0;
+                                                    return new Date(dateB).getTime() - new Date(dateA).getTime();
+                                                  })
+                                                  .map((activity: any, index: number) => (
+                                                    <div key={index} className="p-3 border border-blue-200 bg-blue-50/30 rounded-lg">
+                                                      <div className="flex justify-between items-start">
+                                                        <div>
+                                                          <p className="font-medium text-blue-900">{activity.taskType}</p>
+                                                          <p className="text-sm text-blue-700">
+                                                            {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                          </p>
+                                                          {activity.notes && (
+                                                            <p className="text-sm text-blue-600 mt-1">{activity.notes}</p>
+                                                          )}
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${activity.status === 'completed'
+                                                          ? 'bg-green-100 text-green-800'
+                                                          : 'bg-yellow-100 text-yellow-800'
+                                                          }`}>
+                                                          {activity.status}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                  ))}
                                               </div>
+                                            ) : (
+                                              <p className="text-muted-foreground py-4 text-center text-sm">No personal care activities logged for night shift</p>
+                                            )}
+                                          </div>
+
+                                          {/* Night Activities Section */}
+                                          <div className="space-y-2">
+                                            <div className="flex items-center space-x-2">
+                                              <div className="w-4 h-4 bg-green-600 rounded"></div>
+                                              <h4 className="font-medium text-green-900">Night Activities</h4>
+                                              <span className="text-sm text-muted-foreground">({dailyActivities.length})</span>
                                             </div>
-                                          ))}
-                                        </div>
-                                        ) : (
-                                          <p className="text-muted-foreground py-8 text-center">No activities logged for day shift</p>
-                                        );
-                                      })()}
-                                    </div>
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'day')} className="flex items-center text-xs sm:text-sm px-2 py-1">
-                          <Download className="w-3 h-3 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* Night Report Card */}
-                <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="">
-                    <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
-                      {/* Icon and Text */}
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 rounded-md">
-                          <Moon className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          {/* <h3 className="font-semibold text-sm sm:text-base">Night Report</h3> */}
-                          <p className="text-xs sm:text-sm text-muted-foreground">8:00 PM - 8:00 AM</p>
-                          {/* <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p> */}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date, 'night')} className="flex items-center text-xs sm:text-sm px-2 py-1">
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center space-x-2">
-                                <Moon className="w-5 h-5 text-indigo-600" />
-                                <span className="text-sm sm:text-base">Night Report - {new Date(date).toLocaleDateString()}</span>
-                              </DialogTitle>
-                              <DialogDescription>
-                                All activities logged from 8:00 PM to 8:00 AM
-                              </DialogDescription>
-                            </DialogHeader>
-                            
-                            <div className="space-y-4">
-                              {selectedReport?.type === 'night' && selectedReport?.date === date && (
-                                selectedReportData === undefined ? (
-                                  <ReportDialogSkeleton />
-                                ) : (
-                                  (() => {
-                                    // Combine today's and yesterday's data for night shift
-                                    const allNightActivities = [
-                                      ...(selectedReportData?.tasks || []),
-                                      ...(yesterdayReportData?.tasks || [])
-                                    ];
-
-                                    // Filter for night shift activities (8pm-8am)
-                                    const nightShiftActivities = allNightActivities.filter(activity => 
-                                      isNightShift(activity.createdAt)
-                                    );
-                                    
-                                    // Separate personal care and daily activities
-                                    const personalCareActivities = nightShiftActivities.filter(activity => 
-                                      activity.taskType !== 'daily_activity_record'
-                                    );
-                                    const dailyActivities = nightShiftActivities.filter(activity => 
-                                      activity.taskType === 'daily_activity_record'
-                                    );
-
-                                    return (
-                                      <div className="space-y-3">
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                                          <div>
-                                            <h4 className="font-medium text-indigo-800">Shift Period</h4>
-                                            <p className="text-sm text-indigo-700">8:00 PM - 8:00 AM</p>
-                                          </div>
-                                          <div>
-                                            <h4 className="font-medium text-indigo-800">Total Activities</h4>
-                                            <p className="text-sm text-indigo-700">{nightShiftActivities.length}</p>
-                                          </div>
-                                          <div>
-                                            <h4 className="font-medium text-indigo-800">Completion Rate</h4>
-                                            <p className="text-sm text-indigo-700">
-                                              {nightShiftActivities.length > 0 
-                                                ? Math.round((nightShiftActivities.filter((a: any) => a.status === 'completed').length / nightShiftActivities.length) * 100)
-                                                : 0}%
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        {/* Personal Care Activities Section */}
-                                        <div className="space-y-2">
-                                          <div className="flex items-center space-x-2">
-                                            <div className="w-4 h-4 bg-blue-600 rounded"></div>
-                                            <h4 className="font-medium text-blue-900">Personal Care Activities</h4>
-                                            <span className="text-sm text-muted-foreground">({personalCareActivities.length})</span>
-                                          </div>
-                                          {personalCareActivities.length > 0 ? (
-                                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                                              {personalCareActivities
-                                                .sort((a, b) => new Date(b.createdAt || b.completedAt).getTime() - new Date(a.createdAt || a.completedAt).getTime())
-                                                .map((activity: any, index: number) => (
-                                                <div key={index} className="p-3 border border-blue-200 bg-blue-50/30 rounded-lg">
-                                                  <div className="flex justify-between items-start">
-                                                    <div>
-                                                      <p className="font-medium text-blue-900">{activity.taskType}</p>
-                                                      <p className="text-sm text-blue-700">
-                                                        {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                                      </p>
-                                                      {activity.notes && (
-                                                        <p className="text-sm text-blue-600 mt-1">{activity.notes}</p>
-                                                      )}
+                                            {dailyActivities.length > 0 ? (
+                                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                {dailyActivities
+                                                  .sort((a, b) => {
+                                                    const dateA = a.createdAt || a.completedAt || 0;
+                                                    const dateB = b.createdAt || b.completedAt || 0;
+                                                    return new Date(dateB).getTime() - new Date(dateA).getTime();
+                                                  })
+                                                  .map((activity: any, index: number) => (
+                                                    <div key={index} className="p-3 border border-green-200 bg-green-50/30 rounded-lg">
+                                                      <div className="flex justify-between items-start">
+                                                        <div>
+                                                          <p className="font-medium text-green-900">Night Activity Record</p>
+                                                          <p className="text-sm text-green-700">
+                                                            {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
+                                                          </p>
+                                                          {activity.notes && (
+                                                            <p className="text-sm text-green-600 mt-1">{activity.notes}</p>
+                                                          )}
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${activity.status === 'completed'
+                                                          ? 'bg-green-100 text-green-800'
+                                                          : 'bg-yellow-100 text-yellow-800'
+                                                          }`}>
+                                                          {activity.status}
+                                                        </span>
+                                                      </div>
                                                     </div>
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                      activity.status === 'completed' 
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                      {activity.status}
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ) : (
-                                            <p className="text-muted-foreground py-4 text-center text-sm">No personal care activities logged for night shift</p>
-                                          )}
-                                        </div>
-
-                                        {/* Night Activities Section */}
-                                        <div className="space-y-2">
-                                          <div className="flex items-center space-x-2">
-                                            <div className="w-4 h-4 bg-green-600 rounded"></div>
-                                            <h4 className="font-medium text-green-900">Night Activities</h4>
-                                            <span className="text-sm text-muted-foreground">({dailyActivities.length})</span>
+                                                  ))}
+                                              </div>
+                                            ) : (
+                                              <p className="text-muted-foreground py-4 text-center text-sm">No night activities logged for night shift</p>
+                                            )}
                                           </div>
-                                          {dailyActivities.length > 0 ? (
-                                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                                              {dailyActivities
-                                                .sort((a, b) => new Date(b.createdAt || b.completedAt).getTime() - new Date(a.createdAt || a.completedAt).getTime())
-                                                .map((activity: any, index: number) => (
-                                                <div key={index} className="p-3 border border-green-200 bg-green-50/30 rounded-lg">
-                                                  <div className="flex justify-between items-start">
-                                                    <div>
-                                                      <p className="font-medium text-green-900">Night Activity Record</p>
-                                                      <p className="text-sm text-green-700">
-                                                        {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                                      </p>
-                                                      {activity.notes && (
-                                                        <p className="text-sm text-green-600 mt-1">{activity.notes}</p>
-                                                      )}
-                                                    </div>
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                      activity.status === 'completed' 
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                      {activity.status}
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ) : (
-                                            <p className="text-muted-foreground py-4 text-center text-sm">No night activities logged for night shift</p>
-                                          )}
                                         </div>
-                                      </div>
-                                    );
-                                  })()
-                                )
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                                      );
+                                    })()
+                                  )
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
 
-                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'night')} className="flex items-center text-xs sm:text-sm px-2 py-1">
-                          <Download className="w-3 h-3 mr-1" />
-                          Download
-                        </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date, 'night')} className="flex items-center text-xs sm:text-sm px-2 py-1">
+                            <Download className="w-3 h-3 mr-1" />
+                            Download
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-6 border-t">
-            <p className="text-sm text-muted-foreground">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredDates.length)} of {filteredDates.length} dates
-            </p>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <div className="flex items-center space-x-1">
-                {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <Button
-                      key={i}
-                      variant={currentPage === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(pageNum)}
-                      className="w-8 h-8 p-0"
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            ))}
           </div>
-        )}
-      </>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-6 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredDates.length)} of {filteredDates.length} dates
+              </p>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <Button
+                        key={i}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
