@@ -75,7 +75,7 @@ export function HospitalPassportDialog({
   prevStep,
   isEditMode = false,
 }: HospitalPassportDialogProps) {
-  const totalSteps = 4;
+  const totalSteps = 13;
 
   // const steps = [
   //   { id: 1, name: "General & Transfer Details", icon: Home },
@@ -158,7 +158,7 @@ export function HospitalPassportDialog({
         <Form {...form}>
           <form onSubmit={(e) => e.preventDefault()} className="flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto px-1">
-              {/* Step 1: General & Transfer Details */}
+              {/* Step 1: Person in Care Information */}
               {currentStep === 1 && (
                 <div className="space-y-6">
                   <div className="p-4 rounded-lg">
@@ -325,10 +325,14 @@ export function HospitalPassportDialog({
                       )}
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 2: Transfer Locations */}
+              {currentStep === 2 && (
+                <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium  mb-4 flex items-center">
-                      
                       Transfer Locations
                     </h3>
                     <div className="space-y-4">
@@ -376,56 +380,69 @@ export function HospitalPassportDialog({
                           )}
                         />
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                      <div>
-                        <h4 className="font-medium my-5">Hospital/Facility Being Transferred Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="generalDetails.hospitalName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabelRequired required>Hospital/Facility Name</FormLabelRequired>
-                                <FormControl>
-                                  <Input {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="generalDetails.hospitalPhone"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Hospital/Facility Phone</FormLabel>
-                                <FormControl>
-                                  <Input {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+              {/* Step 3: Hospital/Facility Being Transferred Details */}
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium  mb-4 flex items-center">
+                      Hospital/Facility Being Transferred Details
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
-                          name="generalDetails.hospitalAddress"
+                          name="generalDetails.hospitalName"
                           render={({ field }) => (
-                            <FormItem className="mt-4">
-                              <FormLabelRequired required>Hospital/Facility Address</FormLabelRequired>
+                            <FormItem>
+                              <FormLabelRequired required>Hospital/Facility Name</FormLabelRequired>
                               <FormControl>
-                                <Textarea {...field} />
+                                <Input {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
+                        <FormField
+                          control={form.control}
+                          name="generalDetails.hospitalPhone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hospital/Facility Phone</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
                       </div>
+                      <FormField
+                        control={form.control}
+                        name="generalDetails.hospitalAddress"
+                        render={({ field }) => (
+                          <FormItem className="mt-4">
+                            <FormLabelRequired required>Hospital/Facility Address</FormLabelRequired>
+                            <FormControl>
+                              <Textarea {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 4: Contact Information */}
+              {currentStep === 4 && (
+                <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium mb-4 flex items-center">
-                     
                       Contact Information
                     </h3>
                     <div className="space-y-4">
@@ -473,9 +490,21 @@ export function HospitalPassportDialog({
                           )}
                         />
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
+              {/* Step 5: GP Details & Care Manager */}
+              {currentStep === 5 && (
+                <div className="space-y-6">
+                  <div className=" p-4 rounded-lg">
+                    <h3 className="font-medium mb-4 flex items-center">
+                      GP Details & Care Manager
+                    </h3>
+                    <div className="space-y-4">
                       <div>
-                        <h4 className="font-medium my-5">GP Details</h4>
+                       
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -520,7 +549,7 @@ export function HospitalPassportDialog({
                       </div>
 
                       <div>
-                        <h4 className="font-medium my-5">Care Manager (Optional)</h4>
+                        <h4 className="font-medium my-5 mt-10"></h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -565,8 +594,8 @@ export function HospitalPassportDialog({
                 </div>
               )}
 
-              {/* Step 2: Medical & Care Needs */}
-              {currentStep === 2 && (
+              {/* Step 6: Reason for Transfer */}
+              {currentStep === 6 && (
                 <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium  mb-4">Reason for Transfer</h3>
@@ -641,7 +670,12 @@ export function HospitalPassportDialog({
                       />
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 7: Medical History */}
+              {currentStep === 7 && (
+                <div className="space-y-6">
                   <div className="p-4 rounded-lg">
                     <h3 className="font-medium  mb-4">Medical History</h3>
                     <div className="space-y-4">
@@ -712,7 +746,12 @@ export function HospitalPassportDialog({
                       />
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 8: Communication & Mobility */}
+              {currentStep === 8 && (
+                <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium mb-4">Communication & Mobility</h3>
                     <div className="space-y-4">
@@ -837,7 +876,12 @@ export function HospitalPassportDialog({
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 9: Care Needs */}
+              {currentStep === 9 && (
+                <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium  mb-4">Care Needs</h3>
                     <div className="space-y-4">
@@ -1037,8 +1081,8 @@ export function HospitalPassportDialog({
                 </div>
               )}
 
-              {/* Step 3: Skin, Medication & Attachments */}
-              {currentStep === 3 && (
+              {/* Step 10: Skin Care */}
+              {currentStep === 10 && (
                 <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium  mb-4">Skin Care</h3>
@@ -1149,10 +1193,14 @@ export function HospitalPassportDialog({
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 11: Medication */}
+              {currentStep === 11 && (
+                <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium  mb-4 flex items-center">
-                     
                       Medication
                     </h3>
                     <div className="space-y-4">
@@ -1200,10 +1248,14 @@ export function HospitalPassportDialog({
                       />
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* Step 12: Attachments */}
+              {currentStep === 12 && (
+                <div className="space-y-6">
                   <div className="p-4 rounded-lg">
                     <h3 className="font-medium  mb-4 flex items-center">
-                    
                       Attachments
                     </h3>
                     <div className="space-y-2">
@@ -1317,8 +1369,8 @@ export function HospitalPassportDialog({
                 </div>
               )}
 
-              {/* Step 4: Sign-off */}
-              {currentStep === 4 && (
+              {/* Step 13: Sign-off Section */}
+              {currentStep === 13 && (
                 <div className="space-y-6">
                   <div className=" p-4 rounded-lg">
                     <h3 className="font-medium  mb-4 flex items-center">

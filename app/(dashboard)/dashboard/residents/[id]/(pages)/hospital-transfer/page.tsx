@@ -101,7 +101,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Multi-step form state
   const [currentStep, setCurrentStep] = React.useState(1);
-  const totalSteps = 4;
+  const totalSteps = 13;
 
   // Form setup
   const form = useForm<HospitalPassportFormData>({
@@ -260,15 +260,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   }, [dietInformation, form, formatAllergies]);
 
-  // Update staff field when user data loads
-  React.useEffect(() => {
-    if (user?.user) {
-      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
-      form.setValue('signOff.printedName', staffName);
-      form.setValue('signOff.signature', staffName);
-    }
-  }, [user, form]);
-
   // Navigation helpers
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -384,6 +375,18 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     },
   });
 
+  // Update staff field when user data loads (moved after editForm declaration)
+  React.useEffect(() => {
+    if (user?.user) {
+      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
+      form.setValue('signOff.printedName', staffName);
+      form.setValue('signOff.signature', staffName);
+      // Also update edit form
+      editForm.setValue('signOff.printedName', staffName);
+      editForm.setValue('signOff.signature', staffName);
+    }
+  }, [user, form, editForm]);
+
   // Edit step state
   const [editCurrentStep, setEditCurrentStep] = React.useState(1);
 
@@ -405,43 +408,76 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     let fieldsToValidate: any[] = [];
 
     switch (editCurrentStep) {
-      case 1:
+      case 1: // Person in Care Information
         fieldsToValidate = [
           'generalDetails.personName',
           'generalDetails.knownAs',
           'generalDetails.dateOfBirth',
           'generalDetails.nhsNumber',
           'generalDetails.transferDateTime',
+        ];
+        break;
+      case 2: // Transfer Locations
+        fieldsToValidate = [
           'generalDetails.careHomeName',
           'generalDetails.careHomeAddress',
           'generalDetails.careHomePhone',
+        ];
+        break;
+      case 3: // Hospital/Facility Being Transferred Details
+        fieldsToValidate = [
           'generalDetails.hospitalName',
           'generalDetails.hospitalAddress',
+        ];
+        break;
+      case 4: // Contact Information
+        fieldsToValidate = [
           'generalDetails.nextOfKinName',
           'generalDetails.nextOfKinAddress',
           'generalDetails.nextOfKinPhone',
+        ];
+        break;
+      case 5: // GP Details & Care Manager
+        fieldsToValidate = [
           'generalDetails.gpName',
           'generalDetails.gpAddress',
           'generalDetails.gpPhone',
         ];
         break;
-      case 2:
+      case 6: // Reason for Transfer
         fieldsToValidate = [
           'medicalCareNeeds.situation',
           'medicalCareNeeds.background',
           'medicalCareNeeds.assessment',
           'medicalCareNeeds.recommendations',
+        ];
+        break;
+      case 7: // Medical History
+        fieldsToValidate = [
           'medicalCareNeeds.pastMedicalHistory',
         ];
         break;
-      case 3:
+      case 8: // Communication & Mobility
+        fieldsToValidate = [];
+        break;
+      case 9: // Care Needs
+        fieldsToValidate = [];
+        break;
+      case 10: // Skin Care
         fieldsToValidate = [
           'skinMedicationAttachments.skinStateOnTransfer',
+        ];
+        break;
+      case 11: // Medication
+        fieldsToValidate = [
           'skinMedicationAttachments.currentMedicationRegime',
           'skinMedicationAttachments.lastMedicationDateTime',
         ];
         break;
-      case 4:
+      case 12: // Attachments
+        fieldsToValidate = [];
+        break;
+      case 13: // Sign-off Section
         fieldsToValidate = [
           'signOff.signature',
           'signOff.printedName',
@@ -1294,43 +1330,76 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     let fieldsToValidate: any[] = [];
 
     switch (currentStep) {
-      case 1:
+      case 1: // Person in Care Information
         fieldsToValidate = [
           'generalDetails.personName',
           'generalDetails.knownAs',
           'generalDetails.dateOfBirth',
           'generalDetails.nhsNumber',
           'generalDetails.transferDateTime',
+        ];
+        break;
+      case 2: // Transfer Locations
+        fieldsToValidate = [
           'generalDetails.careHomeName',
           'generalDetails.careHomeAddress',
           'generalDetails.careHomePhone',
+        ];
+        break;
+      case 3: // Hospital/Facility Being Transferred Details
+        fieldsToValidate = [
           'generalDetails.hospitalName',
           'generalDetails.hospitalAddress',
+        ];
+        break;
+      case 4: // Contact Information
+        fieldsToValidate = [
           'generalDetails.nextOfKinName',
           'generalDetails.nextOfKinAddress',
           'generalDetails.nextOfKinPhone',
+        ];
+        break;
+      case 5: // GP Details & Care Manager
+        fieldsToValidate = [
           'generalDetails.gpName',
           'generalDetails.gpAddress',
           'generalDetails.gpPhone',
         ];
         break;
-      case 2:
+      case 6: // Reason for Transfer
         fieldsToValidate = [
           'medicalCareNeeds.situation',
           'medicalCareNeeds.background',
           'medicalCareNeeds.assessment',
           'medicalCareNeeds.recommendations',
+        ];
+        break;
+      case 7: // Medical History
+        fieldsToValidate = [
           'medicalCareNeeds.pastMedicalHistory',
         ];
         break;
-      case 3:
+      case 8: // Communication & Mobility
+        fieldsToValidate = [];
+        break;
+      case 9: // Care Needs
+        fieldsToValidate = [];
+        break;
+      case 10: // Skin Care
         fieldsToValidate = [
           'skinMedicationAttachments.skinStateOnTransfer',
+        ];
+        break;
+      case 11: // Medication
+        fieldsToValidate = [
           'skinMedicationAttachments.currentMedicationRegime',
           'skinMedicationAttachments.lastMedicationDateTime',
         ];
         break;
-      case 4:
+      case 12: // Attachments
+        fieldsToValidate = [];
+        break;
+      case 13: // Sign-off Section
         fieldsToValidate = [
           'signOff.signature',
           'signOff.printedName',
@@ -1652,7 +1721,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   className="w-12 h-auto mx-auto mb-1 bg-white rounded p-1"
                 />
                 <h2 className="text-sm font-bold">HOSPITAL PASSPORT</h2>
-                <p className="text-xs opacity-90">National Health Service</p>
+                
               </div>
 
               {/* Patient Photo and Basic Info - Compact */}
@@ -1802,7 +1871,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   Generate a Hospital Passport to have quick access to essential patient information for emergency transfers.
                 </p>
                 <Button
-                  onClick={() => setIsTransferDialogOpen(true)}
+                  onClick={() => {
+                    // Set user data before opening dialog
+                    if (user?.user) {
+                      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
+                      form.setValue('signOff.printedName', staffName);
+                      form.setValue('signOff.signature', staffName);
+                    }
+                    setIsTransferDialogOpen(true);
+                  }}
                   disabled={isCreating || isUpdating || isDeleting}
                   className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -1998,8 +2075,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         onOpenChange={(open) => {
           setIsTransferDialogOpen(open);
           if (!open) {
-            // Reset form state when dialog is closed
+            // Reset form state when dialog is closed but preserve user data
+            const currentUserName = form.getValues('signOff.printedName');
+            const currentSignature = form.getValues('signOff.signature');
             form.reset();
+            // Restore user data after reset
+            if (currentUserName) {
+              form.setValue('signOff.printedName', currentUserName);
+              form.setValue('signOff.signature', currentSignature);
+            }
             setCurrentStep(1);
           }
         }}
