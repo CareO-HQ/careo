@@ -39,6 +39,7 @@ import CarePlanDialog from "../dialogs/CarePlanDialog";
 import EmailPDF from "../EmailPDF";
 import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 import AdmissionDialog from "../dialogs/AdmissionDialog";
+import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -158,6 +159,13 @@ export default function CareFileFolder({
       : "skip"
   );
 
+  const allPhotographyConsentForms = useQuery(
+    api.careFiles.photographyConsent.getPhotographyConsentsByResident,
+    folderFormKeys.includes("photography-consent") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   // Debug the query condition step by step
   const hasCarePlanProp = carePlan;
   const hasResidentId = !!residentId;
@@ -271,6 +279,22 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Photography Consent forms
+    if (allPhotographyConsentForms) {
+      const sortedForms = [...allPhotographyConsentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "photography-consent",
+          formId: form._id,
+          name: "Photography Consent Form",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -300,7 +324,8 @@ export default function CareFileFolder({
     allBladderBowelForms,
     allMovingHandlingForms,
     allLongTermFallsForms,
-    allAdmissionForms
+    allAdmissionForms,
+    allPhotographyConsentForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -332,7 +357,9 @@ export default function CareFileFolder({
                   ? api.careFiles.carePlan.getPDFUrl
                   : file.formKey === "admission-form"
                     ? api.careFiles.admission.getPDFUrl
-                    : ("skip" as any),
+                    : file.formKey === "photography-consent"
+                      ? api.careFiles.photographyConsent.getPDFUrl
+                      : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -352,7 +379,9 @@ export default function CareFileFolder({
                   ? { assessmentId: file.formId as Id<"carePlanAssessments"> }
                   : file.formKey === "admission-form"
                     ? { assessmentId: file.formId as Id<"admissionAssesments"> }
-                    : "skip"
+                    : file.formKey === "photography-consent"
+                      ? { consentId: file.formId as Id<"photographyConsents"> }
+                      : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -605,6 +634,8 @@ export default function CareFileFolder({
               return `care-plan-assessment-${baseName}.pdf`;
             case "admission-form":
               return `admission-assessment-${baseName}.pdf`;
+            case "photography-consent":
+              return `photography-consent-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -748,7 +779,8 @@ export default function CareFileFolder({
       preAdmissionCareFile: "preAdmission-form",
       carePlanAssessment: "care-plan-form",
       longTermFallsRiskAssessment: "long-term-fall-risk-form",
-      admissionAssesment: "admission-form"
+      admissionAssesment: "admission-form",
+      photographyConsent: "photography-consent"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -764,7 +796,8 @@ export default function CareFileFolder({
       movingHandlingAssessment: "Moving & Handling Assessment",
       longTermFallsRiskAssessment: "Long Term Falls Risk Assessment",
       carePlanAssessment: "Care Plan Assessment",
-      admissionAssesment: "Admission Assessment"
+      admissionAssesment: "Admission Assessment",
+      photographyConsent: "Photography Consent Form"
     };
     return mapping[formType] || formType;
   };
@@ -888,6 +921,22 @@ export default function CareFileFolder({
             organizationId={activeOrg?.id ?? ""}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+      case "photography-consent":
+        return (
+          <PhotographyConsentDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
             initialData={editData}
             isEditMode={isReviewMode}
             onClose={() => {

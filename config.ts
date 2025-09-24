@@ -55,6 +55,12 @@ export const config = {
           key: "admission-form",
           value: "Admission Assessment Form",
           description: "Admission Assessment Form"
+        },
+        {
+          type: "form",
+          key: "photography-consent",
+          value: "Photography Consent Form",
+          description: "Photography Consent Form"
         }
       ]
     },

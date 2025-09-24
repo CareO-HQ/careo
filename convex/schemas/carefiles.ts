@@ -254,3 +254,46 @@ export const admissionAssesments = defineTable({
   // Hygiene
   hygiene: v.optional(v.string())
 });
+
+export const photographyConsents = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  residentName: v.string(),
+  bedroomNumber: v.string(),
+  dateOfBirth: v.number(),
+
+  // Consent
+  healthcareRecords: v.boolean(),
+  socialActivitiesInternal: v.boolean(),
+  socialActivitiesExternal: v.boolean(),
+
+  // Signature
+  residentSignature: v.optional(v.string()),
+  // Representative
+  representativeName: v.optional(v.string()),
+  representativeRelationship: v.optional(v.string()),
+  representativeSignature: v.optional(v.string()),
+  representativeDate: v.optional(v.number()),
+
+  // Staff
+  nameStaff: v.string(),
+  staffSignature: v.string(),
+  date: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+});
