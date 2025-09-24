@@ -297,3 +297,46 @@ export const photographyConsents = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 });
+
+export const personalEmergencyEvaluationPlans = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  residentName: v.string(),
+  bedroomNumber: v.string(),
+  dateOfBirth: v.number(),
+  completedDate: v.number(),
+
+  // Questions
+  fireEvacuation: v.boolean(),
+  numStaffRequiredToHelp: v.number(),
+  equipmentRequired: v.optional(v.string()),
+  communicationNeeds: v.optional(v.string()),
+  oxigenInUse: v.boolean(),
+  oxigenComments: v.optional(v.string()),
+  residentSmokes: v.boolean(),
+  residentSmokesComments: v.optional(v.string()),
+  furnitureFireRetardant: v.boolean(),
+  furnitureFireRetardantComments: v.optional(v.string()),
+
+  // Completed by
+  staffName: v.string(),
+  staffSignature: v.string(),
+  date: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+});
