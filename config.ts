@@ -70,7 +70,14 @@ export const config = {
       value: "DNACPR",
       description: "DNACPR order",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "dnacpr",
+          value: "DNACPR Form",
+          description: "DNACPR Form"
+        }
+      ]
     },
     {
       type: "folder",

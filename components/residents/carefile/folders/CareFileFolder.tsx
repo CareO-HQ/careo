@@ -40,6 +40,7 @@ import EmailPDF from "../EmailPDF";
 import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 import AdmissionDialog from "../dialogs/AdmissionDialog";
 import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
+import DnacprDialog from "../dialogs/DnarcpDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -946,6 +947,22 @@ export default function CareFileFolder({
           />
         );
 
+      case "dnacpr":
+        return (
+          <DnacprDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
       // case 'discharge':
       //   return <DischargeDialog />;
       default:

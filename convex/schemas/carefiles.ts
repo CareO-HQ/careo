@@ -340,3 +340,56 @@ export const personalEmergencyEvaluationPlans = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 });
+
+export const dnacprs = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  residentName: v.string(),
+  bedroomNumber: v.string(),
+  dateOfBirth: v.number(),
+
+  // Questions
+  dnacpr: v.boolean(),
+  dnacprComments: v.optional(v.string()),
+  reason: v.union(
+    v.literal("TERMINAL-PROGRESSIVE"),
+    v.literal("UNSUCCESSFUL-CPR"),
+    v.literal("OTHER")
+  ),
+  date: v.number(),
+
+  // Discussed with
+  discussedResident: v.boolean(),
+  discussedResidentComments: v.optional(v.string()),
+  discussedResidentDate: v.optional(v.number()),
+  discussedRelatives: v.boolean(),
+  discussedRelativesComments: v.optional(v.string()),
+  discussedRelativeDate: v.optional(v.number()),
+  discussedNOKs: v.boolean(),
+  discussedNOKsComments: v.optional(v.string()),
+  discussedNOKsDate: v.optional(v.number()),
+  comments: v.optional(v.string()),
+
+  // GP signature
+  gpDate: v.number(),
+  gpSignature: v.string(),
+  residentNokSignature: v.string(),
+  registeredNurseSignature: v.string(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+});

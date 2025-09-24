@@ -5,7 +5,8 @@ import {
   admissionAssesments,
   movingHandlingAssessments,
   longTermFallsRiskAssessments,
-  photographyConsents
+  photographyConsents,
+  dnacprs
 } from "./schemas/carefiles";
 
 const TaskStatus = v.union(
@@ -1460,6 +1461,11 @@ export default defineSchema({
     .index("by_form_and_resident", ["formType", "residentId"]),
 
   photographyConsents: photographyConsents
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  dnacprs: dnacprs
     .index("by_resident", ["residentId"])
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"]),
