@@ -824,7 +824,7 @@ const activityOptions = [
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Care Notes
+                Quick Care Notes
               </Button>
               <Button
                 variant="outline"
@@ -871,7 +871,7 @@ const activityOptions = [
                 className="bg-green-600 text-white hover:bg-green-700 hover:text-white "
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Care Notes</span>
+                <span>Quick Care Notes</span>
               </Button>
               <Button
                 variant="outline"

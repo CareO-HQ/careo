@@ -64,33 +64,29 @@ type HealthMonitoringPageProps = {
   params: Promise<{ id: string }>;
 };
 
-// Vitals Schema
-const VitalsSchema = z.object({
+// Single Vital Schema
+const SingleVitalSchema = z.object({
   recordDate: z.string().min(1, "Record date is required"),
   recordTime: z.string().min(1, "Record time is required"),
-  temperature: z.string().optional(),
-  temperatureUnit: z.enum(["celsius", "fahrenheit"]).optional(),
-  bloodPressureSystolic: z.string().optional(),
-  bloodPressureDiastolic: z.string().optional(),
-  heartRate: z.string().optional(),
-  respiratoryRate: z.string().optional(),
-  oxygenSaturation: z.string().optional(),
-  weight: z.string().optional(),
-  weightUnit: z.enum(["kg", "lbs"]).optional(),
-  height: z.string().optional(),
-  heightUnit: z.enum(["cm", "inches"]).optional(),
-  glucoseLevel: z.string().optional(),
-  glucoseUnit: z.enum(["mg/dl", "mmol/l"]).optional(),
-  painLevel: z.string().optional(), // 0-10 scale
-  consciousnessLevel: z.enum(["alert", "drowsy", "confused", "unresponsive"]).optional(),
-  mobility: z.enum(["independent", "assisted", "wheelchair", "bedbound"]).optional(),
-  skinCondition: z.enum(["normal", "dry", "moist", "hot", "cold", "clammy"]).optional(),
-  generalObservations: z.string().optional(),
-  concernsOrAlerts: z.string().optional(),
+  vitalType: z.enum([
+    "temperature",
+    "bloodPressure",
+    "heartRate",
+    "respiratoryRate",
+    "oxygenSaturation",
+    "weight",
+    "height",
+    "glucoseLevel",
+    "painLevel"
+  ]),
+  value: z.string().min(1, "Value is required"),
+  value2: z.string().optional(), // For blood pressure diastolic
+  unit: z.string().optional(),
+  notes: z.string().optional(),
   recordedBy: z.string().min(1, "Recorded by is required"),
 });
 
-type VitalsFormData = z.infer<typeof VitalsSchema>;
+type SingleVitalFormData = z.infer<typeof SingleVitalSchema>;
 
 export default function HealthMonitoringPage({ params }: HealthMonitoringPageProps) {
   const { id } = React.use(params);
@@ -104,33 +100,101 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
   const currentTime = new Date().toTimeString().slice(0, 5);
 
   // Form setup
-  const form = useForm<VitalsFormData>({
-    resolver: zodResolver(VitalsSchema),
+  const form = useForm<SingleVitalFormData>({
+    resolver: zodResolver(SingleVitalSchema),
     defaultValues: {
       recordDate: today,
       recordTime: currentTime,
-      temperature: "",
-      temperatureUnit: "celsius",
-      bloodPressureSystolic: "",
-      bloodPressureDiastolic: "",
-      heartRate: "",
-      respiratoryRate: "",
-      oxygenSaturation: "",
-      weight: "",
-      weightUnit: "kg",
-      height: "",
-      heightUnit: "cm",
-      glucoseLevel: "",
-      glucoseUnit: "mg/dl",
-      painLevel: "",
-      consciousnessLevel: "alert",
-      mobility: "independent",
-      skinCondition: "normal",
-      generalObservations: "",
-      concernsOrAlerts: "",
+      vitalType: "temperature",
+      value: "",
+      value2: "",
+      unit: "celsius",
+      notes: "",
       recordedBy: "",
     },
   });
+
+  // Vital type options with their properties
+  const vitalTypeOptions = {
+    temperature: { 
+      label: "Temperature", 
+      icon: Thermometer,
+      units: [
+        { value: "celsius", label: "°C" },
+        { value: "fahrenheit", label: "°F" }
+      ],
+      placeholder: "36.5",
+      color: "red"
+    },
+    bloodPressure: { 
+      label: "Blood Pressure", 
+      icon: Heart,
+      units: [{ value: "mmHg", label: "mmHg" }],
+      placeholder: "120",
+      placeholder2: "80",
+      color: "blue"
+    },
+    heartRate: { 
+      label: "Heart Rate", 
+      icon: Activity,
+      units: [{ value: "bpm", label: "bpm" }],
+      placeholder: "72",
+      color: "green"
+    },
+    respiratoryRate: { 
+      label: "Respiratory Rate", 
+      icon: Wind,
+      units: [{ value: "breaths/min", label: "breaths/min" }],
+      placeholder: "16",
+      color: "purple"
+    },
+    oxygenSaturation: { 
+      label: "Oxygen Saturation", 
+      icon: Droplets,
+      units: [{ value: "percent", label: "%" }],
+      placeholder: "98",
+      color: "cyan"
+    },
+    weight: { 
+      label: "Weight", 
+      icon: TrendingUp,
+      units: [
+        { value: "kg", label: "kg" },
+        { value: "lbs", label: "lbs" }
+      ],
+      placeholder: "70.5",
+      color: "orange"
+    },
+    height: { 
+      label: "Height", 
+      icon: TrendingUp,
+      units: [
+        { value: "cm", label: "cm" },
+        { value: "inches", label: "inches" }
+      ],
+      placeholder: "170",
+      color: "indigo"
+    },
+    glucoseLevel: { 
+      label: "Blood Sugar", 
+      icon: Activity,
+      units: [
+        { value: "mg/dl", label: "mg/dl" },
+        { value: "mmol/l", label: "mmol/l" }
+      ],
+      placeholder: "100",
+      color: "pink"
+    },
+    painLevel: { 
+      label: "Pain Level (0-10)", 
+      icon: AlertTriangle,
+      units: [{ value: "scale", label: "0-10 scale" }],
+      placeholder: "0",
+      color: "yellow"
+    }
+  };
+
+  const [selectedVitalType, setSelectedVitalType] = React.useState<keyof typeof vitalTypeOptions>("temperature");
 
   // Dialog states
   const [isVitalsDialogOpen, setIsVitalsDialogOpen] = React.useState(false);
@@ -146,28 +210,55 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
     }
   }, [user, form]);
 
-  // Mock mutations (you'll need to implement these in your Convex schema)
-  // const createVitalsRecord = useMutation(api.healthMonitoring.createVitalsRecord);
-  // const getRecentVitals = useQuery(api.healthMonitoring.getRecentVitals, {
-  //   residentId: id as Id<"residents">
-  // });
+  // Vitals mutations and queries
+  const createVitalsRecord = useMutation(api.healthMonitoring.createVitalRecord);
+  const latestVitals = useQuery(api.healthMonitoring.getLatestVitals, {
+    residentId: id as Id<"residents">
+  });
+  const recentVitals = useQuery(api.healthMonitoring.getRecentVitals, {
+    residentId: id as Id<"residents">,
+    limit: 7
+  });
 
-  const handleSubmit = async (data: VitalsFormData) => {
+  const handleSubmit = async (data: SingleVitalFormData) => {
     try {
-      // Implement vitals record creation
-      // await createVitalsRecord({
-      //   residentId: id as Id<"residents">,
-      //   ...data,
-      // });
+      await createVitalsRecord({
+        residentId: id as Id<"residents">,
+        ...data,
+      });
 
-      toast.success("Vitals recorded successfully");
-      form.reset();
-      setIsVitalsDialogOpen(false);
+      const vitalLabel = vitalTypeOptions[data.vitalType as keyof typeof vitalTypeOptions].label;
+      toast.success(`${vitalLabel} recorded successfully`);
+      
+      // Reset form but keep date/time/recorded by
+      form.reset({
+        recordDate: data.recordDate,
+        recordTime: data.recordTime,
+        vitalType: "temperature",
+        value: "",
+        value2: "",
+        unit: "celsius",
+        notes: "",
+        recordedBy: data.recordedBy,
+      });
+      
+      // Keep dialog open for adding more vitals
+      // setIsVitalsDialogOpen(false);
     } catch (error) {
-      console.error("Error recording vitals:", error);
-      toast.error("Failed to record vitals");
+      console.error("Error recording vital:", error);
+      toast.error("Failed to record vital");
     }
   };
+
+  // Handle vital type change
+  React.useEffect(() => {
+    const vitalType = form.watch("vitalType");
+    if (vitalType && vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions]) {
+      const vital = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
+      form.setValue("unit", vital.units[0].value);
+      setSelectedVitalType(vitalType as keyof typeof vitalTypeOptions);
+    }
+  }, [form.watch("vitalType")]);
 
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
@@ -200,50 +291,41 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
     }
   };
 
-  // Mock vitals data
-  const mockLatestVitals = {
-    temperature: "36.8°C",
-    bloodPressure: "125/80",
-    heartRate: "72 bpm",
-    respiratoryRate: "16/min",
-    oxygenSaturation: "98%",
-    weight: "70.5 kg",
-    recordedAt: "2024-01-15 09:30",
-    recordedBy: "Staff Member"
+  // Helper function to format vital display
+  const formatVitalValue = (vital: any) => {
+    if (!vital) return "—";
+    
+    if (vital.vitalType === "bloodPressure" && vital.value2) {
+      return `${vital.value}/${vital.value2} ${vital.unit || "mmHg"}`;
+    }
+    
+    const unitDisplay = vital.unit ? 
+      (vital.unit === "celsius" ? "°C" : 
+       vital.unit === "fahrenheit" ? "°F" :
+       vital.unit === "percent" ? "%" :
+       vital.unit === "bpm" ? " bpm" :
+       vital.unit === "breaths/min" ? "/min" :
+       vital.unit) : "";
+    
+    return `${vital.value}${unitDisplay}`;
   };
 
-  const mockVitalsHistory = [
-    {
-      id: 1,
-      date: "2024-01-15",
-      time: "09:30",
-      temperature: "36.8°C",
-      bloodPressure: "125/80",
-      heartRate: "72",
-      oxygenSaturation: "98%",
-      status: "normal"
-    },
-    {
-      id: 2,
-      date: "2024-01-14",
-      time: "09:15",
-      temperature: "36.9°C",
-      bloodPressure: "128/82",
-      heartRate: "74",
-      oxygenSaturation: "97%",
-      status: "normal"
-    },
-    {
-      id: 3,
-      date: "2024-01-13",
-      time: "09:45",
-      temperature: "37.2°C",
-      bloodPressure: "130/85",
-      heartRate: "78",
-      oxygenSaturation: "96%",
-      status: "attention"
-    }
-  ];
+  // Helper to get latest recorded time from vitals
+  const getLatestRecordedTime = () => {
+    if (!latestVitals) return null;
+    
+    const vitalsArray = Object.values(latestVitals);
+    if (vitalsArray.length === 0) return null;
+    
+    const mostRecent = vitalsArray.reduce((latest: any, current: any) => {
+      if (!latest) return current;
+      const latestTime = new Date(`${latest.recordDate} ${latest.recordTime}`);
+      const currentTime = new Date(`${current.recordDate} ${current.recordTime}`);
+      return currentTime > latestTime ? current : latest;
+    }, null);
+    
+    return mostRecent ? `${mostRecent.recordDate} ${mostRecent.recordTime}` : null;
+  };
 
   if (resident === undefined) {
     return (
@@ -422,9 +504,11 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
               <Activity className="w-5 h-5 text-emerald-600" />
               <span>Latest Vitals</span>
             </div>
-            <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
-              {mockLatestVitals.recordedAt}
-            </Badge>
+            {getLatestRecordedTime() && (
+              <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
+                {getLatestRecordedTime()}
+              </Badge>
+            )}
           </CardTitle>
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
@@ -432,56 +516,73 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
               <Activity className="w-5 h-5 text-emerald-600" />
               <span>Latest Vitals</span>
             </div>
-            <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
-              {mockLatestVitals.recordedAt}
-            </Badge>
+            {getLatestRecordedTime() && (
+              <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
+                {getLatestRecordedTime()}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
-              <Thermometer className="w-5 h-5 text-red-600 mx-auto mb-2" />
-              <div className="text-lg font-bold text-red-600">
-                {mockLatestVitals.temperature}
-              </div>
-              <p className="text-xs text-red-700">Temperature</p>
+          {!latestVitals || Object.keys(latestVitals).length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>No vitals recorded yet</p>
+              <Button
+                variant="outline"
+                onClick={() => setIsVitalsDialogOpen(true)}
+                className="mt-3"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Record First Vital
+              </Button>
             </div>
-            <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <Heart className="w-5 h-5 text-blue-600 mx-auto mb-2" />
-              <div className="text-lg font-bold text-blue-600">
-                {mockLatestVitals.bloodPressure}
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
+                <Thermometer className="w-5 h-5 text-red-600 mx-auto mb-2" />
+                <div className="text-lg font-bold text-red-600">
+                  {formatVitalValue(latestVitals?.temperature)}
+                </div>
+                <p className="text-xs text-red-700">Temperature</p>
               </div>
-              <p className="text-xs text-blue-700">Blood Pressure</p>
-            </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
-              <Activity className="w-5 h-5 text-green-600 mx-auto mb-2" />
-              <div className="text-lg font-bold text-green-600">
-                {mockLatestVitals.heartRate}
+              <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <Heart className="w-5 h-5 text-blue-600 mx-auto mb-2" />
+                <div className="text-lg font-bold text-blue-600">
+                  {formatVitalValue(latestVitals?.bloodPressure)}
+                </div>
+                <p className="text-xs text-blue-700">Blood Pressure</p>
               </div>
-              <p className="text-xs text-green-700">Heart Rate</p>
-            </div>
-            <div className="text-center p-3 bg-purple-50 rounded-lg border border-purple-200">
-              <Wind className="w-5 h-5 text-purple-600 mx-auto mb-2" />
-              <div className="text-lg font-bold text-purple-600">
-                {mockLatestVitals.respiratoryRate}
+              <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+                <Activity className="w-5 h-5 text-green-600 mx-auto mb-2" />
+                <div className="text-lg font-bold text-green-600">
+                  {formatVitalValue(latestVitals?.heartRate)}
+                </div>
+                <p className="text-xs text-green-700">Heart Rate</p>
               </div>
-              <p className="text-xs text-purple-700">Respiratory Rate</p>
-            </div>
-            <div className="text-center p-3 bg-cyan-50 rounded-lg border border-cyan-200">
-              <Droplets className="w-5 h-5 text-cyan-600 mx-auto mb-2" />
-              <div className="text-lg font-bold text-cyan-600">
-                {mockLatestVitals.oxygenSaturation}
+              <div className="text-center p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <Wind className="w-5 h-5 text-purple-600 mx-auto mb-2" />
+                <div className="text-lg font-bold text-purple-600">
+                  {formatVitalValue(latestVitals?.respiratoryRate)}
+                </div>
+                <p className="text-xs text-purple-700">Respiratory Rate</p>
               </div>
-              <p className="text-xs text-cyan-700">O2 Saturation</p>
-            </div>
-            <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
-              <TrendingUp className="w-5 h-5 text-orange-600 mx-auto mb-2" />
-              <div className="text-lg font-bold text-orange-600">
-                {mockLatestVitals.weight}
+              <div className="text-center p-3 bg-pink-50 rounded-lg border border-pink-200">
+                <Activity className="w-5 h-5 text-pink-600 mx-auto mb-2" />
+                <div className="text-lg font-bold text-pink-600">
+                  {formatVitalValue(latestVitals?.glucoseLevel)}
+                </div>
+                <p className="text-xs text-pink-700">Blood Sugar</p>
               </div>
-              <p className="text-xs text-orange-700">Weight</p>
+              <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <TrendingUp className="w-5 h-5 text-orange-600 mx-auto mb-2" />
+                <div className="text-lg font-bold text-orange-600">
+                  {formatVitalValue(latestVitals?.weight)}
+                </div>
+                <p className="text-xs text-orange-700">Weight</p>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -497,117 +598,95 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {mockVitalsHistory.map((vital) => (
-              <div key={vital.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <div className="text-sm font-mono text-gray-600 min-w-[80px]">
-                    {vital.date}
+          {!recentVitals || recentVitals.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>No vitals history available</p>
+              <Button
+                variant="outline"
+                onClick={() => setIsVitalsDialogOpen(true)}
+                className="mt-3"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Record First Vital
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentVitals.map((vital: any) => {
+                const vitalIcon = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
+                const Icon = vitalIcon?.icon || Activity;
+                const color = vitalIcon?.color || "gray";
+                
+                return (
+                  <div key={vital._id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="text-sm font-mono text-gray-600 min-w-[80px]">
+                        {vital.recordDate}
+                      </div>
+                      <div className="text-sm font-mono text-gray-500">
+                        {vital.recordTime}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Icon className={`w-4 h-4 text-${color}-500`} />
+                        <span className="font-medium">{vitalIcon?.label}:</span>
+                        <span className="text-lg font-semibold">{formatVitalValue(vital)}</span>
+                      </div>
+                      {vital.notes && (
+                        <span className="text-sm text-gray-500 italic">
+                          Note: {vital.notes}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      by {vital.recordedBy}
+                    </div>
                   </div>
-                  <div className="text-sm font-mono text-gray-500">
-                    {vital.time}
-                  </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <span className="flex items-center space-x-1">
-                      <Thermometer className="w-4 h-4 text-red-500" />
-                      <span>{vital.temperature}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Heart className="w-4 h-4 text-blue-500" />
-                      <span>{vital.bloodPressure}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Activity className="w-4 h-4 text-green-500" />
-                      <span>{vital.heartRate} bpm</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Droplets className="w-4 h-4 text-cyan-500" />
-                      <span>{vital.oxygenSaturation}</span>
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <Badge 
-                    variant="outline" 
-                    className={vital.status === "normal" 
-                      ? "bg-green-50 border-green-200 text-green-700" 
-                      : "bg-orange-50 border-orange-200 text-orange-700"
-                    }
-                  >
-                    {vital.status === "normal" ? "Normal" : "Attention"}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Health Monitoring Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Stethoscope className="w-5 h-5 text-emerald-600" />
-            <span>Health Monitoring Actions</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              className="h-16 text-lg bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => setIsVitalsDialogOpen(true)}
-            >
-              <Plus className="w-6 h-6 mr-3" />
-              Record New Vitals
-            </Button>
-            <Button
-             className="h-16 text-lg bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring/documents`)}
-            >
-              <Eye className="w-6 h-6 mr-3" />
-              View Complete History
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  
 
       {/* Record Vitals Dialog */}
       <Dialog open={isVitalsDialogOpen} onOpenChange={setIsVitalsDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Record Vitals for {fullName}</DialogTitle>
+            <DialogTitle>Record Vital for {fullName}</DialogTitle>
             <DialogDescription>
-              Record comprehensive vital signs and health observations.
+              Select a vital type and enter the measurement value.
             </DialogDescription>
           </DialogHeader>
           
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               
               {/* Date and Time */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="recordDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Record Date</FormLabel>
+                      <FormLabel className="text-sm">Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input type="date" {...field} className="h-9" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="recordTime"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Record Time</FormLabel>
+                      <FormLabel className="text-sm">Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Input type="time" {...field} className="h-9" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -615,299 +694,172 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                 />
               </div>
 
-              {/* Vital Signs */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-emerald-900">Vital Signs</h4>
-                
-                {/* Temperature */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="temperature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Temperature</FormLabel>
-                        <FormControl>
-                          <Input placeholder="36.5" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="temperatureUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Unit</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select unit..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="celsius">°C (Celsius)</SelectItem>
-                            <SelectItem value="fahrenheit">°F (Fahrenheit)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Blood Pressure */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="bloodPressureSystolic"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Systolic BP</FormLabel>
-                        <FormControl>
-                          <Input placeholder="120" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bloodPressureDiastolic"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Diastolic BP</FormLabel>
-                        <FormControl>
-                          <Input placeholder="80" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Other Vitals */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="heartRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Heart Rate (bpm)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="72" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="respiratoryRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Respiratory Rate</FormLabel>
-                        <FormControl>
-                          <Input placeholder="16" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="oxygenSaturation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>O2 Saturation (%)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="98" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Physical Measurements */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-blue-900">Physical Measurements</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="weight"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Weight</FormLabel>
-                        <FormControl>
-                          <Input placeholder="70.5" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="weightUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Weight Unit</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select unit..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="kg">kg</SelectItem>
-                            <SelectItem value="lbs">lbs</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Clinical Observations */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-purple-900">Clinical Observations</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="painLevel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pain Level (0-10)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="0" min="0" max="10" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="consciousnessLevel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Consciousness Level</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select level..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="alert">Alert</SelectItem>
-                            <SelectItem value="drowsy">Drowsy</SelectItem>
-                            <SelectItem value="confused">Confused</SelectItem>
-                            <SelectItem value="unresponsive">Unresponsive</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="mobility"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mobility Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select mobility..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="independent">Independent</SelectItem>
-                            <SelectItem value="assisted">Assisted</SelectItem>
-                            <SelectItem value="wheelchair">Wheelchair</SelectItem>
-                            <SelectItem value="bedbound">Bedbound</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="skinCondition"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Skin Condition</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select condition..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="dry">Dry</SelectItem>
-                            <SelectItem value="moist">Moist</SelectItem>
-                            <SelectItem value="hot">Hot</SelectItem>
-                            <SelectItem value="cold">Cold</SelectItem>
-                            <SelectItem value="clammy">Clammy</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Additional Information */}
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="generalObservations"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>General Observations</FormLabel>
+              {/* Vital Type Selection */}
+              <FormField
+                control={form.control}
+                name="vitalType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Vital Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <Textarea
-                          placeholder="Enter general observations about the resident's condition..."
-                          className="min-h-[60px]"
-                          {...field}
-                        />
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choose a vital to record..." />
+                        </SelectTrigger>
                       </FormControl>
-                    </FormItem>
-                  )}
-                />
+                      <SelectContent>
+                        {Object.entries(vitalTypeOptions).map(([key, vital]) => {
+                          const Icon = vital.icon;
+                          return (
+                            <SelectItem key={key} value={key}>
+                              <div className="flex items-center space-x-2">
+                                <Icon className={`w-4 h-4 text-${vital.color}-600`} />
+                                <span>{vital.label}</span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="concernsOrAlerts"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Concerns or Alerts</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Enter any concerns or alerts that need attention..."
-                          className="min-h-[60px]"
-                          {...field}
+              {/* Dynamic Value Input based on selected vital type */}
+              <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                {(() => {
+                  const currentVital = vitalTypeOptions[selectedVitalType];
+                  const Icon = currentVital.icon;
+                  
+                  return (
+                    <>
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Icon className={`w-5 h-5 text-${currentVital.color}-600`} />
+                        <span className="font-medium">{currentVital.label}</span>
+                      </div>
+                      
+                      {selectedVitalType === "bloodPressure" ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={form.control}
+                            name="value"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm">Systolic</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    placeholder={currentVital.placeholder}
+                                    {...field}
+                                    className="h-9"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="value2"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm">Diastolic</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    placeholder={currentVital.placeholder2}
+                                    {...field}
+                                    className="h-9"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="value"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm">Value</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder={currentVital.placeholder}
+                                  {...field}
+                                  type={selectedVitalType === "painLevel" ? "number" : "text"}
+                                  min={selectedVitalType === "painLevel" ? "0" : undefined}
+                                  max={selectedVitalType === "painLevel" ? "10" : undefined}
+                                  className="h-9"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                      )}
+                      
+                      {/* Unit Selection */}
+                      {currentVital.units.length > 1 && (
+                        <FormField
+                          control={form.control}
+                          name="unit"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm">Unit</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {currentVital.units.map((unit) => (
+                                    <SelectItem key={unit.value} value={unit.value}>
+                                      {unit.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
-              {/* Staff Information */}
+              {/* Optional Notes */}
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Notes (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Add any additional notes..."
+                        className="min-h-[60px] resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {/* Recorded By */}
               <FormField
                 control={form.control}
                 name="recordedBy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Recorded By</FormLabel>
+                    <FormLabel className="text-sm">Recorded By</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         disabled
-                        className="bg-gray-50 text-gray-600"
-                        placeholder="Current user"
+                        className="bg-gray-50 text-gray-600 h-9"
                       />
                     </FormControl>
                     <FormMessage />
@@ -916,20 +868,37 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
               />
 
               {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4 border-t">
+              <div className="flex justify-between pt-4 border-t">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => {
                     setIsVitalsDialogOpen(false);
                     form.reset();
                   }}
+                  className="text-gray-600"
                 >
-                  Cancel
+                  Done
                 </Button>
-                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                  Record Vitals
-                </Button>
+                <div className="space-x-2">
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    className="bg-white"
+                  >
+                    Save & Add Another
+                  </Button>
+                  <Button 
+                    type="button"
+                    onClick={() => {
+                      form.handleSubmit(handleSubmit)();
+                      setIsVitalsDialogOpen(false);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    Save & Close
+                  </Button>
+                </div>
               </div>
             </form>
           </Form>

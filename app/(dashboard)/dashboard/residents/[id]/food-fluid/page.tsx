@@ -51,7 +51,6 @@ import {
   Calendar,
   Clock,
   Eye,
-  Download,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -113,10 +112,10 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
 
   // Get archived logs for records view
 
-  const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
-    residentId: id as Id<"residents">,
-    limit: 50
-  });
+  // const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
+  //   residentId: id as Id<"residents">,
+  //   limit: 50
+  // });
 
 
   // Auth data

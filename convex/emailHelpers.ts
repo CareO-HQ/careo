@@ -48,6 +48,12 @@ export const getPDFStorageId = query({
         );
         return assessment?.pdfFileId || null;
       }
+      case "admission-form": {
+        const assessment = await ctx.db.get(
+          formId as Id<"admissionAssesments">
+        );
+        return assessment?.pdfFileId || null;
+      }
       default:
         return null;
     }

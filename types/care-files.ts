@@ -1,5 +1,6 @@
 export type CareFileFormKey =
   | "preAdmission-form"
+  | "admission-form"
   | "infection-prevention"
   | "blader-bowel-form"
   | "moving-handling-form"

@@ -48,8 +48,15 @@ export const config = {
       key: "admission",
       value: "Admission",
       description: "Admission Assessment Folder",
-      carePlan: true,
-      forms: []
+      carePlan: false,
+      forms: [
+        {
+          type: "form",
+          key: "admission-form",
+          value: "Admission Assessment Form",
+          description: "Admission Assessment Form"
+        }
+      ]
     },
     {
       type: "folder",

@@ -1,16 +1,12 @@
-import {
-  mutation,
-  query,
-  internalAction,
-  internalMutation
-} from "../_generated/server";
 import { v } from "convex/values";
-import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
+import {
+  internalAction,
+  internalMutation,
+  mutation,
+  query
+} from "../_generated/server";
 
-/**
- * Submit a pre-admission care file form
- */
 export const submitPreAdmissionForm = mutation({
   args: {
     residentId: v.id("residents"),
