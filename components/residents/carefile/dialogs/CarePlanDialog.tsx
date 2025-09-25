@@ -47,6 +47,7 @@ interface CarePlanDialogProps {
   userId: string;
   userName: string;
   resident: Resident;
+  folderKey?: string;
   initialData?: any;
   isEditMode?: boolean;
   onClose?: () => void; // For review mode only
@@ -59,6 +60,7 @@ export default function CarePlanDialog({
   userId,
   userName,
   resident,
+  folderKey,
   initialData,
   isEditMode = false,
   onClose
@@ -160,7 +162,8 @@ export default function CarePlanDialog({
         } else {
           await submitAssessment({
             ...values,
-            residentId: residentId as Id<"residents">
+            residentId: residentId as Id<"residents">,
+            folderKey
           });
           toast.success("Care plan assessment submitted successfully");
         }

@@ -1529,6 +1529,9 @@ export default defineSchema({
 
     userId: v.string(),
 
+    // Folder association
+    folderKey: v.optional(v.string()),
+
     // Basic information
 
     nameOfCarePlan: v.string(),
@@ -1599,7 +1602,9 @@ export default defineSchema({
 
     .index("by_carePlanNumber", ["carePlanNumber"])
 
-    .index("by_date", ["date"]),
+    .index("by_date", ["date"])
+
+    .index("by_resident_and_folder", ["residentId", "folderKey"]),
 
   // Hospital Passport records
   hospitalPassports: defineTable({
