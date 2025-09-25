@@ -165,6 +165,14 @@ export default defineSchema({
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
+    // GP Information
+    gpName: v.optional(v.string()),
+    gpPhone: v.optional(v.string()),
+    gpAddress: v.optional(v.string()),
+    // Care Manager Information
+    careManagerName: v.optional(v.string()),
+    careManagerPhone: v.optional(v.string()),
+    careManagerAddress: v.optional(v.string()),
     healthConditions: v.optional(
       v.union(
         v.array(v.string()),
@@ -240,6 +248,7 @@ export default defineSchema({
     name: v.string(),
     phoneNumber: v.string(),
     relationship: v.string(),
+    address: v.optional(v.string()),
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string(),
     createdAt: v.number(),
