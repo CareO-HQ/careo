@@ -63,6 +63,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     residentId
   });
 
+  const peepForms = useQuery(api.careFiles.peep.getPeepsByResident, {
+    residentId
+  });
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -85,6 +89,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
   const latestDnacprForm = dnacprForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestPeepForm = peepForms?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -140,6 +147,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestDnacprForm ? { dnacprId: latestDnacprForm._id } : "skip"
   );
 
+  const peepPdfUrl = useQuery(
+    api.careFiles.peep.getPDFUrl,
+    latestPeepForm ? { peepId: latestPeepForm._id } : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -155,6 +167,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     if (latestAdmissionAssessment) ids.push(latestAdmissionAssessment._id);
     if (latestPhotographyConsent) ids.push(latestPhotographyConsent._id);
     if (latestDnacprForm) ids.push(latestDnacprForm._id);
+    if (latestPeepForm) ids.push(latestPeepForm._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -164,7 +177,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestLongTermFallsAssessment,
     latestAdmissionAssessment,
     latestPhotographyConsent,
-    latestDnacprForm
+    latestDnacprForm,
+    latestPeepForm
   ]);
 
   const auditStatus = useQuery(
@@ -192,6 +206,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log("  admissionAssessments:", admissionAssessments);
   console.log("  photographyConsents:", photographyConsents);
   console.log("  dnacprForms:", dnacprForms);
+  console.log("  peepForms:", peepForms);
   console.log("formIds:", formIds);
   console.log("auditStatus:", auditStatus);
   console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
@@ -214,6 +229,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log("latestAdmissionAssessment ID:", latestAdmissionAssessment?._id);
   console.log("latestPhotographyConsent ID:", latestPhotographyConsent?._id);
   console.log("latestDnacprForm ID:", latestDnacprForm?._id);
+  console.log("latestPeepForm ID:", latestPeepForm?._id);
 
   // Helper function to determine form status
   const getFormStatus = (
@@ -490,6 +506,38 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: dnacprAudit?.auditedBy
     };
 
+    // PEEP form
+    const hasPeepData = !!latestPeepForm;
+    const peepHasPdfFileId = !!(latestPeepForm as any)?.pdfFileId;
+    const peepAudit = latestPeepForm
+      ? auditStatus?.[latestPeepForm._id as string]
+      : undefined;
+
+    console.log("PEEP audit lookup:");
+    console.log("  Form ID:", latestPeepForm?._id);
+    console.log("  Audit found:", peepAudit);
+    console.log("  Is audited:", peepAudit?.isAudited);
+
+    state["peep"] = {
+      status: getFormStatus(
+        hasPeepData,
+        latestPeepForm?.status === "draft",
+        peepHasPdfFileId,
+        peepPdfUrl
+      ),
+      hasData: hasPeepData,
+      hasPdfFileId: peepHasPdfFileId,
+      pdfUrl: peepPdfUrl,
+      lastUpdated: latestPeepForm?._creationTime,
+      completedAt:
+        latestPeepForm?.status !== "draft"
+          ? latestPeepForm?.submittedAt
+          : undefined,
+      isAudited: peepAudit?.isAudited || false,
+      auditedAt: peepAudit?.auditedAt,
+      auditedBy: peepAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -503,6 +551,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestAdmissionAssessment,
     latestPhotographyConsent,
     latestDnacprForm,
+    latestPeepForm,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
@@ -511,6 +560,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     admissionPdfUrl,
     photographyConsentPdfUrl,
     dnacprPdfUrl,
+    peepPdfUrl,
     auditStatus
   ]);
 
@@ -582,9 +632,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestAdmissionAssessment,
     latestPhotographyConsent,
     latestDnacprForm,
+    latestPeepForm,
     // All assessments for reference
     admissionAssessments,
     photographyConsents,
-    dnacprForms
+    dnacprForms,
+    peepForms
   };
 }

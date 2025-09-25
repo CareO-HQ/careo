@@ -41,6 +41,7 @@ import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 import AdmissionDialog from "../dialogs/AdmissionDialog";
 import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
 import DnacprDialog from "../dialogs/DnarcpDialog";
+import PeepDialog from "../dialogs/PeepDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -170,6 +171,11 @@ export default function CareFileFolder({
   const allDnacprForms = useQuery(
     api.careFiles.dnacpr.getDnacprsByResident,
     folderFormKeys.includes("dnacpr") && residentId ? { residentId } : "skip"
+  );
+
+  const allPeepForms = useQuery(
+    api.careFiles.peep.getPeepsByResident,
+    folderFormKeys.includes("peep") && residentId ? { residentId } : "skip"
   );
 
   // Debug the query condition step by step
@@ -317,6 +323,22 @@ export default function CareFileFolder({
       });
     }
 
+    // Process PEEP forms
+    if (allPeepForms) {
+      const sortedForms = [...allPeepForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "peep",
+          formId: form._id,
+          name: "Personal Emergency Evacuation Plan",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -348,7 +370,8 @@ export default function CareFileFolder({
     allLongTermFallsForms,
     allAdmissionForms,
     allPhotographyConsentForms,
-    allDnacprForms
+    allDnacprForms,
+    allPeepForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -384,7 +407,9 @@ export default function CareFileFolder({
                       ? api.careFiles.photographyConsent.getPDFUrl
                       : file.formKey === "dnacpr"
                         ? api.careFiles.dnacpr.getPDFUrl
-                        : ("skip" as any),
+                        : file.formKey === "peep"
+                          ? api.careFiles.peep.getPDFUrl
+                          : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -408,7 +433,9 @@ export default function CareFileFolder({
                       ? { consentId: file.formId as Id<"photographyConsents"> }
                       : file.formKey === "dnacpr"
                         ? { dnacprId: file.formId as Id<"dnacprs"> }
-                        : "skip"
+                        : file.formKey === "peep"
+                          ? { peepId: file.formId as Id<"peeps"> }
+                          : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -665,6 +692,8 @@ export default function CareFileFolder({
               return `photography-consent-${baseName}.pdf`;
             case "dnacpr":
               return `dnacpr-${baseName}.pdf`;
+            case "peep":
+              return `peep-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -810,7 +839,8 @@ export default function CareFileFolder({
       longTermFallsRiskAssessment: "long-term-fall-risk-form",
       admissionAssesment: "admission-form",
       photographyConsent: "photography-consent",
-      dnacpr: "dnacpr"
+      dnacpr: "dnacpr",
+      peep: "peep"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -828,7 +858,8 @@ export default function CareFileFolder({
       carePlanAssessment: "Care Plan Assessment",
       admissionAssesment: "Admission Assessment",
       photographyConsent: "Photography Consent Form",
-      dnacpr: "DNACPR Form"
+      dnacpr: "DNACPR Form",
+      peep: "Personal Emergency Evacuation Plan"
     };
     return mapping[formType] || formType;
   };
@@ -993,6 +1024,23 @@ export default function CareFileFolder({
             }}
           />
         );
+      case "peep":
+        return (
+          <PeepDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
       // case 'discharge':
       //   return <DischargeDialog />;
       default:

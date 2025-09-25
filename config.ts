@@ -85,7 +85,14 @@ export const config = {
       value: "PEEP",
       description: "PEEP Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "peep",
+          value: "PEEP Form",
+          description: "PEEP Form"
+        }
+      ]
     },
     {
       type: "folder",

@@ -19,6 +19,7 @@ import type * as careFiles_dnacpr from "../careFiles/dnacpr.js";
 import type * as careFiles_infectionPrevention from "../careFiles/infectionPrevention.js";
 import type * as careFiles_longTermFalls from "../careFiles/longTermFalls.js";
 import type * as careFiles_movingHandling from "../careFiles/movingHandling.js";
+import type * as careFiles_peep from "../careFiles/peep.js";
 import type * as careFiles_photographyConsent from "../careFiles/photographyConsent.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
 import type * as crons from "../crons.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   "careFiles/infectionPrevention": typeof careFiles_infectionPrevention;
   "careFiles/longTermFalls": typeof careFiles_longTermFalls;
   "careFiles/movingHandling": typeof careFiles_movingHandling;
+  "careFiles/peep": typeof careFiles_peep;
   "careFiles/photographyConsent": typeof careFiles_photographyConsent;
   "careFiles/preadmission": typeof careFiles_preadmission;
   crons: typeof crons;

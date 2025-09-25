@@ -62,6 +62,10 @@ export const getPDFStorageId = query({
         const dnacpr = await ctx.db.get(formId as Id<"dnacprs">);
         return dnacpr?.pdfFileId || null;
       }
+      case "peep": {
+        const peep = await ctx.db.get(formId as Id<"peeps">);
+        return peep?.pdfFileId || null;
+      }
       default:
         return null;
     }

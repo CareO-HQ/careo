@@ -82,7 +82,10 @@ export const createAudit = mutation({
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
       v.literal("longTermFallsRiskAssessment"),
-      v.literal("admissionAssesment")
+      v.literal("admissionAssesment"),
+      v.literal("photographyConsent"),
+      v.literal("dnacpr"),
+      v.literal("peep")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -141,7 +144,10 @@ export const getAuditsByForm = query({
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
       v.literal("longTermFallsRiskAssessment"),
-      v.literal("admissionAssesment")
+      v.literal("admissionAssesment"),
+      v.literal("photographyConsent"),
+      v.literal("dnacpr"),
+      v.literal("peep")
     ),
     formId: v.string()
   },
@@ -317,6 +323,18 @@ export const getUnauditedForms = query({
         "admission-form": {
           formType: "admissionAssesment",
           table: "admissionAssesments"
+        },
+        "photography-consent": {
+          formType: "photographyConsent",
+          table: "photographyConsents"
+        },
+        dnacpr: {
+          formType: "dnacpr",
+          table: "dnacprs"
+        },
+        peep: {
+          formType: "peep",
+          table: "peeps"
         }
       };
 
@@ -447,6 +465,53 @@ export const getUnauditedForms = query({
             completedForms =
               allAdmissionForms.length > 0 ? [allAdmissionForms[0]] : [];
             break;
+          case "photographyConsents":
+            const allPhotographyForms = await ctx.db
+              .query("photographyConsents")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("status"), "draft"))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms =
+              allPhotographyForms.length > 0 ? [allPhotographyForms[0]] : [];
+            break;
+          case "dnacprs":
+            const allDnacprForms = await ctx.db
+              .query("dnacprs")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("status"), "draft"))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms =
+              allDnacprForms.length > 0 ? [allDnacprForms[0]] : [];
+            break;
+          case "peeps":
+            const allPeepForms = await ctx.db
+              .query("peeps")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("status"), "draft"))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms = allPeepForms.length > 0 ? [allPeepForms[0]] : [];
+            break;
         }
       } catch (error) {
         // If table doesn't exist or other error, skip this form type
@@ -542,7 +607,10 @@ export const getFormDataForReview = query({
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
       v.literal("longTermFallsRiskAssessment"),
-      v.literal("admissionAssesment")
+      v.literal("admissionAssesment"),
+      v.literal("photographyConsent"),
+      v.literal("dnacpr"),
+      v.literal("peep")
     ),
     formId: v.string()
   },
@@ -563,6 +631,12 @@ export const getFormDataForReview = query({
         case "longTermFallsRiskAssessment":
           return await ctx.db.get(args.formId as any);
         case "admissionAssesment":
+          return await ctx.db.get(args.formId as any);
+        case "photographyConsent":
+          return await ctx.db.get(args.formId as any);
+        case "dnacpr":
+          return await ctx.db.get(args.formId as any);
+        case "peep":
           return await ctx.db.get(args.formId as any);
         default:
           return null;
@@ -586,7 +660,10 @@ export const submitReviewedForm = mutation({
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
       v.literal("longTermFallsRiskAssessment"),
-      v.literal("admissionAssesment")
+      v.literal("admissionAssesment"),
+      v.literal("photographyConsent"),
+      v.literal("dnacpr"),
+      v.literal("peep")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -653,6 +730,24 @@ export const submitReviewedForm = mutation({
         case "admissionAssesment":
           newFormId = await ctx.runMutation(
             api.careFiles.admission.submitAdmissionAssessment,
+            args.formData
+          );
+          break;
+        case "photographyConsent":
+          newFormId = await ctx.runMutation(
+            api.careFiles.photographyConsent.submitPhotographyConsent,
+            args.formData
+          );
+          break;
+        case "dnacpr":
+          newFormId = await ctx.runMutation(
+            api.careFiles.dnacpr.submitDnacpr,
+            args.formData
+          );
+          break;
+        case "peep":
+          newFormId = await ctx.runMutation(
+            api.careFiles.peep.submitPeep,
             args.formData
           );
           break;
