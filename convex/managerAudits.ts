@@ -81,7 +81,8 @@ export const createAudit = mutation({
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
-      v.literal("longTermFallsRiskAssessment")
+      v.literal("longTermFallsRiskAssessment"),
+      v.literal("admissionAssesment")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -139,7 +140,8 @@ export const getAuditsByForm = query({
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
-      v.literal("longTermFallsRiskAssessment")
+      v.literal("longTermFallsRiskAssessment"),
+      v.literal("admissionAssesment")
     ),
     formId: v.string()
   },
@@ -311,6 +313,10 @@ export const getUnauditedForms = query({
         "care-plan-form": {
           formType: "carePlanAssessment",
           table: "carePlanAssessments"
+        },
+        "admission-form": {
+          formType: "admissionAssesment",
+          table: "admissionAssesments"
         }
       };
 
@@ -425,6 +431,22 @@ export const getUnauditedForms = query({
             completedForms =
               allCarePlanForms.length > 0 ? [allCarePlanForms[0]] : [];
             break;
+          case "admissionAssesments":
+            const allAdmissionForms = await ctx.db
+              .query("admissionAssesments")
+              .withIndex("by_residentId", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("status"), "draft"))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms =
+              allAdmissionForms.length > 0 ? [allAdmissionForms[0]] : [];
+            break;
         }
       } catch (error) {
         // If table doesn't exist or other error, skip this form type
@@ -519,7 +541,8 @@ export const getFormDataForReview = query({
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
-      v.literal("longTermFallsRiskAssessment")
+      v.literal("longTermFallsRiskAssessment"),
+      v.literal("admissionAssesment")
     ),
     formId: v.string()
   },
@@ -538,6 +561,8 @@ export const getFormDataForReview = query({
         case "carePlanAssessment":
           return await ctx.db.get(args.formId as any);
         case "longTermFallsRiskAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "admissionAssesment":
           return await ctx.db.get(args.formId as any);
         default:
           return null;
@@ -560,7 +585,8 @@ export const submitReviewedForm = mutation({
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
       v.literal("preAdmissionCareFile"),
-      v.literal("longTermFallsRiskAssessment")
+      v.literal("longTermFallsRiskAssessment"),
+      v.literal("admissionAssesment")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -621,6 +647,12 @@ export const submitReviewedForm = mutation({
         case "carePlanAssessment":
           newFormId = await ctx.runMutation(
             api.careFiles.carePlan.submitCarePlanAssessment,
+            args.formData
+          );
+          break;
+        case "admissionAssesment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.admission.submitAdmissionAssessment,
             args.formData
           );
           break;

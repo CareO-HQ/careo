@@ -55,6 +55,12 @@ export const config = {
           key: "admission-form",
           value: "Admission Assessment Form",
           description: "Admission Assessment Form"
+        },
+        {
+          type: "form",
+          key: "photography-consent",
+          value: "Photography Consent Form",
+          description: "Photography Consent Form"
         }
       ]
     },
@@ -64,7 +70,14 @@ export const config = {
       value: "DNACPR",
       description: "DNACPR order",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "dnacpr",
+          value: "DNACPR Form",
+          description: "DNACPR Form"
+        }
+      ]
     },
     {
       type: "folder",

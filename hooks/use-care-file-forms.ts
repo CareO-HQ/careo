@@ -54,6 +54,15 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const photographyConsents = useQuery(
+    api.careFiles.photographyConsent.getPhotographyConsentsByResident,
+    { residentId }
+  );
+
+  const dnacprForms = useQuery(api.careFiles.dnacpr.getDnacprsByResident, {
+    residentId
+  });
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -70,6 +79,12 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   )?.[0];
   const latestLongTermFallsAssessment = longTermFallsAssessment;
   const latestAdmissionAssessment = admissionAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestPhotographyConsent = photographyConsents?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestDnacprForm = dnacprForms?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -113,6 +128,18 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const photographyConsentPdfUrl = useQuery(
+    api.careFiles.photographyConsent.getPDFUrl,
+    latestPhotographyConsent
+      ? { consentId: latestPhotographyConsent._id }
+      : "skip"
+  );
+
+  const dnacprPdfUrl = useQuery(
+    api.careFiles.dnacpr.getPDFUrl,
+    latestDnacprForm ? { dnacprId: latestDnacprForm._id } : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -126,6 +153,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     if (latestLongTermFallsAssessment)
       ids.push(latestLongTermFallsAssessment._id);
     if (latestAdmissionAssessment) ids.push(latestAdmissionAssessment._id);
+    if (latestPhotographyConsent) ids.push(latestPhotographyConsent._id);
+    if (latestDnacprForm) ids.push(latestDnacprForm._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -133,7 +162,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
     latestLongTermFallsAssessment,
-    latestAdmissionAssessment
+    latestAdmissionAssessment,
+    latestPhotographyConsent,
+    latestDnacprForm
   ]);
 
   const auditStatus = useQuery(
@@ -159,6 +190,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log("  movingHandlingAssessments:", movingHandlingAssessments);
   console.log("  longTermFallsAssessment:", longTermFallsAssessment);
   console.log("  admissionAssessments:", admissionAssessments);
+  console.log("  photographyConsents:", photographyConsents);
+  console.log("  dnacprForms:", dnacprForms);
   console.log("formIds:", formIds);
   console.log("auditStatus:", auditStatus);
   console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
@@ -179,6 +212,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestLongTermFallsAssessment?._id
   );
   console.log("latestAdmissionAssessment ID:", latestAdmissionAssessment?._id);
+  console.log("latestPhotographyConsent ID:", latestPhotographyConsent?._id);
+  console.log("latestDnacprForm ID:", latestDnacprForm?._id);
 
   // Helper function to determine form status
   const getFormStatus = (
@@ -359,7 +394,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
 
     // Admission assessment
     const hasAdmissionData = !!latestAdmissionAssessment;
-    const admissionHasPdfFileId = !!latestAdmissionAssessment?.pdfFileId;
+    const admissionHasPdfFileId = !!(latestAdmissionAssessment as any)
+      ?.pdfFileId;
     const admissionAudit = latestAdmissionAssessment
       ? auditStatus?.[latestAdmissionAssessment._id as string]
       : undefined;
@@ -389,6 +425,71 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: admissionAudit?.auditedBy
     };
 
+    // Photography consent
+    const hasPhotographyConsentData = !!latestPhotographyConsent;
+    const photographyConsentHasPdfFileId = !!(latestPhotographyConsent as any)
+      ?.pdfFileId;
+    const photographyConsentAudit = latestPhotographyConsent
+      ? auditStatus?.[latestPhotographyConsent._id as string]
+      : undefined;
+
+    console.log("Photography consent audit lookup:");
+    console.log("  Form ID:", latestPhotographyConsent?._id);
+    console.log("  Audit found:", photographyConsentAudit);
+    console.log("  Is audited:", photographyConsentAudit?.isAudited);
+
+    state["photography-consent"] = {
+      status: getFormStatus(
+        hasPhotographyConsentData,
+        latestPhotographyConsent?.status === "draft",
+        photographyConsentHasPdfFileId,
+        photographyConsentPdfUrl
+      ),
+      hasData: hasPhotographyConsentData,
+      hasPdfFileId: photographyConsentHasPdfFileId,
+      pdfUrl: photographyConsentPdfUrl,
+      lastUpdated: latestPhotographyConsent?._creationTime,
+      completedAt:
+        latestPhotographyConsent?.status !== "draft"
+          ? latestPhotographyConsent?.submittedAt
+          : undefined,
+      isAudited: photographyConsentAudit?.isAudited || false,
+      auditedAt: photographyConsentAudit?.auditedAt,
+      auditedBy: photographyConsentAudit?.auditedBy
+    };
+
+    // DNACPR form
+    const hasDnacprData = !!latestDnacprForm;
+    const dnacprHasPdfFileId = !!(latestDnacprForm as any)?.pdfFileId;
+    const dnacprAudit = latestDnacprForm
+      ? auditStatus?.[latestDnacprForm._id as string]
+      : undefined;
+
+    console.log("DNACPR audit lookup:");
+    console.log("  Form ID:", latestDnacprForm?._id);
+    console.log("  Audit found:", dnacprAudit);
+    console.log("  Is audited:", dnacprAudit?.isAudited);
+
+    state["dnacpr"] = {
+      status: getFormStatus(
+        hasDnacprData,
+        latestDnacprForm?.status === "draft",
+        dnacprHasPdfFileId,
+        dnacprPdfUrl
+      ),
+      hasData: hasDnacprData,
+      hasPdfFileId: dnacprHasPdfFileId,
+      pdfUrl: dnacprPdfUrl,
+      lastUpdated: latestDnacprForm?._creationTime,
+      completedAt:
+        latestDnacprForm?.status !== "draft"
+          ? latestDnacprForm?.submittedAt
+          : undefined,
+      isAudited: dnacprAudit?.isAudited || false,
+      auditedAt: dnacprAudit?.auditedAt,
+      auditedBy: dnacprAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -400,12 +501,16 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestMovingHandlingAssessment,
     latestLongTermFallsAssessment,
     latestAdmissionAssessment,
+    latestPhotographyConsent,
+    latestDnacprForm,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
     movingHandlingPdfUrl,
     longTermFallsPdfUrl,
     admissionPdfUrl,
+    photographyConsentPdfUrl,
+    dnacprPdfUrl,
     auditStatus
   ]);
 
@@ -475,7 +580,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestMovingHandlingAssessment,
     latestLongTermFallsAssessment,
     latestAdmissionAssessment,
+    latestPhotographyConsent,
+    latestDnacprForm,
     // All assessments for reference
-    admissionAssessments
+    admissionAssessments,
+    photographyConsents,
+    dnacprForms
   };
 }

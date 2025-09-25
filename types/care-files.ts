@@ -5,7 +5,9 @@ export type CareFileFormKey =
   | "blader-bowel-form"
   | "moving-handling-form"
   | "long-term-fall-risk-form"
-  | "care-plan-form";
+  | "care-plan-form"
+  | "photography-consent"
+  | "dnacpr";
 
 export type CareFileFormStatus =
   | "not-started"
