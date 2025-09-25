@@ -404,3 +404,36 @@ export const peeps = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 });
+
+export const dependencyAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  dependencyLevel: v.union(
+    v.literal("A"),
+    v.literal("B"),
+    v.literal("C"),
+    v.literal("D")
+  ),
+
+  // Completed by
+  completedBy: v.string(),
+  completedBySignature: v.string(),
+  date: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);

@@ -7,7 +7,8 @@ import {
   longTermFallsRiskAssessments,
   photographyConsents,
   dnacprs,
-  peeps
+  peeps,
+  dependencyAssessments
 } from "./schemas/carefiles";
 
 const TaskStatus = v.union(
@@ -1482,6 +1483,10 @@ export default defineSchema({
 
   peeps: peeps
     .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  dependencyAssessments: dependencyAssessments
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"]),
 

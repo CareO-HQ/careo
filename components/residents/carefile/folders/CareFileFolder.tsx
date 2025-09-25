@@ -42,6 +42,7 @@ import AdmissionDialog from "../dialogs/AdmissionDialog";
 import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
 import DnacprDialog from "../dialogs/DnarcpDialog";
 import PeepDialog from "../dialogs/PeepDialog";
+import DependencyDialog from "../dialogs/DependencyDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -178,6 +179,13 @@ export default function CareFileFolder({
   const allPeepForms = useQuery(
     api.careFiles.peep.getPeepsByResident,
     folderFormKeys.includes("peep") && residentId ? { residentId } : "skip"
+  );
+
+  const allDependencyAssessmentForms = useQuery(
+    api.careFiles.dependency.getDependencyAssessmentsByResident,
+    folderFormKeys.includes("dependency-assessment") && residentId
+      ? { residentId }
+      : "skip"
   );
 
   // Debug the query condition step by step
@@ -361,6 +369,25 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Dependency Assessment forms
+    if (
+      allDependencyAssessmentForms &&
+      formKeysInThisFolder.includes("dependency-assessment")
+    ) {
+      const sortedForms = [...allDependencyAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "dependency-assessment",
+          formId: form._id,
+          name: "Dependency Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -394,6 +421,7 @@ export default function CareFileFolder({
     allPhotographyConsentForms,
     allDnacprForms,
     allPeepForms,
+    allDependencyAssessmentForms,
     folderFormKeys
   ]);
 
@@ -432,7 +460,9 @@ export default function CareFileFolder({
                         ? api.careFiles.dnacpr.getPDFUrl
                         : file.formKey === "peep"
                           ? api.careFiles.peep.getPDFUrl
-                          : ("skip" as any),
+                          : file.formKey === "dependency-assessment"
+                            ? api.careFiles.dependency.getPDFUrl
+                            : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -458,7 +488,12 @@ export default function CareFileFolder({
                         ? { dnacprId: file.formId as Id<"dnacprs"> }
                         : file.formKey === "peep"
                           ? { peepId: file.formId as Id<"peeps"> }
-                          : "skip"
+                          : file.formKey === "dependency-assessment"
+                            ? {
+                                assessmentId:
+                                  file.formId as Id<"dependencyAssessments">
+                              }
+                            : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -717,6 +752,8 @@ export default function CareFileFolder({
               return `dnacpr-${baseName}.pdf`;
             case "peep":
               return `peep-${baseName}.pdf`;
+            case "dependency-assessment":
+              return `dependency-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -863,7 +900,8 @@ export default function CareFileFolder({
       admissionAssesment: "admission-form",
       photographyConsent: "photography-consent",
       dnacpr: "dnacpr",
-      peep: "peep"
+      peep: "peep",
+      dependencyAssessment: "dependency-assessment"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -882,7 +920,8 @@ export default function CareFileFolder({
       admissionAssesment: "Admission Assessment",
       photographyConsent: "Photography Consent Form",
       dnacpr: "DNACPR Form",
-      peep: "Personal Emergency Evacuation Plan"
+      peep: "Personal Emergency Evacuation Plan",
+      dependencyAssessment: "Dependency Assessment"
     };
     return mapping[formType] || formType;
   };
@@ -1051,6 +1090,23 @@ export default function CareFileFolder({
       case "peep":
         return (
           <PeepDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
+      case "dependency-assessment":
+        return (
+          <DependencyDialog
             resident={resident}
             teamId={activeTeamId}
             residentId={residentId}

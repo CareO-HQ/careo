@@ -85,7 +85,8 @@ export const createAudit = mutation({
       v.literal("admissionAssesment"),
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
-      v.literal("peep")
+      v.literal("peep"),
+      v.literal("dependencyAssessment")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -147,7 +148,8 @@ export const getAuditsByForm = query({
       v.literal("admissionAssesment"),
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
-      v.literal("peep")
+      v.literal("peep"),
+      v.literal("dependencyAssessment")
     ),
     formId: v.string()
   },
@@ -610,7 +612,8 @@ export const getFormDataForReview = query({
       v.literal("admissionAssesment"),
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
-      v.literal("peep")
+      v.literal("peep"),
+      v.literal("dependencyAssessment")
     ),
     formId: v.string()
   },
@@ -638,6 +641,8 @@ export const getFormDataForReview = query({
           return await ctx.db.get(args.formId as any);
         case "peep":
           return await ctx.db.get(args.formId as any);
+        case "dependencyAssessment":
+          return await ctx.db.get(args.formId as any);
         default:
           return null;
       }
@@ -663,7 +668,8 @@ export const submitReviewedForm = mutation({
       v.literal("admissionAssesment"),
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
-      v.literal("peep")
+      v.literal("peep"),
+      v.literal("dependencyAssessment")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -748,6 +754,12 @@ export const submitReviewedForm = mutation({
         case "peep":
           newFormId = await ctx.runMutation(
             api.careFiles.peep.submitPeep,
+            args.formData
+          );
+          break;
+        case "dependencyAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.dependency.submitDependencyAssessment,
             args.formData
           );
           break;
