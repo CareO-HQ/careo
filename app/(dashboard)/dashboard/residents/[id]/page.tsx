@@ -476,8 +476,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-yellow-50 rounded-lg">
-                    <Ambulance className="w-6 h-6 text-yellow-600" />
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <Ambulance className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Hospital Passport</h3>

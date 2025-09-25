@@ -11,6 +11,14 @@ export const create = mutation({
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
+    // GP Details
+    gpName: v.optional(v.string()),
+    gpAddress: v.optional(v.string()),
+    gpPhone: v.optional(v.string()),
+    // Care Manager Details
+    careManagerName: v.optional(v.string()),
+    careManagerAddress: v.optional(v.string()),
+    careManagerPhone: v.optional(v.string()),
     healthConditions: v.optional(
       v.union(
         v.array(v.string()),
@@ -84,6 +92,14 @@ export const create = mutation({
       roomNumber: args.roomNumber,
       admissionDate: args.admissionDate,
       nhsHealthNumber: args.nhsHealthNumber,
+      // GP Details
+      gpName: args.gpName,
+      gpAddress: args.gpAddress,
+      gpPhone: args.gpPhone,
+      // Care Manager Details
+      careManagerName: args.careManagerName,
+      careManagerAddress: args.careManagerAddress,
+      careManagerPhone: args.careManagerPhone,
       healthConditions: args.healthConditions,
       risks: args.risks,
       dependencies: args.dependencies,
@@ -105,6 +121,7 @@ export const createEmergencyContact = mutation({
     name: v.string(),
     phoneNumber: v.string(),
     relationship: v.string(),
+    address: v.optional(v.string()),
     isPrimary: v.optional(v.boolean()),
     organizationId: v.string()
   },
@@ -117,6 +134,7 @@ export const createEmergencyContact = mutation({
       name: args.name,
       phoneNumber: args.phoneNumber,
       relationship: args.relationship,
+      address: args.address,
       isPrimary: args.isPrimary ?? false,
       organizationId: args.organizationId,
       createdAt: now,
@@ -197,5 +215,70 @@ export const getByTeamId = query({
     }
 
     return results;
+  }
+});
+
+export const updateEmergencyContact = mutation({
+  args: {
+    contactId: v.id("emergencyContacts"),
+    name: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    relationship: v.optional(v.string()),
+    address: v.optional(v.string()),
+    isPrimary: v.optional(v.boolean()),
+  },
+  returns: v.id("emergencyContacts"),
+  handler: async (ctx, args) => {
+    const { contactId, ...updateFields } = args;
+
+    // Remove undefined fields
+    const fieldsToUpdate: Record<string, any> = Object.fromEntries(
+      Object.entries(updateFields).filter(([_, value]) => value !== undefined)
+    );
+
+    // Add updatedAt timestamp
+    fieldsToUpdate.updatedAt = Date.now();
+
+    await ctx.db.patch(contactId, fieldsToUpdate);
+
+    return contactId;
+  }
+});
+
+export const update = mutation({
+  args: {
+    residentId: v.id("residents"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    dateOfBirth: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    roomNumber: v.optional(v.string()),
+    admissionDate: v.optional(v.string()),
+    nhsHealthNumber: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    // GP Details
+    gpName: v.optional(v.string()),
+    gpAddress: v.optional(v.string()),
+    gpPhone: v.optional(v.string()),
+    // Care Manager Details
+    careManagerName: v.optional(v.string()),
+    careManagerAddress: v.optional(v.string()),
+    careManagerPhone: v.optional(v.string()),
+  },
+  returns: v.id("residents"),
+  handler: async (ctx, args) => {
+    const { residentId, ...updateFields } = args;
+
+    // Remove undefined fields
+    const fieldsToUpdate: Record<string, any> = Object.fromEntries(
+      Object.entries(updateFields).filter(([_, value]) => value !== undefined)
+    );
+
+    // Add updatedAt timestamp
+    fieldsToUpdate.updatedAt = Date.now();
+
+    await ctx.db.patch(residentId, fieldsToUpdate);
+
+    return residentId;
   }
 });
