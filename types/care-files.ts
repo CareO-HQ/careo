@@ -6,7 +6,8 @@ export type CareFileFormKey =
   | "moving-handling-form"
   | "long-term-fall-risk-form"
   | "care-plan-form"
-  | "photography-consent";
+  | "photography-consent"
+  | "dnacpr";
 
 export type CareFileFormStatus =
   | "not-started"

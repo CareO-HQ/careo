@@ -167,6 +167,11 @@ export default function CareFileFolder({
       : "skip"
   );
 
+  const allDnacprForms = useQuery(
+    api.careFiles.dnacpr.getDnacprsByResident,
+    folderFormKeys.includes("dnacpr") && residentId ? { residentId } : "skip"
+  );
+
   // Debug the query condition step by step
   const hasCarePlanProp = carePlan;
   const hasResidentId = !!residentId;
@@ -296,6 +301,22 @@ export default function CareFileFolder({
       });
     }
 
+    // Process DNACPR forms
+    if (allDnacprForms) {
+      const sortedForms = [...allDnacprForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "dnacpr",
+          formId: form._id,
+          name: "DNACPR Form",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -326,7 +347,8 @@ export default function CareFileFolder({
     allMovingHandlingForms,
     allLongTermFallsForms,
     allAdmissionForms,
-    allPhotographyConsentForms
+    allPhotographyConsentForms,
+    allDnacprForms
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -360,7 +382,9 @@ export default function CareFileFolder({
                     ? api.careFiles.admission.getPDFUrl
                     : file.formKey === "photography-consent"
                       ? api.careFiles.photographyConsent.getPDFUrl
-                      : ("skip" as any),
+                      : file.formKey === "dnacpr"
+                        ? api.careFiles.dnacpr.getPDFUrl
+                        : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -382,7 +406,9 @@ export default function CareFileFolder({
                     ? { assessmentId: file.formId as Id<"admissionAssesments"> }
                     : file.formKey === "photography-consent"
                       ? { consentId: file.formId as Id<"photographyConsents"> }
-                      : "skip"
+                      : file.formKey === "dnacpr"
+                        ? { dnacprId: file.formId as Id<"dnacprs"> }
+                        : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -637,6 +663,8 @@ export default function CareFileFolder({
               return `admission-assessment-${baseName}.pdf`;
             case "photography-consent":
               return `photography-consent-${baseName}.pdf`;
+            case "dnacpr":
+              return `dnacpr-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -781,7 +809,8 @@ export default function CareFileFolder({
       carePlanAssessment: "care-plan-form",
       longTermFallsRiskAssessment: "long-term-fall-risk-form",
       admissionAssesment: "admission-form",
-      photographyConsent: "photography-consent"
+      photographyConsent: "photography-consent",
+      dnacpr: "dnacpr"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -798,7 +827,8 @@ export default function CareFileFolder({
       longTermFallsRiskAssessment: "Long Term Falls Risk Assessment",
       carePlanAssessment: "Care Plan Assessment",
       admissionAssesment: "Admission Assessment",
-      photographyConsent: "Photography Consent Form"
+      photographyConsent: "Photography Consent Form",
+      dnacpr: "DNACPR Form"
     };
     return mapping[formType] || formType;
   };
