@@ -27,19 +27,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import {
-  Home,
-  Stethoscope,
-  Pill,
-  FileText,
   ChevronLeft,
   ChevronRight,
   Check,
-  User,
-  Phone,
-  Calendar,
-  Paperclip,
 } from "lucide-react";
 
 
@@ -86,7 +77,11 @@ export function HospitalPassportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-5xl mx-auto max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent
+        className="w-full max-w-5xl mx-auto max-h-[90vh] overflow-hidden flex flex-col"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {isEditMode ? "Edit Hospital Passport" : "Hospital Passport"} for {residentName}

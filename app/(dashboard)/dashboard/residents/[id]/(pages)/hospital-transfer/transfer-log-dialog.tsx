@@ -149,11 +149,9 @@ export function TransferLogDialog({
   }, [open, isEditMode, transferLog, form, today]);
 
   const handleSubmit = async (data: TransferLogFormData) => {
-    console.log('Submitting form data:', data);
     setIsSubmitting(true);
     try {
       const result = await onSubmit(data);
-      console.log('Submission result:', result);
       // The parent component will close the dialog on success
     } catch (error) {
       console.error('Form submission failed:', error);
@@ -203,20 +201,14 @@ export function TransferLogDialog({
     }
 
     const result = await form.trigger(fieldsToValidate);
-    console.log('Validation result for step', currentStep, ':', result);
-    console.log('Fields validated:', fieldsToValidate);
     return result;
   };
 
   const handleNextStep = async () => {
-    console.log('Current step before validation:', currentStep);
     const isValid = await validateCurrentStep();
-    console.log('Validation passed:', isValid);
     if (isValid) {
-      console.log('Moving to next step');
       nextStep();
     } else {
-      console.log('Validation failed, staying on current step');
     }
   };
 

@@ -32,6 +32,10 @@ import {
   FileCheck,
   Trash2,
   Pill,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Cross,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -218,6 +222,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [isCreating, setIsCreating] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [isEditingPassport, setIsEditingPassport] = React.useState(false);
+
+  // Pagination state for transfer logs
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const itemsPerPage = 5;
 
   // Auth data
   const { data: user } = authClient.useSession();
@@ -608,46 +616,75 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           <style>
             body {
               font-family: Arial, sans-serif;
-              line-height: 1.6;
+              line-height: 1.4;
               color: #333;
               max-width: 800px;
               margin: 0 auto;
-              padding: 20px;
+              padding: 15px;
+              font-size: 13px;
             }
             .header {
-              text-align: center;
-              border-bottom: 2px solid #333;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              border-bottom: 2px solid #2563eb;
+              padding-bottom: 10px;
+              margin-bottom: 15px;
+            }
+            .header-left {
+              flex: 1;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 24px;
+              color: #1e40af;
+            }
+            .header h2 {
+              margin: 5px 0 0 0;
+              font-size: 16px;
+              color: #333;
+            }
+            .header-dates {
+              font-size: 10px;
+              color: #666;
+              margin-top: 5px;
             }
             .section {
-              margin-bottom: 30px;
+              margin-bottom: 20px;
               page-break-inside: avoid;
             }
             .section-title {
-              font-size: 18px;
+              font-size: 14px;
               font-weight: bold;
-              color: #2563eb;
-              border-bottom: 1px solid #e5e7eb;
-              padding-bottom: 8px;
-              margin-bottom: 15px;
+              color: #1e40af;
+              background-color: #eff6ff;
+              padding: 5px 10px;
+              margin-bottom: 10px;
+              border-left: 3px solid #2563eb;
             }
             .info-grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              margin-bottom: 15px;
+              gap: 8px;
+              margin-bottom: 10px;
             }
             .info-item {
-              margin-bottom: 10px;
+              margin-bottom: 6px;
+              padding: 4px;
+              background-color: #fafafa;
+              border-radius: 3px;
             }
             .info-label {
               font-weight: bold;
               color: #374151;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
             }
             .info-value {
-              margin-top: 2px;
-              color: #6b7280;
+              margin-top: 1px;
+              color: #111;
+              font-size: 12px;
             }
             .full-width {
               grid-column: 1 / -1;
@@ -655,46 +692,105 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             .checkbox-grid {
               display: grid;
               grid-template-columns: repeat(3, 1fr);
-              gap: 10px;
-              margin: 10px 0;
+              gap: 8px;
+              margin: 8px 0;
             }
             .checkbox-item {
               display: flex;
               align-items: center;
-              gap: 5px;
+              gap: 3px;
+              font-size: 11px;
+            }
+            .resident-photo {
+              width: 100px;
+              height: 100px;
+              border-radius: 8px;
+              object-fit: cover;
+              border: 2px solid #e5e7eb;
+            }
+            .photo-section {
+              display: flex;
+              align-items: center;
+              gap: 15px;
+              margin-bottom: 15px;
+              padding: 10px;
+              background-color: #f9fafb;
+              border-radius: 8px;
+            }
+            .photo-info {
+              flex: 1;
+            }
+            .photo-info h3 {
+              margin: 0 0 5px 0;
+              font-size: 18px;
+              color: #111;
+            }
+            .photo-info p {
+              margin: 2px 0;
+              font-size: 12px;
+              color: #666;
+            }
+            .no-photo {
+              width: 100px;
+              height: 100px;
+              border-radius: 8px;
+              background-color: #e5e7eb;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 36px;
+              font-weight: bold;
+              color: #9ca3af;
             }
             @media print {
-              body { margin: 0; padding: 15px; }
-              .section { page-break-inside: avoid; }
+              body {
+                margin: 0;
+                padding: 10px;
+                font-size: 11px;
+              }
+              .section {
+                page-break-inside: avoid;
+                margin-bottom: 15px;
+              }
+              .header {
+                margin-bottom: 10px;
+              }
+              .photo-section {
+                margin-bottom: 10px;
+              }
             }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>Hospital Passport</h1>
-            <h2>${dynamicPassport.generalDetails.personName}</h2>
-            <p>Generated: ${formatDateTime(new Date().toISOString())} (Current Data)</p>
-            <p style="font-size: 12px; color: #666;">Original Passport: ${formatDateTime(passport.createdAt)}</p>
+            <div class="header-left">
+              <h1>HOSPITAL PASSPORT</h1>
+              <h2>${dynamicPassport.generalDetails.personName}</h2>
+              <div class="header-dates">
+                Generated: ${formatDateTime(new Date().toISOString())} | Original: ${formatDateTime(passport.createdAt)}
+              </div>
+            </div>
+          </div>
+
+          <div class="photo-section">
+            ${resident.imageUrl
+              ? `<img src="${resident.imageUrl}" alt="${fullName}" class="resident-photo" />`
+              : `<div class="no-photo">${initials}</div>`
+            }
+            <div class="photo-info">
+              <h3>${fullName}</h3>
+              <p><strong>NHS Number:</strong> ${resident.nhsHealthNumber || "Not specified"}</p>
+              <p><strong>Date of Birth:</strong> ${formatDate(resident.dateOfBirth)} (Age: ${currentAge} years)</p>
+              <p><strong>Room:</strong> ${resident.roomNumber || "N/A"} | <strong>Care Type:</strong> ${formatAssistanceLevel(dynamicPassport.generalDetails.careType)}</p>
+            </div>
           </div>
 
           <div class="section">
-            <div class="section-title">General & Transfer Details</div>
+            <div class="section-title">Transfer Details</div>
             <div class="info-grid">
-              <div class="info-item">
-                <div class="info-label">Name of Person</div>
-                <div class="info-value">${dynamicPassport.generalDetails.personName}</div>
-              </div>
               <div class="info-item">
                 <div class="info-label">Known As</div>
                 <div class="info-value">${dynamicPassport.generalDetails.knownAs}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Date of Birth</div>
-                <div class="info-value">${formatDate(dynamicPassport.generalDetails.dateOfBirth)}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">NHS Number</div>
-                <div class="info-value">${dynamicPassport.generalDetails.nhsNumber}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Religion</div>
@@ -703,10 +799,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               <div class="info-item">
                 <div class="info-label">Weight on Transfer</div>
                 <div class="info-value">${dynamicPassport.generalDetails.weightOnTransfer || 'Not specified'}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Care Type</div>
-                <div class="info-value">${formatAssistanceLevel(dynamicPassport.generalDetails.careType || 'Not specified')}</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Transfer Date/Time</div>
@@ -947,9 +1039,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     `;
 
     const doc = printWindow.document;
-    doc.open();
-    doc.write(printContent);
-    doc.close();
+    doc.documentElement.innerHTML = printContent;
 
     // Wait for content to load then print
     printWindow.onload = () => {
@@ -977,36 +1067,24 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Handler for creating/updating transfer log
   const handleTransferLogSubmit = async (data: any) => {
-    console.log('=== Transfer Log Submit Debug ===');
-    console.log('Data received:', data);
-    console.log('activeOrganization:', activeOrganization);
-    console.log('user:', user);
-    console.log('resident:', resident);
-    console.log('isCreating:', isCreating);
-    console.log('isUpdating:', isUpdating);
-    console.log('editingTransferLog:', editingTransferLog);
 
     // Validation checks
     if (!data?.date || !data?.hospitalName || !data?.reason) {
-      console.log('Validation failed: missing required fields');
       toast.error("Please fill in all required fields");
       throw new Error("Missing required fields");
     }
 
     if (!activeOrganization?.id || !user?.user?.id) {
-      console.log('Validation failed: authentication error');
       toast.error("Authentication error. Please refresh the page and try again.");
       throw new Error("Authentication error");
     }
 
     if (!resident?._id) {
-      console.log('Validation failed: resident not found');
       toast.error("Resident information not found. Please refresh the page.");
       throw new Error("Resident not found");
     }
 
     if (isCreating || isUpdating) {
-      console.log('Validation failed: operation in progress');
       throw new Error("Operation already in progress"); // Prevent multiple submissions
     }
 
@@ -1045,10 +1123,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         setIsEditTransferLogDialogOpen(false);
         setEditingTransferLog(null);
       } else {
-        console.log('Creating new transfer log...');
         setIsCreating(true);
 
-        const result = await createTransferLogMutation({
+        await createTransferLogMutation({
           residentId: residentId,
           date: data.date,
           hospitalName: data.hospitalName.trim(),
@@ -1073,7 +1150,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           createdBy: user.user.id,
         });
 
-        console.log('Transfer log created successfully:', result);
         toast.success("Transfer log added successfully");
         setIsTransferLogDialogOpen(false);
       }
@@ -1287,7 +1363,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       }
 
       // Create Hospital Passport
-      const hospitalPassportId = await createHospitalPassportMutation({
+      await createHospitalPassportMutation({
         residentId: residentId,
         generalDetails: {
           ...data.generalDetails,
@@ -1311,7 +1387,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         status: "completed",
       });
 
-      console.log("Hospital Passport saved with ID:", hospitalPassportId);
 
       toast.success("Hospital Passport generated and saved successfully");
       form.reset();
@@ -1443,6 +1518,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       return 'Unknown';
     }
   }, []);
+
+  // Pagination calculations for transfer logs
+  const totalTransferLogs = transferLogs?.length || 0;
+  const totalPages = Math.ceil(totalTransferLogs / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTransferLogs = transferLogs ? transferLogs.slice(startIndex, endIndex) : [];
+  const showPagination = totalTransferLogs > itemsPerPage;
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
 
   // Memoized values to prevent unnecessary re-renders - moved before early returns
   const fullName = React.useMemo(() => {
@@ -1603,7 +1703,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
               >
                 <Ambulance className="w-6 h-6 mr-3" />
-                Add Transfer Log
+                Hospital Transfer Entry
               </Button>
               <Button
                 variant="outline"
@@ -1706,7 +1806,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="w-5 h-5 text-indigo-600" />
-            <span>Hospital Passport</span>
+            <span>CareO Passport</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1715,11 +1815,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             <div className="bg-white border-2 border-gray-200 rounded-lg shadow-sm overflow-hidden max-w-sm mx-auto">
               {/* NHS Header - Compact */}
               <div className="bg-blue-500 text-white p-3 text-center">
-                <img
-                  src="https://logodownload.org/wp-content/uploads/2021/04/nhs-logo-3.png"
-                  alt="NHS Logo"
-                  className="w-12 h-auto mx-auto mb-1 bg-white rounded p-1"
-                />
+                <div className="w-12 h-12 mx-auto mb-1 bg-white rounded p-1 flex items-center justify-center">
+                  <Cross className="w-8 h-8 text-blue-600" />
+                </div>
                 <h2 className="text-sm font-bold">HOSPITAL PASSPORT</h2>
                 
               </div>
@@ -1915,6 +2013,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge className="bg-gray-100 text-gray-700">{transferLogs?.length || 0} Total</Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
+                className="h-8 px-3"
+              >
+                <ClipboardList className="w-4 h-4 mr-2" />
+                Transfer History
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -1929,7 +2036,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             </div>
           ) : (
             <div className="space-y-3">
-              {transferLogs.slice(0, 5).map((log: any) => (
+              {paginatedTransferLogs.map((log: any) => (
                 <div
                   key={log._id}
                   className="flex flex-col md:flex-row md:items-start md:justify-between p-4 rounded-lg border"
@@ -2057,11 +2164,46 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   </div>
                 </div>
               ))}
-              {transferLogs.length > 5 && (
-                <div className="text-center pt-4 border-t">
-                  <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
-                    View All {transferLogs.length} Transfer Logs
-                  </Button>
+
+              {/* Pagination Controls */}
+              {showPagination && (
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="text-sm text-gray-500">
+                    Showing {startIndex + 1}-{Math.min(endIndex, totalTransferLogs)} of {totalTransferLogs} transfer logs
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevious}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(page)}
+                          className="h-8 w-8 p-0"
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNext}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
