@@ -36,6 +36,8 @@ import type * as labels from "../labels.js";
 import type * as managerAudits from "../managerAudits.js";
 import type * as medication from "../medication.js";
 import type * as migrations from "../migrations.js";
+import type * as multidisciplinaryCareTeam from "../multidisciplinaryCareTeam.js";
+import type * as multidisciplinaryNotes from "../multidisciplinaryNotes.js";
 import type * as personalCare from "../personalCare.js";
 import type * as progressNotes from "../progressNotes.js";
 import type * as quickCareNotes from "../quickCareNotes.js";
@@ -90,6 +92,8 @@ declare const fullApi: ApiFromModules<{
   managerAudits: typeof managerAudits;
   medication: typeof medication;
   migrations: typeof migrations;
+  multidisciplinaryCareTeam: typeof multidisciplinaryCareTeam;
+  multidisciplinaryNotes: typeof multidisciplinaryNotes;
   personalCare: typeof personalCare;
   progressNotes: typeof progressNotes;
   quickCareNotes: typeof quickCareNotes;

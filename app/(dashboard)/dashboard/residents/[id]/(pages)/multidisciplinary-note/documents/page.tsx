@@ -31,13 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   ArrowLeft,
   Search,
   Calendar,
@@ -46,21 +39,27 @@ import {
   Filter,
   Download,
   Eye,
-  NotebookPen,
+  ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Users,
+  UserCheck,
   Clock,
-  AlertTriangle,
-  Stethoscope,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
 
-type ProgressNotesDocumentsPageProps = {
+type MultidisciplinaryNotesDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocumentsPageProps) {
+export default function MultidisciplinaryNotesDocumentsPage({ params }: MultidisciplinaryNotesDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const residentId = id as Id<"residents">;
@@ -69,7 +68,6 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [selectedYear, setSelectedYear] = useState("all");
-  const [selectedType, setSelectedType] = useState("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -81,8 +79,8 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId });
 
-  // Fetch progress notes
-  const progressNotes = useQuery(api.progressNotes.getByResidentId, { residentId });
+  // Fetch multidisciplinary notes
+  const multidisciplinaryNotes = useQuery(api.multidisciplinaryNotes.getByResidentId, { residentId });
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -92,32 +90,33 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
 
   // Get unique years from notes for filter
   const availableYears = useMemo(() => {
-    if (!progressNotes || progressNotes.length === 0) return [];
-    const years = [...new Set(progressNotes.map(note =>
-      new Date(note.date).getFullYear()
+    if (!multidisciplinaryNotes || multidisciplinaryNotes.length === 0) return [];
+    const years = [...new Set(multidisciplinaryNotes.map(note =>
+      new Date(note.noteDate).getFullYear()
     ))];
     return years.sort((a, b) => b - a);
-  }, [progressNotes]);
+  }, [multidisciplinaryNotes]);
 
   // Filter and sort notes
   const filteredNotes = useMemo(() => {
-    if (!progressNotes) return [];
+    if (!multidisciplinaryNotes) return [];
 
-    let filtered = [...progressNotes];
+    let filtered = [...multidisciplinaryNotes];
 
     // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(note =>
-        note.note.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.authorName.toLowerCase().includes(searchQuery.toLowerCase())
+        note.teamMemberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.reasonForVisit.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.outcome.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.signature.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     // Apply month filter
     if (selectedMonth !== "all") {
       filtered = filtered.filter(note => {
-        const noteMonth = new Date(note.date).getMonth() + 1;
+        const noteMonth = new Date(note.noteDate).getMonth() + 1;
         return noteMonth === parseInt(selectedMonth);
       });
     }
@@ -125,25 +124,20 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
     // Apply year filter
     if (selectedYear !== "all") {
       filtered = filtered.filter(note => {
-        const noteYear = new Date(note.date).getFullYear();
+        const noteYear = new Date(note.noteDate).getFullYear();
         return noteYear === parseInt(selectedYear);
       });
     }
 
-    // Apply type filter
-    if (selectedType !== "all") {
-      filtered = filtered.filter(note => note.type === selectedType);
-    }
-
     // Sort by date
     filtered.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      const dateA = new Date(a.noteDate).getTime();
+      const dateB = new Date(b.noteDate).getTime();
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
     return filtered;
-  }, [progressNotes, searchQuery, selectedMonth, selectedYear, selectedType, sortOrder]);
+  }, [multidisciplinaryNotes, searchQuery, selectedMonth, selectedYear, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredNotes.length / itemsPerPage);
@@ -161,13 +155,15 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
     if (!filteredNotes || filteredNotes.length === 0) return;
 
     // Create CSV content
-    const headers = ["Date", "Time", "Type", "Author", "Note Content"];
+    const headers = ["Date", "Time", "Team Member", "Reason for Visit", "Outcome", "Relative Informed", "Signature"];
     const rows = filteredNotes.map(note => [
-      note.date,
-      note.time,
-      note.type,
-      note.authorName,
-      note.note.replace(/\n/g, " ")
+      note.noteDate,
+      note.noteTime,
+      note.teamMemberName,
+      note.reasonForVisit,
+      note.outcome,
+      note.relativeInformed === 'yes' ? 'Yes' : 'No',
+      note.signature
     ]);
 
     const csvContent = [
@@ -180,7 +176,7 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `progress-notes-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `multidisciplinary-notes-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -188,25 +184,16 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
   };
 
   // Loading state
-  if (!resident || !progressNotes) {
+  if (!resident || !multidisciplinaryNotes) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading progress notes...</p>
+          <p className="mt-2 text-muted-foreground">Loading multidisciplinary notes...</p>
         </div>
       </div>
     );
   }
-
-  // Calculate stats
-  const noteStats = {
-    total: progressNotes.length,
-    daily: progressNotes.filter(n => n.type === 'daily').length,
-    medical: progressNotes.filter(n => n.type === 'medical').length,
-    incident: progressNotes.filter(n => n.type === 'incident').length,
-    behavioral: progressNotes.filter(n => n.type === 'behavioral').length,
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
@@ -224,10 +211,10 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}/progress-notes`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/multidisciplinary-note`)}
           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
         >
-          Progress Notes
+          Multidisciplinary Notes
         </Button>
         <span>/</span>
         <span className="text-foreground">All Notes</span>
@@ -238,18 +225,18 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${id}/progress-notes`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/multidisciplinary-note`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-purple-100 rounded-lg">
-            <NotebookPen className="w-6 h-6 text-purple-600" />
+          <div className="p-2 bg-indigo-100 rounded-lg">
+            <ClipboardList className="w-6 h-6 text-indigo-600" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Progress Notes History</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">All Multidisciplinary Notes</h1>
             <p className="text-muted-foreground text-sm">
-              Complete history of progress notes for {fullName}
+              Complete history of multidisciplinary care notes for {fullName}
             </p>
           </div>
         </div>
@@ -257,12 +244,33 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 bg-gradient-to-br from-indigo-50 to-indigo-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-indigo-700">Total Notes</p>
+                <p className="text-2xl font-bold text-indigo-900">{multidisciplinaryNotes.length}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <FileText className="w-5 h-5 text-indigo-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-700">Daily Notes</p>
-                <p className="text-2xl font-bold text-green-900">{noteStats.daily}</p>
+                <p className="text-sm font-medium text-green-700">This Month</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {multidisciplinaryNotes.filter(note => {
+                    const noteDate = new Date(note.noteDate);
+                    const now = new Date();
+                    return noteDate.getMonth() === now.getMonth() &&
+                           noteDate.getFullYear() === now.getFullYear();
+                  }).length}
+                </p>
               </div>
               <div className="p-2 bg-white rounded-lg">
                 <Calendar className="w-5 h-5 text-green-600" />
@@ -271,29 +279,17 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
+        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-700">Medical Notes</p>
-                <p className="text-2xl font-bold text-blue-900">{noteStats.medical}</p>
+                <p className="text-sm font-medium text-purple-700">Relatives Informed</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {multidisciplinaryNotes.filter(note => note.relativeInformed === 'yes').length}
+                </p>
               </div>
               <div className="p-2 bg-white rounded-lg">
-                <Stethoscope className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 bg-gradient-to-br from-red-50 to-red-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-red-700">Incident Notes</p>
-                <p className="text-2xl font-bold text-red-900">{noteStats.incident}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <Users className="w-5 h-5 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -303,8 +299,10 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-orange-700">Behavioral Notes</p>
-                <p className="text-2xl font-bold text-orange-900">{noteStats.behavioral}</p>
+                <p className="text-sm font-medium text-orange-700">Unique Team Members</p>
+                <p className="text-2xl font-bold text-orange-900">
+                  {new Set(multidisciplinaryNotes.map(note => note.teamMemberName)).size}
+                </p>
               </div>
               <div className="p-2 bg-white rounded-lg">
                 <User className="w-5 h-5 text-orange-600" />
@@ -320,7 +318,7 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Filter className="w-5 h-5" />
-              <span>Filter Progress Notes</span>
+              <span>Filter Notes</span>
             </div>
             <Button
               variant="outline"
@@ -339,7 +337,7 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Search by note content, type, or author..."
+                  placeholder="Search by team member, reason, outcome, or signature..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -349,25 +347,6 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
                 />
               </div>
             </div>
-            <Select
-              value={selectedType}
-              onValueChange={(value) => {
-                setSelectedType(value);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="incident">Incident</SelectItem>
-                <SelectItem value="medical">Medical</SelectItem>
-                <SelectItem value="behavioral">Behavioral</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
             <Select
               value={selectedMonth}
               onValueChange={(value) => {
@@ -427,20 +406,20 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         </CardContent>
       </Card>
 
-      {/* Progress Notes Table */}
+      {/* Notes Table */}
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Progress Notes ({filteredNotes.length})
+            Multidisciplinary Notes ({filteredNotes.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {filteredNotes.length === 0 ? (
             <div className="text-center py-12">
-              <NotebookPen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No progress notes found</p>
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No notes found</p>
               <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No progress notes recorded yet"}
+                {searchQuery ? "Try adjusting your search criteria" : "No multidisciplinary notes recorded yet"}
               </p>
             </div>
           ) : (
@@ -450,9 +429,11 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date & Time</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Author</TableHead>
-                      <TableHead>Note Preview</TableHead>
+                      <TableHead>Team Member</TableHead>
+                      <TableHead>Reason for Visit</TableHead>
+                      <TableHead>Outcome</TableHead>
+                      <TableHead>Relative Informed</TableHead>
+                      <TableHead>Signature</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -461,31 +442,33 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
                       <TableRow key={note._id}>
                         <TableCell className="font-medium">
                           <div className="flex flex-col">
-                            <span>{format(new Date(note.date), "dd MMM yyyy")}</span>
-                            <span className="text-xs text-gray-500">{note.time}</span>
+                            <span>{format(new Date(note.noteDate), "dd MMM yyyy")}</span>
+                            <span className="text-xs text-gray-500">{note.noteTime}</span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`text-xs border-0 ${
-                              note.type === "incident" ? "bg-red-100 text-red-800" :
-                              note.type === "medical" ? "bg-blue-100 text-blue-800" :
-                              note.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
-                              note.type === "daily" ? "bg-green-100 text-green-800" :
-                              "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {note.type.charAt(0).toUpperCase() + note.type.slice(1)}
-                          </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
                             <User className="w-4 h-4 text-gray-400" />
-                            <span>{note.authorName}</span>
+                            <span>{note.teamMemberName}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="max-w-[300px]">
-                          <p className="truncate">{note.note}</p>
+                        <TableCell className="max-w-[200px]">
+                          <p className="truncate">{note.reasonForVisit}</p>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <p className="truncate">{note.outcome}</p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs border-0 ${
+                            note.relativeInformed === 'yes'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {note.relativeInformed === 'yes' ? 'Yes' : 'No'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{note.signature}</span>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -564,9 +547,9 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Progress Note Details</DialogTitle>
+            <DialogTitle>Multidisciplinary Note Details</DialogTitle>
             <DialogDescription>
-              Complete progress note details for {fullName}
+              Complete multidisciplinary note details for {fullName}
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="h-[60vh] pr-4">
@@ -574,46 +557,61 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
               <div className="space-y-6">
                 {/* Note Overview */}
                 <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Note Overview</h3>
+                  <h3 className="font-semibold text-lg mb-3">Visit Overview</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Date</p>
-                      <p className="font-medium">{format(new Date(selectedNote.date), "PPP")}</p>
+                      <p className="font-medium">{format(new Date(selectedNote.noteDate), "PPP")}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Time</p>
-                      <p className="font-medium">{selectedNote.time}</p>
+                      <p className="font-medium">{selectedNote.noteTime}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Type</p>
-                      <Badge
-                        className={`${
-                          selectedNote.type === "incident" ? "bg-red-100 text-red-800" :
-                          selectedNote.type === "medical" ? "bg-blue-100 text-blue-800" :
-                          selectedNote.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
-                          selectedNote.type === "daily" ? "bg-green-100 text-green-800" :
-                          "bg-gray-100 text-gray-800"
-                        } border-0`}
-                      >
-                        {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)}
-                      </Badge>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Author</p>
+                      <p className="text-sm text-gray-500">Team Member</p>
                       <div className="flex items-center space-x-2">
                         <User className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedNote.authorName}</p>
+                        <p className="font-medium">{selectedNote.teamMemberName}</p>
                       </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Relative Informed</p>
+                      <Badge className={`${
+                        selectedNote.relativeInformed === 'yes'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      } border-0`}>
+                        {selectedNote.relativeInformed === 'yes' ? 'Yes' : 'No'}
+                      </Badge>
                     </div>
                   </div>
                 </div>
 
-                {/* Note Content */}
+                {/* Visit Details */}
                 <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Note Content</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                    {selectedNote.note}
-                  </p>
+                  <h3 className="font-semibold text-lg mb-3">Visit Details</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-2">Reason for Visit</p>
+                      <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                        {selectedNote.reasonForVisit}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-2">Outcome</p>
+                      <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                        {selectedNote.outcome}
+                      </p>
+                    </div>
+                    {selectedNote.relativeInformedDetails && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">Relative Contact Details</p>
+                        <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                          {selectedNote.relativeInformedDetails}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Record Information */}
@@ -621,14 +619,17 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
                   <h3 className="font-semibold text-lg mb-3">Record Information</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-gray-500">Created By</p>
-                      <p className="font-medium">{selectedNote.authorName}</p>
+                      <p className="text-sm text-gray-500">Signed By</p>
+                      <div className="flex items-center space-x-2">
+                        <UserCheck className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{selectedNote.signature}</p>
+                      </div>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Date Created</p>
                       <div className="flex items-center space-x-2">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedNote.createdAt), "PPP")}</p>
+                        <p className="font-medium">{format(new Date(selectedNote.createdAt || selectedNote.noteDate), "PPP")}</p>
                       </div>
                     </div>
                   </div>

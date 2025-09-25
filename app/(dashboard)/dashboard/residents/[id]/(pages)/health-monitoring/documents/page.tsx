@@ -1,17 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -29,12 +31,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
-  Download,
-  FileText,
-  Filter,
   Search,
   Calendar,
+  User,
+  FileText,
+  Filter,
+  Download,
+  Eye,
   Activity,
   Heart,
   Thermometer,
@@ -42,10 +53,12 @@ import {
   Droplets,
   TrendingUp,
   AlertTriangle,
-  Stethoscope
+  Stethoscope,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useRouter } from "next/navigation";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 type HealthMonitoringDocumentsPageProps = {
@@ -55,71 +68,80 @@ type HealthMonitoringDocumentsPageProps = {
 export default function HealthMonitoringDocumentsPage({ params }: HealthMonitoringDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const residentId = id as Id<"residents">;
 
+  // State for filters and search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedVitalType, setSelectedVitalType] = useState("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Dialog state
+  const [selectedVital, setSelectedVital] = useState<any>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+
+  // Fetch resident data
+  const resident = useQuery(api.residents.getById, { residentId });
+
+  // Fetch all vitals
   const allVitals = useQuery(api.healthMonitoring.getRecentVitals, {
     residentId: id as Id<"residents">,
-    limit: 100 // Get more records for the documents page
+    limit: 1000 // Get all records for documents page
   });
 
-  // State for filtering
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [vitalTypeFilter, setVitalTypeFilter] = React.useState<string>("all");
-  const [dateFilter, setDateFilter] = React.useState<string>("all");
-  const [startDate, setStartDate] = React.useState("");
-  const [endDate, setEndDate] = React.useState("");
-  
-  // State for PDF download
-  const [downloadStartDate, setDownloadStartDate] = React.useState("");
-  const [downloadEndDate, setDownloadEndDate] = React.useState("");
+  // Calculate resident details
+  const fullName = useMemo(() => {
+    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
+    return `${resident.firstName} ${resident.lastName}`;
+  }, [resident]);
 
   // Vital type options with their properties
   const vitalTypeOptions = {
-    temperature: { 
-      label: "Temperature", 
+    temperature: {
+      label: "Temperature",
       icon: Thermometer,
       color: "red"
     },
-    bloodPressure: { 
-      label: "Blood Pressure", 
+    bloodPressure: {
+      label: "Blood Pressure",
       icon: Heart,
       color: "blue"
     },
-    heartRate: { 
-      label: "Heart Rate", 
+    heartRate: {
+      label: "Heart Rate",
       icon: Activity,
       color: "green"
     },
-    respiratoryRate: { 
-      label: "Respiratory Rate", 
+    respiratoryRate: {
+      label: "Respiratory Rate",
       icon: Wind,
       color: "purple"
     },
-    oxygenSaturation: { 
-      label: "Oxygen Saturation", 
+    oxygenSaturation: {
+      label: "Oxygen Saturation",
       icon: Droplets,
       color: "cyan"
     },
-    weight: { 
-      label: "Weight", 
+    weight: {
+      label: "Weight",
       icon: TrendingUp,
       color: "orange"
     },
-    height: { 
-      label: "Height", 
+    height: {
+      label: "Height",
       icon: TrendingUp,
       color: "indigo"
     },
-    glucoseLevel: { 
-      label: "Blood Sugar", 
+    glucoseLevel: {
+      label: "Blood Sugar",
       icon: Activity,
       color: "pink"
     },
-    painLevel: { 
-      label: "Pain Level", 
+    painLevel: {
+      label: "Pain Level",
       icon: AlertTriangle,
       color: "yellow"
     }
@@ -128,441 +150,150 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
   // Helper function to format vital display
   const formatVitalValue = (vital: any) => {
     if (!vital) return "—";
-    
+
     if (vital.vitalType === "bloodPressure" && vital.value2) {
       return `${vital.value}/${vital.value2} ${vital.unit || "mmHg"}`;
     }
-    
-    const unitDisplay = vital.unit ? 
-      (vital.unit === "celsius" ? "°C" : 
+
+    const unitDisplay = vital.unit ?
+      (vital.unit === "celsius" ? "°C" :
        vital.unit === "fahrenheit" ? "°F" :
        vital.unit === "percent" ? "%" :
        vital.unit === "bpm" ? " bpm" :
        vital.unit === "breaths/min" ? "/min" :
        vital.unit) : "";
-    
+
     return `${vital.value}${unitDisplay}`;
   };
 
-  // Filter vitals based on search and filters
-  const filteredVitals = React.useMemo(() => {
+  // Get unique years from vitals for filter
+  const availableYears = useMemo(() => {
+    if (!allVitals || allVitals.length === 0) return [];
+    const years = [...new Set(allVitals.map(vital =>
+      new Date(vital.recordDate).getFullYear()
+    ))];
+    return years.sort((a, b) => b - a);
+  }, [allVitals]);
+
+  // Filter and sort vitals
+  const filteredVitals = useMemo(() => {
     if (!allVitals) return [];
-    
-    return allVitals.filter((vital: any) => {
-      // Search filter
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        if (
-          !vital.recordedBy?.toLowerCase().includes(searchLower) &&
-          !vital.notes?.toLowerCase().includes(searchLower) &&
-          !vital.value?.toLowerCase().includes(searchLower)
-        ) {
-          return false;
-        }
-      }
 
-      // Vital type filter
-      if (vitalTypeFilter !== "all" && vital.vitalType !== vitalTypeFilter) {
-        return false;
-      }
+    let filtered = [...allVitals];
 
-      // Date filter
-      if (dateFilter === "custom" && startDate && endDate) {
-        const vitalDate = new Date(vital.recordDate);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (vitalDate < start || vitalDate > end) {
-          return false;
-        }
-      } else if (dateFilter !== "all") {
-        const vitalDate = new Date(vital.recordDate);
-        const today = new Date();
-        let daysAgo = 0;
-        
-        switch (dateFilter) {
-          case "today":
-            daysAgo = 0;
-            break;
-          case "week":
-            daysAgo = 7;
-            break;
-          case "month":
-            daysAgo = 30;
-            break;
-          case "3months":
-            daysAgo = 90;
-            break;
-        }
-        
-        if (daysAgo > 0) {
-          const cutoffDate = new Date();
-          cutoffDate.setDate(today.getDate() - daysAgo);
-          if (vitalDate < cutoffDate) {
-            return false;
-          }
-        } else if (daysAgo === 0) {
-          // Today filter
-          if (vitalDate.toDateString() !== today.toDateString()) {
-            return false;
-          }
-        }
-      }
-
-      return true;
-    });
-  }, [allVitals, searchTerm, vitalTypeFilter, dateFilter, startDate, endDate]);
-
-  // PDF download functionality
-  const handleDownloadPDF = () => {
-    if (!resident) {
-      toast.error('Resident data not available');
-      return;
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(vital =>
+        vital.recordedBy?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vital.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vital.value?.toString().toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }
 
-    // Validate date range for large datasets
-    if (!downloadStartDate || !downloadEndDate) {
-      toast.error('Please select both start and end dates for PDF download');
-      return;
-    }
-
-    const startDateTime = new Date(downloadStartDate);
-    const endDateTime = new Date(downloadEndDate);
-    
-    if (startDateTime > endDateTime) {
-      toast.error('Start date cannot be after end date');
-      return;
-    }
-
-    // Filter vitals for the selected date range
-    const filteredForDownload = allVitals?.filter((vital: any) => {
-      const vitalDate = new Date(vital.recordDate);
-      return vitalDate >= startDateTime && vitalDate <= endDateTime;
-    }) || [];
-
-    if (filteredForDownload.length === 0) {
-      toast.error('No vitals found in the selected date range');
-      return;
-    }
-
-    if (filteredForDownload.length > 500) {
-      toast.error('Too many records selected. Please choose a smaller date range (max 500 records)');
-      return;
-    }
-
-    const htmlContent = generatePDFContent({
-      resident,
-      vitals: filteredForDownload,
-      startDate: downloadStartDate,
-      endDate: downloadEndDate
-    });
-
-    generatePDFFromHTML(htmlContent);
-    toast.success('Vitals report will open for printing');
-  };
-
-  const generatePDFContent = ({
-    resident,
-    vitals,
-    startDate,
-    endDate
-  }: {
-    resident: any;
-    vitals: any[];
-    startDate: string;
-    endDate: string;
-  }) => {
-    const fullName = `${resident.firstName} ${resident.lastName}`;
-    const formattedStartDate = new Date(startDate).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    const formattedEndDate = new Date(endDate).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-
-    // Group vitals by date for better organization
-    const vitalsByDate = vitals.reduce((acc: any, vital: any) => {
-      if (!acc[vital.recordDate]) {
-        acc[vital.recordDate] = [];
-      }
-      acc[vital.recordDate].push(vital);
-      return acc;
-    }, {});
-
-    const sortedDates = Object.keys(vitalsByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-
-    let vitalsHTML = '';
-    
-    sortedDates.forEach(date => {
-      const dayVitals = vitalsByDate[date];
-      const formattedDate = new Date(date).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
+    // Apply month filter
+    if (selectedMonth !== "all") {
+      filtered = filtered.filter(vital => {
+        const vitalMonth = new Date(vital.recordDate).getMonth() + 1;
+        return vitalMonth === parseInt(selectedMonth);
       });
+    }
 
-      vitalsHTML += `
-        <div class="date-section">
-          <h3 class="date-header">${formattedDate}</h3>
-          <table class="vitals-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Vital Type</th>
-                <th>Value</th>
-                <th>Notes</th>
-                <th>Recorded By</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
+    // Apply year filter
+    if (selectedYear !== "all") {
+      filtered = filtered.filter(vital => {
+        const vitalYear = new Date(vital.recordDate).getFullYear();
+        return vitalYear === parseInt(selectedYear);
+      });
+    }
 
-      dayVitals
-        .sort((a: any, b: any) => b.recordTime.localeCompare(a.recordTime))
-        .forEach((vital: any) => {
-          const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
-          const vitalLabel = vitalConfig?.label || vital.vitalType;
-          const formattedValue = formatVitalValue(vital);
+    // Apply vital type filter
+    if (selectedVitalType !== "all") {
+      filtered = filtered.filter(vital => vital.vitalType === selectedVitalType);
+    }
 
-          vitalsHTML += `
-            <tr>
-              <td>${vital.recordTime}</td>
-              <td>${vitalLabel}</td>
-              <td><strong>${formattedValue}</strong></td>
-              <td>${vital.notes || '—'}</td>
-              <td>${vital.recordedBy}</td>
-            </tr>
-          `;
-        });
-
-      vitalsHTML += `
-            </tbody>
-          </table>
-        </div>
-      `;
+    // Sort by date and time
+    filtered.sort((a, b) => {
+      const dateA = new Date(`${a.recordDate} ${a.recordTime}`).getTime();
+      const dateB = new Date(`${b.recordDate} ${b.recordTime}`).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
-    return `
-      <div class="header">
-        <div class="logo-section">
-          <h1>Vitals History Report</h1>
-          <p class="facility-name">Care Facility Health Monitoring</p>
-        </div>
-      </div>
-      
-      <div class="resident-info">
-        <h2>Resident Information</h2>
-        <div class="info-grid">
-          <div><strong>Name:</strong> ${fullName}</div>
-          <div><strong>Room:</strong> ${resident.roomNumber || 'N/A'}</div>
-          <div><strong>NHS Number:</strong> ${resident.nhsHealthNumber || 'N/A'}</div>
-          <div><strong>Report Period:</strong> ${formattedStartDate} to ${formattedEndDate}</div>
-        </div>
-      </div>
+    return filtered;
+  }, [allVitals, searchQuery, selectedMonth, selectedYear, selectedVitalType, sortOrder]);
 
-      <div class="summary">
-        <h2>Summary</h2>
-        <div class="summary-stats">
-          <div><strong>Total Records:</strong> ${vitals.length}</div>
-          <div><strong>Date Range:</strong> ${sortedDates.length} days</div>
-          <div><strong>Generated:</strong> ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
-        </div>
-      </div>
+  // Pagination
+  const totalPages = Math.ceil(filteredVitals.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedVitals = filteredVitals.slice(startIndex, endIndex);
 
-      <div class="vitals-content">
-        <h2>Vitals Records</h2>
-        ${vitalsHTML}
-      </div>
-
-      <div class="footer">
-        <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
-      </div>
-    `;
+  // Handlers
+  const handleViewVital = (vital: any) => {
+    setSelectedVital(vital);
+    setIsViewDialogOpen(true);
   };
 
-  const generatePDFFromHTML = (content: string) => {
-    // Create a new window for PDF generation
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const handleExport = () => {
+    if (!filteredVitals || filteredVitals.length === 0) return;
 
-    // Generate HTML content for the PDF
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Vitals History Report</title>
-          <style>
-            @media print {
-              @page {
-                size: A4;
-                margin: 2cm;
-              }
-              .no-print {
-                display: none !important;
-              }
-            }
-            body {
-              font-family: Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              margin: 0;
-              padding: 20px;
-            }
-            .header {
-              border-bottom: 3px solid #10b981;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
-              text-align: center;
-            }
-            .header h1 {
-              color: #10b981;
-              margin: 0;
-              font-size: 28px;
-            }
-            .facility-name {
-              color: #666;
-              margin: 5px 0 0 0;
-            }
-            .resident-info, .summary {
-              background: #f8f9fa;
-              padding: 20px;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            .resident-info h2, .summary h2, .vitals-content h2 {
-              color: #10b981;
-              border-bottom: 2px solid #10b981;
-              padding-bottom: 10px;
-              margin-top: 0;
-            }
-            .info-grid, .summary-stats {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              margin-top: 15px;
-            }
-            .date-section {
-              margin-bottom: 40px;
-              page-break-inside: avoid;
-            }
-            .date-header {
-              background: #10b981;
-              color: white;
-              padding: 10px 15px;
-              margin: 0 0 15px 0;
-              border-radius: 5px;
-              font-size: 18px;
-            }
-            .vitals-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .vitals-table th {
-              background: #f1f5f9;
-              border: 1px solid #d1d5db;
-              padding: 12px 8px;
-              text-align: left;
-              font-weight: bold;
-              color: #374151;
-            }
-            .vitals-table td {
-              border: 1px solid #d1d5db;
-              padding: 10px 8px;
-              vertical-align: top;
-            }
-            .vitals-table tr:nth-child(even) {
-              background-color: #f9fafb;
-            }
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 1px solid #ddd;
-              text-align: center;
-              color: #666;
-              font-size: 12px;
-            }
-            .no-print {
-              text-align: center;
-              margin-top: 30px;
-            }
-            .no-print button {
-              padding: 10px 20px;
-              margin: 0 10px;
-              border: none;
-              border-radius: 5px;
-              cursor: pointer;
-              font-size: 14px;
-            }
-            .print-btn {
-              background: #10b981;
-              color: white;
-            }
-            .close-btn {
-              background: #6b7280;
-              color: white;
-            }
-          </style>
-        </head>
-        <body>
-          ${content}
-          <div class="no-print">
-            <button class="print-btn" onclick="window.print()">Print PDF</button>
-            <button class="close-btn" onclick="window.close()">Close</button>
-          </div>
-        </body>
-      </html>
-    `;
+    // Create CSV content
+    const headers = ["Date", "Time", "Vital Type", "Value", "Unit", "Notes", "Recorded By"];
+    const rows = filteredVitals.map(vital => [
+      vital.recordDate,
+      vital.recordTime,
+      vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label || vital.vitalType,
+      vital.vitalType === "bloodPressure" && vital.value2 ? `${vital.value}/${vital.value2}` : vital.value,
+      vital.unit || "",
+      vital.notes || "",
+      vital.recordedBy
+    ]);
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    
-    // Auto-trigger print dialog
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-    };
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `health-monitoring-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
-  if (resident === undefined) {
+  // Loading state
+  if (!resident || !allVitals) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+          <p className="mt-2 text-muted-foreground">Loading health monitoring records...</p>
         </div>
       </div>
     );
   }
 
-  if (resident === null) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Resident not found</p>
-          <p className="text-muted-foreground">
-            The resident you&apos;re looking for doesn&apos;t exist.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  // Calculate stats
+  const vitalStats = {
+    total: allVitals.length,
+    thisMonth: allVitals.filter(vital => {
+      const vitalDate = new Date(vital.recordDate);
+      const now = new Date();
+      return vitalDate.getMonth() === now.getMonth() && vitalDate.getFullYear() === now.getFullYear();
+    }).length,
+    uniqueTypes: new Set(allVitals.map(vital => vital.vitalType)).size,
+    thisWeek: allVitals.filter(vital => {
+      const vitalDate = new Date(vital.recordDate);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return vitalDate >= weekAgo;
+    }).length,
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
@@ -589,239 +320,422 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
         <span className="text-foreground">Vitals History</span>
       </div>
 
-      {/* Header with Back Button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-emerald-100 rounded-lg">
-              <FileText className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Vitals History</h1>
-              <p className="text-muted-foreground text-sm">Complete health monitoring records</p>
-            </div>
-          </div>
-        </div>
+      {/* Header */}
+      <div className="flex items-center space-x-4 mb-6">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring`)}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <Input
-              type="date"
-              value={downloadStartDate}
-              onChange={(e) => setDownloadStartDate(e.target.value)}
-              className="w-40"
-              placeholder="Start date"
-            />
-            <span className="text-sm text-gray-500">to</span>
-            <Input
-              type="date"
-              value={downloadEndDate}
-              onChange={(e) => setDownloadEndDate(e.target.value)}
-              className="w-40"
-              placeholder="End date"
-            />
+          <div className="p-2 bg-emerald-100 rounded-lg">
+            <Stethoscope className="w-6 h-6 text-emerald-600" />
           </div>
-          <Button 
-            onClick={handleDownloadPDF}
-            disabled={!downloadStartDate || !downloadEndDate}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download PDF
-          </Button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Health Monitoring History</h1>
+            <p className="text-muted-foreground text-sm">
+              Complete vitals and health records for {fullName}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Resident Info Card */}
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700 text-xs">
-                    <Stethoscope className="w-3 h-3 mr-1" />
-                    {filteredVitals?.length || 0} Records
-                  </Badge>
-                </div>
+                <p className="text-sm font-medium text-emerald-700">Total Records</p>
+                <p className="text-2xl font-bold text-emerald-900">{vitalStats.total}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <FileText className="w-5 h-5 text-emerald-600" />
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Filters */}
-      <Card className="shadow-sm">
+        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700">This Month</p>
+                <p className="text-2xl font-bold text-green-900">{vitalStats.thisMonth}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Calendar className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700">Vital Types</p>
+                <p className="text-2xl font-bold text-blue-900">{vitalStats.uniqueTypes}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Activity className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-700">This Week</p>
+                <p className="text-2xl font-bold text-purple-900">{vitalStats.thisWeek}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Stethoscope className="w-5 h-5 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Search */}
+      <Card className="border-0">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center space-x-2">
-            <Filter className="w-5 h-5" />
-            <span>Filters</span>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-5 h-5" />
+              <span>Filter Vitals</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={filteredVitals.length === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search by notes or staff..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search by vital type, staff, notes, or value..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-10"
+                />
+              </div>
             </div>
-
-            {/* Vital Type Filter */}
-            <Select value={vitalTypeFilter} onValueChange={setVitalTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All vital types" />
+            <Select
+              value={selectedVitalType}
+              onValueChange={(value) => {
+                setSelectedVitalType(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Vital Type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Vital Types</SelectItem>
                 {Object.entries(vitalTypeOptions).map(([key, option]) => (
                   <SelectItem key={key} value={key}>
-                    <div className="flex items-center space-x-2">
-                      <option.icon className={`w-4 h-4 text-${option.color}-600`} />
-                      <span>{option.label}</span>
-                    </div>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
-            {/* Date Range Filter */}
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All dates" />
+            <Select
+              value={selectedMonth}
+              onValueChange={(value) => {
+                setSelectedMonth(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Month" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="week">Last 7 Days</SelectItem>
-                <SelectItem value="month">Last 30 Days</SelectItem>
-                <SelectItem value="3months">Last 3 Months</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
+                <SelectItem value="all">All Months</SelectItem>
+                <SelectItem value="1">January</SelectItem>
+                <SelectItem value="2">February</SelectItem>
+                <SelectItem value="3">March</SelectItem>
+                <SelectItem value="4">April</SelectItem>
+                <SelectItem value="5">May</SelectItem>
+                <SelectItem value="6">June</SelectItem>
+                <SelectItem value="7">July</SelectItem>
+                <SelectItem value="8">August</SelectItem>
+                <SelectItem value="9">September</SelectItem>
+                <SelectItem value="10">October</SelectItem>
+                <SelectItem value="11">November</SelectItem>
+                <SelectItem value="12">December</SelectItem>
               </SelectContent>
             </Select>
-
-            {/* Custom Date Range */}
-            {dateFilter === "custom" && (
-              <div className="flex space-x-2">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  placeholder="Start date"
-                />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  placeholder="End date"
-                />
-              </div>
-            )}
+            <Select
+              value={selectedYear}
+              onValueChange={(value) => {
+                setSelectedYear(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Years</SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={sortOrder}
+              onValueChange={(value: "asc" | "desc") => setSortOrder(value)}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">Newest First</SelectItem>
+                <SelectItem value="asc">Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
       {/* Vitals Table */}
-      <Card className="shadow-sm">
+      <Card className="border-0">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-5 h-5 text-emerald-600" />
-              <span>Vitals Records</span>
-            </div>
-            <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
-              {filteredVitals?.length || 0} records found
-            </Badge>
+          <CardTitle>
+            Health Monitoring Records ({filteredVitals.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!filteredVitals || filteredVitals.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-lg font-medium">No vitals records found</p>
-              <p className="text-sm mt-1">Try adjusting your filters or record new vitals</p>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring`)}
-                className="mt-4"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Health Monitoring
-              </Button>
+          {filteredVitals.length === 0 ? (
+            <div className="text-center py-12">
+              <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No vitals found</p>
+              <p className="text-gray-400 text-sm mt-1">
+                {searchQuery ? "Try adjusting your search criteria" : "No health monitoring records recorded yet"}
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Vital Type</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Recorded By</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredVitals.map((vital: any) => {
-                    const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
-                    const Icon = vitalConfig?.icon || Activity;
-                    
-                    return (
-                      <TableRow key={vital._id}>
-                        <TableCell className="font-mono text-sm">
-                          <div>
-                            <div>{vital.recordDate}</div>
-                            <div className="text-xs text-gray-500">{vital.recordTime}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Icon className={`w-4 h-4 text-${vitalConfig?.color}-600`} />
-                            <span>{vitalConfig?.label || vital.vitalType}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          {formatVitalValue(vital)}
-                        </TableCell>
-                        <TableCell className="max-w-xs">
-                          {vital.notes ? (
-                            <span className="text-sm text-gray-600">{vital.notes}</span>
-                          ) : (
-                            <span className="text-sm text-gray-400">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {vital.recordedBy}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Vital Type</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Recorded By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedVitals.map((vital) => {
+                      const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
+                      const Icon = vitalConfig?.icon || Activity;
+
+                      return (
+                        <TableRow key={vital._id}>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col">
+                              <span>{format(new Date(vital.recordDate), "dd MMM yyyy")}</span>
+                              <span className="text-xs text-gray-500">{vital.recordTime}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Icon className="w-4 h-4 text-gray-600" />
+                              <span>{vitalConfig?.label || vital.vitalType}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            {formatVitalValue(vital)}
+                          </TableCell>
+                          <TableCell className="max-w-[200px]">
+                            <p className="truncate">{vital.notes || "—"}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm">{vital.recordedBy}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewVital(vital)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <div className="text-sm text-gray-500">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredVitals.length)} of {filteredVitals.length} records
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="h-8 w-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* View Vital Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Vital Record Details</DialogTitle>
+            <DialogDescription>
+              Complete vital sign record for {fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {selectedVital && (
+              <div className="space-y-6">
+                {/* Vital Overview */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Vital Overview</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Date & Time</p>
+                      <p className="font-medium">
+                        {format(new Date(selectedVital.recordDate), "PPP")} at {selectedVital.recordTime}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Vital Type</p>
+                      <div className="flex items-center space-x-2">
+                        {React.createElement(vitalTypeOptions[selectedVital.vitalType as keyof typeof vitalTypeOptions]?.icon || Activity, {
+                          className: "w-4 h-4 text-gray-400"
+                        })}
+                        <p className="font-medium">
+                          {vitalTypeOptions[selectedVital.vitalType as keyof typeof vitalTypeOptions]?.label || selectedVital.vitalType}
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Value</p>
+                      <p className="font-medium text-lg">{formatVitalValue(selectedVital)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Recorded By</p>
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{selectedVital.recordedBy}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Information */}
+                {selectedVital.notes && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Notes</h3>
+                    <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                      {selectedVital.notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Record Information */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Record Type</p>
+                      <p className="font-medium">Health Monitoring - Vitals</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Created</p>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{format(new Date(selectedVital._creationTime), "PPP")}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsViewDialogOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
