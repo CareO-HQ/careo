@@ -58,6 +58,10 @@ export const getPDFStorageId = query({
         const consent = await ctx.db.get(formId as Id<"photographyConsents">);
         return consent?.pdfFileId || null;
       }
+      case "dnacpr": {
+        const dnacpr = await ctx.db.get(formId as Id<"dnacprs">);
+        return dnacpr?.pdfFileId || null;
+      }
       default:
         return null;
     }
