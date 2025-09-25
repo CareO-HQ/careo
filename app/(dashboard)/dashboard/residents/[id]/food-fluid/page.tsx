@@ -667,7 +667,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
+              variant="outline"
+              className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
               onClick={() => {
                 setEntryType("food");
                 logForm.setValue("section", getCurrentSection());
@@ -681,7 +682,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
             </Button>
 
             <Button
-              className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
+              variant="outline"
+              className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
               onClick={() => {
                 setEntryType("fluid");
                 logForm.setValue("section", getCurrentSection());
@@ -933,7 +935,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
             <div className="p-2 bg-gray-100 rounded-lg">
               <Clock className="w-5 h-5 text-gray-600" />
             </div>
-            <span className="text-gray-900">Today's Summary</span>
+            <span className="text-gray-900">Today&apos;s Summary</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">

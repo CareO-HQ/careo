@@ -258,7 +258,11 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
   };
 
   // Step navigation functions
-  const nextStep = async () => {
+  const nextStep = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const isValid = await validateCurrentStep();
     if (isValid && currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
