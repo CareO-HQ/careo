@@ -26,8 +26,8 @@ export default function AuditPage() {
       )
     );
     
-    toast.success("Action plan updated successfully", {
-      description: `Updated action plan for ${item.title}`
+    toast.success("Issue updated successfully", {
+      description: `Updated issue for ${item.title}`
     });
   };
 

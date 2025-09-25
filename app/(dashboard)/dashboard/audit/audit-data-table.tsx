@@ -41,6 +41,7 @@ import { CalendarIcon, ChevronDown, Search, X } from "lucide-react";
 import * as React from "react";
 import { DateRange } from "react-day-picker";
 import { ActionPlanModal } from "./action-plan-modal";
+import { ReportDetailDialog } from "./report-detail-dialog";
 import { createColumns } from "./columns";
 import { ActionPlanFormData, AuditItem, AuditStatus } from "./types";
 import { staffMembers } from "./mock-data";
@@ -68,6 +69,8 @@ export function AuditDataTable({ data, onActionPlanSubmit, onStatusChange, onAss
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [selectedAuditItem, setSelectedAuditItem] = React.useState<AuditItem | null>(null);
   const [actionPlanModalOpen, setActionPlanModalOpen] = React.useState(false);
+  const [reportDetailOpen, setReportDetailOpen] = React.useState(false);
+  const [selectedReportItem, setSelectedReportItem] = React.useState<AuditItem | null>(null);
 
   const filteredData = React.useMemo(() => {
     let filtered = [...data];
@@ -106,11 +109,16 @@ export function AuditDataTable({ data, onActionPlanSubmit, onStatusChange, onAss
     if (selectedAuditItem && onActionPlanSubmit) {
       onActionPlanSubmit(selectedAuditItem, formData);
     }
-    console.log("Action plan submitted:", formData);
+    console.log("Issue submitted:", formData);
+  };
+
+  const handleReportClick = (item: AuditItem) => {
+    setSelectedReportItem(item);
+    setReportDetailOpen(true);
   };
 
   const columns = React.useMemo(
-    () => createColumns(handleActionPlanClick, onStatusChange, onAssigneeChange, staffMembers),
+    () => createColumns(handleActionPlanClick, handleReportClick, onStatusChange, onAssigneeChange, staffMembers),
     [onStatusChange, onAssigneeChange]
   );
 
@@ -134,13 +142,12 @@ export function AuditDataTable({ data, onActionPlanSubmit, onStatusChange, onAss
   });
 
   const statuses: { value: AuditStatus | "all"; label: string }[] = [
-    { value: "all", label: "All Statuses" },
-    { value: "NEW", label: "New" },
-    { value: "ACTION_PLAN", label: "Action Plan" },
-    { value: "IN_PROGRESS", label: "In Progress" },
-    { value: "COMPLETED", label: "Completed" },
-    { value: "REVIEWED", label: "Reviewed" },
-    { value: "REASSIGN", label: "Reassign" },
+    { value: "all", label: "All statuses" },
+    { value: "PENDING_AUDIT", label: "Pending audit" },
+    { value: "ISSUE_ASSIGNED", label: "Issue assigned" },
+    { value: "REASSIGNED", label: "Reassigned" },
+    { value: "IN_PROGRESS", label: "In progress" },
+    { value: "PENDING_VERIFICATION", label: "Pending verification" },
     { value: "AUDITED", label: "Audited" }
   ];
 
@@ -350,6 +357,12 @@ export function AuditDataTable({ data, onActionPlanSubmit, onStatusChange, onAss
         onOpenChange={setActionPlanModalOpen}
         auditItem={selectedAuditItem}
         onSubmit={handleActionPlanSubmit}
+      />
+
+      <ReportDetailDialog
+        item={selectedReportItem}
+        open={reportDetailOpen}
+        onOpenChange={setReportDetailOpen}
       />
     </div>
   );

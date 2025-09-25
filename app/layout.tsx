@@ -39,9 +39,7 @@ export default function RootLayout({
             <ConvexClientProvider>
               <NuqsAdapter>
                 <SidebarProvider>
-                  <div className="flex flex-col justify-start h-dvh w-full">
-                    {children}
-                  </div>
+                  {children}
                 </SidebarProvider>
               </NuqsAdapter>
             </ConvexClientProvider>

@@ -48,7 +48,7 @@ const formSchema = z.object({
   dueDate: z.date({
     required_error: "Please select a due date"
   }),
-  status: z.enum(["NEW", "ACTION_PLAN", "IN_PROGRESS", "COMPLETED", "REVIEWED", "REASSIGN", "AUDITED"] as const)
+  status: z.enum(["PENDING_AUDIT", "ISSUE_ASSIGNED", "REASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "AUDITED"] as const)
 });
 
 interface ActionPlanModalProps {
@@ -71,7 +71,7 @@ export function ActionPlanModal({
       assignTo: "",
       priority: "Medium",
       dueDate: undefined,
-      status: "NEW"
+      status: "PENDING_AUDIT"
     }
   });
 
@@ -83,7 +83,7 @@ export function ActionPlanModal({
         assignTo: auditItem.assignedTo || "",
         priority: auditItem.priority || "Medium",
         dueDate: auditItem.dueDate ? new Date(auditItem.dueDate) : undefined,
-        status: auditItem.status || "NEW"
+        status: auditItem.status || "PENDING_AUDIT"
       });
     } else if (!open) {
       form.reset();
@@ -97,12 +97,11 @@ export function ActionPlanModal({
   };
 
   const statuses: { value: AuditStatus; label: string }[] = [
-    { value: "NEW", label: "New" },
-    { value: "ACTION_PLAN", label: "Action Plan" },
-    { value: "IN_PROGRESS", label: "In Progress" },
-    { value: "COMPLETED", label: "Completed" },
-    { value: "REVIEWED", label: "Reviewed" },
-    { value: "REASSIGN", label: "Reassign" },
+    { value: "PENDING_AUDIT", label: "Pending audit" },
+    { value: "ISSUE_ASSIGNED", label: "Issue assigned" },
+    { value: "REASSIGNED", label: "Reassigned" },
+    { value: "IN_PROGRESS", label: "In progress" },
+    { value: "PENDING_VERIFICATION", label: "Pending verification" },
     { value: "AUDITED", label: "Audited" }
   ];
 
@@ -116,9 +115,9 @@ export function ActionPlanModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>Action Plan</DialogTitle>
+          <DialogTitle>Issue</DialogTitle>
           <DialogDescription>
-            {auditItem ? `Create or update action plan for: ${auditItem.title}` : "Create an action plan"}
+            {auditItem ? `Create or update issue for: ${auditItem.title}` : "Create an issue"}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -272,7 +271,7 @@ export function ActionPlanModal({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Save Action Plan</Button>
+              <Button type="submit">Save Issue</Button>
             </DialogFooter>
           </form>
         </Form>

@@ -1,37 +1,67 @@
 "use client";
 
 import {
+  Calendar,
+  ClipboardCheck,
+  Folder,
+  Home,
+  Pill,
+  User2,
+  MessageCircleQuestion,
+} from "lucide-react";
+
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem
+  SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
-import {
-  ClipboardCheckIcon,
-  FolderIcon,
-  MessageCircleQuestionMarkIcon,
-  PillIcon,
-  User2Icon
-} from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
-
-import CreateResidentDialog from "../residents/CreateResidentDialog";
+import { authClient } from "@/lib/auth-client";
 import HelpSupportDialog from "./HelpSupportDialog";
 
+// Menu items.
+const items = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: Home,
+  },
+  {
+    title: "Residents",
+    url: "/dashboard/residents",
+    icon: User2,
+  },
+  {
+    title: "Medication",
+    url: "/dashboard/medication",
+    icon: Pill,
+  },
+  {
+    title: "Files",
+    url: "/dashboard/files",
+    icon: Folder,
+  },
+  {
+    title: "Audit",
+    url: "/dashboard/audit",
+    icon: ClipboardCheck,
+  },
+];
+
 export function AppSidebar() {
-  const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarContent>
         <TeamSwitcher
           orgName={activeOrg.data?.name ?? ""}
@@ -39,64 +69,39 @@ export function AppSidebar() {
           email={user?.user.email ?? ""}
         />
 
-        {/* Management Section */}
         <SidebarGroup>
-          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupLabel>Healthcare Management</SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* Residents */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/residents">
-                  <User2Icon />
-                  <span>Residents</span>
-                </Link>
-              </SidebarMenuButton>
-              <CreateResidentDialog
-                isResidentDialogOpen={isResidentDialogOpen}
-                setIsResidentDialogOpen={setIsResidentDialogOpen}
-              />
-            </SidebarMenuItem>
-
-            {/* Medication */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/medication">
-                  <PillIcon />
-                  <span>Medication</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Files */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/files">
-                  <FolderIcon />
-                  <span>Files</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Audit */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/audit">
-                  <ClipboardCheckIcon />
-                  <span>Audit</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <SidebarMenu>
+              {items.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild tooltip={item.title}>
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter>
-        <HelpSupportDialog>
-          <SidebarMenuButton>
-            <MessageCircleQuestionMarkIcon />
-            <span>Help and Support</span>
-          </SidebarMenuButton>
-        </HelpSupportDialog>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <HelpSupportDialog>
+              <SidebarMenuButton tooltip="Help and Support">
+                <MessageCircleQuestion />
+                <span>Help and Support</span>
+              </SidebarMenuButton>
+            </HelpSupportDialog>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 }

@@ -23,13 +23,12 @@ import { ArrowUpDown } from "lucide-react";
 import { AuditItem, AuditStatus } from "./types";
 
 const statusColorMap: Record<AuditStatus, string> = {
-  NEW: "bg-red-100 text-red-800 hover:bg-red-100",
-  ACTION_PLAN: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+  PENDING_AUDIT: "bg-red-100 text-red-800 hover:bg-red-100",
+  ISSUE_ASSIGNED: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+  REASSIGNED: "bg-orange-100 text-orange-800 hover:bg-orange-100",
   IN_PROGRESS: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
-  COMPLETED: "bg-green-100 text-green-800 hover:bg-green-100",
-  REVIEWED: "bg-purple-100 text-purple-800 hover:bg-purple-100",
-  REASSIGN: "bg-orange-100 text-orange-800 hover:bg-orange-100",
-  AUDITED: "bg-gray-100 text-gray-800 hover:bg-gray-100"
+  PENDING_VERIFICATION: "bg-purple-100 text-purple-800 hover:bg-purple-100",
+  AUDITED: "bg-green-100 text-green-800 hover:bg-green-100"
 };
 
 const typeColorMap = {
@@ -40,6 +39,7 @@ const typeColorMap = {
 
 export const createColumns = (
   onActionPlanClick: (item: AuditItem) => void,
+  onReportClick?: (item: AuditItem) => void,
   onStatusChange?: (itemId: string, newStatus: AuditStatus) => void,
   onAssigneeChange?: (itemId: string, assignedTo: string) => void,
   staffMembers?: { id: string; name: string }[]
@@ -124,21 +124,38 @@ export const createColumns = (
     },
     cell: ({ row }) => {
       const title = row.getValue("title") as string;
+      const item = row.original;
       const words = title.split(" ");
       const truncatedTitle = words.slice(0, 2).join(" ");
       const needsTruncation = words.length > 2;
-      
+
+      const handleClick = () => {
+        if (onReportClick) {
+          onReportClick(item);
+        }
+      };
+
       if (!needsTruncation) {
-        return <div className="max-w-[300px]">{title}</div>;
+        return (
+          <button
+            onClick={handleClick}
+            className="max-w-[300px] text-left hover:text-blue-600 hover:underline cursor-pointer transition-colors"
+          >
+            {title}
+          </button>
+        );
       }
-      
+
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="max-w-[300px] cursor-help">
+              <button
+                onClick={handleClick}
+                className="max-w-[300px] text-left hover:text-blue-600 hover:underline cursor-pointer transition-colors"
+              >
                 {truncatedTitle}...
-              </div>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               <p className="max-w-xs">{title}</p>
@@ -150,7 +167,7 @@ export const createColumns = (
   },
   {
     id: "actionPlan",
-    header: "Action Plan",
+    header: "Issues",
     cell: ({ row }) => {
       return (
         <Button
@@ -158,7 +175,7 @@ export const createColumns = (
           size="sm"
           onClick={() => onActionPlanClick(row.original)}
         >
-          {row.original.followUpNote ? "View/Edit" : "Create"}
+          {row.original.followUpNote ? "Edit" : "Create"}
         </Button>
       );
     },
@@ -181,12 +198,11 @@ export const createColumns = (
       const itemId = row.original.id;
       
       const statuses: { value: AuditStatus; label: string }[] = [
-        { value: "NEW", label: "New" },
-        { value: "ACTION_PLAN", label: "Action Plan" },
-        { value: "IN_PROGRESS", label: "In Progress" },
-        { value: "COMPLETED", label: "Completed" },
-        { value: "REVIEWED", label: "Reviewed" },
-        { value: "REASSIGN", label: "Reassign" },
+        { value: "PENDING_AUDIT", label: "Pending audit" },
+        { value: "ISSUE_ASSIGNED", label: "Issue assigned" },
+        { value: "REASSIGNED", label: "Reassigned" },
+        { value: "IN_PROGRESS", label: "In progress" },
+        { value: "PENDING_VERIFICATION", label: "Pending verification" },
         { value: "AUDITED", label: "Audited" }
       ];
       
@@ -202,7 +218,7 @@ export const createColumns = (
           <SelectTrigger className="w-[140px] h-8 border-0 p-0 focus:ring-0">
             <SelectValue>
               <Badge className={statusColorMap[status]} variant="secondary">
-                {status.replace(/_/g, " ")}
+                {status.replace(/_/g, " ").toLowerCase().replace(/^\w/, c => c.toUpperCase())}
               </Badge>
             </SelectValue>
           </SelectTrigger>

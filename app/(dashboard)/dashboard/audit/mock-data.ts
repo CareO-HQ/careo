@@ -8,11 +8,30 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=John",
     type: "Care Plan",
     title: "Monthly Care Plan Review - John Smith",
-    status: "NEW",
+    status: "PENDING_AUDIT",
     priority: "High",
     createdDate: new Date("2024-01-15"),
     updatedDate: new Date("2024-01-20"),
     dueDate: new Date("2024-02-01"),
+    reportContent: {
+      summary: "Comprehensive care plan review for John Smith focusing on medication management, mobility support, and dietary requirements. Patient shows good progress in rehabilitation activities.",
+      findings: [
+        "Blood pressure medication requires dosage adjustment",
+        "Improved mobility with physiotherapy sessions",
+        "Dietary intake has increased by 15% over the month",
+        "Social engagement shows positive trends"
+      ],
+      recommendations: [
+        "Consult GP for blood pressure medication review",
+        "Continue physiotherapy sessions 3x weekly",
+        "Monitor fluid intake more closely",
+        "Increase recreational activities involvement"
+      ],
+      riskLevel: "Medium",
+      nextReviewDate: "2024-02-15",
+      assessor: "Sarah Johnson, RN",
+      completedDate: "2024-01-20"
+    },
     files: [
       { id: "f1", name: "care_plan_jan.pdf", url: "/files/care_plan_jan.pdf" },
       { id: "f2", name: "medication_review.pdf", url: "/files/medication_review.pdf" }
@@ -25,11 +44,31 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mary",
     type: "Risk Assessment",
     title: "Fall Risk Assessment - Mary Johnson",
-    status: "NEW",
+    status: "PENDING_AUDIT",
     priority: "Medium",
     createdDate: new Date("2024-01-10"),
     updatedDate: new Date("2024-01-18"),
     dueDate: new Date("2024-01-25"),
+    reportContent: {
+      summary: "Comprehensive fall risk assessment for Mary Johnson. Patient shows increased fall risk due to recent medication changes and balance issues.",
+      findings: [
+        "Balance score decreased by 20% since last assessment",
+        "New blood pressure medication causing dizziness",
+        "Vision problems affecting depth perception",
+        "Muscle weakness in lower extremities noted"
+      ],
+      recommendations: [
+        "Install additional grab bars in bathroom",
+        "Review medication timing with GP",
+        "Increase physiotherapy to 4x weekly",
+        "Consider bed alarm for night-time safety",
+        "Schedule eye examination"
+      ],
+      riskLevel: "High",
+      nextReviewDate: "2024-02-10",
+      assessor: "Michael Brown, PT",
+      completedDate: "2024-01-18"
+    },
     files: [
       { id: "f3", name: "fall_risk_assessment.pdf", url: "/files/fall_risk.pdf" }
     ]
@@ -41,11 +80,32 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=Robert",
     type: "Incident Report",
     title: "Minor Fall Incident - Dining Room",
-    status: "COMPLETED",
+    status: "AUDITED",
     priority: "Low",
     followUpNote: "Incident resolved, no injuries reported",
     createdDate: new Date("2024-01-05"),
     updatedDate: new Date("2024-01-06"),
+    reportContent: {
+      summary: "Minor fall incident occurred in dining room at 14:30. Resident Robert Williams slipped while walking to his table. No injuries sustained, immediate medical assessment conducted.",
+      findings: [
+        "Wet floor near coffee station contributed to slip",
+        "Resident wearing appropriate non-slip footwear",
+        "No physical injuries detected upon examination",
+        "Vital signs stable after incident",
+        "Mental status unchanged post-incident"
+      ],
+      recommendations: [
+        "Increase floor maintenance rounds during meal times",
+        "Install additional non-slip mats in dining area",
+        "Staff to monitor Robert's mobility for 24 hours",
+        "Review floor cleaning schedule with housekeeping",
+        "Document in care plan for future reference"
+      ],
+      riskLevel: "Low",
+      nextReviewDate: "2024-01-12",
+      assessor: "Emily Davis, RN",
+      completedDate: "2024-01-06"
+    },
     files: [
       { id: "f4", name: "incident_report_0105.pdf", url: "/files/incident_0105.pdf" },
       { id: "f5", name: "witness_statement.pdf", url: "/files/witness.pdf" }
@@ -58,7 +118,7 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=Patricia",
     type: "Care Plan",
     title: "Quarterly Care Plan Assessment",
-    status: "NEW",
+    status: "PENDING_AUDIT",
     priority: "Medium",
     createdDate: new Date("2024-01-12"),
     updatedDate: new Date("2024-01-19"),
@@ -72,7 +132,7 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=James",
     type: "Risk Assessment",
     title: "Pressure Sore Risk Evaluation",
-    status: "NEW",
+    status: "PENDING_AUDIT",
     priority: "High",
     createdDate: new Date("2024-01-08"),
     updatedDate: new Date("2024-01-16"),
@@ -105,7 +165,7 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=John",
     type: "Risk Assessment",
     title: "Mobility Assessment Update",
-    status: "NEW",
+    status: "PENDING_AUDIT",
     priority: "Medium",
     createdDate: new Date("2024-01-14"),
     updatedDate: new Date("2024-01-21"),
@@ -135,7 +195,7 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=Robert",
     type: "Incident Report",
     title: "Behavioral Incident - Resolved",
-    status: "COMPLETED",
+    status: "AUDITED",
     priority: "High",
     followUpNote: "Family notified, care plan updated",
     createdDate: new Date("2024-01-09"),
@@ -151,7 +211,7 @@ export const mockAuditData: AuditItem[] = [
     residentPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=Patricia",
     type: "Risk Assessment",
     title: "Infection Control Assessment",
-    status: "NEW",
+    status: "PENDING_AUDIT",
     priority: "Medium",
     createdDate: new Date("2024-01-07"),
     updatedDate: new Date("2024-01-14"),

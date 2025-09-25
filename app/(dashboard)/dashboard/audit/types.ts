@@ -1,15 +1,24 @@
-export type AuditStatus = 
-  | "NEW"
-  | "ACTION_PLAN" 
-  | "IN_PROGRESS" 
-  | "COMPLETED" 
-  | "REVIEWED" 
-  | "REASSIGN" 
+export type AuditStatus =
+  | "PENDING_AUDIT"
+  | "ISSUE_ASSIGNED"
+  | "REASSIGNED"
+  | "IN_PROGRESS"
+  | "PENDING_VERIFICATION"
   | "AUDITED";
 
 export type Priority = "Low" | "Medium" | "High";
 
 export type AuditType = "Care Plan" | "Risk Assessment" | "Incident Report";
+
+export interface ReportContent {
+  summary: string;
+  findings: string[];
+  recommendations: string[];
+  riskLevel?: "Low" | "Medium" | "High";
+  nextReviewDate?: string;
+  assessor: string;
+  completedDate: string;
+}
 
 export interface AuditItem {
   id: string;
@@ -25,6 +34,7 @@ export interface AuditItem {
   createdDate: Date;
   updatedDate: Date;
   dueDate?: Date;
+  reportContent?: ReportContent;
   files: {
     id: string;
     name: string;

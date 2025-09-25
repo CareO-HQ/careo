@@ -17,7 +17,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
+    <div className="flex flex-col items-center justify-center min-h-96">
+     
+      <p className="text-muted-foreground mb-6">Manage your healthcare facility with ease</p>
       <Button onClick={handleLogout}>Log out</Button>
     </div>
   );
