@@ -393,3 +393,11 @@ export const dnacprs = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 });
+
+export const peeps = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string()
+});
