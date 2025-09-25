@@ -209,8 +209,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-orange-50 rounded-lg">
-                    <Utensils className="w-6 h-6 text-orange-600" />
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <Utensils className="w-6 h-6 text-green-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Food & Fluid</h3>
@@ -285,8 +285,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-gray-50 rounded-lg">
-                    <Folder className="w-6 h-6 text-gray-600" />
+                  <div className="p-2 bg-indigo-50 rounded-lg">
+                    <Folder className="w-6 h-6 text-indigo-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Documents</h3>
@@ -307,8 +307,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-indigo-50 rounded-lg">
-                    <Moon className="w-6 h-6 text-indigo-600" />
+                  <div className="p-2 bg-gray-50 rounded-lg">
+                    <Moon className="w-6 h-6 text-gray-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Night Docs</h3>
@@ -357,8 +357,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-red-50 rounded-lg">
-                    <TrendingDown className="w-6 h-6 text-red-600" />
+                  <div className="p-2 bg-yellow-50 rounded-lg">
+                    <TrendingDown className="w-6 h-6 text-yellow-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Incidents & Falls</h3>
@@ -380,8 +380,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-emerald-50 rounded-lg">
-                    <Stethoscope className="w-6 h-6 text-emerald-600" />
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <Stethoscope className="w-6 h-6 text-green-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Health & Monitoring</h3>
@@ -434,8 +434,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-amber-50 rounded-lg">
-                    <Users className="w-6 h-6 text-amber-600" />
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <Users className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Lifestyle & Social</h3>
