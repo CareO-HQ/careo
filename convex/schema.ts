@@ -1995,4 +1995,111 @@ export default defineSchema({
     .index("byTeam", ["teamId"])
     .index("byCreatedBy", ["createdBy"])
     .index("byNoteDate", ["noteDate"]),
+
+  // CareO Audits table
+  careoAudits: defineTable({
+    residentId: v.id("residents"),
+    auditCycle: v.optional(v.string()), // e.g., "2024-Q1", "2024-Q2" - for future use
+    section: v.string(), // Section A-Q or Miscellaneous
+    question: v.string(), // Fixed predefined question text
+    questionId: v.string(), // Unique identifier for the question (e.g., "A001", "B002")
+    status: v.optional(v.union(
+      v.literal("compliant"),
+      v.literal("non-compliant"),
+      v.literal("n/a")
+    )),
+    comments: v.optional(v.string()),
+    auditedBy: v.id("users"), // User who conducted audit
+    assignee: v.optional(v.id("users")), // User assigned to resolve issues
+    auditDate: v.number(), // When audit was conducted
+    dueDate: v.optional(v.number()), // For follow-ups
+    priority: v.optional(v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high")
+    )),
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    updatedBy: v.optional(v.id("users"))
+  })
+    .index("byResident", ["residentId"])
+    .index("bySection", ["section"])
+    .index("byQuestionId", ["questionId"])
+    .index("byStatus", ["status"])
+    .index("byAuditedBy", ["auditedBy"])
+    .index("byAssignee", ["assignee"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTeam", ["teamId"])
+    .index("byResidentAndSection", ["residentId", "section"])
+    .index("byAuditCycle", ["auditCycle"])
+    .index("byAuditDate", ["auditDate"])
+    .index("byDueDate", ["dueDate"])
+    .index("byCreatedBy", ["createdBy"]),
+
+  // Section Issues table - One issue per section per resident
+  sectionIssues: defineTable({
+    residentId: v.id("residents"),
+    section: v.string(), // Section A-Q or Miscellaneous
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(
+      v.literal("open"),
+      v.literal("in-progress"),
+      v.literal("resolved"),
+      v.literal("closed")
+    ),
+    priority: v.optional(v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high")
+    )),
+    assigneeId: v.optional(v.id("users")),
+    dueDate: v.optional(v.number()),
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    updatedBy: v.optional(v.id("users")),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.id("users"))
+  })
+    .index("byResident", ["residentId"])
+    .index("byResidentAndSection", ["residentId", "section"])
+    .index("bySection", ["section"])
+    .index("byStatus", ["status"])
+    .index("byAssignee", ["assigneeId"])
+    .index("byPriority", ["priority"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTeam", ["teamId"])
+    .index("byDueDate", ["dueDate"])
+    .index("byCreatedBy", ["createdBy"]),
+
+  // Audit Responses table - Stores resident-specific responses to template questions
+  auditResponses: defineTable({
+    residentId: v.id("residents"),
+    questionId: v.string(), // Links to template question
+    status: v.optional(v.union(
+      v.literal("compliant"),
+      v.literal("non-compliant"),
+      v.literal("n/a")
+    )),
+    comments: v.optional(v.string()),
+    respondedBy: v.id("users"),
+    respondedAt: v.number(),
+    organizationId: v.string(),
+    teamId: v.string(),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users"))
+  })
+    .index("byResident", ["residentId"])
+    .index("byResidentAndQuestion", ["residentId", "questionId"])
+    .index("byQuestion", ["questionId"])
+    .index("byStatus", ["status"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTeam", ["teamId"])
+    .index("byRespondedBy", ["respondedBy"]),
 });

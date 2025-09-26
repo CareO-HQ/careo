@@ -10,6 +10,7 @@
 
 import type * as appointmentNotes from "../appointmentNotes.js";
 import type * as appointments from "../appointments.js";
+import type * as auditResponses from "../auditResponses.js";
 import type * as auth from "../auth.js";
 import type * as careFilePdfs from "../careFilePdfs.js";
 import type * as careFiles_admission from "../careFiles/admission.js";
@@ -21,6 +22,7 @@ import type * as careFiles_longTermFalls from "../careFiles/longTermFalls.js";
 import type * as careFiles_movingHandling from "../careFiles/movingHandling.js";
 import type * as careFiles_photographyConsent from "../careFiles/photographyConsent.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
+import type * as careoAudits from "../careoAudits.js";
 import type * as crons from "../crons.js";
 import type * as diet from "../diet.js";
 import type * as emailHelpers from "../emailHelpers.js";
@@ -44,6 +46,8 @@ import type * as quickCareNotes from "../quickCareNotes.js";
 import type * as residents from "../residents.js";
 import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as schemas_managerAudits from "../schemas/managerAudits.js";
+import type * as sectionIssues from "../sectionIssues.js";
+import type * as seedAuditQuestions from "../seedAuditQuestions.js";
 import type * as teams from "../teams.js";
 import type * as trustIncidentReports from "../trustIncidentReports.js";
 import type * as user from "../user.js";
@@ -66,6 +70,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   appointmentNotes: typeof appointmentNotes;
   appointments: typeof appointments;
+  auditResponses: typeof auditResponses;
   auth: typeof auth;
   careFilePdfs: typeof careFilePdfs;
   "careFiles/admission": typeof careFiles_admission;
@@ -77,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   "careFiles/movingHandling": typeof careFiles_movingHandling;
   "careFiles/photographyConsent": typeof careFiles_photographyConsent;
   "careFiles/preadmission": typeof careFiles_preadmission;
+  careoAudits: typeof careoAudits;
   crons: typeof crons;
   diet: typeof diet;
   emailHelpers: typeof emailHelpers;
@@ -100,6 +106,8 @@ declare const fullApi: ApiFromModules<{
   residents: typeof residents;
   "schemas/carefiles": typeof schemas_carefiles;
   "schemas/managerAudits": typeof schemas_managerAudits;
+  sectionIssues: typeof sectionIssues;
+  seedAuditQuestions: typeof seedAuditQuestions;
   teams: typeof teams;
   trustIncidentReports: typeof trustIncidentReports;
   user: typeof user;

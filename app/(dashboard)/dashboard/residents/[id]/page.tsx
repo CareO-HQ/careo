@@ -4,9 +4,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
+import { CareoAuditTable } from "../../audit/careo-audit-table";
+import { AUDIT_QUESTIONS, getAllSections } from "../../audit/questions";
+import { toast } from "sonner";
 import {
   Activity,
   Ambulance,
@@ -40,9 +58,129 @@ type ResidentPageProps = {
 export default function ResidentPage({ params }: ResidentPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const [isAuditSheetOpen, setIsAuditSheetOpen] = React.useState(false);
+  const [selectedSection, setSelectedSection] = React.useState("Section A");
+
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
+  // Audit queries and mutations (template-based)
+  const auditResponses = useQuery(api.auditResponses.getResponsesByResident, {
+    residentId: id as Id<"residents">
+  });
+
+  // Get template questions for selected section
+  const getSectionQuestions = (section: string) => {
+    return AUDIT_QUESTIONS[section] || [];
+  };
+
+  // Combine template questions with resident responses
+  const getAuditData = () => {
+    if (!auditResponses) return {};
+
+    const sectionQuestions = getSectionQuestions(selectedSection);
+    const auditData: Record<string, any> = {};
+
+    sectionQuestions.forEach((question: any) => {
+      const response = auditResponses[question.id];
+      auditData[question.id] = {
+        questionId: question.id,
+        question: question.question,
+        section: selectedSection,
+        status: response?.status,
+        comments: response?.comments
+      };
+    });
+
+    return auditData;
+  };
+
+  // Section issue queries
+  const sectionIssue = useQuery(api.sectionIssues.getSectionIssue, {
+    residentId: id as Id<"residents">,
+    section: selectedSection
+  });
+
+  const updateResponse = useMutation(api.auditResponses.updateResponse);
+  const createOrUpdateSectionIssue = useMutation(api.sectionIssues.createOrUpdateSectionIssue);
+
+  // Debug logging
+  console.log("Audit Responses:", auditResponses);
+  console.log("Resident ID:", id);
+  console.log("Selected Section:", selectedSection);
+
+  // Handler functions
+  const handleStatusChange = async (questionId: string, status: "compliant" | "non-compliant" | "n/a") => {
+    if (!resident) return;
+
+    try {
+      await updateResponse({
+        residentId: id as Id<"residents">,
+        questionId,
+        status,
+        organizationId: resident.organizationId,
+        teamId: resident.teamId
+      });
+      toast.success("Status updated successfully");
+    } catch (error) {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleCommentChange = async (questionId: string, comment: string) => {
+    if (!resident) return;
+
+    console.log("handleCommentChange called", { questionId, comment });
+    try {
+      const result = await updateResponse({
+        residentId: id as Id<"residents">,
+        questionId,
+        comments: comment,
+        organizationId: resident.organizationId,
+        teamId: resident.teamId
+      });
+      console.log("Update result:", result);
+      toast.success("Comment updated successfully");
+    } catch (error) {
+      console.error("Update error:", error);
+      toast.error("Failed to update comment");
+    }
+  };
+
+  const handleCreateIssue = async (issueData: {
+    title: string;
+    assignee?: Id<"users">;
+    dueDate?: string;
+    priority?: "low" | "medium" | "high";
+    description?: string;
+  }) => {
+    if (!resident) return;
+
+    try {
+      console.log("Creating/updating section issue:", { section: selectedSection, ...issueData });
+
+      await createOrUpdateSectionIssue({
+        residentId: id as Id<"residents">,
+        section: selectedSection,
+        title: issueData.title,
+        description: issueData.description,
+        priority: issueData.priority,
+        assigneeId: issueData.assignee,
+        dueDate: issueData.dueDate ? new Date(issueData.dueDate).getTime() : undefined,
+        organizationId: resident.organizationId,
+        teamId: resident.teamId,
+      });
+
+      toast.success(sectionIssue ? "Issue updated successfully" : "Issue created successfully");
+    } catch (error) {
+      console.error("Create/update issue error:", error);
+      toast.error("Failed to save issue");
+    }
+  };
+
+
+  const availableSections = getAllSections();
 
   console.log("RESIDENT", resident);
 
@@ -107,23 +245,89 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Avatar className="w-20 h-20">
-          <AvatarImage
-            src={resident.imageUrl}
-            alt={fullName}
-            className="border"
-          />
-          <AvatarFallback className="text-xl bg-primary/10 text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold">{fullName}</h1>
-          <p className="text-muted-foreground text-sm">
-            Room {resident.roomNumber} • NHS: {resident.nhsHealthNumber}
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Avatar className="w-20 h-20">
+            <AvatarImage
+              src={resident.imageUrl}
+              alt={fullName}
+              className="border"
+            />
+            <AvatarFallback className="text-xl bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h1 className="text-2xl font-bold">{fullName}</h1>
+            <p className="text-muted-foreground text-sm">
+              Room {resident.roomNumber} • NHS: {resident.nhsHealthNumber}
+            </p>
+          </div>
         </div>
+        <Sheet open={isAuditSheetOpen} onOpenChange={setIsAuditSheetOpen} >
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <ClipboardList className="w-4 h-4" />
+              CareO Audit
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[50vw] sm:max-w-none max-w-none h-screen p-6">
+            <SheetHeader>
+              <SheetTitle>CareO Audit - {fullName}</SheetTitle>
+              <SheetDescription>
+                Audit questions and compliance status for {fullName}
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="mt-6 h-[calc(100vh-200px)] flex flex-col space-y-4">
+              {/* Section selector and actions */}
+              <div className="flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center space-x-4">
+                  <Select
+                    value={selectedSection}
+                    onValueChange={setSelectedSection}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select section..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSections.map((section) => (
+                        <SelectItem key={section} value={section}>
+                          {section}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {Object.keys(getAuditData()).length > 0 && (
+                    <div className="text-sm text-gray-600">
+                      {Object.keys(getAuditData()).length} items in {selectedSection}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Audit table */}
+              <div className="flex-1 min-h-0">
+                <CareoAuditTable
+                  residentId={id as Id<"residents">}
+                  auditData={getAuditData()}
+                  onStatusChange={handleStatusChange}
+                  onCommentChange={handleCommentChange}
+                  onCreateIssue={handleCreateIssue}
+                  sectionIssue={sectionIssue}
+                  currentSection={selectedSection}
+                  isLoading={auditResponses === undefined}
+                />
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* ESSENTIAL CARE */}
