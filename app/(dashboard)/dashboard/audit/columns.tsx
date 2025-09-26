@@ -21,6 +21,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { ArrowUpDown } from "lucide-react";
 import { AuditItem, AuditStatus } from "./types";
+import { staffMembers } from "./mock-data";
 
 const statusColorMap: Record<AuditStatus, string> = {
   PENDING_AUDIT: "bg-red-100 text-red-800 hover:bg-red-100",
@@ -84,6 +85,34 @@ export const createColumns = (
             <p className="text-sm text-muted-foreground">{item.residentId}</p>
           </div>
         </div>
+      );
+    },
+  },
+  {
+    accessorKey: "createdBy",
+    header: "Created By",
+    cell: ({ row }) => {
+      const item = row.original;
+      const creator = staffMembers.find(staff => staff.name === item.createdBy);
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={creator?.photo} alt={creator?.name} />
+                  <AvatarFallback className="text-xs">
+                    {item.createdBy.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{item.createdBy}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     },
   },
@@ -243,40 +272,11 @@ export const createColumns = (
     header: "Assigned To",
     cell: ({ row }) => {
       const assignedTo = row.getValue("assignedTo") as string | undefined;
-      const itemId = row.original.id;
-      
-      if (!onAssigneeChange || !staffMembers) {
-        return assignedTo ? (
-          <span>{assignedTo}</span>
-        ) : (
-          <span className="text-muted-foreground">Unassigned</span>
-        );
-      }
-      
-      return (
-        <Select
-          value={assignedTo || "unassigned"}
-          onValueChange={(value) => {
-            const newAssignee = value === "unassigned" ? "" : value;
-            onAssigneeChange(itemId, newAssignee);
-          }}
-        >
-          <SelectTrigger className="w-[160px] h-8 border-0 p-2 focus:ring-0">
-            <SelectValue>
-              {assignedTo || <span className="text-muted-foreground">Unassigned</span>}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="unassigned">
-              <span className="text-muted-foreground">Unassigned</span>
-            </SelectItem>
-            {staffMembers.map((staff) => (
-              <SelectItem key={staff.id} value={staff.name}>
-                {staff.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+      return assignedTo ? (
+        <span className="font-medium">{assignedTo}</span>
+      ) : (
+        <span className="text-muted-foreground">Unassigned</span>
       );
     },
   },

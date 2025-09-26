@@ -168,6 +168,65 @@ npm run lint             # Run ESLint
 npm run typecheck        # Run TypeScript compiler (configure this)
 ```
 
+## UI Component Patterns
+
+### Date Picker Pattern
+When implementing date pickers with Calendar component, always use this pattern for proper functionality:
+
+```tsx
+<FormField
+  control={form.control}
+  name="dateFieldName"
+  render={({ field }) => (
+    <FormItem className="space-y-1">
+      <FormLabel className="text-xs font-medium">Date Label</FormLabel>
+      <Popover modal>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              "w-full h-8 justify-start text-left font-normal text-sm",
+              !field.value && "text-muted-foreground"
+            )}
+          >
+            {field.value ? (
+              format(field.value, "MMM d, yyyy")
+            ) : (
+              <span>Pick date</span>
+            )}
+            <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={field.value || undefined}
+            onSelect={(date) => {
+              field.onChange(date);
+            }}
+            disabled={(date) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return date < today; // Disable past dates
+            }}
+            defaultMonth={new Date()}
+          />
+        </PopoverContent>
+      </Popover>
+      <FormMessage />
+    </FormItem>
+  )}
+/>
+```
+
+**Critical Requirements:**
+- **Always use `modal` prop** on Popover to prevent interaction issues
+- **Never wrap Button in FormControl** - it interferes with calendar interaction
+- **Use `field.value || undefined`** for proper selection state
+- **Include `defaultMonth={new Date()}`** to show current month
+- **Use explicit date handling** in onSelect callback
+
 ## Critical Issues to Address
 
 1. **Security**: The middleware.ts contains a security warning - implement proper authentication checks

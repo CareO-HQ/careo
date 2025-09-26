@@ -30,6 +30,7 @@ export interface AuditItem {
   status: AuditStatus;
   priority: Priority;
   assignedTo?: string;
+  createdBy: string;
   followUpNote?: string;
   createdDate: Date;
   updatedDate: Date;

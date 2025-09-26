@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -37,18 +38,33 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActionPlanFormData, AuditItem, AuditStatus, Priority } from "./types";
 import { staffMembers } from "./mock-data";
+
+const statusColorMap: Record<AuditStatus, string> = {
+  PENDING_AUDIT: "bg-red-100 text-red-800 hover:bg-red-100",
+  ISSUE_ASSIGNED: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+  REASSIGNED: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+  IN_PROGRESS: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
+  PENDING_VERIFICATION: "bg-purple-100 text-purple-800 hover:bg-purple-100",
+  AUDITED: "bg-green-100 text-green-800 hover:bg-green-100"
+};
+
+const priorityColorMap: Record<Priority, string> = {
+  Low: "bg-green-100 text-green-800 hover:bg-green-100",
+  Medium: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
+  High: "bg-red-100 text-red-800 hover:bg-red-100"
+};
 
 const formSchema = z.object({
   followUpNote: z.string().min(10, "Follow-up note must be at least 10 characters"),
   assignTo: z.string().min(1, "Please select a staff member"),
-  priority: z.enum(["Low", "Medium", "High"] as const),
+  priority: z.enum(["Low", "Medium", "High"] as const).optional(),
   dueDate: z.date({
     required_error: "Please select a due date"
-  }),
-  status: z.enum(["PENDING_AUDIT", "ISSUE_ASSIGNED", "REASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "AUDITED"] as const)
+  }).optional(),
+  status: z.enum(["PENDING_AUDIT", "ISSUE_ASSIGNED", "REASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "AUDITED"] as const).optional()
 });
 
 interface ActionPlanModalProps {
@@ -64,14 +80,18 @@ export function ActionPlanModal({
   auditItem,
   onSubmit
 }: ActionPlanModalProps) {
+  const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
+  const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
+  const [assignToPopoverOpen, setAssignToPopoverOpen] = useState(false);
+
   const form = useForm<ActionPlanFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       followUpNote: "",
       assignTo: "",
-      priority: "Medium",
+      priority: undefined,
       dueDate: undefined,
-      status: "PENDING_AUDIT"
+      status: undefined
     }
   });
 
@@ -81,9 +101,9 @@ export function ActionPlanModal({
       form.reset({
         followUpNote: auditItem.followUpNote || "",
         assignTo: auditItem.assignedTo || "",
-        priority: auditItem.priority || "Medium",
+        priority: auditItem.priority || undefined,
         dueDate: auditItem.dueDate ? new Date(auditItem.dueDate) : undefined,
-        status: auditItem.status || "PENDING_AUDIT"
+        status: auditItem.status || undefined
       });
     } else if (!open) {
       form.reset();
@@ -97,12 +117,8 @@ export function ActionPlanModal({
   };
 
   const statuses: { value: AuditStatus; label: string }[] = [
-    { value: "PENDING_AUDIT", label: "Pending audit" },
     { value: "ISSUE_ASSIGNED", label: "Issue assigned" },
-    { value: "REASSIGNED", label: "Reassigned" },
-    { value: "IN_PROGRESS", label: "In progress" },
-    { value: "PENDING_VERIFICATION", label: "Pending verification" },
-    { value: "AUDITED", label: "Audited" }
+    { value: "REASSIGNED", label: "Reassigned" }
   ];
 
   const priorities: { value: Priority; label: string }[] = [
@@ -113,26 +129,26 @@ export function ActionPlanModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[525px]">
-        <DialogHeader>
-          <DialogTitle>Issue</DialogTitle>
-          <DialogDescription>
-            {auditItem ? `Create or update issue for: ${auditItem.title}` : "Create an issue"}
+      <DialogContent className="sm:max-w-[380px]">
+        <DialogHeader className="space-y-1 pb-2">
+          <DialogTitle className="text-base font-semibold">Issue</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            {auditItem ? `Update: ${auditItem.title}` : "Create issue"}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-3">
             <FormField
               control={form.control}
               name="followUpNote"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Follow-up Note</FormLabel>
+                <FormItem className="space-y-1">
+                  <FormLabel className="text-xs font-medium">Follow-up Note</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Enter follow-up notes..."
-                      className="resize-none"
-                      rows={4}
+                      className="resize-none min-h-[60px] text-sm"
+                      rows={2}
                       {...field}
                     />
                   </FormControl>
@@ -141,52 +157,96 @@ export function ActionPlanModal({
               )}
             />
             
-            <FormField
-              control={form.control}
-              name="assignTo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Assign To</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select staff member" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {staffMembers.map((staff) => (
-                        <SelectItem key={staff.id} value={staff.name}>
-                          {staff.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="flex flex-wrap gap-2">
+              <FormField
+                control={form.control}
+                name="assignTo"
+                render={({ field }) => (
+                  <FormItem>
+                    <Popover modal open={assignToPopoverOpen} onOpenChange={setAssignToPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          {field.value || "Assign To"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-1" align="start">
+                        <div className="space-y-1">
+                          {staffMembers.map((staff) => (
+                            <Button
+                              key={staff.id}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-xs h-7"
+                              onClick={() => {
+                                field.onChange(staff.name);
+                                setAssignToPopoverOpen(false);
+                              }}
+                            >
+                              {staff.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select priority" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {priorities.map((priority) => (
-                          <SelectItem key={priority.value} value={priority.value}>
-                            {priority.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover modal open={priorityPopoverOpen} onOpenChange={setPriorityPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          {field.value ? (
+                            <Badge
+                              variant="secondary"
+                              className={`${priorityColorMap[field.value]} text-xs px-2 py-0`}
+                            >
+                              {field.value}
+                            </Badge>
+                          ) : (
+                            "Priority"
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-32 p-1" align="start">
+                        <div className="space-y-1">
+                          {priorities.map((priority) => (
+                            <Button
+                              key={priority.value}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-xs h-7"
+                              onClick={() => {
+                                field.onChange(priority.value);
+                                setPriorityPopoverOpen(false);
+                              }}
+                            >
+                              <Badge
+                                variant="secondary"
+                                className={`${priorityColorMap[priority.value]} text-xs`}
+                              >
+                                {priority.label}
+                              </Badge>
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -197,81 +257,113 @@ export function ActionPlanModal({
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {statuses.map((status) => (
-                          <SelectItem key={status.value} value={status.value}>
-                            {status.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover modal open={statusPopoverOpen} onOpenChange={setStatusPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          {field.value ? (
+                            <Badge
+                              variant="secondary"
+                              className={`${statusColorMap[field.value]} text-xs px-2 py-0`}
+                            >
+                              {statuses.find(s => s.value === field.value)?.label}
+                            </Badge>
+                          ) : (
+                            "Status"
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-40 p-1" align="start">
+                        <div className="space-y-1">
+                          {statuses.map((status) => (
+                            <Button
+                              key={status.value}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-xs h-7"
+                              onClick={() => {
+                                field.onChange(status.value);
+                                setStatusPopoverOpen(false);
+                              }}
+                            >
+                              <Badge
+                                variant="secondary"
+                                className={`${statusColorMap[status.value]} text-xs`}
+                              >
+                                {status.label}
+                              </Badge>
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <Popover modal>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          {field.value ? (
+                            format(field.value, "MMM d")
+                          ) : (
+                            "Due Date"
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value || undefined}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                          }}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return date < today;
+                          }}
+                          defaultMonth={new Date()}
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="dueDate"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Due Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          return date < today;
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="text-sm text-muted-foreground">
-              Created Date: {auditItem ? format(auditItem.createdDate, "PPP") : format(new Date(), "PPP")}
+            <div className="text-xs text-muted-foreground/70">
+              Created: {auditItem ? format(auditItem.createdDate, "MMM d") : format(new Date(), "MMM d")}
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <DialogFooter className="pt-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="h-8 px-3 text-sm"
+              >
                 Cancel
               </Button>
-              <Button type="submit">Save Issue</Button>
+              <Button type="submit" className="h-8 px-3 text-sm">
+                Create Issue
+              </Button>
             </DialogFooter>
           </form>
         </Form>
