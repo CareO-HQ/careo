@@ -29,6 +29,7 @@ import {
   Activity,
   Ambulance,
   ArrowLeft,
+  Bell,
   Calendar,
   ChevronRight,
   ClipboardList,
@@ -60,6 +61,12 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const router = useRouter();
   const [isAuditSheetOpen, setIsAuditSheetOpen] = React.useState(false);
   const [selectedSection, setSelectedSection] = React.useState("Section A");
+  const [showNotifications, setShowNotifications] = React.useState(false);
+  const [notifications] = React.useState([
+    { id: 1, message: "Care plan needs review - due in 2 days", type: "urgent", date: "2024-01-15", category: "Care Plan" },
+    { id: 2, message: "Risk assessment review needed - falls risk", type: "warning", date: "2024-01-14", category: "Risk Assessment" },
+    { id: 3, message: "Observation needed - blood pressure monitoring", type: "info", date: "2024-01-13", category: "Observation" }
+  ]);
 
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
@@ -72,7 +79,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
   // Get template questions for selected section
   const getSectionQuestions = (section: string) => {
-    return AUDIT_QUESTIONS[section] || [];
+    return AUDIT_QUESTIONS.filter(q => q.section === section);
   };
 
   // Combine template questions with resident responses
@@ -82,10 +89,21 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     const sectionQuestions = getSectionQuestions(selectedSection);
     const auditData: Record<string, any> = {};
 
+    // Convert auditResponses array to map if needed
+    const responsesMap = Array.isArray(auditResponses)
+      ? auditResponses.reduce((acc, response) => {
+          acc[response.questionId] = response;
+          return acc;
+        }, {} as Record<string, any>)
+      : auditResponses;
+
+    console.log("getAuditData - responsesMap:", responsesMap);
+    console.log("getAuditData - sectionQuestions:", sectionQuestions);
+
     sectionQuestions.forEach((question: any) => {
-      const response = auditResponses[question.id];
-      auditData[question.id] = {
-        questionId: question.id,
+      const response = responsesMap[question.questionId];
+      auditData[question.questionId] = {
+        questionId: question.questionId,
         question: question.question,
         section: selectedSection,
         status: response?.status,
@@ -93,6 +111,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       };
     });
 
+    console.log("getAuditData - final auditData:", auditData);
     return auditData;
   };
 
@@ -110,20 +129,23 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   console.log("Resident ID:", id);
   console.log("Selected Section:", selectedSection);
 
-  // Handler functions
+  // Handler functionsav
   const handleStatusChange = async (questionId: string, status: "compliant" | "non-compliant" | "n/a") => {
     if (!resident) return;
 
+    console.log("handleStatusChange called", { questionId, status, residentId: id });
     try {
-      await updateResponse({
+      const result = await updateResponse({
         residentId: id as Id<"residents">,
         questionId,
         status,
         organizationId: resident.organizationId,
         teamId: resident.teamId
       });
+      console.log("updateResponse result:", result);
       toast.success("Status updated successfully");
     } catch (error) {
+      console.error("Failed to update status:", error);
       toast.error("Failed to update status");
     }
   };
@@ -264,28 +286,88 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </p>
           </div>
         </div>
-        <Sheet open={isAuditSheetOpen} onOpenChange={setIsAuditSheetOpen} >
-          <SheetTrigger asChild>
+        <div className="flex items-center gap-3">
+          {/* Notification Bell */}
+          <div className="relative">
             <Button
               variant="outline"
               size="sm"
-              className="flex items-center gap-2"
+              className="relative p-2"
+              onClick={() => setShowNotifications(!showNotifications)}
             >
-              <ClipboardList className="w-4 h-4" />
-              CareO Audit
+              <Bell className="w-4 h-4" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                  {notifications.length}
+                </span>
+              )}
             </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-[50vw] sm:max-w-none max-w-none h-screen p-6">
-            <SheetHeader>
-              <SheetTitle>CareO Audit - {fullName}</SheetTitle>
-              <SheetDescription>
-                Audit questions and compliance status for {fullName}
-              </SheetDescription>
-            </SheetHeader>
 
-            <div className="mt-6 h-[calc(100vh-200px)] flex flex-col space-y-4">
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <div className="p-4 border-b border-gray-100">
+                  <h3 className="font-semibold text-sm">Notifications</h3>
+                  <p className="text-xs text-gray-500">{notifications.length} pending items</p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.map((notification) => (
+                    <div key={notification.id} className="p-3 border-b border-gray-50 hover:bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                          notification.type === 'urgent' ? 'bg-red-500' :
+                          notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                              {notification.category}
+                            </span>
+                            <span className="text-xs text-gray-400">{notification.date}</span>
+                          </div>
+                          <p className="text-sm text-gray-900 leading-relaxed">{notification.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 border-t border-gray-100">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => setShowNotifications(false)}
+                  >
+                    View All Notifications
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* CareO Audit Button */}
+          <Sheet open={isAuditSheetOpen} onOpenChange={setIsAuditSheetOpen} >
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <ClipboardList className="w-4 h-4" />
+                CareO Audit
+              </Button>
+            </SheetTrigger>
+          <SheetContent side="right" className="w-[50vw] sm:max-w-none max-w-none h-screen p-0 flex flex-col">
+            <div className="px-6 pt-6 pb-4 border-b flex-shrink-0">
+              <SheetHeader>
+                <SheetTitle>CareO Audit - {fullName}</SheetTitle>
+                <SheetDescription>
+                  Audit questions and compliance status for {fullName}
+                </SheetDescription>
+              </SheetHeader>
+
               {/* Section selector and actions */}
-              <div className="flex items-center justify-between flex-shrink-0">
+              <div className="mt-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <Select
                     value={selectedSection}
@@ -309,25 +391,25 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     </div>
                   )}
                 </div>
-
               </div>
+            </div>
 
-              {/* Audit table */}
-              <div className="flex-1 min-h-0">
-                <CareoAuditTable
-                  residentId={id as Id<"residents">}
-                  auditData={getAuditData()}
-                  onStatusChange={handleStatusChange}
-                  onCommentChange={handleCommentChange}
-                  onCreateIssue={handleCreateIssue}
-                  sectionIssue={sectionIssue}
-                  currentSection={selectedSection}
-                  isLoading={auditResponses === undefined}
-                />
-              </div>
+            {/* Audit table - takes remaining space */}
+            <div className="flex-1 min-h-0 px-6">
+              <CareoAuditTable
+                residentId={id as Id<"residents">}
+                auditData={getAuditData()}
+                onStatusChange={handleStatusChange}
+                onCommentChange={handleCommentChange}
+                onCreateIssue={handleCreateIssue}
+                sectionIssue={sectionIssue}
+                currentSection={selectedSection}
+                isLoading={auditResponses === undefined}
+              />
             </div>
           </SheetContent>
         </Sheet>
+        </div>
       </div>
 
       {/* ESSENTIAL CARE */}
