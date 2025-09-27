@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 import { Id, Doc } from "@/convex/_generated/dataModel";
@@ -14,7 +14,25 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import CreateResidentDialog from "@/components/residents/CreateResidentDialog";
+import { CareoAuditTable } from "@/app/(dashboard)/dashboard/audit/careo-audit-table";
+import { AUDIT_QUESTIONS, getAllSections } from "@/app/(dashboard)/dashboard/audit/questions";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Phone,
@@ -26,7 +44,8 @@ import {
   FileText,
   Users,
   Edit3,
-  PhoneCall
+  PhoneCall,
+  ClipboardList
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -38,11 +57,148 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [isAuditSheetOpen, setIsAuditSheetOpen] = React.useState(false);
+  const [selectedSection, setSelectedSection] = React.useState("Section A");
 
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
 
+  // Audit queries and mutations
+  const auditResponses = useQuery(api.auditResponses.getResponsesByResident, {
+    residentId: id as Id<"residents">
+  });
+
+  const sectionIssue = useQuery(api.sectionIssues.getSectionIssue, {
+    residentId: id as Id<"residents">,
+    section: selectedSection
+  });
+
+  // Get all section issues for this resident to show red indicators
+  const allSectionIssues = useQuery(api.sectionIssues.getIssuesByResident, {
+    residentId: id as Id<"residents">
+  });
+
+  const updateResponse = useMutation(api.auditResponses.updateResponse);
+  const createOrUpdateSectionIssue = useMutation(api.sectionIssues.createOrUpdateSectionIssue);
+  const deleteSectionIssue = useMutation(api.sectionIssues.deleteSectionIssue);
+
+  // Get available sections
+  const availableSections = getAllSections();
+
+  // Helper function to check if a section has an active slip
+  const sectionHasSlip = (section: string) => {
+    return allSectionIssues?.some(issue => issue.section === section) || false;
+  };
+
+  // Get template questions for selected section
+  const getSectionQuestions = (section: string) => {
+    return AUDIT_QUESTIONS.filter(q => q.section === section);
+  };
+
+  // Combine template questions with resident responses
+  const getAuditData = () => {
+    if (!auditResponses) return {};
+
+    const sectionQuestions = getSectionQuestions(selectedSection);
+    const auditData: Record<string, any> = {};
+
+    // Convert auditResponses array to map if needed
+    const responsesMap = Array.isArray(auditResponses)
+      ? auditResponses.reduce((acc, response) => {
+          acc[response.questionId] = response;
+          return acc;
+        }, {} as Record<string, any>)
+      : auditResponses;
+
+    sectionQuestions.forEach((question: any) => {
+      const response = responsesMap[question.questionId];
+      auditData[question.questionId] = {
+        questionId: question.questionId,
+        question: question.question,
+        section: selectedSection,
+        status: response?.status,
+        comments: response?.comments
+      };
+    });
+
+    return auditData;
+  };
+
+  // Handler functions
+  const handleStatusChange = async (questionId: string, status: "compliant" | "non-compliant" | "n/a") => {
+    if (!resident) return;
+
+    try {
+      await updateResponse({
+        residentId: id as Id<"residents">,
+        questionId,
+        status,
+        organizationId: resident.organizationId,
+        teamId: resident.teamId
+      });
+      toast.success("Status updated successfully");
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleCommentChange = async (questionId: string, comment: string) => {
+    if (!resident) return;
+
+    try {
+      await updateResponse({
+        residentId: id as Id<"residents">,
+        questionId,
+        comments: comment,
+        organizationId: resident.organizationId,
+        teamId: resident.teamId
+      });
+      toast.success("Comment updated successfully");
+    } catch (error) {
+      console.error("Failed to update comment:", error);
+      toast.error("Failed to update comment");
+    }
+  };
+
+  const handleCreateIssue = async (issueData: {
+    title: string;
+    assignee?: Id<"users">;
+    dueDate?: string;
+    priority?: "low" | "medium" | "high";
+    description?: string;
+  }) => {
+    if (!resident) return;
+
+    try {
+      await createOrUpdateSectionIssue({
+        residentId: id as Id<"residents">,
+        section: selectedSection,
+        title: issueData.title,
+        assigneeId: issueData.assignee,
+        dueDate: issueData.dueDate ? new Date(issueData.dueDate).getTime() : undefined,
+        priority: issueData.priority,
+        description: issueData.description,
+        organizationId: resident.organizationId,
+        teamId: resident.teamId
+      });
+      toast.success("Issue created/updated successfully");
+    } catch (error) {
+      console.error("Failed to create/update issue:", error);
+      toast.error("Failed to create/update issue");
+    }
+  };
+
+  const handleDeleteIssue = async (issueId: Id<"sectionIssues">) => {
+    try {
+      await deleteSectionIssue({ issueId });
+      toast.success("CareO Slip cleared successfully");
+    } catch (error) {
+      console.error("Failed to clear slip:", error);
+      toast.error("Failed to clear CareO Slip");
+    }
+  };
 
   if (resident === undefined) {
     return (
@@ -127,20 +283,97 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         <span className="text-foreground">Overview</span>
       </div>
 
-      {/* Header with Back Button */}
-      <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <User className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Overview</h1>
-            <p className="text-muted-foreground text-sm">Basic information & summary</p>
+      {/* Header with Back Button and CareO Audit */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <Button variant="outline" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <User className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">Overview</h1>
+              <p className="text-muted-foreground text-sm">Basic information & summary</p>
+            </div>
           </div>
         </div>
+
+        {/* CareO Audit Button */}
+        <Sheet open={isAuditSheetOpen} onOpenChange={setIsAuditSheetOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <ClipboardList className="w-4 h-4" />
+              CareO Audit
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[50vw] sm:max-w-none max-w-none h-screen p-0 flex flex-col">
+            <div className="px-6 pt-6 pb-4 border-b flex-shrink-0">
+              <SheetHeader>
+                <SheetTitle>CareO Audit - {fullName}</SheetTitle>
+                <SheetDescription>
+                  Audit questions and compliance status for {fullName}
+                </SheetDescription>
+              </SheetHeader>
+
+              {/* Section selector and actions */}
+              <div className="mt-6 flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Select
+                    value={selectedSection}
+                    onValueChange={setSelectedSection}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select section..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSections.map((section) => (
+                        <SelectItem
+                          key={section}
+                          value={section}
+                          className={sectionHasSlip(section) ? "text-red-600 font-medium" : ""}
+                        >
+                          <div className="flex items-center gap-2">
+                            {sectionHasSlip(section) && (
+                              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                            )}
+                            {section}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {Object.keys(getAuditData()).length > 0 && (
+                    <div className="text-sm text-gray-600">
+                      {Object.keys(getAuditData()).length} items in {selectedSection}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Audit table - takes remaining space */}
+            <div className="flex-1 min-h-0 px-6">
+              <CareoAuditTable
+                residentId={id as Id<"residents">}
+                auditData={getAuditData()}
+                onStatusChange={handleStatusChange}
+                onCommentChange={handleCommentChange}
+                onCreateIssue={handleCreateIssue}
+                onDeleteIssue={handleDeleteIssue}
+                sectionIssue={sectionIssue}
+                currentSection={selectedSection}
+                isLoading={auditResponses === undefined}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* Resident Info Card - Matching daily-care pattern */}

@@ -22,9 +22,6 @@ import {
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery, useMutation } from "convex/react";
-import { CareoAuditTable } from "../../audit/careo-audit-table";
-import { AUDIT_QUESTIONS, getAllSections } from "../../audit/questions";
-import { toast } from "sonner";
 import {
   Activity,
   Ambulance,
@@ -32,7 +29,6 @@ import {
   Bell,
   Calendar,
   ChevronRight,
-  ClipboardList,
   FileText,
   Folder,
   Heart,
@@ -59,152 +55,34 @@ type ResidentPageProps = {
 export default function ResidentPage({ params }: ResidentPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const [isAuditSheetOpen, setIsAuditSheetOpen] = React.useState(false);
-  const [selectedSection, setSelectedSection] = React.useState("Section A");
   const [showNotifications, setShowNotifications] = React.useState(false);
-  const [notifications] = React.useState([
-    { id: 1, message: "Care plan needs review - due in 2 days", type: "urgent", date: "2024-01-15", category: "Care Plan" },
-    { id: 2, message: "Risk assessment review needed - falls risk", type: "warning", date: "2024-01-14", category: "Risk Assessment" },
-    { id: 3, message: "Observation needed - blood pressure monitoring", type: "info", date: "2024-01-13", category: "Observation" }
-  ]);
+
+  // Query for all section issues (CareO Slips) for this resident
+  const sectionIssues = useQuery(api.sectionIssues.getIssuesByResident, {
+    residentId: id as Id<"residents">
+  });
+
+  // Transform section issues into notifications
+  const notifications = React.useMemo(() => {
+    if (!sectionIssues) return [];
+
+    return sectionIssues.map((issue: any) => ({
+      id: issue._id,
+      message: issue.title,
+      type: issue.priority === "high" ? "urgent" : issue.priority === "medium" ? "warning" : "info",
+      date: new Date(issue.createdAt).toISOString().split('T')[0],
+      category: `CareO Audit - ${issue.section}`,
+      status: issue.status,
+      section: issue.section
+    }));
+  }, [sectionIssues]);
 
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
 
-  // Audit queries and mutations (template-based)
-  const auditResponses = useQuery(api.auditResponses.getResponsesByResident, {
-    residentId: id as Id<"residents">
-  });
-
-  // Get template questions for selected section
-  const getSectionQuestions = (section: string) => {
-    return AUDIT_QUESTIONS.filter(q => q.section === section);
-  };
-
-  // Combine template questions with resident responses
-  const getAuditData = () => {
-    if (!auditResponses) return {};
-
-    const sectionQuestions = getSectionQuestions(selectedSection);
-    const auditData: Record<string, any> = {};
-
-    // Convert auditResponses array to map if needed
-    const responsesMap = Array.isArray(auditResponses)
-      ? auditResponses.reduce((acc, response) => {
-          acc[response.questionId] = response;
-          return acc;
-        }, {} as Record<string, any>)
-      : auditResponses;
-
-    console.log("getAuditData - responsesMap:", responsesMap);
-    console.log("getAuditData - sectionQuestions:", sectionQuestions);
-
-    sectionQuestions.forEach((question: any) => {
-      const response = responsesMap[question.questionId];
-      auditData[question.questionId] = {
-        questionId: question.questionId,
-        question: question.question,
-        section: selectedSection,
-        status: response?.status,
-        comments: response?.comments
-      };
-    });
-
-    console.log("getAuditData - final auditData:", auditData);
-    return auditData;
-  };
-
-  // Section issue queries
-  const sectionIssue = useQuery(api.sectionIssues.getSectionIssue, {
-    residentId: id as Id<"residents">,
-    section: selectedSection
-  });
-
-  const updateResponse = useMutation(api.auditResponses.updateResponse);
-  const createOrUpdateSectionIssue = useMutation(api.sectionIssues.createOrUpdateSectionIssue);
-
-  // Debug logging
-  console.log("Audit Responses:", auditResponses);
-  console.log("Resident ID:", id);
-  console.log("Selected Section:", selectedSection);
-
-  // Handler functionsav
-  const handleStatusChange = async (questionId: string, status: "compliant" | "non-compliant" | "n/a") => {
-    if (!resident) return;
-
-    console.log("handleStatusChange called", { questionId, status, residentId: id });
-    try {
-      const result = await updateResponse({
-        residentId: id as Id<"residents">,
-        questionId,
-        status,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId
-      });
-      console.log("updateResponse result:", result);
-      toast.success("Status updated successfully");
-    } catch (error) {
-      console.error("Failed to update status:", error);
-      toast.error("Failed to update status");
-    }
-  };
-
-  const handleCommentChange = async (questionId: string, comment: string) => {
-    if (!resident) return;
-
-    console.log("handleCommentChange called", { questionId, comment });
-    try {
-      const result = await updateResponse({
-        residentId: id as Id<"residents">,
-        questionId,
-        comments: comment,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId
-      });
-      console.log("Update result:", result);
-      toast.success("Comment updated successfully");
-    } catch (error) {
-      console.error("Update error:", error);
-      toast.error("Failed to update comment");
-    }
-  };
-
-  const handleCreateIssue = async (issueData: {
-    title: string;
-    assignee?: Id<"users">;
-    dueDate?: string;
-    priority?: "low" | "medium" | "high";
-    description?: string;
-  }) => {
-    if (!resident) return;
-
-    try {
-      console.log("Creating/updating section issue:", { section: selectedSection, ...issueData });
-
-      await createOrUpdateSectionIssue({
-        residentId: id as Id<"residents">,
-        section: selectedSection,
-        title: issueData.title,
-        description: issueData.description,
-        priority: issueData.priority,
-        assigneeId: issueData.assignee,
-        dueDate: issueData.dueDate ? new Date(issueData.dueDate).getTime() : undefined,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId,
-      });
-
-      toast.success(sectionIssue ? "Issue updated successfully" : "Issue created successfully");
-    } catch (error) {
-      console.error("Create/update issue error:", error);
-      toast.error("Failed to save issue");
-    }
-  };
 
 
-  const availableSections = getAllSections();
-
-  console.log("RESIDENT", resident);
 
   if (resident === undefined) {
     return (
@@ -286,135 +164,81 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Notification Bell */}
-          <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              className="relative p-2"
-              onClick={() => setShowNotifications(!showNotifications)}
-            >
-              <Bell className="w-4 h-4" />
-              {notifications.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                  {notifications.length}
-                </span>
-              )}
-            </Button>
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="sm"
+            className="relative p-2"
+            onClick={() => setShowNotifications(!showNotifications)}
+          >
+            <Bell className="w-4 h-4" />
+            {notifications.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                {notifications.length}
+              </span>
+            )}
+          </Button>
 
-            {/* Notifications Dropdown */}
-            {showNotifications && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                <div className="p-4 border-b border-gray-100">
-                  <h3 className="font-semibold text-sm">Notifications</h3>
-                  <p className="text-xs text-gray-500">{notifications.length} pending items</p>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {notifications.map((notification) => (
-                    <div key={notification.id} className="p-3 border-b border-gray-50 hover:bg-gray-50">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                          notification.type === 'urgent' ? 'bg-red-500' :
-                          notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                              {notification.category}
+          {/* Notifications Dropdown */}
+          {showNotifications && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-semibold text-sm">Notifications</h3>
+                <p className="text-xs text-gray-500">{notifications.length} pending items</p>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {notifications.map((notification) => (
+                  <div key={notification.id} className="p-3 border-b border-gray-50 hover:bg-gray-50">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                        notification.type === 'urgent' ? 'bg-red-500' :
+                        notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                            {notification.category}
+                          </span>
+                          {notification.status && (
+                            <span className={`text-xs font-medium px-2 py-1 rounded ${
+                              notification.status === 'open' ? 'bg-red-100 text-red-700' :
+                              notification.status === 'in-progress' ? 'bg-yellow-100 text-yellow-700' :
+                              notification.status === 'resolved' ? 'bg-green-100 text-green-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {notification.status === 'in-progress' ? 'In Progress' :
+                               notification.status.charAt(0).toUpperCase() + notification.status.slice(1)}
                             </span>
-                            <span className="text-xs text-gray-400">{notification.date}</span>
-                          </div>
-                          <p className="text-sm text-gray-900 leading-relaxed">{notification.message}</p>
+                          )}
+                          <span className="text-xs text-gray-400">{notification.date}</span>
                         </div>
+                        <p className="text-sm text-gray-900 leading-relaxed">{notification.message}</p>
+                        {notification.section && (
+                          <p className="text-xs text-gray-500 mt-1">CareO Audit - Section {notification.section}</p>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="p-3 border-t border-gray-100">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs"
-                    onClick={() => setShowNotifications(false)}
-                  >
-                    View All Notifications
-                  </Button>
-                </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-
-          {/* CareO Audit Button */}
-          <Sheet open={isAuditSheetOpen} onOpenChange={setIsAuditSheetOpen} >
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <ClipboardList className="w-4 h-4" />
-                CareO Audit
-              </Button>
-            </SheetTrigger>
-          <SheetContent side="right" className="w-[50vw] sm:max-w-none max-w-none h-screen p-0 flex flex-col">
-            <div className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-              <SheetHeader>
-                <SheetTitle>CareO Audit - {fullName}</SheetTitle>
-                <SheetDescription>
-                  Audit questions and compliance status for {fullName}
-                </SheetDescription>
-              </SheetHeader>
-
-              {/* Section selector and actions */}
-              <div className="mt-6 flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <Select
-                    value={selectedSection}
-                    onValueChange={setSelectedSection}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Select section..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSections.map((section) => (
-                        <SelectItem key={section} value={section}>
-                          {section}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {Object.keys(getAuditData()).length > 0 && (
-                    <div className="text-sm text-gray-600">
-                      {Object.keys(getAuditData()).length} items in {selectedSection}
-                    </div>
-                  )}
-                </div>
+              <div className="p-3 border-t border-gray-100">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => setShowNotifications(false)}
+                >
+                  View All Notifications
+                </Button>
               </div>
             </div>
-
-            {/* Audit table - takes remaining space */}
-            <div className="flex-1 min-h-0 px-6">
-              <CareoAuditTable
-                residentId={id as Id<"residents">}
-                auditData={getAuditData()}
-                onStatusChange={handleStatusChange}
-                onCommentChange={handleCommentChange}
-                onCreateIssue={handleCreateIssue}
-                sectionIssue={sectionIssue}
-                currentSection={selectedSection}
-                isLoading={auditResponses === undefined}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+          )}
         </div>
       </div>
 
       {/* ESSENTIAL CARE */}
       <div className="mb-8">
-        <p className="font-medium text-lg mb-2">Essential Care</p>
+        <p className="font-medium text-lg mb-4">Essential Care</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card
             className="cursor-pointer shadow-none"
@@ -429,7 +253,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   <div>
                     <h3 className="font-semibold">Overview</h3>
                     <p className="text-sm text-muted-foreground">
-                      Basic information
+                      Basic information & summary
                     </p>
                   </div>
                 </div>

@@ -33,9 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { CareoAuditItem, AuditFormData } from "./types";
 import { Id } from "@/convex/_generated/dataModel";
-import { Plus, Calendar, User, AlertTriangle } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -124,8 +124,8 @@ interface CareoAuditTableProps {
     priority?: "low" | "medium" | "high";
     description?: string;
   }) => void;
+  onDeleteIssue?: (issueId: Id<"sectionIssues">) => void;
   sectionIssue?: SectionIssue | null;
-  staffMembers?: Array<{id: string; name: string; photo?: string}>;
   currentSection?: string;
   isLoading?: boolean;
 }
@@ -136,13 +136,16 @@ export function CareoAuditTable({
   onStatusChange,
   onCommentChange,
   onCreateIssue,
+  onDeleteIssue,
   sectionIssue,
-  staffMembers = [],
   currentSection,
   isLoading = false,
 }: CareoAuditTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+
+  // CareO Slip switch state - ON when slip exists
+  const hasActiveSlip = !!sectionIssue;
 
   // Issue creation state
   const [issueForm, setIssueForm] = React.useState({
@@ -174,15 +177,6 @@ export function CareoAuditTable({
     }
   }, [sectionIssue]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "open": return "bg-red-100 text-red-700 border-red-200";
-      case "in-progress": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "resolved": return "bg-green-100 text-green-700 border-green-200";
-      case "closed": return "bg-gray-100 text-gray-700 border-gray-200";
-      default: return "bg-gray-100 text-gray-700 border-gray-200";
-    }
-  };
 
   // Get template questions for current section
   const sectionQuestions = React.useMemo(() => {
@@ -396,16 +390,34 @@ export function CareoAuditTable({
                   <div className="flex items-center gap-2">
                     {sectionIssue ? 'CareO Slip' : 'CareO Slip'} - {currentSection}
                   </div>
-                  {sectionIssue && (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(sectionIssue.status)}`}>
-                      {sectionIssue.status.charAt(0).toUpperCase() + sectionIssue.status.slice(1)}
-                    </span>
-                  )}
+                  <Switch
+                    id="slip-toggle"
+                    checked={hasActiveSlip}
+                    disabled={!hasActiveSlip}
+                    onCheckedChange={(checked) => {
+                      if (!checked && sectionIssue && onDeleteIssue) {
+                        onDeleteIssue(sectionIssue._id);
+                        // Clear the form when slip is deleted
+                        setIssueForm({
+                          title: "",
+                          assignee: "",
+                          dueDate: "",
+                          priority: "",
+                          description: ""
+                        });
+                      }
+                    }}
+                    className={`${
+                      hasActiveSlip
+                        ? "data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                        : ""
+                    }`}
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 pb-4">
                 <div className="space-y-3">
-                  {/* First Row */}
+                  {/* Single Row with Title and Button */}
                   <div className="grid grid-cols-6 gap-3">
                     {/* Title */}
                     <div className="col-span-6 sm:col-span-4">
@@ -424,10 +436,10 @@ export function CareoAuditTable({
                           if (issueForm.title.trim()) {
                             onCreateIssue({
                               title: issueForm.title,
-                              assignee: issueForm.assignee ? issueForm.assignee as Id<"users"> : undefined,
-                              dueDate: issueForm.dueDate || undefined,
-                              priority: issueForm.priority || undefined,
-                              description: issueForm.description || undefined,
+                              assignee: undefined,
+                              dueDate: undefined,
+                              priority: undefined,
+                              description: undefined,
                             });
                             // Only reset form if creating new issue
                             if (!sectionIssue) {
@@ -450,70 +462,8 @@ export function CareoAuditTable({
                       </Button>
                     </div>
                   </div>
-
-                  {/* Second Row */}
-                  <div className="grid grid-cols-6 gap-3">
-                    {/* Assignee */}
-                    <div className="col-span-6 sm:col-span-2">
-                      <Select value={issueForm.assignee} onValueChange={(value) => setIssueForm(prev => ({ ...prev, assignee: value }))}>
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Assign to..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {staffMembers.map((member) => (
-                            <SelectItem key={member.id} value={member.id}>
-                              <div className="flex items-center gap-2">
-                                <User className="h-3 w-3" />
-                                {member.name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Priority */}
-                    <div className="col-span-3 sm:col-span-2">
-                      <Select value={issueForm.priority} onValueChange={(value: "low" | "medium" | "high") => setIssueForm(prev => ({ ...prev, priority: value }))}>
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Priority" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">
-                            <span className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              Low
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="medium">
-                            <span className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                              Medium
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="high">
-                            <span className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                              High
-                            </span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Due Date */}
-                    <div className="col-span-3 sm:col-span-2">
-                      <Input
-                        type="date"
-                        value={issueForm.dueDate}
-                        onChange={(e) => setIssueForm(prev => ({ ...prev, dueDate: e.target.value }))}
-                        className="h-8 text-sm"
-                        placeholder="Due date"
-                      />
-                    </div>
                   </div>
-                </div>
-              </CardContent>
+                </CardContent>
             </Card>
           </div>
         )}
