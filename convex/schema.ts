@@ -9,7 +9,8 @@ import {
   dnacprs,
   peeps,
   dependencyAssessments,
-  timlAssessments
+  timlAssessments,
+  skinIntegrityAssessments
 } from "./schemas/carefiles";
 
 const TaskStatus = v.union(
@@ -1495,6 +1496,11 @@ export default defineSchema({
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"]),
 
+  skinIntegrityAssessments: skinIntegrityAssessments
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
   // Care file PDFs - for custom uploaded PDFs in specific folders
 
   careFilePdfs: defineTable({
@@ -2056,5 +2062,5 @@ export default defineSchema({
     .index("byOrganization", ["organizationId"])
     .index("byTeam", ["teamId"])
     .index("byCreatedBy", ["createdBy"])
-    .index("byNoteDate", ["noteDate"]),
+    .index("byNoteDate", ["noteDate"])
 });

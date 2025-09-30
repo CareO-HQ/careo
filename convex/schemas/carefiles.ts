@@ -514,3 +514,41 @@ export const timlAssessments = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 }).index("by_resident", ["residentId"]);
+
+export const skinIntegrityAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information & date
+  residentName: v.string(),
+  bedroomNumber: v.string(),
+  date: v.number(),
+
+  // Questions
+  sensoryPerception: v.union(
+    v.literal(1),
+    v.literal(2),
+    v.literal(3),
+    v.literal(4)
+  ),
+  moisture: v.union(v.literal(1), v.literal(2), v.literal(3), v.literal(4)),
+  activity: v.union(v.literal(1), v.literal(2), v.literal(3), v.literal(4)),
+  mobility: v.union(v.literal(1), v.literal(2), v.literal(3), v.literal(4)),
+  nutrition: v.union(v.literal(1), v.literal(2), v.literal(3), v.literal(4)),
+  frictionShear: v.union(v.literal(1), v.literal(2), v.literal(3)),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.optional(v.string()),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+});

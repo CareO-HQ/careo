@@ -10,7 +10,8 @@ export type CareFileFormKey =
   | "dnacpr"
   | "peep"
   | "dependency-assessment"
-  | "timl";
+  | "timl"
+  | "skin-integrity-form";
 
 export type CareFileFormStatus =
   | "not-started"

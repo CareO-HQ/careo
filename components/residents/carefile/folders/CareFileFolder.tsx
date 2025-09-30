@@ -44,6 +44,7 @@ import EmailPDF from "../EmailPDF";
 import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
 import UploadFileModal from "./UploadFileModal";
+import SkinIntegrityDialog from "../dialogs/SkinIntegrityDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -192,6 +193,15 @@ export default function CareFileFolder({
   const allTimlAssessmentForms = useQuery(
     api.careFiles.timl.getTimlAssessmentsByResident,
     folderFormKeys.includes("timl") && residentId ? { residentId } : "skip"
+  );
+
+  const allSkinIntegrityForms = useQuery(
+    api.careFiles.skinIntegrity.getSkinIntegrityAssessmentsByResident,
+    folderFormKeys.includes("skin-integrity-form") &&
+      residentId &&
+      activeOrg?.id
+      ? { residentId, organizationId: activeOrg.id }
+      : "skip"
   );
 
   // Debug the query condition step by step
@@ -410,6 +420,25 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Skin Integrity Assessment forms
+    if (
+      allSkinIntegrityForms &&
+      formKeysInThisFolder.includes("skin-integrity-form")
+    ) {
+      const sortedForms = [...allSkinIntegrityForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "skin-integrity-form",
+          formId: form._id,
+          name: "Skin Integrity Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -445,6 +474,7 @@ export default function CareFileFolder({
     allPeepForms,
     allDependencyAssessmentForms,
     allTimlAssessmentForms,
+    allSkinIntegrityForms,
     folderFormKeys
   ]);
 
@@ -487,7 +517,9 @@ export default function CareFileFolder({
                             ? api.careFiles.dependency.getPDFUrl
                             : file.formKey === "timl"
                               ? api.careFiles.timl.getPDFUrl
-                              : ("skip" as any),
+                              : file.formKey === "skin-integrity-form"
+                                ? api.careFiles.skinIntegrity.getPDFUrl
+                                : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -523,7 +555,13 @@ export default function CareFileFolder({
                                   assessmentId:
                                     file.formId as Id<"timlAssessments">
                                 }
-                              : "skip"
+                              : file.formKey === "skin-integrity-form"
+                                ? {
+                                    assessmentId:
+                                      file.formId as Id<"skinIntegrityAssessments">,
+                                    organizationId: activeOrg?.id ?? ""
+                                  }
+                                : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -786,6 +824,8 @@ export default function CareFileFolder({
               return `dependency-assessment-${baseName}.pdf`;
             case "timl":
               return `timl-assessment-${baseName}.pdf`;
+            case "skin-integrity-form":
+              return `skin-integrity-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -934,7 +974,8 @@ export default function CareFileFolder({
       dnacpr: "dnacpr",
       peep: "peep",
       dependencyAssessment: "dependency-assessment",
-      timlAssessment: "timl"
+      timlAssessment: "timl",
+      skinIntegrityAssessment: "skin-integrity-form"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -955,7 +996,8 @@ export default function CareFileFolder({
       dnacpr: "DNACPR Form",
       peep: "Personal Emergency Evacuation Plan",
       dependencyAssessment: "Dependency Assessment",
-      timlAssessment: "This Is My Life Assessment"
+      timlAssessment: "This Is My Life Assessment",
+      skinIntegrityAssessment: "Skin Integrity Assessment"
     };
     return mapping[formType] || formType;
   };
@@ -1172,6 +1214,23 @@ export default function CareFileFolder({
           />
         );
 
+      case "skin-integrity-form":
+        return (
+          <SkinIntegrityDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
       // case 'discharge':
       //   return <DischargeDialog />;
       default:
@@ -1334,38 +1393,91 @@ export default function CareFileFolder({
                 />
               </div>
               <div className="space-y-2">
-                {/* Generated PDFs from forms */}
-                {getAllPdfFiles.length > 0 && (
-                  <>
-                    {getAllPdfFiles.map((file) => (
-                      <PdfFileItem
-                        key={`${file.formKey}-${file.formId}`}
-                        file={file}
-                      />
-                    ))}
-                  </>
-                )}
+                {(() => {
+                  // Check if any form queries are still loading
+                  const formLoadingStates = [
+                    { key: "preAdmission-form", data: allPreAdmissionForms },
+                    {
+                      key: "infection-prevention",
+                      data: allInfectionPreventionForms
+                    },
+                    { key: "blader-bowel-form", data: allBladderBowelForms },
+                    {
+                      key: "moving-handling-form",
+                      data: allMovingHandlingForms
+                    },
+                    {
+                      key: "long-term-fall-risk-form",
+                      data: allLongTermFallsForms
+                    },
+                    { key: "admission-form", data: allAdmissionForms },
+                    {
+                      key: "photography-consent",
+                      data: allPhotographyConsentForms
+                    },
+                    { key: "dnacpr", data: allDnacprForms },
+                    { key: "peep", data: allPeepForms },
+                    {
+                      key: "dependency-assessment",
+                      data: allDependencyAssessmentForms
+                    },
+                    { key: "timl", data: allTimlAssessmentForms },
+                    { key: "skin-integrity-form", data: allSkinIntegrityForms }
+                  ];
 
-                {/* Custom uploaded PDFs */}
-                {customPdfs && customPdfs.length > 0 && (
-                  <>
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Custom uploaded files:
-                    </p>
-                    {customPdfs.map((pdf) => (
-                      <CustomPdfItem key={pdf._id} pdf={pdf} />
-                    ))}
-                  </>
-                )}
+                  const isLoadingAnyForms = formLoadingStates.some(
+                    ({ key, data }) =>
+                      folderFormKeys.includes(key as any) && data === undefined
+                  );
 
-                {/* Show message if no files at all */}
-                {!getAllPdfFiles.length &&
-                  (!customPdfs || !customPdfs.length) && (
-                    <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                      No PDF files available. Complete and submit forms to
-                      generate PDFs, or upload custom files.
-                    </div>
-                  )}
+                  if (isLoadingAnyForms) {
+                    return (
+                      <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-muted-foreground"></div>
+                          Loading form data...
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {/* Generated PDFs from forms */}
+                      {getAllPdfFiles.length > 0 && (
+                        <>
+                          {getAllPdfFiles.map((file) => (
+                            <PdfFileItem
+                              key={`${file.formKey}-${file.formId}`}
+                              file={file}
+                            />
+                          ))}
+                        </>
+                      )}
+
+                      {/* Custom uploaded PDFs */}
+                      {customPdfs && customPdfs.length > 0 && (
+                        <>
+                          <p className="text-xs text-muted-foreground font-medium">
+                            Custom uploaded files:
+                          </p>
+                          {customPdfs.map((pdf) => (
+                            <CustomPdfItem key={pdf._id} pdf={pdf} />
+                          ))}
+                        </>
+                      )}
+
+                      {/* Show message if no files at all */}
+                      {!getAllPdfFiles.length &&
+                        (!customPdfs || !customPdfs.length) && (
+                          <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                            No PDF files available. Complete and submit forms to
+                            generate PDFs, or upload custom files.
+                          </div>
+                        )}
+                    </>
+                  );
+                })()}
               </div>
               <p className="text-muted-foreground text-sm font-medium mt-10">
                 Manager audit

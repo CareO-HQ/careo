@@ -206,7 +206,14 @@ export const config = {
       value: "Skin Integrity / Tissue Viability",
       description: "Skin Integrity / Tissue Viability Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "skin-integrity-form",
+          value: "Skin Integrity / Tissue Viability Assessment",
+          description: "Skin Integrity / Tissue Viability Assessment"
+        }
+      ]
     },
     {
       type: "folder",
