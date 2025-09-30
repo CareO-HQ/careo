@@ -14,6 +14,7 @@ import { getAge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
+import { useState, useEffect } from "react";
 
 // Component for displaying handover report
 const HandoverReportCell = ({ residentId }: { residentId: string }) => {
@@ -238,6 +239,39 @@ const HospitalTransferCell = ({ residentId }: { residentId: string }) => {
   );
 };
 
+// Component for comments with localStorage persistence
+const CommentsCell = ({ residentId }: { residentId: string }) => {
+  const today = new Date().toISOString().split('T')[0];
+  const storageKey = `handover-comment-${today}-${residentId}`;
+
+  const [comment, setComment] = useState("");
+
+  // Load comment from localStorage on mount
+  useEffect(() => {
+    const savedComment = localStorage.getItem(storageKey);
+    if (savedComment) {
+      setComment(savedComment);
+    }
+  }, [storageKey]);
+
+  // Save comment to localStorage on change
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setComment(value);
+    localStorage.setItem(storageKey, value);
+  };
+
+  return (
+    <Textarea
+      placeholder="Add handover comments..."
+      className="min-h-[60px] resize-none w-full"
+      data-resident-id={residentId}
+      value={comment}
+      onChange={handleCommentChange}
+    />
+  );
+};
+
 export const columns: ColumnDef<Resident, unknown>[] = [
   {
     id: "name",
@@ -378,6 +412,20 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     }
   },
   {
+    accessorKey: "medication",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Medication</div>
+      );
+    },
+    enableSorting: false,
+    cell: ({ row }) => {
+      return (
+        <div className="text-sm text-muted-foreground">—</div>
+      );
+    }
+  },
+  {
     accessorKey: "comments",
     header: () => {
       return (
@@ -386,12 +434,8 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     },
     enableSorting: false,
     cell: ({ row }) => {
-      return (
-        <Textarea
-          placeholder="Add handover comments..."
-          className="min-h-[60px] resize-none w-full"
-        />
-      );
+      const resident = row.original;
+      return <CommentsCell residentId={resident._id} />;
     }
   }
 ];

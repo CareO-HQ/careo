@@ -2007,6 +2007,46 @@ export default defineSchema({
     .index("byDate", ["recordDate"])
     .index("by_created_at", ["createdAt"]),
 
+  // Handover Reports - archived handover sheets
+  handoverReports: defineTable({
+    date: v.string(), // Date of the handover (YYYY-MM-DD)
+    shift: v.union(v.literal("day"), v.literal("night")), // Day or night shift
+    teamId: v.string(),
+    teamName: v.string(),
+    organizationId: v.string(),
+
+    // Handover data for each resident
+    residentHandovers: v.array(
+      v.object({
+        residentId: v.id("residents"),
+        residentName: v.string(),
+        roomNumber: v.optional(v.string()),
+        age: v.number(),
+
+        // Report data (from handover.getHandoverReport)
+        foodIntakeCount: v.number(),
+        totalFluid: v.number(),
+        incidentCount: v.number(),
+        hospitalTransferCount: v.number(),
+
+        // Comments from handover sheet
+        comments: v.optional(v.string()),
+      })
+    ),
+
+    // Metadata
+    createdBy: v.string(),
+    createdByName: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_date", ["date"])
+    .index("by_shift", ["shift"])
+    .index("by_team_and_date", ["teamId", "date"])
+    .index("by_created_at", ["createdAt"]),
+
   // Multidisciplinary Care Team Members
   multidisciplinaryCareTeam: defineTable({
     residentId: v.id("residents"),
