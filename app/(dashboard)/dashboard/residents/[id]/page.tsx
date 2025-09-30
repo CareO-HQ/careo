@@ -11,6 +11,7 @@ import {
   Activity,
   Ambulance,
   ArrowLeft,
+  Bell,
   Calendar,
   ChevronRight,
   ClipboardList,
@@ -107,23 +108,31 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Avatar className="w-20 h-20">
-          <AvatarImage
-            src={resident.imageUrl}
-            alt={fullName}
-            className="border"
-          />
-          <AvatarFallback className="text-xl bg-primary/10 text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold">{fullName}</h1>
-          <p className="text-muted-foreground text-sm">
-            Room {resident.roomNumber} • NHS: {resident.nhsHealthNumber}
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Avatar className="w-20 h-20">
+            <AvatarImage
+              src={resident.imageUrl}
+              alt={fullName}
+              className="border"
+            />
+            <AvatarFallback className="text-xl bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h1 className="text-2xl font-bold">{fullName}</h1>
+            <p className="text-muted-foreground text-sm">
+              Room {resident.roomNumber} • NHS: {resident.nhsHealthNumber}
+            </p>
+          </div>
         </div>
+        <Button variant="outline" size="icon" className="relative bg-gray-50 hover:bg-gray-100">
+          <Bell className="h-5 w-5" />
+          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-semibold shadow-md">
+            2
+          </span>
+        </Button>
       </div>
 
       {/* ESSENTIAL CARE */}
@@ -485,6 +494,35 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     <h3 className="font-semibold">Multi Disciplinary Note</h3>
                     <p className="text-sm text-muted-foreground">
                       Emergency & transfers
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* AUDIT */}
+      <div className="mb-8">
+        <p className="font-medium text-lg mb-2">Audit</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Audit Card */}
+          <Card
+            className="cursor-pointer shadow-none"
+            onClick={() => handleCardClick("audit")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                  <div className="p-2 bg-orange-50 rounded-lg">
+                    <ClipboardList className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Audit</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Care quality audits
                     </p>
                   </div>
                 </div>
