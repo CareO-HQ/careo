@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useRef, useEffect } from "react";
 
 type ResidentPageProps = {
   params: Promise<{ id: string }>;
@@ -56,6 +56,24 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const [showNotifications, setShowNotifications] = React.useState(false);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
 
   // Query for all section issues (CareO Slips) for this resident
   const sectionIssues = useQuery(api.sectionIssues.getIssuesByResident, {
@@ -164,7 +182,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </p>
           </div>
         </div>
-        <div className="relative">
+        <div className="relative" ref={notificationsRef}>
           <Button
             variant="outline"
             size="sm"
