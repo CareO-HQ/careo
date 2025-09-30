@@ -227,7 +227,17 @@ export const getTimlAssessmentsByResident = query({
       completedBy: v.string(),
       completedByJobRole: v.string(),
       completedBySignature: v.string(),
-      date: v.number()
+      date: v.number(),
+      status: v.optional(
+        v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+      ),
+      submittedAt: v.optional(v.number()),
+      createdBy: v.string(),
+      lastModifiedAt: v.optional(v.number()),
+      lastModifiedBy: v.optional(v.string()),
+      pdfUrl: v.optional(v.string()),
+      pdfFileId: v.optional(v.id("_storage")),
+      pdfGeneratedAt: v.optional(v.number())
     })
   ),
   handler: async (ctx, args) => {
@@ -293,7 +303,17 @@ export const getTimlAssessmentById = query({
       completedBy: v.string(),
       completedByJobRole: v.string(),
       completedBySignature: v.string(),
-      date: v.number()
+      date: v.number(),
+      status: v.optional(
+        v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+      ),
+      submittedAt: v.optional(v.number()),
+      createdBy: v.string(),
+      lastModifiedAt: v.optional(v.number()),
+      lastModifiedBy: v.optional(v.string()),
+      pdfUrl: v.optional(v.string()),
+      pdfFileId: v.optional(v.id("_storage")),
+      pdfGeneratedAt: v.optional(v.number())
     }),
     v.null()
   ),

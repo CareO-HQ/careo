@@ -72,6 +72,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const timlAssessments = useQuery(
+    api.careFiles.timl.getTimlAssessmentsByResident,
+    { residentId }
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -100,6 +105,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
   const latestDependencyAssessment = dependencyAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestTimlAssessment = timlAssessments?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -167,6 +176,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const timlPdfUrl = useQuery(
+    api.careFiles.timl.getPDFUrl,
+    latestTimlAssessment ? { assessmentId: latestTimlAssessment._id } : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -184,6 +198,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     if (latestDnacprForm) ids.push(latestDnacprForm._id);
     if (latestPeepForm) ids.push(latestPeepForm._id);
     if (latestDependencyAssessment) ids.push(latestDependencyAssessment._id);
+    if (latestTimlAssessment) ids.push(latestTimlAssessment._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -195,7 +210,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestPhotographyConsent,
     latestDnacprForm,
     latestPeepForm,
-    latestDependencyAssessment
+    latestDependencyAssessment,
+    latestTimlAssessment
   ]);
 
   const auditStatus = useQuery(
@@ -584,6 +600,38 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: dependencyAssessmentAudit?.auditedBy
     };
 
+    // TIML Assessment form
+    const hasTimlData = !!latestTimlAssessment;
+    const timlHasPdfFileId = !!(latestTimlAssessment as any)?.pdfFileId;
+    const timlAudit = latestTimlAssessment
+      ? auditStatus?.[latestTimlAssessment._id as string]
+      : undefined;
+
+    console.log("TIML audit lookup:");
+    console.log("  Form ID:", latestTimlAssessment?._id);
+    console.log("  Audit found:", timlAudit);
+    console.log("  Is audited:", timlAudit?.isAudited);
+
+    state["timl"] = {
+      status: getFormStatus(
+        hasTimlData,
+        latestTimlAssessment?.status === "draft",
+        timlHasPdfFileId,
+        timlPdfUrl
+      ),
+      hasData: hasTimlData,
+      hasPdfFileId: timlHasPdfFileId,
+      pdfUrl: timlPdfUrl,
+      lastUpdated: latestTimlAssessment?._creationTime,
+      completedAt:
+        latestTimlAssessment?.status !== "draft"
+          ? latestTimlAssessment?.submittedAt
+          : undefined,
+      isAudited: timlAudit?.isAudited || false,
+      auditedAt: timlAudit?.auditedAt,
+      auditedBy: timlAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -599,6 +647,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestDnacprForm,
     latestPeepForm,
     latestDependencyAssessment,
+    latestTimlAssessment,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
@@ -609,6 +658,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     dnacprPdfUrl,
     peepPdfUrl,
     dependencyAssessmentPdfUrl,
+    timlPdfUrl,
     auditStatus
   ]);
 

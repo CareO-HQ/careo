@@ -9,7 +9,8 @@ export type CareFileFormKey =
   | "photography-consent"
   | "dnacpr"
   | "peep"
-  | "dependency-assessment";
+  | "dependency-assessment"
+  | "timl";
 
 export type CareFileFormStatus =
   | "not-started"
