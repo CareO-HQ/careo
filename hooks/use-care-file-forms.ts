@@ -49,6 +49,34 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const admissionAssessments = useQuery(
+    api.careFiles.admission.getAdmissionAssessmentsByResident,
+    { residentId }
+  );
+
+  const photographyConsents = useQuery(
+    api.careFiles.photographyConsent.getPhotographyConsentsByResident,
+    { residentId }
+  );
+
+  const dnacprForms = useQuery(api.careFiles.dnacpr.getDnacprsByResident, {
+    residentId
+  });
+
+  const peepForms = useQuery(api.careFiles.peep.getPeepsByResident, {
+    residentId
+  });
+
+  const dependencyAssessments = useQuery(
+    api.careFiles.dependency.getDependencyAssessmentsByResident,
+    { residentId }
+  );
+
+  const timlAssessments = useQuery(
+    api.careFiles.timl.getTimlAssessmentsByResident,
+    { residentId }
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -64,6 +92,25 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
   const latestLongTermFallsAssessment = longTermFallsAssessment;
+  const latestAdmissionAssessment = admissionAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestPhotographyConsent = photographyConsents?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestDnacprForm = dnacprForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestPeepForm = peepForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestDependencyAssessment = dependencyAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestTimlAssessment = timlAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
 
   const preAdmissionPdfUrl = useQuery(
     api.careFiles.preadmission.getPDFUrl,
@@ -98,6 +145,42 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const admissionPdfUrl = useQuery(
+    api.careFiles.admission.getPDFUrl,
+    latestAdmissionAssessment
+      ? { assessmentId: latestAdmissionAssessment._id }
+      : "skip"
+  );
+
+  const photographyConsentPdfUrl = useQuery(
+    api.careFiles.photographyConsent.getPDFUrl,
+    latestPhotographyConsent
+      ? { consentId: latestPhotographyConsent._id }
+      : "skip"
+  );
+
+  const dnacprPdfUrl = useQuery(
+    api.careFiles.dnacpr.getPDFUrl,
+    latestDnacprForm ? { dnacprId: latestDnacprForm._id } : "skip"
+  );
+
+  const peepPdfUrl = useQuery(
+    api.careFiles.peep.getPDFUrl,
+    latestPeepForm ? { peepId: latestPeepForm._id } : "skip"
+  );
+
+  const dependencyAssessmentPdfUrl = useQuery(
+    api.careFiles.dependency.getPDFUrl,
+    latestDependencyAssessment
+      ? { assessmentId: latestDependencyAssessment._id }
+      : "skip"
+  );
+
+  const timlPdfUrl = useQuery(
+    api.careFiles.timl.getPDFUrl,
+    latestTimlAssessment ? { assessmentId: latestTimlAssessment._id } : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -110,13 +193,25 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ids.push(latestMovingHandlingAssessment._id);
     if (latestLongTermFallsAssessment)
       ids.push(latestLongTermFallsAssessment._id);
+    if (latestAdmissionAssessment) ids.push(latestAdmissionAssessment._id);
+    if (latestPhotographyConsent) ids.push(latestPhotographyConsent._id);
+    if (latestDnacprForm) ids.push(latestDnacprForm._id);
+    if (latestPeepForm) ids.push(latestPeepForm._id);
+    if (latestDependencyAssessment) ids.push(latestDependencyAssessment._id);
+    if (latestTimlAssessment) ids.push(latestTimlAssessment._id);
     return ids;
   }, [
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
-    latestLongTermFallsAssessment
+    latestLongTermFallsAssessment,
+    latestAdmissionAssessment,
+    latestPhotographyConsent,
+    latestDnacprForm,
+    latestPeepForm,
+    latestDependencyAssessment,
+    latestTimlAssessment
   ]);
 
   const auditStatus = useQuery(
@@ -141,6 +236,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log("  bladderBowelAssessments:", bladderBowelAssessments);
   console.log("  movingHandlingAssessments:", movingHandlingAssessments);
   console.log("  longTermFallsAssessment:", longTermFallsAssessment);
+  console.log("  admissionAssessments:", admissionAssessments);
+  console.log("  photographyConsents:", photographyConsents);
+  console.log("  dnacprForms:", dnacprForms);
+  console.log("  peepForms:", peepForms);
   console.log("formIds:", formIds);
   console.log("auditStatus:", auditStatus);
   console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
@@ -160,6 +259,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     "latestLongTermFallsAssessment ID:",
     latestLongTermFallsAssessment?._id
   );
+  console.log("latestAdmissionAssessment ID:", latestAdmissionAssessment?._id);
+  console.log("latestPhotographyConsent ID:", latestPhotographyConsent?._id);
+  console.log("latestDnacprForm ID:", latestDnacprForm?._id);
+  console.log("latestPeepForm ID:", latestPeepForm?._id);
 
   // Helper function to determine form status
   const getFormStatus = (
@@ -170,8 +273,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   ): CareFileFormStatus => {
     if (!hasData) return "not-started";
     if (savedAsDraft) return "in-progress";
+    // If we have a valid PDF URL, consider it completed even if pdfFileId isn't synced yet
+    if (pdfUrl) return "completed";
     if (!hasPdfFileId) return "pdf-generating";
-    if (hasPdfFileId && !pdfUrl) return "pdf-generating";
     return "completed";
   };
 
@@ -337,8 +441,198 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: longTermFallsAudit?.auditedBy
     };
 
+    // Admission assessment
+    const hasAdmissionData = !!latestAdmissionAssessment;
+    const admissionHasPdfFileId = !!(latestAdmissionAssessment as any)
+      ?.pdfFileId;
+    const admissionAudit = latestAdmissionAssessment
+      ? auditStatus?.[latestAdmissionAssessment._id as string]
+      : undefined;
+
+    console.log("Admission audit lookup:");
+    console.log("  Form ID:", latestAdmissionAssessment?._id);
+    console.log("  Audit found:", admissionAudit);
+    console.log("  Is audited:", admissionAudit?.isAudited);
+
+    state["admission-form"] = {
+      status: getFormStatus(
+        hasAdmissionData,
+        latestAdmissionAssessment?.status === "draft",
+        admissionHasPdfFileId,
+        admissionPdfUrl
+      ),
+      hasData: hasAdmissionData,
+      hasPdfFileId: admissionHasPdfFileId,
+      pdfUrl: admissionPdfUrl,
+      lastUpdated: latestAdmissionAssessment?._creationTime,
+      completedAt:
+        latestAdmissionAssessment?.status !== "draft"
+          ? latestAdmissionAssessment?.submittedAt
+          : undefined,
+      isAudited: admissionAudit?.isAudited || false,
+      auditedAt: admissionAudit?.auditedAt,
+      auditedBy: admissionAudit?.auditedBy
+    };
+
+    // Photography consent
+    const hasPhotographyConsentData = !!latestPhotographyConsent;
+    const photographyConsentHasPdfFileId = !!(latestPhotographyConsent as any)
+      ?.pdfFileId;
+    const photographyConsentAudit = latestPhotographyConsent
+      ? auditStatus?.[latestPhotographyConsent._id as string]
+      : undefined;
+
+    console.log("Photography consent audit lookup:");
+    console.log("  Form ID:", latestPhotographyConsent?._id);
+    console.log("  Audit found:", photographyConsentAudit);
+    console.log("  Is audited:", photographyConsentAudit?.isAudited);
+
+    state["photography-consent"] = {
+      status: getFormStatus(
+        hasPhotographyConsentData,
+        latestPhotographyConsent?.status === "draft",
+        photographyConsentHasPdfFileId,
+        photographyConsentPdfUrl
+      ),
+      hasData: hasPhotographyConsentData,
+      hasPdfFileId: photographyConsentHasPdfFileId,
+      pdfUrl: photographyConsentPdfUrl,
+      lastUpdated: latestPhotographyConsent?._creationTime,
+      completedAt:
+        latestPhotographyConsent?.status !== "draft"
+          ? latestPhotographyConsent?.submittedAt
+          : undefined,
+      isAudited: photographyConsentAudit?.isAudited || false,
+      auditedAt: photographyConsentAudit?.auditedAt,
+      auditedBy: photographyConsentAudit?.auditedBy
+    };
+
+    // DNACPR form
+    const hasDnacprData = !!latestDnacprForm;
+    const dnacprHasPdfFileId = !!(latestDnacprForm as any)?.pdfFileId;
+    const dnacprAudit = latestDnacprForm
+      ? auditStatus?.[latestDnacprForm._id as string]
+      : undefined;
+
+    console.log("DNACPR audit lookup:");
+    console.log("  Form ID:", latestDnacprForm?._id);
+    console.log("  Audit found:", dnacprAudit);
+    console.log("  Is audited:", dnacprAudit?.isAudited);
+
+    state["dnacpr"] = {
+      status: getFormStatus(
+        hasDnacprData,
+        latestDnacprForm?.status === "draft",
+        dnacprHasPdfFileId,
+        dnacprPdfUrl
+      ),
+      hasData: hasDnacprData,
+      hasPdfFileId: dnacprHasPdfFileId,
+      pdfUrl: dnacprPdfUrl,
+      lastUpdated: latestDnacprForm?._creationTime,
+      completedAt:
+        latestDnacprForm?.status !== "draft"
+          ? latestDnacprForm?.submittedAt
+          : undefined,
+      isAudited: dnacprAudit?.isAudited || false,
+      auditedAt: dnacprAudit?.auditedAt,
+      auditedBy: dnacprAudit?.auditedBy
+    };
+
+    // PEEP form
+    const hasPeepData = !!latestPeepForm;
+    const peepHasPdfFileId = !!(latestPeepForm as any)?.pdfFileId;
+    const peepAudit = latestPeepForm
+      ? auditStatus?.[latestPeepForm._id as string]
+      : undefined;
+
+    console.log("PEEP audit lookup:");
+    console.log("  Form ID:", latestPeepForm?._id);
+    console.log("  Audit found:", peepAudit);
+    console.log("  Is audited:", peepAudit?.isAudited);
+
+    state["peep"] = {
+      status: getFormStatus(
+        hasPeepData,
+        latestPeepForm?.status === "draft",
+        peepHasPdfFileId,
+        peepPdfUrl
+      ),
+      hasData: hasPeepData,
+      hasPdfFileId: peepHasPdfFileId,
+      pdfUrl: peepPdfUrl,
+      lastUpdated: latestPeepForm?._creationTime,
+      completedAt:
+        latestPeepForm?.status !== "draft"
+          ? latestPeepForm?.submittedAt
+          : undefined,
+      isAudited: peepAudit?.isAudited || false,
+      auditedAt: peepAudit?.auditedAt,
+      auditedBy: peepAudit?.auditedBy
+    };
+
+    // Dependency Assessment form
+    const hasDependencyAssessmentData = !!latestDependencyAssessment;
+    const dependencyAssessmentHasPdfFileId = !!(
+      latestDependencyAssessment as any
+    )?.pdfFileId;
+    const dependencyAssessmentAudit = latestDependencyAssessment
+      ? auditStatus?.[latestDependencyAssessment._id as string]
+      : undefined;
+
+    state["dependency-assessment"] = {
+      status: getFormStatus(
+        hasDependencyAssessmentData,
+        latestDependencyAssessment?.status === "draft",
+        dependencyAssessmentHasPdfFileId,
+        dependencyAssessmentPdfUrl
+      ),
+      hasData: hasDependencyAssessmentData,
+      hasPdfFileId: dependencyAssessmentHasPdfFileId,
+      pdfUrl: dependencyAssessmentPdfUrl,
+      lastUpdated: latestDependencyAssessment?._creationTime,
+      completedAt:
+        latestDependencyAssessment?.status !== "draft"
+          ? latestDependencyAssessment?.submittedAt
+          : undefined,
+      isAudited: dependencyAssessmentAudit?.isAudited || false,
+      auditedAt: dependencyAssessmentAudit?.auditedAt,
+      auditedBy: dependencyAssessmentAudit?.auditedBy
+    };
+
+    // TIML Assessment form
+    const hasTimlData = !!latestTimlAssessment;
+    const timlHasPdfFileId = !!(latestTimlAssessment as any)?.pdfFileId;
+    const timlAudit = latestTimlAssessment
+      ? auditStatus?.[latestTimlAssessment._id as string]
+      : undefined;
+
+    console.log("TIML audit lookup:");
+    console.log("  Form ID:", latestTimlAssessment?._id);
+    console.log("  Audit found:", timlAudit);
+    console.log("  Is audited:", timlAudit?.isAudited);
+
+    state["timl"] = {
+      status: getFormStatus(
+        hasTimlData,
+        latestTimlAssessment?.status === "draft",
+        timlHasPdfFileId,
+        timlPdfUrl
+      ),
+      hasData: hasTimlData,
+      hasPdfFileId: timlHasPdfFileId,
+      pdfUrl: timlPdfUrl,
+      lastUpdated: latestTimlAssessment?._creationTime,
+      completedAt:
+        latestTimlAssessment?.status !== "draft"
+          ? latestTimlAssessment?.submittedAt
+          : undefined,
+      isAudited: timlAudit?.isAudited || false,
+      auditedAt: timlAudit?.auditedAt,
+      auditedBy: timlAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
-    // state["admission-form"] = { ... };
     // state["discharge-form"] = { ... };
 
     return state;
@@ -348,11 +642,23 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
     latestLongTermFallsAssessment,
+    latestAdmissionAssessment,
+    latestPhotographyConsent,
+    latestDnacprForm,
+    latestPeepForm,
+    latestDependencyAssessment,
+    latestTimlAssessment,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
     movingHandlingPdfUrl,
     longTermFallsPdfUrl,
+    admissionPdfUrl,
+    photographyConsentPdfUrl,
+    dnacprPdfUrl,
+    peepPdfUrl,
+    dependencyAssessmentPdfUrl,
+    timlPdfUrl,
     auditStatus
   ]);
 
@@ -378,7 +684,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
 
   const canDownloadPdf = (formKey: CareFileFormKey): boolean => {
     const state = getFormState(formKey);
-    return state.hasPdfFileId === true && !!state.pdfUrl;
+    return !!state.pdfUrl;
   };
 
   const areAllFormsCompleted = (formKeys: CareFileFormKey[]): boolean => {
@@ -420,6 +726,15 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
-    latestLongTermFallsAssessment
+    latestLongTermFallsAssessment,
+    latestAdmissionAssessment,
+    latestPhotographyConsent,
+    latestDnacprForm,
+    latestPeepForm,
+    // All assessments for reference
+    admissionAssessments,
+    photographyConsents,
+    dnacprForms,
+    peepForms
   };
 }

@@ -821,10 +821,9 @@ const activityOptions = [
               <Button
                 variant="outline"
                 onClick={() => setIsCareNotesDialogOpen(true)}
-                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Care Notes
+                Quick Care Notes
               </Button>
               <Button
                 variant="outline"
@@ -868,10 +867,9 @@ const activityOptions = [
               <Button
                 variant="outline"
                 onClick={() => setIsCareNotesDialogOpen(true)}
-                className="bg-green-600 text-white hover:bg-green-700 hover:text-white "
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Care Notes</span>
+                <span>Quick Care Notes</span>
               </Button>
               <Button
                 variant="outline"
@@ -1071,14 +1069,16 @@ const activityOptions = [
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
+              variant="outline"
+              className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
               onClick={() => setIsPersonalCareDialogOpen(true)}
             >
               <User className="w-6 h-6 mr-3" />
               Log Personal Care
             </Button>
             <Button
-             className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
+              variant="outline"
+              className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
               onClick={() => setIsActivityRecordDialogOpen(true)}
             >
               <Activity className="w-6 h-6 mr-3" />

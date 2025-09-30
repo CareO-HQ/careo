@@ -175,7 +175,7 @@ export function TeamSwitcher({
             ))}
             <DropdownMenuSeparator />
             <div className="flex flex-row items-center justify-between">
-              <DropdownMenuLabel>Teams</DropdownMenuLabel>
+              <DropdownMenuLabel>Units/House</DropdownMenuLabel>
               <CreateTeamModal onTeamCreated={getTeams}>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}

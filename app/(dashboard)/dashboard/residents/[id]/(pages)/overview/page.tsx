@@ -14,6 +14,7 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import CreateResidentDialog from "@/components/residents/CreateResidentDialog";
 import {
   ArrowLeft,
   Phone,
@@ -23,7 +24,9 @@ import {
   User,
   Mail,
   FileText,
-  Users
+  Users,
+  Edit3,
+  PhoneCall
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -34,9 +37,12 @@ type OverviewPageProps = {
 export default function OverviewPage({ params }: OverviewPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
 
   if (resident === undefined) {
     return (
@@ -165,6 +171,14 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                   </Badge>
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditDialogOpen(true)}
+                className="h-8 w-8 p-0"
+              >
+                <Edit3 className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
@@ -198,6 +212,14 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                 </div>
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditDialogOpen(true)}
+              className="h-8 w-8 p-0"
+            >
+              <Edit3 className="w-4 h-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -262,6 +284,14 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <User className="w-4 h-4 text-gray-500" />
+              <div className="flex-1">
+                <p className="text-xs text-gray-600">Full Name</p>
+                <p className="font-medium text-sm">{fullName}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
               <Calendar className="w-4 h-4 text-gray-500" />
               <div className="flex-1">
                 <p className="text-xs text-gray-600">Date of Birth</p>
@@ -311,44 +341,133 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-red-600" />
-              <span>Emergency Contacts</span>
+              <Phone className="w-5 h-5 text-blue-600" />
+              <span>Key Contacts</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {resident.emergencyContacts && resident.emergencyContacts.length > 0 ? (
-              <div className="space-y-3">
-                {resident.emergencyContacts.map((contact: Doc<"emergencyContacts">, index: number) => (
-                  <div key={index} className="p-3 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-sm text-gray-900">{contact.name}</h4>
-                      {contact.isPrimary && (
-                        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
-                          Primary
-                        </Badge>
-                      )}
+            <div className="space-y-4">
+              {/* Next of Kin / Emergency Contacts */}
+              <div>
+                <h4 className="font-medium text-sm text-gray-900 mb-3 flex items-center">
+                  <Users className="w-4 h-4 text-red-600 mr-2" />
+                  Next of Kin 
+                </h4>
+                {resident.emergencyContacts && resident.emergencyContacts.length > 0 ? (
+                  <div className="space-y-3">
+                    {resident.emergencyContacts.map((contact: Doc<"emergencyContacts">, index: number) => (
+                      <div key={index} className="p-3 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-semibold text-sm text-gray-900">{contact.name}</h5>
+                          {contact.isPrimary && (
+                            <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                              Primary
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-600">
+                            <span className="font-medium">Relationship:</span> {contact.relationship}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            <span className="font-medium">Phone:</span> {contact.phoneNumber}
+                          </p>
+                          {contact.address && (
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Address:</span> {contact.address}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 bg-gray-50 rounded-lg">
+                    <Users className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">No emergency contacts on file</p>
+                  </div>
+                )}
+              </div>
+
+              {/* GP Details */}
+              <div>
+                <h4 className="font-medium text-sm text-gray-900 mb-3 flex items-center">
+                  <FileText className="w-4 h-4 text-blue-600 mr-2" />
+                  GP Details
+                </h4>
+                {resident.gpName || resident.gpPhone || resident.gpAddress ? (
+                  <div className="p-3 border rounded-lg">
+                    <div className="mb-2">
+                      <h5 className="font-semibold text-sm text-gray-900">
+                        {resident.gpName || "General Practitioner"}
+                      </h5>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs text-gray-600">
-                        <span className="font-medium">Relationship:</span> {contact.relationship}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        <span className="font-medium">Phone:</span> {contact.phoneNumber}
-                      </p>
+                      {resident.gpPhone && (
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">Phone:</span> {resident.gpPhone}
+                        </p>
+                      )}
+                      {resident.gpAddress && (
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">Address:</span> {resident.gpAddress}
+                        </p>
+                      )}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-4 bg-gray-50 rounded-lg">
+                    <FileText className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">No GP details on file</p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="text-center py-6">
-                <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No emergency contacts on file</p>
-                <p className="text-xs text-gray-400 mt-1">Contact information should be added for safety</p>
+
+              {/* Care Manager Details */}
+              <div>
+                <h4 className="font-medium text-sm text-gray-900 mb-3 flex items-center">
+                  <User className="w-4 h-4 text-green-600 mr-2" />
+                  Care Manager
+                </h4>
+                {resident.careManagerName || resident.careManagerPhone || resident.careManagerAddress ? (
+                  <div className="p-3 border rounded-lg">
+                    <div className="mb-2">
+                      <h5 className="font-semibold text-sm text-gray-900">
+                        {resident.careManagerName || "Care Manager"}
+                      </h5>
+                    </div>
+                    <div className="space-y-1">
+                      {resident.careManagerPhone && (
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">Phone:</span> {resident.careManagerPhone}
+                        </p>
+                      )}
+                      {resident.careManagerAddress && (
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">Address:</span> {resident.careManagerAddress}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 bg-gray-50 rounded-lg">
+                    <User className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">No care manager details on file</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Resident Dialog */}
+      <CreateResidentDialog
+        isResidentDialogOpen={isEditDialogOpen}
+        setIsResidentDialogOpen={setIsEditDialogOpen}
+        editMode={true}
+        residentData={resident}
+      />
     </div>
   );
 }

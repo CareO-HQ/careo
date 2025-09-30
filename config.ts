@@ -45,6 +45,111 @@ export const config = {
     },
     {
       type: "folder",
+      key: "admission",
+      value: "Admission",
+      description: "Admission Assessment Folder",
+      carePlan: false,
+      forms: [
+        {
+          type: "form",
+          key: "admission-form",
+          value: "Admission Assessment Form",
+          description: "Admission Assessment Form"
+        },
+        {
+          type: "form",
+          key: "photography-consent",
+          value: "Photography Consent Form",
+          description: "Photography Consent Form"
+        }
+      ]
+    },
+    {
+      type: "folder",
+      key: "dnacpr",
+      value: "DNACPR",
+      description: "DNACPR order",
+      carePlan: true,
+      forms: [
+        {
+          type: "form",
+          key: "dnacpr",
+          value: "DNACPR Form",
+          description: "DNACPR Form"
+        }
+      ]
+    },
+    {
+      type: "folder",
+      key: "peep",
+      value: "PEEP",
+      description: "PEEP Assessment",
+      carePlan: true,
+      forms: [
+        {
+          type: "form",
+          key: "peep",
+          value: "PEEP Form",
+          description: "PEEP Form"
+        }
+      ]
+    },
+    {
+      type: "folder",
+      key: "depenency",
+      value: "Depenency",
+      description: "Depenency Assessment",
+      carePlan: true,
+      forms: [
+        {
+          type: "form",
+          key: "dependency-assessment",
+          value: "Dependency Assessment",
+          description: "Dependency Assessment"
+        }
+      ]
+    },
+    {
+      type: "folder",
+      key: "progress-notes",
+      value: "Progress Notes",
+      description: "Progress Notes",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "my-life",
+      value: "This is my life",
+      description: "This is my life",
+      carePlan: true,
+      forms: [
+        {
+          type: "form",
+          key: "timl",
+          value: "This Is My Life Form",
+          description: "This Is My Life Form"
+        }
+      ]
+    },
+    {
+      type: "folder",
+      key: "capacity-consent",
+      value: "Capacity Consent",
+      description: "Capacity Consent",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "medication",
+      value: "Medication",
+      description: "Medication",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
       key: "mobility-fall",
       value: "Mobility & Fall",
       description: "Track mobility and fall risks",
@@ -61,8 +166,16 @@ export const config = {
           key: "long-term-fall-risk-form",
           value: "Long Term Fall Risk Assessment",
           description: "Long Term Fall Risk Assessment"
-        },
+        }
       ]
+    },
+    {
+      type: "folder",
+      key: "nutrition-hydration",
+      value: "Nutrition & Hydration",
+      description: "Nutrition & Hydration Assessment",
+      carePlan: true,
+      forms: []
     },
     {
       type: "folder",
@@ -78,6 +191,70 @@ export const config = {
           description: "Blader & Bowel continence Assessment"
         }
       ]
+    },
+    {
+      type: "folder",
+      key: "hygiene",
+      value: "Personal Hygiene & Dressing",
+      description: "Personal Hygiene & Dressing Assessment",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "skin integrity",
+      value: "Skin Integrity / Tissue Viability",
+      description: "Skin Integrity / Tissue Viability Assessment",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "psychological-emotional",
+      value: "Psychological & Emotional needs",
+      description: "Psychological & Emotional needs Assessment",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "additional-care-plans",
+      value: "Additional Care Plans",
+      description: "Additional Care Plans",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "multidisciplinary",
+      value: "Multidisciplinary and Relative communication notes",
+      description: "Multidisciplinary and Relative communication notes",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "record-specimens",
+      value: "Record of specimens",
+      description: "Record of specimens",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "resident-valuables",
+      value: "Resident valuables and personal property",
+      description: "Resident valuables and personal property",
+      carePlan: true,
+      forms: []
+    },
+    {
+      type: "folder",
+      key: "confidential-records",
+      value: "Confidential records",
+      description: "Confidential records",
+      carePlan: true,
+      forms: []
     }
   ]
 };

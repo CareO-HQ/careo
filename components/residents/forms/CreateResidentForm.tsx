@@ -41,11 +41,15 @@ interface CreateResidentFormProps {
   onSubmit?: (values: z.infer<typeof CreateResidentSchema>) => void;
   onCancel?: () => void;
   onSuccess?: () => void;
+  editMode?: boolean;
+  residentData?: any;
 }
 
 export function CreateResidentForm({
   onSubmit: onSubmitProp,
   onSuccess,
+  editMode = false,
+  residentData
 }: CreateResidentFormProps) {
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = useState(false);
@@ -58,16 +62,55 @@ export function CreateResidentForm({
   const { data: user } = authClient.useSession();
 
   const createResidentMutation = useMutation(api.residents.create);
+  const updateResidentMutation = useMutation(api.residents.update);
   const createEmergencyContactMutation = useMutation(api.residents.createEmergencyContact);
+  const updateEmergencyContactMutation = useMutation(api.residents.updateEmergencyContact);
   const generateUploadUrlMutation = useMutation(api.files.image.generateUploadUrl);
   const sendImageMutation = useMutation(api.files.image.sendImage);
 
   type FormType = z.infer<typeof CreateResidentSchema>;
 
-  const form = useForm<FormType>({
-    resolver: zodResolver(CreateResidentSchema),
-    mode: "onChange",
-    defaultValues: {
+  // Function to get default values based on edit mode
+  const getDefaultValues = () => {
+    if (editMode && residentData) {
+      return {
+        firstName: residentData.firstName || "",
+        lastName: residentData.lastName || "",
+        dateOfBirth: residentData.dateOfBirth || "",
+        phoneNumber: residentData.phoneNumber || "",
+        roomNumber: residentData.roomNumber || "",
+        admissionDate: residentData.admissionDate || "",
+        teamId: residentData.teamId || "",
+        nhsHealthNumber: residentData.nhsHealthNumber || "",
+        healthConditions: Array.isArray(residentData.healthConditions)
+          ? residentData.healthConditions.map((hc: any) => ({ condition: typeof hc === 'string' ? hc : hc.condition }))
+          : [],
+        risks: Array.isArray(residentData.risks)
+          ? residentData.risks.map((r: any) => typeof r === 'string' ? { risk: r, level: "low" } : r)
+          : [],
+        dependencies: residentData.dependencies || {
+          mobility: undefined,
+          eating: undefined,
+          dressing: undefined,
+          toileting: undefined,
+        },
+        emergencyContacts: residentData.emergencyContacts?.length > 0
+          ? residentData.emergencyContacts
+          : [{ name: "", phoneNumber: "", relationship: "", address: "", isPrimary: true }],
+        gpDetails: {
+          name: residentData.gpName || "",
+          address: residentData.gpAddress || "",
+          phoneNumber: residentData.gpPhone || "",
+        },
+        careManagerDetails: {
+          name: residentData.careManagerName || "",
+          address: residentData.careManagerAddress || "",
+          phoneNumber: residentData.careManagerPhone || "",
+        },
+      };
+    }
+
+    return {
       firstName: "",
       lastName: "",
       dateOfBirth: "",
@@ -89,10 +132,27 @@ export function CreateResidentForm({
           name: "",
           phoneNumber: "",
           relationship: "",
+          address: "",
           isPrimary: true,
         },
       ],
-    },
+      gpDetails: {
+        name: "",
+        address: "",
+        phoneNumber: "",
+      },
+      careManagerDetails: {
+        name: "",
+        address: "",
+        phoneNumber: "",
+      },
+    };
+  };
+
+  const form = useForm<FormType>({
+    resolver: zodResolver(CreateResidentSchema),
+    mode: "onChange",
+    defaultValues: getDefaultValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -143,6 +203,18 @@ export function CreateResidentForm({
     getTeams();
   }, [getTeams]);
 
+  // Update form values when in edit mode and resident data changes
+  useEffect(() => {
+    if (editMode && residentData) {
+      const defaultValues = getDefaultValues();
+      form.reset(defaultValues);
+      // Set the team ID separately if we're in edit mode
+      if (residentData.teamId) {
+        form.setValue("teamId", residentData.teamId);
+      }
+    }
+  }, [editMode, residentData, form]);
+
   async function onSubmit(values: FormType) {
     startTransition(async () => {
       try {
@@ -151,59 +223,144 @@ export function CreateResidentForm({
           return;
         }
 
-        const residentId = await createResidentMutation({
-          firstName: values.firstName,
-          lastName: values.lastName,
-          dateOfBirth: values.dateOfBirth,
-          phoneNumber: values.phoneNumber,
-          roomNumber: values.roomNumber,
-          admissionDate: values.admissionDate,
-          teamId: values.teamId,
-          nhsHealthNumber: values.nhsHealthNumber,
-          healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
-          risks: values.risks || [],
-          dependencies: values.dependencies,
-          organizationId: activeOrganization.id,
-          createdBy: user.user.id,
-        });
+        if (editMode && residentData?._id) {
+          // Update existing resident
+          await updateResidentMutation({
+            residentId: residentData._id,
+            firstName: values.firstName,
+            lastName: values.lastName,
+            dateOfBirth: values.dateOfBirth,
+            phoneNumber: values.phoneNumber,
+            roomNumber: values.roomNumber,
+            admissionDate: values.admissionDate,
+            nhsHealthNumber: values.nhsHealthNumber,
+            // GP Details
+            gpName: values.gpDetails?.name,
+            gpAddress: values.gpDetails?.address,
+            gpPhone: values.gpDetails?.phoneNumber,
+            // Care Manager Details
+            careManagerName: values.careManagerDetails?.name,
+            careManagerAddress: values.careManagerDetails?.address,
+            careManagerPhone: values.careManagerDetails?.phoneNumber,
+            // Health, risks and dependencies
+            healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
+            risks: values.risks || [],
+            dependencies: values.dependencies,
+          });
 
-        if (residentId && values.emergencyContacts) {
-          for (const contact of values.emergencyContacts) {
-            await createEmergencyContactMutation({
-              residentId,
-              name: contact.name,
-              phoneNumber: contact.phoneNumber,
-              relationship: contact.relationship,
-              isPrimary: contact.isPrimary || false,
-              organizationId: activeOrganization.id,
+          // Update emergency contacts
+          if (values.emergencyContacts && residentData.emergencyContacts) {
+            for (let i = 0; i < values.emergencyContacts.length; i++) {
+              const formContact = values.emergencyContacts[i];
+              const existingContact = residentData.emergencyContacts[i];
+
+              if (existingContact?._id) {
+                // Update existing contact
+                await updateEmergencyContactMutation({
+                  contactId: existingContact._id,
+                  name: formContact.name,
+                  phoneNumber: formContact.phoneNumber,
+                  relationship: formContact.relationship,
+                  address: formContact.address,
+                  isPrimary: formContact.isPrimary,
+                });
+              } else {
+                // Create new contact if form has more contacts than existing
+                await createEmergencyContactMutation({
+                  residentId: residentData._id,
+                  name: formContact.name,
+                  phoneNumber: formContact.phoneNumber,
+                  relationship: formContact.relationship,
+                  address: formContact.address || "",
+                  isPrimary: formContact.isPrimary || false,
+                  organizationId: activeOrganization.id,
+                });
+              }
+            }
+          }
+
+          if (selectedFile) {
+            const uploadUrl = await generateUploadUrlMutation();
+            const result = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": selectedFile!.type },
+              body: selectedFile,
+            });
+            const { storageId } = await result.json();
+            await sendImageMutation({
+              storageId,
+              type: "resident",
+              residentId: residentData._id,
             });
           }
+
+          toast.success("Resident updated successfully");
+        } else {
+          // Create new resident
+          const residentId = await createResidentMutation({
+            firstName: values.firstName,
+            lastName: values.lastName,
+            dateOfBirth: values.dateOfBirth,
+            phoneNumber: values.phoneNumber,
+            roomNumber: values.roomNumber,
+            admissionDate: values.admissionDate,
+            teamId: values.teamId,
+            nhsHealthNumber: values.nhsHealthNumber,
+            // GP Details
+            gpName: values.gpDetails?.name,
+            gpAddress: values.gpDetails?.address,
+            gpPhone: values.gpDetails?.phoneNumber,
+            // Care Manager Details
+            careManagerName: values.careManagerDetails?.name,
+            careManagerAddress: values.careManagerDetails?.address,
+            careManagerPhone: values.careManagerDetails?.phoneNumber,
+            healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
+            risks: values.risks || [],
+            dependencies: values.dependencies,
+            organizationId: activeOrganization.id,
+            createdBy: user.user.id,
+          });
+
+          if (residentId && values.emergencyContacts) {
+            for (const contact of values.emergencyContacts) {
+              await createEmergencyContactMutation({
+                residentId,
+                name: contact.name,
+                phoneNumber: contact.phoneNumber,
+                relationship: contact.relationship,
+                address: contact.address || "",
+                isPrimary: contact.isPrimary || false,
+                organizationId: activeOrganization.id,
+              });
+            }
+          }
+
+          if (selectedFile) {
+            const uploadUrl = await generateUploadUrlMutation();
+            const result = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": selectedFile!.type },
+              body: selectedFile,
+            });
+            const { storageId } = await result.json();
+            await sendImageMutation({
+              storageId,
+              type: "resident",
+              residentId,
+            });
+          }
+
+          toast.success("Resident created successfully");
         }
 
-        if (selectedFile) {
-          const uploadUrl = await generateUploadUrlMutation();
-          const result = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": selectedFile!.type },
-            body: selectedFile,
-          });
-          const { storageId } = await result.json();
-          await sendImageMutation({
-            storageId,
-            type: "resident",
-            residentId,
-          });
-        }
-
-        toast.success("Resident created successfully");
         form.reset();
         setStep(1);
 
         if (onSuccess) onSuccess();
-        if (onSubmitProp) await onSubmitProp(values);
+        if (onSubmitProp) onSubmitProp(values);
       } catch (error) {
-        toast.error("Error creating resident");
-        console.error("Error creating resident:", error);
+        toast.error(editMode ? "Error updating resident" : "Error creating resident");
+        console.error(editMode ? "Error updating resident:" : "Error creating resident:", error);
       }
     });
   }
@@ -231,6 +388,10 @@ export function CreateResidentForm({
       ]);
       if (valid) setStep(3);
       else toast.error("Please select dependency levels for all daily living activities.");
+    } else if (step === 3) {
+      setStep(4);
+    } else if (step === 4) {
+      setStep(5);
     }
   };
 
@@ -773,6 +934,7 @@ export function CreateResidentForm({
                       name: "",
                       phoneNumber: "",
                       relationship: "",
+                      address: "",
                       isPrimary: false
                     })
                   }
@@ -806,7 +968,7 @@ export function CreateResidentForm({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name={`emergencyContacts.${index}.name`}
@@ -858,6 +1020,23 @@ export function CreateResidentForm({
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={form.control}
+                        name={`emergencyContacts.${index}.address`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Address</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="123 Main St, City, State"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
 
                     <FormField
@@ -900,6 +1079,7 @@ export function CreateResidentForm({
                 ))}
               </div>
             </div>
+
             <div className="flex justify-between">
               <Button
                 type="button"
@@ -908,8 +1088,173 @@ export function CreateResidentForm({
               >
                 Back
               </Button>
+              <Button type="button" onClick={handleContinue}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: GP Details */}
+        {step === 4 && (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium">GP Details</h3>
+                <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
+                  General Practitioner information (optional)
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="gpDetails.name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GP Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Dr. Smith"
+                          disabled={isLoading}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="gpDetails.phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GP Phone Number</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="+1 (555) 123-4567"
+                          disabled={isLoading}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="gpDetails.address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GP Address</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="123 Medical Center Dr, City, State"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(3)}
+              >
+                Back
+              </Button>
+              <Button type="button" onClick={handleContinue}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Care Manager Details */}
+        {step === 5 && (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium">Care Manager Details</h3>
+                <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
+                  Care manager information (optional)
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="careManagerDetails.name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Care Manager Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Jane Johnson"
+                          disabled={isLoading}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="careManagerDetails.phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Care Manager Phone Number</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="+1 (555) 987-6543"
+                          disabled={isLoading}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="careManagerDetails.address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Care Manager Address</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="456 Care Services Blvd, City, State"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(4)}
+              >
+                Back
+              </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Creating..." : "Create Resident"}
+                {isLoading
+                  ? (editMode ? "Updating..." : "Creating...")
+                  : (editMode ? "Update Resident" : "Create Resident")
+                }
               </Button>
             </div>
           </div>

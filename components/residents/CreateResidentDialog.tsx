@@ -13,29 +13,43 @@ import { CreateResidentForm } from "./forms/CreateResidentForm";
 interface CreateResidentDialogProps {
   isResidentDialogOpen: boolean;
   setIsResidentDialogOpen: (open: boolean) => void;
+  editMode?: boolean;
+  residentData?: any;
 }
 
 export default function CreateResidentDialog({
   isResidentDialogOpen,
-  setIsResidentDialogOpen
+  setIsResidentDialogOpen,
+  editMode = false,
+  residentData
 }: CreateResidentDialogProps) {
   return (
     <Dialog open={isResidentDialogOpen} onOpenChange={setIsResidentDialogOpen}>
-      <DialogTrigger asChild>
-        <SidebarMenuAction>
-          <PlusIcon />
-          <span className="sr-only">Add Resident</span>
-        </SidebarMenuAction>
-      </DialogTrigger>
+      {!editMode && (
+        <DialogTrigger asChild>
+          <SidebarMenuAction>
+            <PlusIcon />
+            <span className="sr-only">Add Resident</span>
+          </SidebarMenuAction>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader className="mb-4">
-          <DialogTitle>Create New Resident Profile</DialogTitle>
+          <DialogTitle>
+            {editMode ? "Edit Resident Profile" : "Create New Resident Profile"}
+          </DialogTitle>
           <DialogDescription>
-            Enter the resident’s personal information and relevant care details
-            to create their profile.
+            {editMode
+              ? "Update the resident's personal information and relevant care details."
+              : "Enter the resident's personal information and relevant care details to create their profile."
+            }
           </DialogDescription>
         </DialogHeader>
-        <CreateResidentForm onSuccess={() => setIsResidentDialogOpen(false)} />
+        <CreateResidentForm
+          onSuccess={() => setIsResidentDialogOpen(false)}
+          editMode={editMode}
+          residentData={residentData}
+        />
       </DialogContent>
     </Dialog>
   );

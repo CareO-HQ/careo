@@ -50,11 +50,13 @@ export default function CareFilePage() {
         </TabsList>
         <TabsContent value="all" className="flex flex-col gap-1 mt-2 w-md">
           {careFiles.map(
-            (file) =>
+            (file, index) =>
               file.type === "folder" && (
                 <CareFileFolder
+                  index={index}
                   key={file.key}
                   folderName={file.value}
+                  folderKey={file.key}
                   carePlan={file.carePlan}
                   description={file.description}
                   forms={file.forms}

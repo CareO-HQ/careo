@@ -48,6 +48,30 @@ export const getPDFStorageId = query({
         );
         return assessment?.pdfFileId || null;
       }
+      case "admission-form": {
+        const assessment = await ctx.db.get(
+          formId as Id<"admissionAssesments">
+        );
+        return assessment?.pdfFileId || null;
+      }
+      case "photography-consent": {
+        const consent = await ctx.db.get(formId as Id<"photographyConsents">);
+        return consent?.pdfFileId || null;
+      }
+      case "dnacpr": {
+        const dnacpr = await ctx.db.get(formId as Id<"dnacprs">);
+        return dnacpr?.pdfFileId || null;
+      }
+      case "peep": {
+        const peep = await ctx.db.get(formId as Id<"peeps">);
+        return peep?.pdfFileId || null;
+      }
+      case "dependency-assessment": {
+        const assessment = await ctx.db.get(
+          formId as Id<"dependencyAssessments">
+        );
+        return assessment?.pdfFileId || null;
+      }
       default:
         return null;
     }

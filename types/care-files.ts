@@ -1,10 +1,16 @@
 export type CareFileFormKey =
   | "preAdmission-form"
+  | "admission-form"
   | "infection-prevention"
   | "blader-bowel-form"
   | "moving-handling-form"
   | "long-term-fall-risk-form"
-  | "care-plan-form";
+  | "care-plan-form"
+  | "photography-consent"
+  | "dnacpr"
+  | "peep"
+  | "dependency-assessment"
+  | "timl";
 
 export type CareFileFormStatus =
   | "not-started"
