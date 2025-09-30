@@ -227,7 +227,7 @@ When implementing date pickers with Calendar component, always use this pattern 
 - **Include `defaultMonth={new Date()}`** to show current month
 - **Use explicit date handling** in onSelect callback
 
-`## Critical Issues to Address
+## Critical Issues to Address
 
 1. **Security**: The middleware.ts contains a security warning - implement proper authentication checks
 2. **TypeScript**: Build errors are currently ignored - resolve type issues
