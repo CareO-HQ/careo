@@ -119,6 +119,16 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
+            {/* CareO Audit */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/careo-audit">
+                  <ClipboardListIcon />
+                  <span>CareO Audit</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* Handover */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>

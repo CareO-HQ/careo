@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -48,10 +49,34 @@ const environmentItems = [
 
 const AuditTable = ({ items, category }: { items: string[]; category: string }) => {
   const router = useRouter();
+  const [rowStatuses, setRowStatuses] = useState<Record<number, string>>(
+    items.reduce((acc, _, index) => ({ ...acc, [index]: "pending" }), {})
+  );
 
-  const handleViewClick = (itemName: string, index: number) => {
+  const handleViewClick = (itemName: string) => {
     const itemId = encodeURIComponent(itemName.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-'));
     router.push(`/dashboard/audit/${category}/${itemId}`);
+  };
+
+  const handleStatusChange = (index: number, status: string) => {
+    setRowStatuses(prev => ({ ...prev, [index]: status }));
+  };
+
+  const getRowClassName = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-gray-50/50 hover:bg-gray-50/50";
+      case "in-progress":
+        return "bg-blue-50/50 hover:bg-blue-50/50";
+      case "completed":
+        return "bg-green-50/50 hover:bg-green-50/50";
+      case "overdue":
+        return "bg-red-50/50 hover:bg-red-50/50";
+      case "not-applicable":
+        return "bg-purple-50/50 hover:bg-purple-50/50";
+      default:
+        return "";
+    }
   };
 
   return (
@@ -63,22 +88,29 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
             <TableHead>Audit Item</TableHead>
             <TableHead className="w-40">Status</TableHead>
             <TableHead className="w-48">Auditor Name</TableHead>
+            <TableHead className="w-40">Last Audited Date</TableHead>
             <TableHead className="w-40">Due Date</TableHead>
-            <TableHead className="w-32">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((item, index) => (
-            <TableRow key={index}>
+            <TableRow
+              key={index}
+              className={`${getRowClassName(rowStatuses[index])} cursor-pointer`}
+              onClick={() => handleViewClick(item)}
+            >
               <TableCell className="font-medium">{index + 1}</TableCell>
               <TableCell
-                className="cursor-pointer hover:text-primary"
-                onClick={() => handleViewClick(item, index)}
+                className="hover:text-primary"
               >
                 {item}
               </TableCell>
               <TableCell>
-                <Select defaultValue="pending">
+                <Select
+                  defaultValue="pending"
+                  value={rowStatuses[index]}
+                  onValueChange={(value) => handleStatusChange(index, value)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -115,24 +147,23 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
                 <input
                   type="text"
                   placeholder="Enter name"
-                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                   onClick={(e) => e.stopPropagation()}
                 />
               </TableCell>
               <TableCell>
                 <input
                   type="date"
-                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                   onClick={(e) => e.stopPropagation()}
                 />
               </TableCell>
               <TableCell>
-                <button
-                  className="text-sm text-primary hover:underline"
-                  onClick={() => handleViewClick(item, index)}
-                >
-                  View
-                </button>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  onClick={(e) => e.stopPropagation()}
+                />
               </TableCell>
             </TableRow>
           ))}
