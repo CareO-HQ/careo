@@ -43,6 +43,7 @@ import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
 import DnacprDialog from "../dialogs/DnarcpDialog";
 import PeepDialog from "../dialogs/PeepDialog";
 import DependencyDialog from "../dialogs/DependencyDialog";
+import TimlDialog from "../dialogs/TimlDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -1107,6 +1108,23 @@ export default function CareFileFolder({
       case "dependency-assessment":
         return (
           <DependencyDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
+      case "timl":
+        return (
+          <TimlDialog
             resident={resident}
             teamId={activeTeamId}
             residentId={residentId}

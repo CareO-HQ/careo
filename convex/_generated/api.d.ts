@@ -23,6 +23,7 @@ import type * as careFiles_movingHandling from "../careFiles/movingHandling.js";
 import type * as careFiles_peep from "../careFiles/peep.js";
 import type * as careFiles_photographyConsent from "../careFiles/photographyConsent.js";
 import type * as careFiles_preadmission from "../careFiles/preadmission.js";
+import type * as careFiles_timl from "../careFiles/timl.js";
 import type * as crons from "../crons.js";
 import type * as diet from "../diet.js";
 import type * as emailHelpers from "../emailHelpers.js";
@@ -79,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   "careFiles/peep": typeof careFiles_peep;
   "careFiles/photographyConsent": typeof careFiles_photographyConsent;
   "careFiles/preadmission": typeof careFiles_preadmission;
+  "careFiles/timl": typeof careFiles_timl;
   crons: typeof crons;
   diet: typeof diet;
   emailHelpers: typeof emailHelpers;

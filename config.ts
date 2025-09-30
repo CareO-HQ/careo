@@ -123,7 +123,14 @@ export const config = {
       value: "This is my life",
       description: "This is my life",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "timl",
+          value: "This Is My Life Form",
+          description: "This Is My Life Form"
+        }
+      ]
     },
     {
       type: "folder",
