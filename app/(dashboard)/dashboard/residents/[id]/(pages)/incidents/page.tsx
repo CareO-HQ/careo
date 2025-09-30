@@ -991,8 +991,14 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                 <Plus className="w-4 h-4 mr-2" />
                 Report Incident
               </Button>
-
-              
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
+                className="flex items-center space-x-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>View All Incidents</span>
+              </Button>
             </div>
           </div>
 
@@ -1033,6 +1039,14 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Report Incident
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
+                className="flex items-center space-x-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>View All Incidents</span>
               </Button>
             </div>
           </div>

@@ -1,56 +1,87 @@
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Card, CardContent } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-  ArrowLeft,
-  Utensils,
-  Droplets,
-  Eye,
-  Download,
-  Calendar,
-} from "lucide-react";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
 } from "@/components/ui/dialog";
-import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Search,
+  Calendar,
+  User,
+  FileText,
+  Filter,
+  Download,
+  Eye,
+  Utensils,
+  ChevronLeft,
+  ChevronRight,
+  Droplets,
+  ClipboardList,
+  Clock,
+} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
-type DocumentsPageProps = {
+type FoodFluidDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export default function FoodFluidDocumentsPage({ params }: DocumentsPageProps) {
+export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const [selectedReport, setSelectedReport] = React.useState<{
-    date: string;
-  } | null>(null);
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>();
+  const residentId = id as Id<"residents">;
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  // State for filters and search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Dialog state
+  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+
+  // Fetch resident data
+  const resident = useQuery(api.residents.getById, { residentId });
 
   // Get all available report dates for this resident
-  const availableDates = useQuery(api.foodFluidLogs.getAvailableFoodFluidDates, {
-    residentId: id as Id<"residents">
-  });
+  const availableDates = useQuery(api.foodFluidLogs.getAvailableFoodFluidDates, { residentId });
 
   // Get the selected report data when viewing
   const selectedReportData = useQuery(
@@ -61,62 +92,132 @@ export default function FoodFluidDocumentsPage({ params }: DocumentsPageProps) {
     } : "skip"
   );
 
-  // Filter dates based on calendar selection
-  const filteredDates = React.useMemo(() => {
-    if (!availableDates) return [];
-    
-    let filtered = availableDates;
-    
-    // Filter by calendar selection
-    if (selectedDate) {
-      // Use local timezone to avoid date shifting issues
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const selectedDateString = `${year}-${month}-${day}`;
-      filtered = filtered.filter(date => date === selectedDateString);
-    }
-    
-    return filtered;
-  }, [availableDates, selectedDate]);
+  // Calculate resident details
+  const fullName = useMemo(() => {
+    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
+    return `${resident.firstName} ${resident.lastName}`;
+  }, [resident]);
 
-  const handleViewReport = (date: string) => {
-    setSelectedReport({
-      date
+  // Get unique years from dates for filter
+  const availableYears = useMemo(() => {
+    if (!availableDates || availableDates.length === 0) return [];
+    const years = [...new Set(availableDates.map(date =>
+      new Date(date).getFullYear()
+    ))];
+    return years.sort((a, b) => b - a);
+  }, [availableDates]);
+
+  // Convert dates to report objects for filtering
+  const reportObjects = useMemo(() => {
+    if (!availableDates) return [];
+    return availableDates.map(date => ({
+      date,
+      formattedDate: format(new Date(date), "PPP"),
+      _id: date // Use date as ID for consistency
+    }));
+  }, [availableDates]);
+
+  // Filter and sort reports
+  const filteredReports = useMemo(() => {
+    if (!reportObjects) return [];
+
+    let filtered = [...reportObjects];
+
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(report =>
+        report.formattedDate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        report.date.includes(searchQuery)
+      );
+    }
+
+    // Apply month filter
+    if (selectedMonth !== "all") {
+      filtered = filtered.filter(report => {
+        const reportMonth = new Date(report.date).getMonth() + 1;
+        return reportMonth === parseInt(selectedMonth);
+      });
+    }
+
+    // Apply year filter
+    if (selectedYear !== "all") {
+      filtered = filtered.filter(report => {
+        const reportYear = new Date(report.date).getFullYear();
+        return reportYear === parseInt(selectedYear);
+      });
+    }
+
+    // Sort by date
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
+
+    return filtered;
+  }, [reportObjects, searchQuery, selectedMonth, selectedYear, sortOrder]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedReports = filteredReports.slice(startIndex, endIndex);
+
+  // Handlers
+  const handleViewReport = (report: any) => {
+    setSelectedReport(report);
+    setIsViewDialogOpen(true);
   };
 
-  const handleDownloadReport = (date: string) => {
+  const handleExport = () => {
+    if (!filteredReports || filteredReports.length === 0) return;
+
+    // Create CSV content
+    const headers = ["Date", "Report Type", "Status"];
+    const rows = filteredReports.map(report => [
+      report.date,
+      "Daily Food & Fluid Report",
+      "Archived"
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `food-fluid-reports-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadReport = (report: any) => {
     if (!resident) {
       toast.error('Resident data not available');
       return;
     }
 
-    // Use the currently loaded report data if available, otherwise create a mock
-    const reportToDownload = selectedReportData && selectedReport?.date === date
+    const reportToDownload = selectedReportData && selectedReport?.date === report.date
       ? selectedReportData
       : { logs: [], reportGenerated: false, totalEntries: 0, foodEntries: 0, fluidEntries: 0, totalFluidMl: 0 };
 
     const htmlContent = generatePDFContent({
       resident,
       report: reportToDownload,
-      date
+      date: report.date
     });
 
     generatePDFFromHTML(htmlContent);
-
     toast.success(`Food & Fluid report will open for printing`);
   };
 
-  const generatePDFContent = ({
-    resident,
-    report,
-    date
-  }: {
-    resident: any;
-    report: any;
-    date: string;
-  }) => {
+  const generatePDFContent = ({ resident, report, date }: { resident: any; report: any; date: string; }) => {
     const formattedDate = new Date(date).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -136,512 +237,551 @@ export default function FoodFluidDocumentsPage({ params }: DocumentsPageProps) {
           <p>${formattedDate}</p>
         </div>
         <div class="info-box">
-          <h3>Generated</h3>
-          <p>${new Date().toLocaleString()}</p>
+          <h3>Total Entries</h3>
+          <p>${report.totalEntries || 0}</p>
         </div>
         <div class="info-box">
-          <h3>Room Number</h3>
-          <p>${resident.roomNumber || 'N/A'}</p>
+          <h3>Food Entries</h3>
+          <p>${report.foodEntries || 0}</p>
         </div>
         <div class="info-box">
-          <h3>Report Type</h3>
-          <p>Daily Food & Fluid Log</p>
-        </div>
-      </div>
-
-      <div class="summary">
-        <h2>Summary</h2>
-        <div class="summary-grid">
-          <div class="summary-item">
-            <span class="number">${report.totalEntries || 0}</span>
-            <span class="label">Total Entries</span>
-          </div>
-          <div class="summary-item">
-            <span class="number">${report.foodEntries || 0}</span>
-            <span class="label">Food Entries</span>
-          </div>
-          <div class="summary-item">
-            <span class="number">${report.fluidEntries || 0}</span>
-            <span class="label">Fluid Entries</span>
-          </div>
-          <div class="summary-item">
-            <span class="number">${report.totalFluidMl || 0}ml</span>
-            <span class="label">Total Fluid Intake</span>
-          </div>
+          <h3>Fluid Entries</h3>
+          <p>${report.fluidEntries || 0}</p>
         </div>
       </div>
 
       <div class="activities">
         <h2>Food & Fluid Log</h2>
-        ${report.logs && report.logs.length > 0 
-          ? `<table class="log-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Section</th>
-                  <th>Type</th>
-                  <th>Food/Drink</th>
-                  <th>Portion</th>
-                  <th>Consumed</th>
-                  <th>Volume (ml)</th>
-                  <th>Staff</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${report.logs.map((log: any) => {
-                  const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
-                  return `
-                    <tr class="${isFluid ? 'fluid-entry' : 'food-entry'}">
-                      <td>${new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
-                      <td>${log.section.replace('-', ' - ')}</td>
-                      <td>${isFluid ? '🥤 Fluid' : '🍽️ Food'}</td>
-                      <td>${log.typeOfFoodDrink}</td>
-                      <td>${log.portionServed}</td>
-                      <td class="consumption-${log.amountEaten.toLowerCase()}">${log.amountEaten}</td>
-                      <td>${log.fluidConsumedMl || '-'}</td>
-                      <td>${log.signature}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>`
-          : `
-              <div style="text-align: center; padding: 40px; color: #64748B;">
-                <p>No food & fluid entries logged for this date.</p>
+        ${report.logs && report.logs.length > 0
+          ? report.logs.map((log: any) => `
+              <div class="log-entry">
+                <strong>${log.typeOfFoodDrink}</strong> - ${log.amountEaten}<br>
+                Time: ${new Date(log.timestamp).toLocaleTimeString()}<br>
+                Staff: ${log.signature}
               </div>
-            `
+            `).join('')
+          : '<p>No entries logged for this date.</p>'
         }
-      </div>
-
-      <div class="footer">
-        <p>This report was automatically generated by the Care Management System.</p>
-        <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
       </div>
     `;
   };
 
   const generatePDFFromHTML = (content: string) => {
-    // Create a new window for PDF generation
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Generate HTML content for the PDF
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>Daily Food & Fluid Report</title>
           <style>
-            @media print {
-              @page {
-                size: A4;
-                margin: 2cm;
-              }
-            }
-            body {
-              font-family: Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 2px solid #4F46E5;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
-            }
-            .header h1 {
-              color: #4F46E5;
-              margin: 0 0 10px 0;
-              font-size: 24px;
-            }
-            .info-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 20px;
-              margin-bottom: 30px;
-            }
-            .info-box {
-              background: #F8FAFC;
-              padding: 15px;
-              border-radius: 8px;
-              border-left: 4px solid #4F46E5;
-            }
-            .info-box h3 {
-              margin: 0 0 8px 0;
-              color: #4F46E5;
-              font-size: 16px;
-            }
-            .info-box p {
-              margin: 0;
-              font-size: 14px;
-              color: #64748B;
-            }
-            .summary {
-              background: #F0FDF4;
-              border: 1px solid #BBF7D0;
-              border-radius: 8px;
-              padding: 20px;
-              margin-bottom: 30px;
-            }
-            .summary h2 {
-              color: #166534;
-              margin: 0 0 15px 0;
-              font-size: 18px;
-            }
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 15px;
-            }
-            .summary-item {
-              text-align: center;
-            }
-            .summary-item .number {
-              font-size: 24px;
-              font-weight: bold;
-              color: #166534;
-              display: block;
-            }
-            .summary-item .label {
-              font-size: 12px;
-              color: #065F46;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            }
-            .activities {
-              margin-top: 30px;
-            }
-            .activities h2 {
-              color: #4F46E5;
-              border-bottom: 1px solid #E2E8F0;
-              padding-bottom: 10px;
-              margin-bottom: 20px;
-            }
-            .log-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 15px;
-            }
-            .log-table th, .log-table td {
-              border: 1px solid #E2E8F0;
-              padding: 8px;
-              text-align: left;
-              font-size: 12px;
-            }
-            .log-table th {
-              background-color: #F8FAFC;
-              font-weight: bold;
-            }
-            .food-entry {
-              background-color: #FFF8E7;
-            }
-            .fluid-entry {
-              background-color: #E7F3FF;
-            }
-            .consumption-all {
-              color: #28a745;
-              font-weight: bold;
-            }
-            .consumption-none {
-              color: #dc3545;
-              font-weight: bold;
-            }
-            .consumption-1\\/4, .consumption-1\\/2, .consumption-3\\/4 {
-              color: #fd7e14;
-              font-weight: bold;
-            }
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 1px solid #E2E8F0;
-              text-align: center;
-              color: #64748B;
-              font-size: 12px;
-            }
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+            .info-box { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+            .log-entry { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; }
           </style>
         </head>
         <body>
           ${content}
-          <div class="no-print" style="text-align: center; margin-top: 30px;">
-            <button onclick="window.print()" style="padding: 10px 20px; background: #4F46E5; color: white; border: none; border-radius: 5px; cursor: pointer;">Print PDF</button>
-            <button onclick="window.close()" style="padding: 10px 20px; background: #6B7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
-          </div>
+          <button onclick="window.print()" style="margin-top: 20px; padding: 10px 20px;">Print PDF</button>
         </body>
       </html>
     `;
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    
-    // Auto-trigger print dialog
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-    };
+    printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
   };
 
-  if (resident === undefined) {
+  // Loading state
+  if (!resident || !availableDates) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+          <p className="mt-2 text-muted-foreground">Loading food & fluid reports...</p>
         </div>
       </div>
     );
   }
 
-  if (resident === null) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Resident not found</p>
-          <p className="text-muted-foreground">
-            The resident you&apos;re looking for doesn&apos;t exist.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const fullName = `${resident.firstName} ${resident.lastName}`;
+  // Calculate stats
+  const reportStats = {
+    total: availableDates.length,
+    thisMonth: availableDates.filter(date => {
+      const reportDate = new Date(date);
+      const now = new Date();
+      return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
+    }).length,
+    thisWeek: availableDates.filter(date => {
+      const reportDate = new Date(date);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return reportDate >= weekAgo;
+    }).length,
+  };
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-6xl">
+    <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/residents/${id}`)}
+          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
+        >
+          {fullName}
+        </Button>
+        <span>/</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/residents/${id}/food-fluid`)}
+          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
+        >
+          Food & Fluid
+        </Button>
+        <span>/</span>
+        <span className="text-foreground">All Reports</span>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
+      <div className="flex items-center space-x-4 mb-6">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push(`/dashboard/residents/${id}/food-fluid`)}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-yellow-100 rounded-lg">
+            <ClipboardList className="w-6 h-6 text-yellow-600" />
+          </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Food & Fluid Documents</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              All archived food & fluid reports for {fullName}
+            <h1 className="text-xl sm:text-2xl font-bold">Food & Fluid Reports History</h1>
+            <p className="text-muted-foreground text-sm">
+              Complete history of daily food & fluid reports for {fullName}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Date Filter */}
-      <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-6">
-        <div className="flex items-center space-x-2 sm:space-x-0">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full sm:w-[240px] justify-start text-left font-normal"
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                {selectedDate ? selectedDate.toLocaleDateString() : "Select date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-              />
-            </PopoverContent>
-          </Popover>
-          {selectedDate && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedDate(undefined)}
-              className="sm:ml-2"
-            >
-              Clear
-            </Button>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground text-center sm:text-left">
-          {filteredDates?.length || 0} report dates found
-        </p>
-      </div>
-
-      {/* Reports List */}
-      {availableDates === undefined ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading reports...</p>
-          </div>
-        </div>
-      ) : filteredDates.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg font-medium text-muted-foreground mb-2">
-              {selectedDate ? "No reports found for this date" : "No food & fluid reports found"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {selectedDate ? "Try selecting a different date" : "Reports will appear here as food & fluid entries are logged"}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {filteredDates.map((date) => (
-            <div key={date} className="space-y-3">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center space-x-2">
-                <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm sm:text-base">
-                  {new Date(date).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric"
-                  })}
-                </span>
-              </h2>
-
-              <div className="space-y-4">
-                {/* Daily Report Card */}
-                <Card className="cursor-pointer shadow-none w-full">
-                  <CardContent className="">
-                    <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 sm:gap-4">
-                      {/* Icon and Text */}
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-yellow-50 rounded-md">
-                          <Utensils className="w-5 h-5 text-yellow-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-sm sm:text-base">Daily Food & Fluid Report</h3>
-                  
-                          <p className="text-xs sm:text-sm mt-1 text-green-600">✓ Archived report</p>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => handleViewReport(date)} className="flex items-center text-xs sm:text-sm px-2 py-1">
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center space-x-2">
-                                <Utensils className="w-5 h-5 text-yellow-600" />
-                                <span className="text-sm sm:text-base">Food & Fluid Report - {new Date(date).toLocaleDateString()}</span>
-                              </DialogTitle>
-                              <DialogDescription>
-                                All food & fluid entries logged for this date
-                              </DialogDescription>
-                            </DialogHeader>
-                            
-                            <div className="space-y-4">
-                              {selectedReport?.date === date && (
-                                selectedReportData === undefined ? (
-                                  <div className="text-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                                    <p className="mt-2 text-muted-foreground">Loading report...</p>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-3">
-                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                      <div>
-                                        <h4 className="font-medium text-yellow-800">Total Entries</h4>
-                                        <p className="text-sm text-yellow-700">{selectedReportData?.totalEntries || 0}</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-yellow-800">Food Entries</h4>
-                                        <p className="text-sm text-yellow-700">{selectedReportData?.foodEntries || 0}</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-yellow-800">Fluid Entries</h4>
-                                        <p className="text-sm text-yellow-700">{selectedReportData?.fluidEntries || 0}</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium text-yellow-800">Total Fluid</h4>
-                                        <p className="text-sm text-yellow-700">{selectedReportData?.totalFluidMl || 0}ml</p>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <h4 className="font-medium">Food & Fluid Log</h4>
-                                      {selectedReportData?.logs && selectedReportData.logs.length > 0 ? (
-                                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                                          {selectedReportData.logs.map((log: any, index: number) => {
-                                            const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
-                                            return (
-                                              <div key={index} className={`p-3 border rounded-lg ${isFluid ? 'border-blue-200 bg-blue-50' : 'border-orange-200 bg-orange-50'}`}>
-                                                <div className="flex justify-between items-start">
-                                                  <div>
-                                                    <div className="flex items-center space-x-2 mb-1">
-                                                      {isFluid ? (
-                                                        <Droplets className="w-4 h-4 text-blue-600" />
-                                                      ) : (
-                                                        <Utensils className="w-4 h-4 text-orange-600" />
-                                                      )}
-                                                      <p className="font-medium">{log.typeOfFoodDrink}</p>
-                                                    </div>
-                                                    <p className="text-sm text-muted-foreground">
-                                                      {new Date(log.timestamp).toLocaleTimeString()} • {log.section.replace('-', ' - ')}
-                                                    </p>
-                                                    <p className="text-sm text-gray-600 mt-1">
-                                                      Portion: {log.portionServed}
-                                                      {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-1">Staff: {log.signature}</p>
-                                                  </div>
-                                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                    log.amountEaten === 'All' 
-                                                      ? 'bg-green-100 text-green-800'
-                                                      : log.amountEaten === 'None'
-                                                      ? 'bg-red-100 text-red-800'
-                                                      : 'bg-yellow-100 text-yellow-800'
-                                                  }`}>
-                                                    {log.amountEaten}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      ) : (
-                                        <p className="text-muted-foreground py-8 text-center">No entries logged for this date</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(date)} className="flex items-center text-xs sm:text-sm px-2 py-1">
-                          <Download className="w-3 h-3 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 bg-gradient-to-br from-yellow-50 to-yellow-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-yellow-700">Total Reports</p>
+                <p className="text-2xl font-bold text-yellow-900">{reportStats.total}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <FileText className="w-5 h-5 text-yellow-600" />
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700">This Month</p>
+                <p className="text-2xl font-bold text-green-900">{reportStats.thisMonth}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Calendar className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700">Food Reports</p>
+                <p className="text-2xl font-bold text-blue-900">{reportStats.total}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Utensils className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-cyan-50 to-cyan-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-cyan-700">Fluid Reports</p>
+                <p className="text-2xl font-bold text-cyan-900">{reportStats.total}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Droplets className="w-5 h-5 text-cyan-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Search */}
+      <Card className="border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-5 h-5" />
+              <span>Filter Reports</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={filteredReports.length === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search by date..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select
+              value={selectedMonth}
+              onValueChange={(value) => {
+                setSelectedMonth(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                <SelectItem value="1">January</SelectItem>
+                <SelectItem value="2">February</SelectItem>
+                <SelectItem value="3">March</SelectItem>
+                <SelectItem value="4">April</SelectItem>
+                <SelectItem value="5">May</SelectItem>
+                <SelectItem value="6">June</SelectItem>
+                <SelectItem value="7">July</SelectItem>
+                <SelectItem value="8">August</SelectItem>
+                <SelectItem value="9">September</SelectItem>
+                <SelectItem value="10">October</SelectItem>
+                <SelectItem value="11">November</SelectItem>
+                <SelectItem value="12">December</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedYear}
+              onValueChange={(value) => {
+                setSelectedYear(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Years</SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={sortOrder}
+              onValueChange={(value: "asc" | "desc") => setSortOrder(value)}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">Newest First</SelectItem>
+                <SelectItem value="asc">Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reports Table */}
+      <Card className="border-0">
+        <CardHeader>
+          <CardTitle>
+            Food & Fluid Reports ({filteredReports.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredReports.length === 0 ? (
+            <div className="text-center py-12">
+              <Utensils className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No reports found</p>
+              <p className="text-gray-400 text-sm mt-1">
+                {searchQuery ? "Try adjusting your search criteria" : "No food & fluid reports recorded yet"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Report Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedReports.map((report) => (
+                      <TableRow key={report._id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span>{format(new Date(report.date), "dd MMM yyyy")}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Utensils className="w-4 h-4 text-yellow-600" />
+                            <span>Daily Food & Fluid Report</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className="bg-green-100 text-green-800 border-0">
+                            Archived
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewReport(report)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadReport(report)}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <div className="text-sm text-gray-500">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} of {filteredReports.length} reports
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="h-8 w-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* View Report Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Food & Fluid Report Details</DialogTitle>
+            <DialogDescription>
+              Complete daily food & fluid report for {fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {selectedReport && (
+              <div className="space-y-6">
+                {selectedReportData === undefined ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-2 text-muted-foreground">Loading report...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Report Overview */}
+                    <div className="border-b pb-4">
+                      <h3 className="font-semibold text-lg mb-3">Report Overview</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500">Report Date</p>
+                          <p className="font-medium">{format(new Date(selectedReport.date), "PPP")}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Total Entries</p>
+                          <p className="font-medium">{selectedReportData?.totalEntries || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Food Entries</p>
+                          <p className="font-medium">{selectedReportData?.foodEntries || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Fluid Entries</p>
+                          <p className="font-medium">{selectedReportData?.fluidEntries || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Log Entries */}
+                    <div className="border-b pb-4">
+                      <h3 className="font-semibold text-lg mb-3">Food & Fluid Log</h3>
+                      {selectedReportData?.logs && selectedReportData.logs.length > 0 ? (
+                        <div className="space-y-3 max-h-60 overflow-y-auto">
+                          {selectedReportData.logs.map((log: any, index: number) => {
+                            const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
+                            return (
+                              <div key={index} className={`p-3 border rounded-lg ${isFluid ? 'border-blue-200 bg-blue-50' : 'border-orange-200 bg-orange-50'}`}>
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      {isFluid ? (
+                                        <Droplets className="w-4 h-4 text-blue-600" />
+                                      ) : (
+                                        <Utensils className="w-4 h-4 text-orange-600" />
+                                      )}
+                                      <p className="font-medium">{log.typeOfFoodDrink}</p>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      {new Date(log.timestamp).toLocaleTimeString()} • {log.section?.replace('-', ' - ')}
+                                    </p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      Portion: {log.portionServed}
+                                      {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">Staff: {log.signature}</p>
+                                  </div>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    log.amountEaten === 'All'
+                                      ? 'bg-green-100 text-green-800'
+                                      : log.amountEaten === 'None'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {log.amountEaten}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 py-8 text-center">No entries logged for this date</p>
+                      )}
+                    </div>
+
+                    {/* Record Information */}
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3">Record Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500">Report Type</p>
+                          <p className="font-medium">Daily Food & Fluid Report</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Generated</p>
+                          <div className="flex items-center space-x-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <p className="font-medium">{format(new Date(), "PPP")}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsViewDialogOpen(false)}
+            >
+              Close
+            </Button>
+            {selectedReport && (
+              <Button
+                onClick={() => handleDownloadReport(selectedReport)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

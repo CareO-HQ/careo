@@ -1654,7 +1654,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
             <div className="flex flex-col space-y-3">
-
+              <Button
+                variant="outline"
+                onClick={() => setIsTransferLogDialogOpen(true)}
+                disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                className="w-full"
+              >
+                <Ambulance className="w-6 h-6 mr-3" />
+                Hospital Transfer Entry
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
@@ -1698,7 +1706,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             </div>
             <div className="flex items-center gap-2">
               <Button
-                className=" bg-green-500 hover:bg-green-700 text-white"
+                variant="outline"
                 onClick={() => setIsTransferLogDialogOpen(true)}
                 disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
               >
@@ -1979,7 +1987,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     setIsTransferDialogOpen(true);
                   }}
                   disabled={isCreating || isUpdating || isDeleting}
-                  className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-400 h-12 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreating ? (
                     <>

@@ -242,6 +242,10 @@ export function CreateResidentForm({
             careManagerName: values.careManagerDetails?.name,
             careManagerAddress: values.careManagerDetails?.address,
             careManagerPhone: values.careManagerDetails?.phoneNumber,
+            // Health, risks and dependencies
+            healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
+            risks: values.risks || [],
+            dependencies: values.dependencies,
           });
 
           // Update emergency contacts
@@ -384,6 +388,10 @@ export function CreateResidentForm({
       ]);
       if (valid) setStep(3);
       else toast.error("Please select dependency levels for all daily living activities.");
+    } else if (step === 3) {
+      setStep(4);
+    } else if (step === 4) {
+      setStep(5);
     }
   };
 
@@ -1072,7 +1080,24 @@ export function CreateResidentForm({
               </div>
             </div>
 
-            {/* GP Details Section */}
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(2)}
+              >
+                Back
+              </Button>
+              <Button type="button" onClick={handleContinue}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: GP Details */}
+        {step === 4 && (
+          <div className="space-y-6">
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium">GP Details</h3>
@@ -1136,7 +1161,24 @@ export function CreateResidentForm({
               />
             </div>
 
-            {/* Care Manager Details Section */}
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(3)}
+              >
+                Back
+              </Button>
+              <Button type="button" onClick={handleContinue}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Care Manager Details */}
+        {step === 5 && (
+          <div className="space-y-6">
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium">Care Manager Details</h3>
@@ -1204,7 +1246,7 @@ export function CreateResidentForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(4)}
               >
                 Back
               </Button>

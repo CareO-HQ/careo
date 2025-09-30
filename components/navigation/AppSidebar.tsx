@@ -15,7 +15,14 @@ import {
   FolderIcon,
   MessageCircleQuestionMarkIcon,
   PillIcon,
-  User2Icon
+  User2Icon,
+  FileTextIcon,
+  ClipboardListIcon,
+  SettingsIcon,
+  CalendarIcon,
+  MessageSquareIcon,
+  HomeIcon,
+  UsersIcon
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -42,6 +49,16 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
+            {/* Home */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard">
+                  <HomeIcon />
+                  <span>Home</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* Residents */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
@@ -54,6 +71,16 @@ export function AppSidebar() {
                 isResidentDialogOpen={isResidentDialogOpen}
                 setIsResidentDialogOpen={setIsResidentDialogOpen}
               />
+            </SidebarMenuItem>
+
+            {/* Staff */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/staff">
+                  <UsersIcon />
+                  <span>Staff</span>
+                </Link>
+              </SidebarMenuButton>
             </SidebarMenuItem>
 
             {/* Medication */}
@@ -72,6 +99,62 @@ export function AppSidebar() {
                 <Link href="/dashboard/files">
                   <FolderIcon />
                   <span>Files</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Operations Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Operations</SidebarGroupLabel>
+          <SidebarGroupContent>
+            {/* Audit */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/audit">
+                  <FileTextIcon />
+                  <span>Audit</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Handover */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/handover">
+                  <ClipboardListIcon />
+                  <span>Handover</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* General */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/general">
+                  <SettingsIcon />
+                  <span>General</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Rota */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/rota">
+                  <CalendarIcon />
+                  <span>Rota</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Communication */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/communication">
+                  <MessageSquareIcon />
+                  <span>Communication</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

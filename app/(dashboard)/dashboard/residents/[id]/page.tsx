@@ -159,8 +159,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <FileText className="w-6 h-6 text-blue-600" />
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <FileText className="w-6 h-6 text-purple-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Care File</h3>
@@ -209,8 +209,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <Utensils className="w-6 h-6 text-blue-600" />
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <Utensils className="w-6 h-6 text-green-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Food & Fluid</h3>
@@ -231,8 +231,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-yellow-50 rounded-lg">
-                    <Activity className="w-6 h-6 text-yellow-600" />
+                  <div className="p-2 bg-red-50 rounded-lg">
+                    <Activity className="w-6 h-6 text-red-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Daily Care</h3>
@@ -269,30 +269,6 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               </div>
             </CardContent>
           </Card>
-     
-    {/* Incidents & Falls Card */}
-    <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("incidents")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-yellow-50 rounded-lg">
-                    <TrendingDown className="w-6 h-6 text-yellow-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Incidents & Falls</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Safety records
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-       
         </div>
       </div>
       {/* DOCUMENTATION */}
@@ -309,8 +285,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-yellow-50 rounded-lg">
-                    <Folder className="w-6 h-6 text-yellow-600" />
+                  <div className="p-2 bg-indigo-50 rounded-lg">
+                    <Folder className="w-6 h-6 text-indigo-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Documents</h3>
@@ -331,8 +307,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-yellow-50 rounded-lg">
-                    <Moon className="w-6 h-6 text-yellow-600" />
+                  <div className="p-2 bg-gray-50 rounded-lg">
+                    <Moon className="w-6 h-6 text-gray-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Night Docs</h3>
@@ -347,18 +323,18 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           </Card>
           <Card
             className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("additional")}
+            onClick={() => handleCardClick("appointments")}
           >
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <ClipboardList className="w-6 h-6 text-green-600" />
+                  <div className="p-2 bg-cyan-50 rounded-lg">
+                    <Calendar className="w-6 h-6 text-cyan-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Additional Info</h3>
+                    <h3 className="font-semibold">Appointments</h3>
                     <p className="text-sm text-muted-foreground">
-                      Notes & documents
+                      Medical appointments
                     </p>
                   </div>
                 </div>
@@ -369,10 +345,57 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   
         </div>
       </div>
-      {/* MEDICAL RECORDS */}
+      {/* HEALTH & SAFETY */}
       <div className="mb-8">
-        <p className="font-medium text-lg mb-2">Medical Records</p>
+        <p className="font-medium text-lg mb-2">Health & Safety</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Incidents & Falls Card */}
+          <Card
+            className="cursor-pointer shadow-none"
+            onClick={() => handleCardClick("incidents")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                  <div className="p-2 bg-yellow-50 rounded-lg">
+                    <TrendingDown className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Incidents & Falls</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Safety records
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Health & Monitoring Card */}
+          <Card
+            className="cursor-pointer shadow-none"
+            onClick={() => handleCardClick("health-monitoring")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <Stethoscope className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Health & Monitoring</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Vital signs & health tracking
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Clinical Card */}
           <Card
             className="cursor-pointer shadow-none"
             onClick={() => handleCardClick("clinical")}
@@ -380,8 +403,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <Heart className="w-6 h-6 text-blue-600" />
+                  <div className="p-2 bg-rose-50 rounded-lg">
+                    <Heart className="w-6 h-6 text-rose-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Clinical</h3>
@@ -396,52 +419,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               </div>
             </CardContent>
           </Card>
-         {/* Health & Monitoring Card */}
-         <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("health-monitoring")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-emerald-50 rounded-lg">
-                    <Stethoscope className="w-6 h-6 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Health & Monitoring</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Vital signs & health tracking
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-          {/* Appointments Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("appointments")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <Calendar className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Appointments</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Medical appointments
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
+
       {/* SOCIAL CARE AND EMERGENCY */}
       <div className="mb-8">
         <p className="font-medium text-lg mb-2">Social Care & Emergency</p>
@@ -476,8 +456,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <Ambulance className="w-6 h-6 text-blue-600" />
+                  <div className="p-2 bg-red-50 rounded-lg">
+                    <Ambulance className="w-6 h-6 text-red-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Hospital Passport</h3>
@@ -498,9 +478,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <CardContent className="p-2">
               <div className="flex items-center justify-between p-3">
                 <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <PuzzleIcon className="w-6 h-6 text-green-600" />
-
+                  <div className="p-2 bg-violet-50 rounded-lg">
+                    <PuzzleIcon className="w-6 h-6 text-violet-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Multi Disciplinary Note</h3>

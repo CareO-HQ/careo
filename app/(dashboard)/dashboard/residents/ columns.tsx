@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -14,6 +15,75 @@ import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
 import { Clock } from "lucide-react";
+
+// Component for displaying allergies
+const AllergiesCell = ({ residentId }: { residentId: string }) => {
+  const dietInfo = useQuery(
+    api.diet.getDietByResidentId,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
+
+  if (dietInfo === undefined) {
+    // Loading state
+    return <Badge variant="outline">Loading...</Badge>;
+  }
+
+  if (!dietInfo?.allergies || dietInfo.allergies.length === 0) {
+    // No allergies
+    return <Badge variant="outline">No allergies</Badge>;
+  }
+
+  const allergies = dietInfo.allergies;
+
+  if (allergies.length > 2) {
+    const extraAllergies = allergies.length - 2;
+    return (
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide text-ellipsis">
+        {allergies.slice(0, 2).map((allergyItem, index: number) => (
+          <Badge
+            key={index}
+            variant="table"
+            className="bg-orange-50 text-orange-700 border-orange-300"
+          >
+            {allergyItem.allergy}
+          </Badge>
+        ))}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="table" className="bg-orange-50 text-orange-700 border-orange-300">+{extraAllergies}</Badge>
+          </TooltipTrigger>
+          <TooltipContent className="bg-white border flex flex-row gap-2">
+            {allergies.slice(2).map((allergyItem, index: number) => (
+              <Badge
+                key={index}
+                variant="table"
+                className="bg-orange-50 text-orange-700 border-orange-300"
+              >
+                {allergyItem.allergy}
+              </Badge>
+            ))}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-2 overflow-x-auto scrollbar-hide text-ellipsis">
+      {allergies.map((allergyItem, index: number) => (
+        <Badge
+          key={index}
+          variant="table"
+          className="bg-orange-50 text-orange-700 border-orange-300"
+        >
+          {allergyItem.allergy}
+        </Badge>
+      ))}
+    </div>
+  );
+};
 
 // Component for displaying next medication intake
 const NextMedicationCell = ({ residentId }: { residentId: string }) => {
@@ -83,11 +153,29 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
 
 export const columns: ColumnDef<Resident, unknown>[] = [
   {
-    accessorKey: "details",
+    id: "name",
+    accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim(),
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm"> Name </div>
       );
+    },
+    enableSorting: false,
+    filterFn: (row, columnId, value) => {
+      const resident = row.original;
+      if (!value || typeof value !== 'string') return true;
+
+      const searchTerm = value.toLowerCase().trim();
+      if (!searchTerm) return true;
+
+      const firstName = (resident.firstName || '').toLowerCase();
+      const lastName = (resident.lastName || '').toLowerCase();
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      // Search in first name, last name, and full name
+      return firstName.includes(searchTerm) ||
+             lastName.includes(searchTerm) ||
+             fullName.includes(searchTerm);
     },
     cell: ({ row }) => {
       const resident = row.original;
@@ -117,8 +205,29 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     accessorKey: "roomNumber",
     header: () => {
       return (
-        <div className="text-left text-muted-foreground text-sm"> Room No </div>
+        <div className="text-left text-muted-foreground text-sm">Room No</div>
       );
+    },
+    enableSorting: true,
+    sortingFn: (rowA, rowB) => {
+      const a = rowA.original.roomNumber;
+      const b = rowB.original.roomNumber;
+
+      // Handle null/undefined values
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+
+      // Try to parse as numbers for numeric sorting
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+
+      // Fall back to string sorting
+      return a.localeCompare(b);
     },
     cell: ({ row }) => {
       return (
@@ -137,6 +246,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         </div>
       );
     },
+    enableSorting: false,
     cell: ({ row }) => {
       const conditions = row.original.healthConditions;
       console.log(conditions);
@@ -199,6 +309,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         <div className="text-left text-muted-foreground text-sm"> Risks </div>
       );
     },
+    enableSorting: false,
     cell: ({ row }) => {
       const risks = row.original.risks as { risk: string; level?: string }[];
       if (!risks || risks.length === 0) {
@@ -253,6 +364,19 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     }
   },
   {
+    accessorKey: "allergies",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Allergies</div>
+      );
+    },
+    enableSorting: false,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <AllergiesCell residentId={resident._id} />;
+    }
+  },
+  {
     accessorKey: "dependencies",
     header: () => {
       return (
@@ -261,6 +385,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         </div>
       );
     },
+    enableSorting: false,
     cell: ({ row }) => {
       const deps = row.original.dependencies;
 
@@ -269,7 +394,9 @@ export const columns: ColumnDef<Resident, unknown>[] = [
       }
 
       if (Array.isArray(deps)) {
-        const depsList = deps as string[];
+        const depsList = (deps as string[]).filter(dep =>
+          dep && dep.toLowerCase().trim() !== "independent"
+        );
 
         if (depsList.length === 0) {
           return <Badge variant="outline">No dependencies</Badge>;
@@ -278,14 +405,14 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         return (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="table">
+              <Badge variant="table" className="bg-red-50 text-red-700 border-red-300">
                 <p className="flex items-center gap-2">
                   {depsList.length}{" "}
                   {depsList.length > 1 ? "dependencies" : "dependency"}
                 </p>
               </Badge>
             </TooltipTrigger>
-            <TooltipContent className="flex flex-col gap-2 bg-white border">
+            <TooltipContent className="flex flex-col gap-2 bg-red-50 border-red-300">
               {depsList.map((dep, index: number) => (
                 <div
                   key={index}
@@ -306,7 +433,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         };
 
         const activeDeps = Object.entries(depObj).filter(
-          ([, value]) => value && value !== "Independent"
+          ([, value]) => value && value.toLowerCase().trim() !== "independent"
         );
 
         if (activeDeps.length === 0) {
@@ -316,14 +443,14 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         return (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="table" className="text-primary">
+              <Badge variant="table" className="bg-red-50 text-red-700 border-red-300">
                 <p className="flex items-center gap-2">
                   {activeDeps.length}{" "}
                   {activeDeps.length > 1 ? "dependencies" : "dependency"}
                 </p>
               </Badge>
             </TooltipTrigger>
-            <TooltipContent className="flex flex-col gap-2 bg-white border">
+            <TooltipContent className="flex flex-col gap-2 bg-red-50 border-red-300">
               {activeDeps.map(([category, level], index: number) => (
                 <div
                   key={index}
@@ -352,6 +479,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
         </div>
       );
     },
+    enableSorting: false,
     cell: ({ row }) => {
       const resident = row.original;
       return <NextMedicationCell residentId={resident._id} />;

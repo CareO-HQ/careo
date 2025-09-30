@@ -4,9 +4,11 @@ import * as React from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
+  SortingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
 
@@ -47,19 +49,40 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
+  const [sorting, setSorting] = React.useState<SortingState>([
+    {
+      id: "roomNumber",
+      desc: false
+    }
+  ]);
   const [unitFilter] = React.useState<string>("all");
+  const [searchValue, setSearchValue] = React.useState<string>("");
 
 
   const table = useReactTable({
     data,
     columns,
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    enableSortingRemoval: false,
+    enableMultiSort: false,
     state: {
-      columnFilters
+      columnFilters,
+      sorting
     }
   });
+
+  // Debounced search effect
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      table.getColumn("name")?.setFilterValue(searchValue);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchValue, table]);
 
   React.useEffect(() => {
     if (unitFilter === "all") {
@@ -78,18 +101,14 @@ export function DataTable<TData, TValue>({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder="Search residents..."
-              value={
-                (table.getColumn("details")?.getFilterValue() as string) ?? ""
-              }
-              onChange={(event) =>
-                table.getColumn("details")?.setFilterValue(event.target.value)
-              }
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
               className="pl-10 max-w-sm"
             />
-            {(table.getColumn("details")?.getFilterValue() as string) && (
+            {searchValue && (
               <Button
                 variant="ghost"
-                onClick={() => table.getColumn("details")?.setFilterValue("")}
+                onClick={() => setSearchValue("")}
                 className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
               >
                 <X className="h-3 w-3" />

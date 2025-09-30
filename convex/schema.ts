@@ -2005,5 +2005,56 @@ export default defineSchema({
     .index("byResident", ["residentId"])
     .index("byResidentAndType", ["residentId", "vitalType"])
     .index("byDate", ["recordDate"])
-    .index("by_created_at", ["createdAt"])
+    .index("by_created_at", ["createdAt"]),
+
+  // Multidisciplinary Care Team Members
+  multidisciplinaryCareTeam: defineTable({
+    residentId: v.id("residents"),
+    name: v.string(),
+    designation: v.string(), // Job title/role
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+    specialty: v.string(), // Speciality / Department
+    organisation: v.optional(v.string()), // Organisation/trust
+    email: v.optional(v.string()),
+    isActive: v.optional(v.boolean()), // For soft deletion
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResident", ["residentId"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTeam", ["teamId"])
+    .index("bySpecialty", ["specialty"])
+    .index("byCreatedBy", ["createdBy"])
+    .index("byActiveStatus", ["isActive"]),
+
+  // Multidisciplinary Notes
+  multidisciplinaryNotes: defineTable({
+    residentId: v.id("residents"),
+    teamMemberId: v.union(v.id("multidisciplinaryCareTeam"), v.string()), // Reference to team member or GP/Care Manager string ID
+    teamMemberName: v.string(), // Store name for easier display
+    reasonForVisit: v.string(),
+    outcome: v.string(),
+    relativeInformed: v.union(v.literal("yes"), v.literal("no")),
+    relativeInformedDetails: v.optional(v.string()), // Who was informed and how
+    signature: v.string(),
+    noteDate: v.string(), // Date of the note
+    noteTime: v.string(), // Time of the note
+    organizationId: v.string(),
+    teamId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResident", ["residentId"])
+    .index("byTeamMember", ["teamMemberId"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTeam", ["teamId"])
+    .index("byCreatedBy", ["createdBy"])
+    .index("byNoteDate", ["noteDate"]),
 });

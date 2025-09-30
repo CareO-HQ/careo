@@ -451,8 +451,9 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
             </div>
             <div className="flex flex-col space-y-3">
               <Button
-                className="bg-green-600 hover:bg-green-700 text-white w-full"
+                variant="outline"
                 onClick={() => setIsDialogOpen(true)}
+                className="w-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Diet
@@ -496,7 +497,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                className="bg-green-600 hover:bg-green-700 text-white"
+                variant="outline"
                 onClick={() => setIsDialogOpen(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -666,7 +667,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              className="h-16 text-lg bg-orange-300 hover:bg-orange-400 text-white"
+              variant="outline"
+              className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
               onClick={() => {
                 setEntryType("food");
                 logForm.setValue("section", getCurrentSection());
@@ -680,7 +682,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
             </Button>
 
             <Button
-              className="h-16 text-lg bg-blue-300 hover:bg-blue-400 text-white"
+              variant="outline"
+              className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
               onClick={() => {
                 setEntryType("fluid");
                 logForm.setValue("section", getCurrentSection());
@@ -925,139 +928,58 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
-      {/* Today's Summary Card */}
-      <Card>
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
+      {/* Today's Summary */}
+      <Card className="border-0">
+        <CardHeader className="">
+          <CardTitle className="flex items-center space-x-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Today&apos;s Summary</span>
             </div>
-            <Badge variant="outline" className="self-start">
-              {new Date().toLocaleDateString()}
-            </Badge>
-          </CardTitle>
-
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
-            <Clock className="w-5 h-5 text-gray-600" />
-            <span>Today&apos;s Summary</span>
-            <Badge variant="outline" className="ml-auto">
-              {getCurrentDate()}
-            </Badge>
+            <span className="text-gray-900">Today&apos;s Summary</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-   
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Food Entries */}
-            <div className={`text-center p-4 rounded-lg border ${
-              (logSummary?.foodEntries ?? 0) < 3 
-                ? 'bg-red-50 border-red-200' 
-                : 'bg-green-50 border-green-200'
-            }`}>
-              <div className="flex items-center justify-center mb-2">
-                <Utensils className={`w-5 h-5 ${
-                  (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-500' : 'text-green-500'
-                }`} />
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 p-4 border border-orange-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-orange-600 mb-1">
+                  {logSummary?.foodEntries ?? 0}
+                </div>
+                <p className="text-sm font-medium text-orange-700">Food Entries</p>
               </div>
-              <div className={`text-2xl font-bold ${
-                (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-600' : 'text-green-600'
-              }`}>
-                {logSummary?.foodEntries ?? 0}
-              </div>
-              <p className={`text-sm ${
-                (logSummary?.foodEntries ?? 0) < 3 ? 'text-red-700' : 'text-green-700'
-              }`}>
-                Food entries
-              </p>
-              <div className="mt-2 text-xs text-gray-500">
-                Goal: 3+ entries
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <Utensils className="w-16 h-16 text-orange-600" />
               </div>
             </div>
 
-            {/* Fluid Intake */}
-            <div className={`text-center p-4 rounded-lg border ${
-              (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
-                ? 'bg-red-50 border-red-200' 
-                : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
-                ? 'bg-yellow-50 border-yellow-200'
-                : 'bg-green-50 border-green-200'
-            }`}>
-              <div className="flex items-center justify-center mb-2">
-                <Droplets className={`w-5 h-5 ${
-                  (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
-                    ? 'text-red-500' 
-                    : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
-                    ? 'text-yellow-500'
-                    : 'text-blue-500'
-                }`} />
-              </div>
-              <div className={`text-2xl font-bold ${
-                (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
-                  ? 'text-red-600' 
-                  : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
-                  ? 'text-yellow-600'
-                  : 'text-blue-600'
-              }`}>
-                {logSummary?.totalFluidIntakeMl ?? 0}ml
-              </div>
-              <p className={`text-sm ${
-                (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
-                  ? 'text-red-700' 
-                  : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
-                  ? 'text-yellow-700'
-                  : 'text-blue-700'
-              }`}>
-                Fluid intake
-              </p>
-              <div className="mt-2">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      (logSummary?.totalFluidIntakeMl ?? 0) < 1500 
-                        ? 'bg-red-500' 
-                        : (logSummary?.totalFluidIntakeMl ?? 0) < 2000
-                        ? 'bg-yellow-500'
-                        : 'bg-blue-500'
-                    }`}
-                    style={{ 
-                      width: `${Math.min(100, ((logSummary?.totalFluidIntakeMl ?? 0) / 2000) * 100)}%` 
-                    }}
-                  />
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-4 border border-blue-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-blue-600 mb-1">
+                  {logSummary?.totalFluidIntakeMl ?? 0}ml
                 </div>
-                <div className="mt-1 text-xs text-gray-500">
-                  Goal: 1500-2000ml
-                </div>
+                <p className="text-sm font-medium text-blue-700">Fluid Intake</p>
+              </div>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <Droplets className="w-16 h-16 text-blue-600" />
               </div>
             </div>
 
-            {/* Last Recorded */}
-            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-center mb-2">
-                <Clock className="w-5 h-5 text-gray-500" />
-              </div>
-              <div className="text-2xl font-bold text-gray-600">
-                {logSummary?.lastRecorded
-                  ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })
-                  : "--:--"
-                }
-              </div>
-              <p className="text-sm text-gray-700">Last recorded</p>
-              {logSummary?.lastRecorded && (
-                <div className="mt-2 text-xs text-gray-500">
-                  {(() => {
-                    const timeDiff = Date.now() - logSummary.lastRecorded;
-                    const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
-                    if (hoursAgo === 0) return "Less than 1 hour ago";
-                    return `${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
-                  })()}
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 p-4 border border-gray-200">
+              <div className="relative z-10">
+                <div className="text-3xl font-bold text-gray-600 mb-1">
+                  {logSummary?.lastRecorded
+                    ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                    : "--:--"
+                  }
                 </div>
-              )}
+                <p className="text-sm font-medium text-gray-700">Last Recorded</p>
+              </div>
+              <div className="absolute -right-2 -bottom-2 opacity-10">
+                <Clock className="w-16 h-16 text-gray-600" />
+              </div>
             </div>
           </div>
         </CardContent>
