@@ -56,6 +56,7 @@ export default function CareFilePage() {
                   index={index}
                   key={file.key}
                   folderName={file.value}
+                  folderKey={file.key}
                   carePlan={file.carePlan}
                   description={file.description}
                   forms={file.forms}

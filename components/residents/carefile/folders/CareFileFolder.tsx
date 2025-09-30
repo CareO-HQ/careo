@@ -41,10 +41,14 @@ import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
 import AdmissionDialog from "../dialogs/AdmissionDialog";
 import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
 import DnacprDialog from "../dialogs/DnarcpDialog";
+import PeepDialog from "../dialogs/PeepDialog";
+import DependencyDialog from "../dialogs/DependencyDialog";
+import TimlDialog from "../dialogs/TimlDialog";
 
 interface CareFileFolderProps {
   index: number;
   folderName: string;
+  folderKey: string;
   carePlan: boolean;
   description: string;
   forms:
@@ -61,6 +65,7 @@ interface CareFileFolderProps {
 export default function CareFileFolder({
   index,
   folderName,
+  folderKey,
   carePlan,
   description,
   forms,
@@ -172,18 +177,29 @@ export default function CareFileFolder({
     folderFormKeys.includes("dnacpr") && residentId ? { residentId } : "skip"
   );
 
+  const allPeepForms = useQuery(
+    api.careFiles.peep.getPeepsByResident,
+    folderFormKeys.includes("peep") && residentId ? { residentId } : "skip"
+  );
+
+  const allDependencyAssessmentForms = useQuery(
+    api.careFiles.dependency.getDependencyAssessmentsByResident,
+    folderFormKeys.includes("dependency-assessment") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   // Debug the query condition step by step
   const hasCarePlanProp = carePlan;
   const hasResidentId = !!residentId;
   const queryCondition = hasCarePlanProp && hasResidentId;
-  const queryArgs = queryCondition ? { residentId } : "skip";
 
   const allCarePlanForms = useQuery(
-    api.careFiles.carePlan.getCarePlanAssessmentsByResident,
-    queryArgs
+    api.careFiles.carePlan.getCarePlanAssessmentsByResidentAndFolder,
+    queryCondition ? { residentId, folderKey } : "skip"
   );
 
-  // Helper function to get all PDFs from all form submissions
+  // Helper function to get all PDFs from all form submissions for this folder only
   const getAllPdfFiles = useMemo(() => {
     const pdfFiles: Array<{
       formKey: string;
@@ -194,8 +210,14 @@ export default function CareFileFolder({
       isLatest: boolean;
     }> = [];
 
+    // Only process forms that belong to this folder
+    const formKeysInThisFolder = folderFormKeys;
+
     // Process Pre-admission forms
-    if (allPreAdmissionForms) {
+    if (
+      allPreAdmissionForms &&
+      formKeysInThisFolder.includes("preAdmission-form")
+    ) {
       const sortedForms = [...allPreAdmissionForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -211,7 +233,10 @@ export default function CareFileFolder({
     }
 
     // Process Infection Prevention forms
-    if (allInfectionPreventionForms) {
+    if (
+      allInfectionPreventionForms &&
+      formKeysInThisFolder.includes("infection-prevention")
+    ) {
       const sortedForms = [...allInfectionPreventionForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -227,7 +252,10 @@ export default function CareFileFolder({
     }
 
     // Process Bladder/Bowel forms
-    if (allBladderBowelForms) {
+    if (
+      allBladderBowelForms &&
+      formKeysInThisFolder.includes("blader-bowel-form")
+    ) {
       const sortedForms = [...allBladderBowelForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -243,7 +271,10 @@ export default function CareFileFolder({
     }
 
     // Process Moving & Handling forms
-    if (allMovingHandlingForms) {
+    if (
+      allMovingHandlingForms &&
+      formKeysInThisFolder.includes("moving-handling-form")
+    ) {
       const sortedForms = [...allMovingHandlingForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -259,7 +290,10 @@ export default function CareFileFolder({
     }
 
     // Process Long Term Falls forms
-    if (allLongTermFallsForms) {
+    if (
+      allLongTermFallsForms &&
+      formKeysInThisFolder.includes("long-term-fall-risk-form")
+    ) {
       pdfFiles.push({
         formKey: "long-term-fall-risk-form",
         formId: allLongTermFallsForms._id,
@@ -270,7 +304,7 @@ export default function CareFileFolder({
     }
 
     // Process Admission forms
-    if (allAdmissionForms) {
+    if (allAdmissionForms && formKeysInThisFolder.includes("admission-form")) {
       const sortedForms = [...allAdmissionForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -286,7 +320,10 @@ export default function CareFileFolder({
     }
 
     // Process Photography Consent forms
-    if (allPhotographyConsentForms) {
+    if (
+      allPhotographyConsentForms &&
+      formKeysInThisFolder.includes("photography-consent")
+    ) {
       const sortedForms = [...allPhotographyConsentForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -302,7 +339,7 @@ export default function CareFileFolder({
     }
 
     // Process DNACPR forms
-    if (allDnacprForms) {
+    if (allDnacprForms && formKeysInThisFolder.includes("dnacpr")) {
       const sortedForms = [...allDnacprForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
@@ -311,6 +348,41 @@ export default function CareFileFolder({
           formKey: "dnacpr",
           formId: form._id,
           name: "DNACPR Form",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process PEEP forms
+    if (allPeepForms && formKeysInThisFolder.includes("peep")) {
+      const sortedForms = [...allPeepForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "peep",
+          formId: form._id,
+          name: "Personal Emergency Evacuation Plan",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
+    // Process Dependency Assessment forms
+    if (
+      allDependencyAssessmentForms &&
+      formKeysInThisFolder.includes("dependency-assessment")
+    ) {
+      const sortedForms = [...allDependencyAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "dependency-assessment",
+          formId: form._id,
+          name: "Dependency Assessment",
           completedAt: form._creationTime,
           isLatest: index === 0
         });
@@ -348,7 +420,10 @@ export default function CareFileFolder({
     allLongTermFallsForms,
     allAdmissionForms,
     allPhotographyConsentForms,
-    allDnacprForms
+    allDnacprForms,
+    allPeepForms,
+    allDependencyAssessmentForms,
+    folderFormKeys
   ]);
 
   // Component to handle individual PDF file with URL fetching
@@ -384,7 +459,11 @@ export default function CareFileFolder({
                       ? api.careFiles.photographyConsent.getPDFUrl
                       : file.formKey === "dnacpr"
                         ? api.careFiles.dnacpr.getPDFUrl
-                        : ("skip" as any),
+                        : file.formKey === "peep"
+                          ? api.careFiles.peep.getPDFUrl
+                          : file.formKey === "dependency-assessment"
+                            ? api.careFiles.dependency.getPDFUrl
+                            : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -408,7 +487,14 @@ export default function CareFileFolder({
                       ? { consentId: file.formId as Id<"photographyConsents"> }
                       : file.formKey === "dnacpr"
                         ? { dnacprId: file.formId as Id<"dnacprs"> }
-                        : "skip"
+                        : file.formKey === "peep"
+                          ? { peepId: file.formId as Id<"peeps"> }
+                          : file.formKey === "dependency-assessment"
+                            ? {
+                                assessmentId:
+                                  file.formId as Id<"dependencyAssessments">
+                              }
+                            : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -665,6 +751,10 @@ export default function CareFileFolder({
               return `photography-consent-${baseName}.pdf`;
             case "dnacpr":
               return `dnacpr-${baseName}.pdf`;
+            case "peep":
+              return `peep-${baseName}.pdf`;
+            case "dependency-assessment":
+              return `dependency-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -810,7 +900,9 @@ export default function CareFileFolder({
       longTermFallsRiskAssessment: "long-term-fall-risk-form",
       admissionAssesment: "admission-form",
       photographyConsent: "photography-consent",
-      dnacpr: "dnacpr"
+      dnacpr: "dnacpr",
+      peep: "peep",
+      dependencyAssessment: "dependency-assessment"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -828,7 +920,9 @@ export default function CareFileFolder({
       carePlanAssessment: "Care Plan Assessment",
       admissionAssesment: "Admission Assessment",
       photographyConsent: "Photography Consent Form",
-      dnacpr: "DNACPR Form"
+      dnacpr: "DNACPR Form",
+      peep: "Personal Emergency Evacuation Plan",
+      dependencyAssessment: "Dependency Assessment"
     };
     return mapping[formType] || formType;
   };
@@ -952,6 +1046,7 @@ export default function CareFileFolder({
             organizationId={activeOrg?.id ?? ""}
             userId={currentUser?.user.id ?? ""}
             userName={currentUser?.user.name ?? ""}
+            folderKey={folderKey}
             initialData={editData}
             isEditMode={isReviewMode}
             onClose={() => {
@@ -993,6 +1088,57 @@ export default function CareFileFolder({
             }}
           />
         );
+      case "peep":
+        return (
+          <PeepDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
+      case "dependency-assessment":
+        return (
+          <DependencyDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
+      case "timl":
+        return (
+          <TimlDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
       // case 'discharge':
       //   return <DischargeDialog />;
       default:
@@ -1085,6 +1231,7 @@ export default function CareFileFolder({
                       userId={currentUser?.user.id ?? ""}
                       userName={currentUser?.user.name ?? ""}
                       resident={resident}
+                      folderKey={folderKey}
                     />
                   </div>
                   {/* LIST OF CARE PLANS */}
