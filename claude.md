@@ -1,4 +1,4 @@
-# CareO Home Management Software
+# iCare Home Management Software
 
 ## Project Overview
 
@@ -166,7 +166,9 @@ npm run start            # Start production server
 # Code Quality
 npm run lint             # Run ESLint
 npm run typecheck        # Run TypeScript compiler (configure this)
-```## UI Component Patterns
+```
+
+## UI Component Patterns
 
 ### Date Picker Pattern
 When implementing date pickers with Calendar component, always use this pattern for proper functionality:
@@ -224,6 +226,7 @@ When implementing date pickers with Calendar component, always use this pattern 
 - **Use `field.value || undefined`** for proper selection state
 - **Include `defaultMonth={new Date()}`** to show current month
 - **Use explicit date handling** in onSelect callback
+
 ## Critical Issues to Address
 
 1. **Security**: The middleware.ts contains a security warning - implement proper authentication checks
