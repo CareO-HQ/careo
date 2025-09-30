@@ -2005,7 +2005,7 @@ export default defineSchema({
     .index("byResident", ["residentId"])
     .index("byResidentAndType", ["residentId", "vitalType"])
     .index("byDate", ["recordDate"])
-    .index("by_created_at", ["createdAt"])
+    .index("by_created_at", ["createdAt"]),
 
   // Multidisciplinary Care Team Members
   multidisciplinaryCareTeam: defineTable({
