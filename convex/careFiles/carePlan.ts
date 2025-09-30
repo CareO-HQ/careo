@@ -14,6 +14,9 @@ export const submitCarePlanAssessment = mutation({
     residentId: v.id("residents"),
     userId: v.string(),
 
+    // Folder association
+    folderKey: v.optional(v.string()),
+
     // Basic information
     nameOfCarePlan: v.string(),
     residentName: v.string(),
@@ -54,6 +57,7 @@ export const submitCarePlanAssessment = mutation({
     const carePlanId = await ctx.db.insert("carePlanAssessments", {
       residentId: args.residentId,
       userId: args.userId,
+      folderKey: args.folderKey,
       nameOfCarePlan: args.nameOfCarePlan,
       residentName: args.residentName,
       dob: args.dob,
@@ -98,6 +102,24 @@ export const getCarePlanAssessmentsByResident = query({
   }
 });
 
+export const getCarePlanAssessmentsByResidentAndFolder = query({
+  args: {
+    residentId: v.id("residents"),
+    folderKey: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const assessments = await ctx.db
+      .query("carePlanAssessments")
+      .withIndex("by_resident_and_folder", (q) =>
+        q.eq("residentId", args.residentId).eq("folderKey", args.folderKey)
+      )
+      .collect();
+
+    return assessments;
+  }
+});
+
 export const getCarePlanAssessment = query({
   args: {
     assessmentId: v.id("carePlanAssessments")
@@ -111,6 +133,9 @@ export const getCarePlanAssessment = query({
 export const updateCarePlanAssessment = mutation({
   args: {
     assessmentId: v.id("carePlanAssessments"),
+
+    // Folder association
+    folderKey: v.optional(v.string()),
 
     // Basic information
     nameOfCarePlan: v.string(),

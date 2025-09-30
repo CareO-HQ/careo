@@ -85,7 +85,14 @@ export const config = {
       value: "PEEP",
       description: "PEEP Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "peep",
+          value: "PEEP Form",
+          description: "PEEP Form"
+        }
+      ]
     },
     {
       type: "folder",
@@ -96,9 +103,9 @@ export const config = {
       forms: [
         {
           type: "form",
-          key: "blader-bowel-form",
-          value: "Blader & Bowel continence Assessment",
-          description: "Blader & Bowel continence Assessment"
+          key: "dependency-assessment",
+          value: "Dependency Assessment",
+          description: "Dependency Assessment"
         }
       ]
     },
@@ -116,7 +123,14 @@ export const config = {
       value: "This is my life",
       description: "This is my life",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "timl",
+          value: "This Is My Life Form",
+          description: "This Is My Life Form"
+        }
+      ]
     },
     {
       type: "folder",

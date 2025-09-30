@@ -7,7 +7,9 @@ export type CareFileFormKey =
   | "long-term-fall-risk-form"
   | "care-plan-form"
   | "photography-consent"
-  | "dnacpr";
+  | "dnacpr"
+  | "peep"
+  | "dependency-assessment";
 
 export type CareFileFormStatus =
   | "not-started"

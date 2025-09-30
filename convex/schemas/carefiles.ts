@@ -298,49 +298,6 @@ export const photographyConsents = defineTable({
   pdfGeneratedAt: v.optional(v.number())
 });
 
-export const personalEmergencyEvaluationPlans = defineTable({
-  // Metadata
-  residentId: v.id("residents"),
-  teamId: v.string(),
-  organizationId: v.string(),
-  userId: v.string(),
-
-  // Resident information
-  residentName: v.string(),
-  bedroomNumber: v.string(),
-  dateOfBirth: v.number(),
-  completedDate: v.number(),
-
-  // Questions
-  fireEvacuation: v.boolean(),
-  numStaffRequiredToHelp: v.number(),
-  equipmentRequired: v.optional(v.string()),
-  communicationNeeds: v.optional(v.string()),
-  oxigenInUse: v.boolean(),
-  oxigenComments: v.optional(v.string()),
-  residentSmokes: v.boolean(),
-  residentSmokesComments: v.optional(v.string()),
-  furnitureFireRetardant: v.boolean(),
-  furnitureFireRetardantComments: v.optional(v.string()),
-
-  // Completed by
-  staffName: v.string(),
-  staffSignature: v.string(),
-  date: v.number(),
-
-  // Metadata
-  status: v.optional(
-    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
-  ),
-  submittedAt: v.optional(v.number()),
-  createdBy: v.string(),
-  lastModifiedAt: v.optional(v.number()),
-  lastModifiedBy: v.optional(v.string()),
-  pdfUrl: v.optional(v.string()),
-  pdfFileId: v.optional(v.id("_storage")),
-  pdfGeneratedAt: v.optional(v.number())
-});
-
 export const dnacprs = defineTable({
   // Metadata
   residentId: v.id("residents"),
@@ -399,5 +356,161 @@ export const peeps = defineTable({
   residentId: v.id("residents"),
   teamId: v.string(),
   organizationId: v.string(),
-  userId: v.string()
+  userId: v.string(),
+
+  // Resident information
+  residentName: v.string(),
+  residentDateOfBirth: v.number(),
+  bedroomNumber: v.string(),
+
+  // Questions
+  understands: v.boolean(),
+  staffNeeded: v.number(),
+  equipmentNeeded: v.optional(v.string()),
+  communicationNeeds: v.optional(v.string()),
+
+  // Steps
+  steps: v.optional(
+    v.array(
+      v.object({
+        name: v.string(),
+        description: v.string()
+      })
+    )
+  ),
+
+  // Questions
+  oxigenInUse: v.boolean(),
+  oxigenComments: v.optional(v.string()),
+  residentSmokes: v.boolean(),
+  residentSmokesComments: v.optional(v.string()),
+  furnitureFireRetardant: v.boolean(),
+  furnitureFireRetardantComments: v.optional(v.string()),
+
+  // Completed by
+  completedBy: v.string(),
+  completedBySignature: v.string(),
+  date: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
 });
+
+export const dependencyAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  dependencyLevel: v.union(
+    v.literal("A"),
+    v.literal("B"),
+    v.literal("C"),
+    v.literal("D")
+  ),
+
+  // Completed by
+  completedBy: v.string(),
+  completedBySignature: v.string(),
+  date: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);
+
+export const timlAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // agree on being completed
+  agree: v.boolean(),
+
+  // resident details
+  firstName: v.string(),
+  lastName: v.string(),
+  dateOfBirth: v.number(),
+  desiredName: v.string(),
+
+  // Childhood
+  born: v.string(),
+  parentsSiblingsNames: v.string(),
+  familyMembersOccupation: v.string(),
+  whereLived: v.string(),
+  schoolAttended: v.string(),
+  favouriteSubject: v.string(),
+  pets: v.boolean(),
+  petsNames: v.optional(v.string()),
+
+  // Adolescence
+  whenLeavingSchool: v.string(),
+  whatWork: v.string(),
+  whereWorked: v.string(),
+  specialTraining: v.string(),
+  specialMemoriesWork: v.string(),
+  nationalService: v.string(),
+
+  // Adulthood
+  partner: v.string(),
+  partnerName: v.string(),
+  whereMet: v.string(),
+  whereWhenMarried: v.string(),
+  whatDidYouWear: v.string(),
+  flowers: v.string(),
+  honeyMoon: v.string(),
+  whereLivedAdult: v.string(),
+  childrenAndNames: v.string(),
+  grandchildrenAndNames: v.string(),
+  specialFriendsAndNames: v.string(),
+  specialFriendsMetAndStillTouch: v.string(),
+
+  // Retirement
+  whenRetired: v.string(),
+  lookingForwardTo: v.string(),
+  hobbiesInterests: v.string(),
+  biggestChangesRetirement: v.string(),
+
+  // Likes and dislikes
+  whatEnjoyNow: v.string(),
+  whatLikeRead: v.string(),
+
+  // Completed by
+  completedBy: v.string(),
+  completedByJobRole: v.string(),
+  completedBySignature: v.string(),
+  date: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);

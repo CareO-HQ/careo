@@ -6,7 +6,10 @@ import {
   movingHandlingAssessments,
   longTermFallsRiskAssessments,
   photographyConsents,
-  dnacprs
+  dnacprs,
+  peeps,
+  dependencyAssessments,
+  timlAssessments
 } from "./schemas/carefiles";
 
 const TaskStatus = v.union(
@@ -1479,6 +1482,19 @@ export default defineSchema({
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"]),
 
+  peeps: peeps
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  dependencyAssessments: dependencyAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  timlAssessments: timlAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
   // Care file PDFs - for custom uploaded PDFs in specific folders
 
   careFilePdfs: defineTable({
@@ -1522,6 +1538,9 @@ export default defineSchema({
     residentId: v.id("residents"),
 
     userId: v.string(),
+
+    // Folder association
+    folderKey: v.optional(v.string()),
 
     // Basic information
 
@@ -1593,7 +1612,9 @@ export default defineSchema({
 
     .index("by_carePlanNumber", ["carePlanNumber"])
 
-    .index("by_date", ["date"]),
+    .index("by_date", ["date"])
+
+    .index("by_resident_and_folder", ["residentId", "folderKey"]),
 
   // Hospital Passport records
   hospitalPassports: defineTable({
@@ -1607,7 +1628,14 @@ export default defineSchema({
       nhsNumber: v.string(),
       religion: v.optional(v.string()),
       weightOnTransfer: v.optional(v.string()),
-      careType: v.optional(v.union(v.literal("nursing"), v.literal("residential"), v.literal("ld"), v.literal("mental_health"))),
+      careType: v.optional(
+        v.union(
+          v.literal("nursing"),
+          v.literal("residential"),
+          v.literal("ld"),
+          v.literal("mental_health")
+        )
+      ),
       transferDateTime: v.string(),
       accompaniedBy: v.optional(v.string()),
       englishFirstLanguage: v.union(v.literal("yes"), v.literal("no")),
@@ -1626,7 +1654,7 @@ export default defineSchema({
       gpPhone: v.string(),
       careManagerName: v.optional(v.string()),
       careManagerAddress: v.optional(v.string()),
-      careManagerPhone: v.optional(v.string()),
+      careManagerPhone: v.optional(v.string())
     }),
 
     // Medical & Care Needs
@@ -1640,7 +1668,9 @@ export default defineSchema({
       // Medical History
       pastMedicalHistory: v.string(),
       knownAllergies: v.optional(v.string()),
-      historyOfConfusion: v.optional(v.union(v.literal("yes"), v.literal("no"), v.literal("sometimes"))),
+      historyOfConfusion: v.optional(
+        v.union(v.literal("yes"), v.literal("no"), v.literal("sometimes"))
+      ),
       learningDisabilityMentalHealth: v.optional(v.string()),
 
       // Communication & Aids
@@ -1650,33 +1680,61 @@ export default defineSchema({
       otherAids: v.optional(v.string()),
 
       // Mobility
-      mobilityAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      mobilityAssistance: v.union(
+        v.literal("independent"),
+        v.literal("minimum"),
+        v.literal("full")
+      ),
       mobilityAids: v.optional(v.string()),
       historyOfFalls: v.boolean(),
       dateOfLastFall: v.optional(v.string()),
 
       // Toileting
-      toiletingAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
-      continenceStatus: v.optional(v.union(v.literal("continent"), v.literal("urine"), v.literal("faeces"), v.literal("both"), v.literal("na"))),
+      toiletingAssistance: v.union(
+        v.literal("independent"),
+        v.literal("minimum"),
+        v.literal("full")
+      ),
+      continenceStatus: v.optional(
+        v.union(
+          v.literal("continent"),
+          v.literal("urine"),
+          v.literal("faeces"),
+          v.literal("both"),
+          v.literal("na")
+        )
+      ),
 
       // Nutrition
-      nutritionalAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      nutritionalAssistance: v.union(
+        v.literal("independent"),
+        v.literal("minimum"),
+        v.literal("full")
+      ),
       dietType: v.optional(v.string()),
       swallowingDifficulties: v.boolean(),
       enteralNutrition: v.boolean(),
       mustScore: v.optional(v.string()),
 
       // Personal Care
-      personalHygieneAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      personalHygieneAssistance: v.union(
+        v.literal("independent"),
+        v.literal("minimum"),
+        v.literal("full")
+      ),
       topDentures: v.boolean(),
       bottomDentures: v.boolean(),
-      denturesAccompanying: v.boolean(),
+      denturesAccompanying: v.boolean()
     }),
 
     // Skin, Medication & Attachments
     skinMedicationAttachments: v.object({
       // Skin Care
-      skinIntegrityAssistance: v.union(v.literal("independent"), v.literal("minimum"), v.literal("full")),
+      skinIntegrityAssistance: v.union(
+        v.literal("independent"),
+        v.literal("minimum"),
+        v.literal("full")
+      ),
       bradenScore: v.optional(v.string()),
       skinStateOnTransfer: v.string(),
       currentSkinCareRegime: v.optional(v.string()),
@@ -1697,8 +1755,8 @@ export default defineSchema({
         dnacprForm: v.boolean(),
         enteralFeedingRegime: v.boolean(),
         other: v.boolean(),
-        otherSpecify: v.optional(v.string()),
-      }),
+        otherSpecify: v.optional(v.string())
+      })
     }),
 
     // Sign-off Section
@@ -1707,7 +1765,7 @@ export default defineSchema({
       printedName: v.string(),
       designation: v.string(),
       contactPhone: v.string(),
-      completedDate: v.string(),
+      completedDate: v.string()
     }),
 
     // Metadata
@@ -1717,7 +1775,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
     pdfFileId: v.optional(v.id("_storage")),
-    status: v.union(v.literal("draft"), v.literal("completed")),
+    status: v.union(v.literal("draft"), v.literal("completed"))
   })
     .index("by_resident", ["residentId"])
     .index("by_organization", ["organizationId"])
@@ -1734,26 +1792,30 @@ export default defineSchema({
     reason: v.string(),
     outcome: v.optional(v.string()),
     followUp: v.optional(v.string()),
-    filesChanged: v.optional(v.object({
-      carePlan: v.boolean(),
-      riskAssessment: v.boolean(),
-      other: v.optional(v.string()),
-    })),
-    medicationChanges: v.optional(v.object({
-      medicationsAdded: v.boolean(),
-      addedMedications: v.optional(v.string()),
-      medicationsRemoved: v.boolean(),
-      removedMedications: v.optional(v.string()),
-      medicationsModified: v.boolean(),
-      modifiedMedications: v.optional(v.string()),
-    })),
+    filesChanged: v.optional(
+      v.object({
+        carePlan: v.boolean(),
+        riskAssessment: v.boolean(),
+        other: v.optional(v.string())
+      })
+    ),
+    medicationChanges: v.optional(
+      v.object({
+        medicationsAdded: v.boolean(),
+        addedMedications: v.optional(v.string()),
+        medicationsRemoved: v.boolean(),
+        removedMedications: v.optional(v.string()),
+        medicationsModified: v.boolean(),
+        modifiedMedications: v.optional(v.string())
+      })
+    ),
 
     // Metadata
     organizationId: v.string(),
     teamId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_resident", ["residentId"])
     .index("by_organization", ["organizationId"])
