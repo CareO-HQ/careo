@@ -229,7 +229,11 @@ export const getTimlAssessmentsByResident = query({
       completedBySignature: v.string(),
       date: v.number(),
       status: v.optional(
-        v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+        v.union(
+          v.literal("draft"),
+          v.literal("submitted"),
+          v.literal("reviewed")
+        )
       ),
       submittedAt: v.optional(v.number()),
       createdBy: v.string(),
@@ -305,7 +309,11 @@ export const getTimlAssessmentById = query({
       completedBySignature: v.string(),
       date: v.number(),
       status: v.optional(
-        v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+        v.union(
+          v.literal("draft"),
+          v.literal("submitted"),
+          v.literal("reviewed")
+        )
       ),
       submittedAt: v.optional(v.number()),
       createdBy: v.string(),
