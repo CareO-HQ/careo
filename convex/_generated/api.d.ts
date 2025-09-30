@@ -30,6 +30,7 @@ import type * as emailHelpers from "../emailHelpers.js";
 import type * as emails from "../emails.js";
 import type * as files_image from "../files/image.js";
 import type * as foodFluidLogs from "../foodFluidLogs.js";
+import type * as handover from "../handover.js";
 import type * as healthMonitoring from "../healthMonitoring.js";
 import type * as hospitalPassports from "../hospitalPassports.js";
 import type * as hospitalTransferLogs from "../hospitalTransferLogs.js";
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   emails: typeof emails;
   "files/image": typeof files_image;
   foodFluidLogs: typeof foodFluidLogs;
+  handover: typeof handover;
   healthMonitoring: typeof healthMonitoring;
   hospitalPassports: typeof hospitalPassports;
   hospitalTransferLogs: typeof hospitalTransferLogs;
