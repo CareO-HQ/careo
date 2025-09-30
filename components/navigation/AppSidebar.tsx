@@ -3,11 +3,15 @@
 import {
   Calendar,
   ClipboardCheck,
+  ClipboardList,
+  FileText,
   Folder,
   Home,
-  Pill,
-  User2,
   MessageCircleQuestion,
+  MessageSquare,
+  Pill,
+  Settings,
+  User2,
 } from "lucide-react";
 
 import {
@@ -23,16 +27,11 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import {
-  FolderIcon,
-  MessageCircleQuestionMarkIcon,
-  PillIcon,
-  User2Icon
-} from "lucide-react";
 import Link from "next/link";
 import { TeamSwitcher } from "./TeamSwitcher";
-import { authClient } from "@/lib/auth-client";
 import HelpSupportDialog from "./HelpSupportDialog";
+import CreateResidentDialog from "@/components/residents/CreateResidentDialog";
+import { useState } from "react";
 
 // Menu items.
 const items = [
@@ -66,6 +65,7 @@ const items = [
 export function AppSidebar() {
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+  const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
 
   return (
     <Sidebar collapsible="icon">
@@ -83,7 +83,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/residents">
-                  <User2Icon />
+                  <User2 />
                   <span>Residents</span>
                 </Link>
               </SidebarMenuButton>
@@ -97,7 +97,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/medication">
-                  <PillIcon />
+                  <Pill />
                   <span>Medication</span>
                 </Link>
               </SidebarMenuButton>
@@ -107,7 +107,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/files">
-                  <FolderIcon />
+                  <Folder />
                   <span>Files</span>
                 </Link>
               </SidebarMenuButton>
@@ -123,7 +123,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/audit">
-                  <FileTextIcon />
+                  <FileText />
                   <span>Audit</span>
                 </Link>
               </SidebarMenuButton>
@@ -133,7 +133,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/handover">
-                  <ClipboardListIcon />
+                  <ClipboardList />
                   <span>Handover</span>
                 </Link>
               </SidebarMenuButton>
@@ -143,7 +143,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/general">
-                  <SettingsIcon />
+                  <Settings />
                   <span>General</span>
                 </Link>
               </SidebarMenuButton>
@@ -153,7 +153,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/rota">
-                  <CalendarIcon />
+                  <Calendar />
                   <span>Rota</span>
                 </Link>
               </SidebarMenuButton>
@@ -163,7 +163,7 @@ export function AppSidebar() {
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/communication">
-                  <MessageSquareIcon />
+                  <MessageSquare />
                   <span>Communication</span>
                 </Link>
               </SidebarMenuButton>

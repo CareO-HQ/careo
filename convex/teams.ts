@@ -14,6 +14,10 @@ export const getTeam = query({
         components.betterAuth.lib.getCurrentSession
       );
 
+      if (!session) {
+        return null;
+      }
+
       // Get the team using Better Auth
       const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "team",
