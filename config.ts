@@ -253,7 +253,14 @@ export const config = {
       value: "Resident valuables and personal property",
       description: "Resident valuables and personal property",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "resident-valuables-form",
+          value: "Resident valuables and personal property",
+          description: "Resident valuables and personal property"
+        }
+      ]
     },
     {
       type: "folder",

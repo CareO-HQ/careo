@@ -11,7 +11,8 @@ export type CareFileFormKey =
   | "peep"
   | "dependency-assessment"
   | "timl"
-  | "skin-integrity-form";
+  | "skin-integrity-form"
+  | "resident-valuables-form";
 
 export type CareFileFormStatus =
   | "not-started"

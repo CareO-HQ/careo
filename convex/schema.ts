@@ -10,7 +10,8 @@ import {
   peeps,
   dependencyAssessments,
   timlAssessments,
-  skinIntegrityAssessments
+  skinIntegrityAssessments,
+  residentValuablesAssessments
 } from "./schemas/carefiles";
 
 const TaskStatus = v.union(
@@ -1500,6 +1501,8 @@ export default defineSchema({
     .index("by_resident", ["residentId"])
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"]),
+
+  residentValuablesAssessments: residentValuablesAssessments,
 
   // Care file PDFs - for custom uploaded PDFs in specific folders
 

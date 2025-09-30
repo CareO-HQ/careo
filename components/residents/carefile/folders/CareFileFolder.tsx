@@ -45,6 +45,7 @@ import { FolderProgressIndicator } from "../FolderCompletionIndicator";
 import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
 import UploadFileModal from "./UploadFileModal";
 import SkinIntegrityDialog from "../dialogs/SkinIntegrityDialog";
+import ResidentValuablesDialog from "../dialogs/ResidentValuables";
 
 interface CareFileFolderProps {
   index: number;
@@ -201,6 +202,13 @@ export default function CareFileFolder({
       residentId &&
       activeOrg?.id
       ? { residentId, organizationId: activeOrg.id }
+      : "skip"
+  );
+
+  const allResidentValuablesForms = useQuery(
+    api.careFiles.residentValuables.getResidentValuablesByResidentId,
+    folderFormKeys.includes("resident-valuables-form") && residentId
+      ? { residentId }
       : "skip"
   );
 
@@ -439,6 +447,25 @@ export default function CareFileFolder({
       });
     }
 
+    // Process Resident Valuables forms
+    if (
+      allResidentValuablesForms &&
+      formKeysInThisFolder.includes("resident-valuables-form")
+    ) {
+      const sortedForms = [...allResidentValuablesForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "resident-valuables-form",
+          formId: form._id,
+          name: "Resident Valuables Assessment",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Process Care Plan forms - DON'T add to general files list
     // Care plans are shown in their own dedicated section
     // if (allCarePlanForms) {
@@ -475,6 +502,7 @@ export default function CareFileFolder({
     allDependencyAssessmentForms,
     allTimlAssessmentForms,
     allSkinIntegrityForms,
+    allResidentValuablesForms,
     folderFormKeys
   ]);
 
@@ -519,7 +547,9 @@ export default function CareFileFolder({
                               ? api.careFiles.timl.getPDFUrl
                               : file.formKey === "skin-integrity-form"
                                 ? api.careFiles.skinIntegrity.getPDFUrl
-                                : ("skip" as any),
+                                : file.formKey === "resident-valuables-form"
+                                  ? api.careFiles.residentValuables.getPDFUrl
+                                  : ("skip" as any),
       file.formKey === "preAdmission-form"
         ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
         : file.formKey === "infection-prevention"
@@ -561,7 +591,12 @@ export default function CareFileFolder({
                                       file.formId as Id<"skinIntegrityAssessments">,
                                     organizationId: activeOrg?.id ?? ""
                                   }
-                                : "skip"
+                                : file.formKey === "resident-valuables-form"
+                                  ? {
+                                      assessmentId:
+                                        file.formId as Id<"residentValuablesAssessments">
+                                    }
+                                  : "skip"
     );
 
     if (!pdfUrl) return null;
@@ -826,6 +861,8 @@ export default function CareFileFolder({
               return `timl-assessment-${baseName}.pdf`;
             case "skin-integrity-form":
               return `skin-integrity-assessment-${baseName}.pdf`;
+            case "resident-valuables-form":
+              return `resident-valuables-assessment-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -975,7 +1012,8 @@ export default function CareFileFolder({
       peep: "peep",
       dependencyAssessment: "dependency-assessment",
       timlAssessment: "timl",
-      skinIntegrityAssessment: "skin-integrity-form"
+      skinIntegrityAssessment: "skin-integrity-form",
+      residentValuablesAssessment: "resident-valuables-form"
     };
 
     setActiveDialogKey(dialogKeyMap[formType]);
@@ -997,7 +1035,8 @@ export default function CareFileFolder({
       peep: "Personal Emergency Evacuation Plan",
       dependencyAssessment: "Dependency Assessment",
       timlAssessment: "This Is My Life Assessment",
-      skinIntegrityAssessment: "Skin Integrity Assessment"
+      skinIntegrityAssessment: "Skin Integrity Assessment",
+      residentValuablesAssessment: "Resident Valuables Assessment"
     };
     return mapping[formType] || formType;
   };
@@ -1231,6 +1270,23 @@ export default function CareFileFolder({
           />
         );
 
+      case "resident-valuables-form":
+        return (
+          <ResidentValuablesDialog
+            resident={resident}
+            teamId={activeTeamId}
+            residentId={residentId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            onClose={() => {
+              setIsDialogOpen(false);
+              setReviewFormData(null);
+            }}
+          />
+        );
+
       // case 'discharge':
       //   return <DischargeDialog />;
       default:
@@ -1422,7 +1478,11 @@ export default function CareFileFolder({
                       data: allDependencyAssessmentForms
                     },
                     { key: "timl", data: allTimlAssessmentForms },
-                    { key: "skin-integrity-form", data: allSkinIntegrityForms }
+                    { key: "skin-integrity-form", data: allSkinIntegrityForms },
+                    {
+                      key: "resident-valuables-form",
+                      data: allResidentValuablesForms
+                    }
                   ];
 
                   const isLoadingAnyForms = formLoadingStates.some(

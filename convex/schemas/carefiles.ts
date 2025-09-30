@@ -552,3 +552,53 @@ export const skinIntegrityAssessments = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 });
+
+export const residentValuablesAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information
+  residentName: v.string(),
+  bedroomNumber: v.string(),
+  date: v.number(),
+  completedBy: v.string(),
+  witnessedBy: v.string(),
+
+  // Valuables
+  valuables: v.array(v.object({ value: v.string() })),
+
+  // Money
+  n50: v.optional(v.number()),
+  n20: v.optional(v.number()),
+  n10: v.optional(v.number()),
+  n5: v.optional(v.number()),
+  n2: v.optional(v.number()),
+  n1: v.optional(v.number()),
+  p50: v.optional(v.number()),
+  p20: v.optional(v.number()),
+  p10: v.optional(v.number()),
+  p5: v.optional(v.number()),
+  p2: v.optional(v.number()),
+  p1: v.optional(v.number()),
+  total: v.number(),
+
+  // Clothing
+  clothing: v.array(v.object({ value: v.string() })),
+
+  // Other
+  other: v.array(
+    v.object({
+      details: v.string(),
+      receivedBy: v.string(),
+      witnessedBy: v.string(),
+      date: v.number(),
+      time: v.string()
+    })
+  ),
+
+  // Metadata
+  pdfFileId: v.optional(v.id("_storage"))
+}).index("by_resident", ["residentId"]);
