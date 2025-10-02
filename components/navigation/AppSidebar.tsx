@@ -109,22 +109,22 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* Audit */}
+            {/* Home Audit */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/audit">
+                <Link href="/dashboard/home-audit">
                   <FileTextIcon />
-                  <span>Audit</span>
+                  <span>Home Audit</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* CareO Audit */}
+            {/* Resident Audit */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/careo-audit">
+                <Link href="/dashboard/resident-audit">
                   <ClipboardListIcon />
-                  <span>CareO Audit</span>
+                  <span>Resident Audit</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -1472,6 +1472,30 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_form_and_resident", ["formType", "residentId"]),
 
+  residentAuditItems: defineTable({
+    residentId: v.id("residents"),
+    itemName: v.string(),
+    status: v.union(
+      v.literal("n/a"),
+      v.literal("pending"),
+      v.literal("in-progress"),
+      v.literal("completed"),
+      v.literal("overdue"),
+      v.literal("not-applicable")
+    ),
+    auditorName: v.optional(v.string()),
+    lastAuditedDate: v.optional(v.string()),
+    dueDate: v.optional(v.string()),
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number())
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_resident_and_item", ["residentId", "itemName"]),
+
   photographyConsents: photographyConsents
     .index("by_resident", ["residentId"])
     .index("by_team", ["teamId"])

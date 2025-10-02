@@ -504,34 +504,6 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         </div>
       </div>
 
-      {/* AUDIT */}
-      <div className="mb-8">
-        <p className="font-medium text-lg mb-2">Audit</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Audit Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("audit")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-orange-50 rounded-lg">
-                    <ClipboardList className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Audit</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Care quality audits
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }
