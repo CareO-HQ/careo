@@ -109,26 +109,6 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* Home Audit */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/home-audit">
-                  <FileTextIcon />
-                  <span>Home Audit</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Resident Audit */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/resident-audit">
-                  <ClipboardListIcon />
-                  <span>Resident Audit</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
             {/* Handover */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
@@ -165,6 +145,32 @@ export function AppSidebar() {
                 <Link href="/dashboard/communication">
                   <MessageSquareIcon />
                   <span>Communication</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Audit Section */}
+        <SidebarGroup className="mt-0">
+          <SidebarGroupLabel>Audit</SidebarGroupLabel>
+          <SidebarGroupContent>
+            {/* Home Audit */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/home-audit">
+                  <FileTextIcon />
+                  <span>Home Audit</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Resident Audit */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/resident-audit">
+                  <ClipboardListIcon />
+                  <span>Resident Audit</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

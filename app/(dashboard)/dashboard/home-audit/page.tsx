@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { authClient } from "@/lib/auth-client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -29,28 +30,41 @@ const governanceItems = [
   "Complaints – trend analysis & learning",
   "Incidents/Near Misses – trend analysis & learning",
   "Safeguarding – ASC annual position report & training coverage",
-  "Service User / Relative Feedback – surveys, meetings, forums",
+  "Service User / Relative Feedback – surveys",
   "Staff Training / Supervision audit",
   "Policies & Procedures compliance",
+  "Archiving & Records Storage Audit",
+  "Governance/QIP Checks (LAR, CED, etc.)",
+  "NISCC Registration Compliance",
+  "NMC Registration Compliance",
+  "Unannounced Out of Hours Visit",
+  "Monthly Governance Tracker",
+  "Quarterly Complaints Audit",
 ];
 
 const clinicalItems = [
-  "Medicines Management (overall, including CD balance checks)",
+  "Medicines Management",
   "Infection Prevention & Control – hand hygiene, environment, PPE, decontamination",
   "Mattress Supervision / Integrity audits",
+  "Hand Hygiene Audit",
+  "Dining Experience Audit",
+  "Anti-Coagulants Register",
+  "Pressure Damage Prevention Audit",
+  "Pressure Relieving Mattress and Cushion Audit",
 ];
 
 const environmentItems = [
-  "Fire Safety – FRA, drills, PEEPs, alarm & emergency lighting testing",
+  "Fire Safety ",
   "Legionella – risk assessment, flushing, temperatures, descaling, logs",
-  "LOLER – hoists/slings servicing (6-monthly thorough examination)",
+  "LOLER – hoists/slings servicing",
   "Medical Devices – servicing, decontamination, incident logs",
   "Electrical Safety – EICR, PAT (risk-based)",
   "Gas Safety – annual Gas Safe certificates",
   "Food Safety – HACCP system, temps, cleaning, allergens, diary verification",
+  "Safety Pause Audit",
 ];
 
-const AuditTable = ({ items, category }: { items: string[]; category: string }) => {
+const AuditTable = ({ items, category, teamId, onOverdueChange }: { items: string[]; category: string; teamId?: string; onOverdueChange?: (count: number) => void }) => {
   const router = useRouter();
   const [isLoaded, setIsLoaded] = useState(false);
   const [rowStatuses, setRowStatuses] = useState<Record<number, string>>({});
@@ -59,7 +73,10 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
 
   // Load data from localStorage on mount
   useEffect(() => {
-    const savedData = localStorage.getItem(`home-audit-${category}`);
+    if (!teamId) return;
+
+    const storageKey = `home-audit-${teamId}-${category}`;
+    const savedData = localStorage.getItem(storageKey);
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
@@ -73,18 +90,25 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
       setRowStatuses(items.reduce((acc, _, index) => ({ ...acc, [index]: "pending" }), {}));
     }
     setIsLoaded(true);
-  }, [category, items]);
+  }, [category, items, teamId]);
 
   // Save data to localStorage whenever it changes (but not on initial load)
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !teamId) return;
 
     const dataToSave = {
       rowStatuses,
       auditorNames,
     };
-    localStorage.setItem(`home-audit-${category}`, JSON.stringify(dataToSave));
-  }, [category, isLoaded, rowStatuses, auditorNames]);
+    const storageKey = `home-audit-${teamId}-${category}`;
+    localStorage.setItem(storageKey, JSON.stringify(dataToSave));
+
+    // Update overdue count
+    if (onOverdueChange) {
+      const overdueCount = Object.values(rowStatuses).filter((status: any) => status === "overdue").length;
+      onOverdueChange(overdueCount);
+    }
+  }, [category, isLoaded, rowStatuses, auditorNames, onOverdueChange, teamId]);
 
   const handleViewClick = (itemName: string) => {
     const itemId = encodeURIComponent(itemName.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-'));
@@ -114,7 +138,6 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
       'pending': 3,
       'completed': 4,
       'not-applicable': 5,
-      'n/a': 6,
     };
     return order[status] || 999;
   };
@@ -172,12 +195,11 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
             >
               <TableCell className="h-14 text-[13px] text-muted-foreground">{displayIndex + 1}</TableCell>
               <TableCell className={`h-14 text-[13px] font-normal hover:text-primary ${
-                rowStatuses[index] === "n/a" ? "text-gray-600" :
+                rowStatuses[index] === "not-applicable" ? "text-gray-900" :
                 rowStatuses[index] === "pending" ? "text-foreground" :
                 rowStatuses[index] === "in-progress" ? "text-blue-600" :
                 rowStatuses[index] === "completed" ? "text-green-600" :
                 rowStatuses[index] === "overdue" ? "text-red-600" :
-                rowStatuses[index] === "not-applicable" ? "text-purple-600" :
                 ""
               }`}>
                 {item}
@@ -191,12 +213,11 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
                     <Badge
                       variant="secondary"
                       className={`text-[13px] px-2 py-0.5 h-6 font-normal ${
-                        rowStatuses[index] === "n/a" ? "bg-gray-100 text-gray-700" :
+                        rowStatuses[index] === "not-applicable" ? "bg-black text-white" :
                         rowStatuses[index] === "pending" ? "bg-yellow-100 text-yellow-700" :
                         rowStatuses[index] === "in-progress" ? "bg-blue-100 text-blue-700" :
                         rowStatuses[index] === "completed" ? "bg-green-100 text-green-700" :
                         rowStatuses[index] === "overdue" ? "bg-red-100 text-red-700" :
-                        rowStatuses[index] === "not-applicable" ? "bg-purple-100 text-purple-700" :
                         "bg-yellow-100 text-yellow-700"
                       }`}
                     >
@@ -204,11 +225,6 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
                     </Badge>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="n/a">
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-[13px] px-2 py-0.5 h-6 font-normal">
-                        N/A
-                      </Badge>
-                    </SelectItem>
                     <SelectItem value="pending">
                       <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 text-[13px] px-2 py-0.5 h-6 font-normal">
                         Pending
@@ -230,7 +246,7 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
                       </Badge>
                     </SelectItem>
                     <SelectItem value="not-applicable">
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-[13px] px-2 py-0.5 h-6 font-normal">
+                      <Badge variant="secondary" className="bg-black text-white text-[13px] px-2 py-0.5 h-6 font-normal">
                         Not Applicable
                       </Badge>
                     </SelectItem>
@@ -289,6 +305,38 @@ const AuditTable = ({ items, category }: { items: string[]; category: string }) 
 };
 
 export default function AuditPage() {
+  const { data: activeOrg } = authClient.useActiveOrganization();
+  const [governanceOverdue, setGovernanceOverdue] = useState(0);
+  const [clinicalOverdue, setClinicalOverdue] = useState(0);
+  const [environmentOverdue, setEnvironmentOverdue] = useState(0);
+
+  const teamId = activeOrg?.id;
+
+  // Get overdue count for a category
+  const getOverdueCount = (category: string, itemCount: number) => {
+    if (typeof window === 'undefined' || !teamId) return 0;
+
+    const storageKey = `home-audit-${teamId}-${category}`;
+    const savedData = localStorage.getItem(storageKey);
+    if (!savedData) return 0;
+
+    try {
+      const parsed = JSON.parse(savedData);
+      const statuses = Object.values(parsed.rowStatuses || {});
+      return statuses.filter((status: any) => status === "overdue").length;
+    } catch (error) {
+      return 0;
+    }
+  };
+
+  useEffect(() => {
+    if (!teamId) return;
+
+    setGovernanceOverdue(getOverdueCount("governance", governanceItems.length));
+    setClinicalOverdue(getOverdueCount("clinical", clinicalItems.length));
+    setEnvironmentOverdue(getOverdueCount("environment", environmentItems.length));
+  }, [teamId]);
+
   return (
     <div className="w-full">
       <div className="flex flex-col mb-6">
@@ -300,21 +348,42 @@ export default function AuditPage() {
 
       <Tabs defaultValue="governance" className="w-full">
         <TabsList>
-          <TabsTrigger value="governance">Governance & Compliance</TabsTrigger>
-          <TabsTrigger value="clinical">Clinical Care & Medicines</TabsTrigger>
-          <TabsTrigger value="environment">Environment & Safety</TabsTrigger>
+          <TabsTrigger value="governance">
+            Governance & Compliance
+            {governanceOverdue > 0 && (
+              <Badge variant="secondary" className="ml-2 bg-red-100 text-red-700 text-xs px-2 py-0.5 h-5 font-normal">
+                {governanceOverdue}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="clinical">
+            Clinical Care & Medicines
+            {clinicalOverdue > 0 && (
+              <Badge variant="secondary" className="ml-2 bg-red-100 text-red-700 text-xs px-2 py-0.5 h-5 font-normal">
+                {clinicalOverdue}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="environment">
+            Environment & Safety
+            {environmentOverdue > 0 && (
+              <Badge variant="secondary" className="ml-2 bg-red-100 text-red-700 text-xs px-2 py-0.5 h-5 font-normal">
+                {environmentOverdue}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="governance" className="mt-4">
-          <AuditTable items={governanceItems} category="governance" />
+          <AuditTable items={governanceItems} category="governance" teamId={teamId} onOverdueChange={setGovernanceOverdue} />
         </TabsContent>
 
         <TabsContent value="clinical" className="mt-4">
-          <AuditTable items={clinicalItems} category="clinical" />
+          <AuditTable items={clinicalItems} category="clinical" teamId={teamId} onOverdueChange={setClinicalOverdue} />
         </TabsContent>
 
         <TabsContent value="environment" className="mt-4">
-          <AuditTable items={environmentItems} category="environment" />
+          <AuditTable items={environmentItems} category="environment" teamId={teamId} onOverdueChange={setEnvironmentOverdue} />
         </TabsContent>
       </Tabs>
     </div>

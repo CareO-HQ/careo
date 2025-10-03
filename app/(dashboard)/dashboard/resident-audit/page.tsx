@@ -54,15 +54,15 @@ export default function CareOAuditPage() {
   };
 
   // Total number of audit items per resident (from audit page)
-  const TOTAL_AUDIT_ITEMS = 7;
+  const TOTAL_AUDIT_ITEMS = 16;
 
-  // Get audit count for a specific resident (excluding n/a items)
+  // Get audit count for a specific resident (excluding not-applicable items)
   const getResidentAuditCount = (residentId: string) => {
     const localData = getLocalStorageAuditData(residentId);
     if (!localData || !localData.rowStatuses) return TOTAL_AUDIT_ITEMS;
 
     const statuses = Object.values(localData.rowStatuses);
-    const naCount = statuses.filter((status: any) => status === "n/a").length;
+    const naCount = statuses.filter((status: any) => status === "not-applicable").length;
 
     return TOTAL_AUDIT_ITEMS - naCount;
   };
@@ -92,8 +92,8 @@ export default function CareOAuditPage() {
 
     const statuses = Object.values(localData.rowStatuses);
     return statuses.filter((status: any) => {
-      // Count items that are not completed and not N/A
-      return status !== "completed" && status !== "n/a";
+      // Count items that are not completed and not Not Applicable
+      return status !== "completed" && status !== "not-applicable";
     }).length;
   };
 

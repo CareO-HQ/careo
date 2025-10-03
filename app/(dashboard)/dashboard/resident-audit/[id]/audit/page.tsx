@@ -36,10 +36,19 @@ const auditItems = [
   "Care File – assessments, plans, reviews, consent",
   "Nutrition & Weight monitoring trends",
   "Wounds / Tissue Viability (≥ Grade 2 notifications)",
-  "Falls – post-falls review + trend logging",
+  "Incident and Accident Analysis",
   "Restrictive Practices – oversight, reduction, resident-specific logs",
   "Medication administration errors/resident MAR chart audit",
   "Resident Experience – satisfaction surveys, meeting notes",
+  "DNACPR Audit",
+  "Choking Risk Audit",
+  "Diet Notification Form Audit",
+  "Post Fall Management Tracker",
+  "Bedrail Audit",
+  "Moving & Handling Audit",
+  "DOLS Tracker",
+  "Care Management Reviews",
+  "Meaningful Activities Audit",
 ];
 
 export default function AuditPage({ params }: AuditPageProps) {
@@ -110,7 +119,6 @@ export default function AuditPage({ params }: AuditPageProps) {
       'pending': 3,
       'completed': 4,
       'not-applicable': 5,
-      'n/a': 6,
     };
     return order[status] || 999;
   };
@@ -138,8 +146,8 @@ export default function AuditPage({ params }: AuditPageProps) {
 
   const getRowClassName = (status: string) => {
     switch (status) {
-      case "n/a":
-        return "bg-gray-50 hover:bg-gray-50";
+      case "not-applicable":
+        return "bg-gray-900 hover:bg-gray-900";
       case "pending":
         return "bg-gray-100 hover:bg-gray-100";
       case "in-progress":
@@ -148,8 +156,6 @@ export default function AuditPage({ params }: AuditPageProps) {
         return "bg-green-100 hover:bg-green-100";
       case "overdue":
         return "bg-red-100 hover:bg-red-100";
-      case "not-applicable":
-        return "bg-purple-100 hover:bg-purple-100";
       default:
         return "";
     }
@@ -207,7 +213,7 @@ export default function AuditPage({ params }: AuditPageProps) {
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-6xl">
+    <div className="w-full">
       {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
         <Button
@@ -290,12 +296,11 @@ export default function AuditPage({ params }: AuditPageProps) {
               >
                 <TableCell className="h-14 text-[13px] text-muted-foreground">{displayIndex + 1}</TableCell>
                 <TableCell className={`h-14 text-[13px] font-normal hover:text-primary ${
-                  rowStatuses[index] === "n/a" ? "text-gray-600" :
+                  rowStatuses[index] === "not-applicable" ? "text-black" :
                   rowStatuses[index] === "pending" ? "text-foreground" :
                   rowStatuses[index] === "in-progress" ? "text-blue-600" :
                   rowStatuses[index] === "completed" ? "text-green-600" :
                   rowStatuses[index] === "overdue" ? "text-red-600" :
-                  rowStatuses[index] === "not-applicable" ? "text-purple-600" :
                   ""
                 }`}>
                   {item}
@@ -309,12 +314,11 @@ export default function AuditPage({ params }: AuditPageProps) {
                       <Badge
                         variant="secondary"
                         className={`text-[13px] px-2 py-0.5 h-6 font-normal ${
-                          rowStatuses[index] === "n/a" ? "bg-gray-100 text-gray-700" :
+                          rowStatuses[index] === "not-applicable" ? "bg-black text-white" :
                           rowStatuses[index] === "pending" ? "bg-yellow-100 text-yellow-700" :
                           rowStatuses[index] === "in-progress" ? "bg-blue-100 text-blue-700" :
                           rowStatuses[index] === "completed" ? "bg-green-100 text-green-700" :
                           rowStatuses[index] === "overdue" ? "bg-red-100 text-red-700" :
-                          rowStatuses[index] === "not-applicable" ? "bg-purple-100 text-purple-700" :
                           "bg-yellow-100 text-yellow-700"
                         }`}
                       >
@@ -322,11 +326,6 @@ export default function AuditPage({ params }: AuditPageProps) {
                       </Badge>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="n/a">
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-[13px] px-2 py-0.5 h-6 font-normal">
-                          N/A
-                        </Badge>
-                      </SelectItem>
                       <SelectItem value="pending">
                         <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 text-[13px] px-2 py-0.5 h-6 font-normal">
                           Pending
@@ -348,7 +347,7 @@ export default function AuditPage({ params }: AuditPageProps) {
                         </Badge>
                       </SelectItem>
                       <SelectItem value="not-applicable">
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-[13px] px-2 py-0.5 h-6 font-normal">
+                        <Badge variant="secondary" className="bg-black text-white text-[13px] px-2 py-0.5 h-6 font-normal">
                           Not Applicable
                         </Badge>
                       </SelectItem>
