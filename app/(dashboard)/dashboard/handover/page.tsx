@@ -6,7 +6,7 @@ import { useQuery, useMutation, useConvex } from "convex/react";
 import { useRouter } from "next/navigation";
 import { Resident } from "@/types";
 import { Button } from "@/components/ui/button";
-import { columns } from "./columns";
+import { getColumns } from "./columns";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -124,7 +124,7 @@ export default function HandoverPage() {
         </Button>
       </div>
       <DataTable<Resident, unknown>
-        columns={columns}
+        columns={getColumns(activeTeamId ?? undefined)}
         data={residents || []}
         teamName={activeTeam?.name ?? ""}
       />

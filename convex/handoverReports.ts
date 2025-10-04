@@ -137,3 +137,19 @@ export const deleteHandoverReport = mutation({
     await ctx.db.delete(args.reportId);
   },
 });
+
+// Get the last handover timestamp for a team (to filter new data)
+export const getLastHandoverTimestamp = query({
+  args: {
+    teamId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const lastHandover = await ctx.db
+      .query("handoverReports")
+      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
+      .order("desc")
+      .first();
+
+    return lastHandover?.createdAt ?? null;
+  },
+});

@@ -6,18 +6,27 @@ import { Id } from "./_generated/dataModel";
 export const getHandoverReport = query({
   args: {
     residentId: v.id("residents"),
+    afterTimestamp: v.optional(v.number()), // Only get data after this timestamp
   },
   handler: async (ctx, args) => {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
 
     // Get today's food/fluid logs
-    const foodFluidLogs = await ctx.db
+    let foodFluidLogsQuery = ctx.db
       .query("foodFluidLogs")
       .withIndex("byResidentAndDate", (q) =>
         q.eq("residentId", args.residentId).eq("date", today)
       )
-      .filter((q) => q.neq(q.field("isArchived"), true))
-      .collect();
+      .filter((q) => q.neq(q.field("isArchived"), true));
+
+    // Filter by timestamp if provided
+    if (args.afterTimestamp) {
+      foodFluidLogsQuery = foodFluidLogsQuery.filter((q) =>
+        q.gt(q.field("timestamp"), args.afterTimestamp!)
+      );
+    }
+
+    const foodFluidLogs = await foodFluidLogsQuery.collect();
 
     // Calculate total fluid intake and get details
     const fluidLogs = foodFluidLogs.filter(log => log.fluidConsumedMl && log.fluidConsumedMl > 0);
@@ -32,18 +41,34 @@ export const getHandoverReport = query({
     const foodIntakeCount = foodIntakeLogs.length;
 
     // Get today's incidents
-    const incidents = await ctx.db
+    let incidentsQuery = ctx.db
       .query("incidents")
       .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
-      .filter((q) => q.eq(q.field("date"), today))
-      .collect();
+      .filter((q) => q.eq(q.field("date"), today));
+
+    // Filter incidents by timestamp if provided
+    if (args.afterTimestamp) {
+      incidentsQuery = incidentsQuery.filter((q) =>
+        q.gt(q.field("createdAt"), args.afterTimestamp!)
+      );
+    }
+
+    const incidents = await incidentsQuery.collect();
 
     // Get today's hospital transfer logs
-    const hospitalTransfers = await ctx.db
+    let hospitalTransfersQuery = ctx.db
       .query("hospitalTransferLogs")
       .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
-      .filter((q) => q.eq(q.field("date"), today))
-      .collect();
+      .filter((q) => q.eq(q.field("date"), today));
+
+    // Filter hospital transfers by timestamp if provided
+    if (args.afterTimestamp) {
+      hospitalTransfersQuery = hospitalTransfersQuery.filter((q) =>
+        q.gt(q.field("createdAt"), args.afterTimestamp!)
+      );
+    }
+
+    const hospitalTransfers = await hospitalTransfersQuery.collect();
 
     return {
       foodIntakeCount,
