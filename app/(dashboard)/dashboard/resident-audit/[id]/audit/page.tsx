@@ -26,20 +26,20 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, ClipboardList, Calendar as CalendarIcon2, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, ClipboardList, Calendar as CalendarIcon2, ArrowUpDown, FileText } from "lucide-react";
 
 type AuditPageProps = {
   params: Promise<{ id: string }>;
 };
 
 const auditItems = [
-  "Care File – assessments, plans, reviews, consent",
-  "Nutrition & Weight monitoring trends",
-  "Wounds / Tissue Viability (≥ Grade 2 notifications)",
+  "Care File Audit",
+  "Nutrition & Weight Audit",
+  "Wounds / Tissue Viability Audit",
   "Incident and Accident Analysis",
-  "Restrictive Practices – oversight, reduction, resident-specific logs",
-  "Medication administration errors/resident MAR chart audit",
-  "Resident Experience – satisfaction surveys, meeting notes",
+  "Restrictive Practices Audit",
+  "Medication administration / MAR Audit",
+  "Resident Experience ",
   "DNACPR Audit",
   "Choking Risk Audit",
   "Diet Notification Form Audit",
@@ -262,6 +262,18 @@ export default function AuditPage({ params }: AuditPageProps) {
             <p className="text-xs text-muted-foreground">Room {resident.roomNumber || "N/A"}</p>
           </div>
         </div>
+      </div>
+
+      {/* Audit Report Button */}
+      <div className="flex justify-end mb-4">
+        <Button
+          size="sm"
+          className="gap-2 bg-black text-white hover:bg-black/90"
+          onClick={() => router.push(`/dashboard/resident-audit/${id}/audit-report`)}
+        >
+          <FileText className="h-4 w-4" />
+          Audit Report
+        </Button>
       </div>
 
       {/* Audit Table */}

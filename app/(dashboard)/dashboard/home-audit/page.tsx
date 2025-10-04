@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const governanceItems = [
@@ -29,7 +29,7 @@ const governanceItems = [
   "Reg 30 Notifiable Events compliance",
   "Complaints – trend analysis & learning",
   "Incidents/Near Misses – trend analysis & learning",
-  "Safeguarding – ASC annual position report & training coverage",
+  "Safeguarding Audit",
   "Service User / Relative Feedback – surveys",
   "Staff Training / Supervision audit",
   "Policies & Procedures compliance",
@@ -305,6 +305,7 @@ const AuditTable = ({ items, category, teamId, onOverdueChange }: { items: strin
 };
 
 export default function AuditPage() {
+  const router = useRouter();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const [governanceOverdue, setGovernanceOverdue] = useState(0);
   const [clinicalOverdue, setClinicalOverdue] = useState(0);
@@ -375,14 +376,44 @@ export default function AuditPage() {
         </TabsList>
 
         <TabsContent value="governance" className="mt-4">
+          <div className="flex justify-end mb-4">
+            <Button
+              size="sm"
+              className="gap-2 bg-black text-white hover:bg-black/90"
+              onClick={() => router.push("/dashboard/home-audit/governance-report")}
+            >
+              <FileText className="h-4 w-4" />
+              Audit Report
+            </Button>
+          </div>
           <AuditTable items={governanceItems} category="governance" teamId={teamId} onOverdueChange={setGovernanceOverdue} />
         </TabsContent>
 
         <TabsContent value="clinical" className="mt-4">
+          <div className="flex justify-end mb-4">
+            <Button
+              size="sm"
+              className="gap-2 bg-black text-white hover:bg-black/90"
+              onClick={() => router.push("/dashboard/home-audit/clinical-report")}
+            >
+              <FileText className="h-4 w-4" />
+              Audit Report
+            </Button>
+          </div>
           <AuditTable items={clinicalItems} category="clinical" teamId={teamId} onOverdueChange={setClinicalOverdue} />
         </TabsContent>
 
         <TabsContent value="environment" className="mt-4">
+          <div className="flex justify-end mb-4">
+            <Button
+              size="sm"
+              className="gap-2 bg-black text-white hover:bg-black/90"
+              onClick={() => router.push("/dashboard/home-audit/environment-report")}
+            >
+              <FileText className="h-4 w-4" />
+              Audit Report
+            </Button>
+          </div>
           <AuditTable items={environmentItems} category="environment" teamId={teamId} onOverdueChange={setEnvironmentOverdue} />
         </TabsContent>
       </Tabs>
