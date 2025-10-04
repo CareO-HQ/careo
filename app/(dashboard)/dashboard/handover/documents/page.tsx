@@ -173,6 +173,207 @@ export default function HandoverDocumentsPage() {
     setIsViewDialogOpen(true);
   };
 
+  const handleDownloadReport = (handover: any) => {
+    const htmlContent = generatePDFContent(handover);
+    generatePDFFromHTML(htmlContent);
+  };
+
+  const generatePDFContent = (handover: any) => {
+    const formattedDate = format(new Date(handover.date), "EEEE, dd MMMM yyyy");
+    const shiftLabel = handover.shift === "day" ? "DAY SHIFT" : "NIGHT SHIFT";
+
+    return `
+      <div class="header">
+        <h1>HANDOVER REPORT</h1>
+        <p style="color: #64748B; margin: 5px 0;">${handover.teamName}</p>
+        <p style="font-size: 14px; margin: 5px 0;">${formattedDate}</p>
+        <p style="font-weight: bold; margin: 5px 0;">${shiftLabel}</p>
+      </div>
+
+      <div class="section">
+        <h2>Report Overview</h2>
+        <div class="info-grid">
+          <div class="info-box">
+            <h3>Date</h3>
+            <p>${format(new Date(handover.date), "PPP")}</p>
+          </div>
+          <div class="info-box">
+            <h3>Shift</h3>
+            <p>${handover.shift === "day" ? "Day Shift" : "Night Shift"}</p>
+          </div>
+          <div class="info-box">
+            <h3>Team</h3>
+            <p>${handover.teamName}</p>
+          </div>
+          <div class="info-box">
+            <h3>Total Residents</h3>
+            <p>${handover.residentHandovers?.length || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Resident Handovers</h2>
+        ${handover.residentHandovers?.map((resident: any) => `
+          <div class="resident-card">
+            <h3 style="margin-bottom: 5px; font-size: 16px;">${resident.residentName}</h3>
+            <p style="color: #6B7280; font-size: 14px; margin-bottom: 10px;">
+              ${resident.age} years old • Room ${resident.roomNumber || "—"}
+            </p>
+
+            <div class="stats-grid">
+              <div>
+                <p class="label">Food Intake</p>
+                <p class="value">${resident.foodIntakeCount} meals</p>
+              </div>
+              <div>
+                <p class="label">Fluid Total</p>
+                <p class="value">${resident.totalFluid} ml</p>
+              </div>
+              <div>
+                <p class="label">Incidents</p>
+                <p class="value">${resident.incidentCount}</p>
+              </div>
+              <div>
+                <p class="label">Hospital Transfer</p>
+                <p class="value">${resident.hospitalTransferCount}</p>
+              </div>
+            </div>
+
+            ${resident.comments ? `
+              <div style="margin-top: 10px;">
+                <p class="label">Comments</p>
+                <p style="font-size: 14px; color: #374151; white-space: pre-wrap;">${resident.comments}</p>
+              </div>
+            ` : ''}
+          </div>
+        `).join('') || '<p>No resident handovers recorded.</p>'}
+      </div>
+
+      <div class="section">
+        <h2>Record Information</h2>
+        <div class="info-grid">
+          <div class="info-box">
+            <h3>Created By</h3>
+            <p>${handover.createdByName}</p>
+          </div>
+          <div class="info-box">
+            <h3>Date Created</h3>
+            <p>${format(new Date(handover.createdAt), "PPP p")}</p>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const generatePDFFromHTML = (content: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Handover Report</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 20mm;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              color: #000000;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              padding-bottom: 20px;
+              border-bottom: 2px solid #000000;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .section {
+              margin-bottom: 25px;
+              page-break-inside: avoid;
+            }
+            .section h2 {
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 15px;
+              border-bottom: 1px solid #000000;
+              padding-bottom: 5px;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 15px;
+              margin-bottom: 15px;
+            }
+            .info-box h3 {
+              font-size: 12px;
+              color: #6B7280;
+              margin: 0 0 5px 0;
+              font-weight: normal;
+            }
+            .info-box p {
+              font-size: 14px;
+              font-weight: 500;
+              margin: 0;
+            }
+            .resident-card {
+              border: 1px solid #000000;
+              padding: 15px;
+              margin-bottom: 15px;
+              page-break-inside: avoid;
+            }
+            .stats-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 15px;
+              margin-top: 10px;
+            }
+            .label {
+              font-size: 12px;
+              color: #6B7280;
+              margin: 0 0 3px 0;
+            }
+            .value {
+              font-size: 14px;
+              font-weight: 500;
+              margin: 0;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+              .resident-card {
+                page-break-inside: avoid;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${content}
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+
+    // Automatically trigger print dialog after content loads
+    printWindow.onload = function() {
+      printWindow.print();
+      printWindow.onafterprint = function() {
+        printWindow.close();
+      };
+    };
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
       {/* Breadcrumb Navigation */}
@@ -509,56 +710,41 @@ export default function HandoverDocumentsPage() {
 
       {/* View Handover Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh]">
+        <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Handover Report Details</DialogTitle>
             <DialogDescription>
-              Complete handover report with all resident information
+              Complete handover report for {selectedHandover?.teamName}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[70vh] pr-4">
+          <ScrollArea className="h-[60vh] pr-4">
             {selectedHandover && (
               <div className="space-y-6">
                 {/* Report Overview */}
                 <div className="border-b pb-4">
                   <h3 className="font-semibold text-lg mb-3">Report Overview</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Date</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedHandover.date), "PPP")}</p>
-                      </div>
+                      <p className="font-medium">{format(new Date(selectedHandover.date), "PPP")}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Shift</p>
-                      <Badge
-                        className={`mt-1 text-xs border-0 flex items-center w-fit ${
-                          selectedHandover.shift === "day"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-indigo-100 text-indigo-800"
-                        }`}
-                      >
-                        {selectedHandover.shift === "day" ? (
-                          <>
-                            <Sun className="w-3 h-3 mr-1" />
-                            Day Shift
-                          </>
-                        ) : (
-                          <>
-                            <Moon className="w-3 h-3 mr-1" />
-                            Night Shift
-                          </>
-                        )}
+                      <Badge className={`${
+                        selectedHandover.shift === "day"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-indigo-100 text-indigo-800"
+                      } border-0`}>
+                        {selectedHandover.shift === "day" ? "Day Shift" : "Night Shift"}
                       </Badge>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Team</p>
-                      <p className="font-medium mt-1">{selectedHandover.teamName}</p>
+                      <p className="font-medium">{selectedHandover.teamName}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Total Residents</p>
-                      <p className="font-medium mt-1">{selectedHandover.residentHandovers?.length || 0}</p>
+                      <p className="font-medium">{selectedHandover.residentHandovers?.length || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -567,64 +753,40 @@ export default function HandoverDocumentsPage() {
                 <div className="border-b pb-4">
                   <h3 className="font-semibold text-lg mb-3">Resident Handovers</h3>
                   <div className="space-y-4">
-                    {selectedHandover.residentHandovers?.map((resident: any, index: number) => (
-                      <div key={resident.residentId} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="font-semibold text-base">{resident.residentName}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {resident.age} years old • Room {resident.roomNumber || "—"}
-                            </p>
-                          </div>
+                    {selectedHandover.residentHandovers?.map((resident: any) => (
+                      <div key={resident.residentId} className="border-b pb-4 last:border-0">
+                        <div className="mb-3">
+                          <h4 className="font-semibold text-base">{resident.residentName}</h4>
+                          <p className="text-sm text-gray-500">
+                            {resident.age} years old • Room {resident.roomNumber || "—"}
+                          </p>
                         </div>
 
                         {/* Report Data */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                          <div className="bg-white p-3 rounded-md border">
-                            <p className="text-xs text-gray-500 mb-1">Food Intake</p>
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                              {resident.foodIntakeCount} meals
-                            </Badge>
+                        <div className="grid grid-cols-4 gap-6 mb-3">
+                          <div>
+                            <p className="text-sm text-gray-500">Food Intake</p>
+                            <p className="font-medium">{resident.foodIntakeCount} meals</p>
                           </div>
-                          <div className="bg-white p-3 rounded-md border">
-                            <p className="text-xs text-gray-500 mb-1">Fluid Total</p>
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-                              {resident.totalFluid} ml
-                            </Badge>
+                          <div>
+                            <p className="text-sm text-gray-500">Fluid Total</p>
+                            <p className="font-medium">{resident.totalFluid} ml</p>
                           </div>
-                          <div className="bg-white p-3 rounded-md border">
-                            <p className="text-xs text-gray-500 mb-1">Incidents</p>
-                            <Badge
-                              variant="outline"
-                              className={
-                                resident.incidentCount > 0
-                                  ? "bg-red-50 text-red-700 border-red-300"
-                                  : "bg-green-50 text-green-700 border-green-300"
-                              }
-                            >
-                              {resident.incidentCount}
-                            </Badge>
+                          <div>
+                            <p className="text-sm text-gray-500">Incidents</p>
+                            <p className="font-medium">{resident.incidentCount}</p>
                           </div>
-                          <div className="bg-white p-3 rounded-md border">
-                            <p className="text-xs text-gray-500 mb-1">Hospital Transfer</p>
-                            <Badge
-                              variant="outline"
-                              className={
-                                resident.hospitalTransferCount > 0
-                                  ? "bg-purple-50 text-purple-700 border-purple-300"
-                                  : "bg-green-50 text-green-700 border-green-300"
-                              }
-                            >
-                              {resident.hospitalTransferCount}
-                            </Badge>
+                          <div>
+                            <p className="text-sm text-gray-500">Hospital Transfer</p>
+                            <p className="font-medium">{resident.hospitalTransferCount}</p>
                           </div>
                         </div>
 
                         {/* Comments */}
                         {resident.comments && (
-                          <div className="bg-white p-3 rounded-md border">
-                            <p className="text-xs text-gray-500 mb-1">Comments</p>
-                            <p className="text-sm whitespace-pre-wrap">{resident.comments}</p>
+                          <div>
+                            <p className="text-sm text-gray-500 mb-1">Comments</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{resident.comments}</p>
                           </div>
                         )}
                       </div>
@@ -662,6 +824,14 @@ export default function HandoverDocumentsPage() {
             >
               Close
             </Button>
+            {selectedHandover && (
+              <Button
+                onClick={() => handleDownloadReport(selectedHandover)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

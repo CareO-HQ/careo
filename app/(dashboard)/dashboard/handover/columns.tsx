@@ -17,9 +17,16 @@ import { useQuery } from "convex/react";
 import { useState, useEffect } from "react";
 
 // Component for displaying handover report
-const HandoverReportCell = ({ residentId }: { residentId: string }) => {
+const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
+  // Get the last handover timestamp for this team
+  const lastHandoverTimestamp = useQuery(
+    api.handoverReports.getLastHandoverTimestamp,
+    teamId ? { teamId } : "skip"
+  );
+
   const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">
+    residentId: residentId as Id<"residents">,
+    afterTimestamp: lastHandoverTimestamp ?? undefined,
   });
 
   if (!report) {
@@ -74,9 +81,16 @@ const HandoverReportCell = ({ residentId }: { residentId: string }) => {
 };
 
 // Component for displaying fluid total
-const FluidTotalCell = ({ residentId }: { residentId: string }) => {
+const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
+  // Get the last handover timestamp for this team
+  const lastHandoverTimestamp = useQuery(
+    api.handoverReports.getLastHandoverTimestamp,
+    teamId ? { teamId } : "skip"
+  );
+
   const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">
+    residentId: residentId as Id<"residents">,
+    afterTimestamp: lastHandoverTimestamp ?? undefined,
   });
 
   if (!report) {
@@ -135,9 +149,16 @@ const FluidTotalCell = ({ residentId }: { residentId: string }) => {
 };
 
 // Component for displaying incidents
-const IncidentsCell = ({ residentId }: { residentId: string }) => {
+const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
+  // Get the last handover timestamp for this team
+  const lastHandoverTimestamp = useQuery(
+    api.handoverReports.getLastHandoverTimestamp,
+    teamId ? { teamId } : "skip"
+  );
+
   const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">
+    residentId: residentId as Id<"residents">,
+    afterTimestamp: lastHandoverTimestamp ?? undefined,
   });
 
   if (!report) {
@@ -189,9 +210,16 @@ const IncidentsCell = ({ residentId }: { residentId: string }) => {
 };
 
 // Component for displaying hospital transfers
-const HospitalTransferCell = ({ residentId }: { residentId: string }) => {
+const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
+  // Get the last handover timestamp for this team
+  const lastHandoverTimestamp = useQuery(
+    api.handoverReports.getLastHandoverTimestamp,
+    teamId ? { teamId } : "skip"
+  );
+
   const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">
+    residentId: residentId as Id<"residents">,
+    afterTimestamp: lastHandoverTimestamp ?? undefined,
   });
 
   if (!report) {
@@ -264,7 +292,7 @@ const CommentsCell = ({ residentId }: { residentId: string }) => {
   return (
     <Textarea
       placeholder="Add handover comments..."
-      className="min-h-[60px] resize-none w-full"
+      className="h-[60px] resize-none w-full max-w-md"
       data-resident-id={residentId}
       value={comment}
       onChange={handleCommentChange}
@@ -272,7 +300,7 @@ const CommentsCell = ({ residentId }: { residentId: string }) => {
   );
 };
 
-export const columns: ColumnDef<Resident, unknown>[] = [
+export const getColumns = (teamId?: string): ColumnDef<Resident, unknown>[] => [
   {
     id: "name",
     accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim(),
@@ -365,7 +393,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     enableSorting: false,
     cell: ({ row }) => {
       const resident = row.original;
-      return <HandoverReportCell residentId={resident._id} />;
+      return <HandoverReportCell residentId={resident._id} teamId={teamId} />;
     }
   },
   {
@@ -380,7 +408,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     enableSorting: false,
     cell: ({ row }) => {
       const resident = row.original;
-      return <FluidTotalCell residentId={resident._id} />;
+      return <FluidTotalCell residentId={resident._id} teamId={teamId} />;
     }
   },
   {
@@ -393,7 +421,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     enableSorting: false,
     cell: ({ row }) => {
       const resident = row.original;
-      return <IncidentsCell residentId={resident._id} />;
+      return <IncidentsCell residentId={resident._id} teamId={teamId} />;
     }
   },
   {
@@ -408,7 +436,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     enableSorting: false,
     cell: ({ row }) => {
       const resident = row.original;
-      return <HospitalTransferCell residentId={resident._id} />;
+      return <HospitalTransferCell residentId={resident._id} teamId={teamId} />;
     }
   },
   {
@@ -433,6 +461,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
       );
     },
     enableSorting: false,
+    size: 400,
     cell: ({ row }) => {
       const resident = row.original;
       return <CommentsCell residentId={resident._id} />;
