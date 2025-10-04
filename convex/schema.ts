@@ -2039,6 +2039,8 @@ export default defineSchema({
     createdByName: v.string(),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.string()),
+    updatedByName: v.optional(v.string()),
   })
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"])
@@ -2046,6 +2048,24 @@ export default defineSchema({
     .index("by_shift", ["shift"])
     .index("by_team_and_date", ["teamId", "date"])
     .index("by_created_at", ["createdAt"]),
+
+  // Handover Comments - real-time comments during handover (before archiving)
+  handoverComments: defineTable({
+    teamId: v.string(),
+    residentId: v.id("residents"),
+    date: v.string(), // YYYY-MM-DD
+    shift: v.union(v.literal("day"), v.literal("night")),
+    comment: v.string(),
+
+    // Metadata
+    createdBy: v.string(), // User ID
+    createdByName: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_team_date_shift", ["teamId", "date", "shift"])
+    .index("by_resident_date", ["residentId", "date"])
+    .index("by_team_resident", ["teamId", "residentId", "date"]),
 
   // Multidisciplinary Care Team Members
   multidisciplinaryCareTeam: defineTable({

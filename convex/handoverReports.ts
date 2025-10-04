@@ -25,6 +25,8 @@ export const saveHandoverReport = mutation({
     ),
     createdBy: v.string(),
     createdByName: v.string(),
+    updatedBy: v.optional(v.string()),
+    updatedByName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -39,10 +41,12 @@ export const saveHandoverReport = mutation({
       .first();
 
     if (existingReport) {
-      // Update existing report
+      // Update existing report - preserve original creator, track updater
       await ctx.db.patch(existingReport._id, {
         residentHandovers: args.residentHandovers,
         updatedAt: now,
+        updatedBy: args.updatedBy || args.createdBy,
+        updatedByName: args.updatedByName || args.createdByName,
       });
       return existingReport._id;
     } else {
@@ -110,6 +114,26 @@ export const getHandoverReportById = query({
 
 // Get handover report by date and shift for a team
 export const getHandoverReportByDateAndShift = query({
+  args: {
+    teamId: v.string(),
+    date: v.string(),
+    shift: v.union(v.literal("day"), v.literal("night")),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.db
+      .query("handoverReports")
+      .withIndex("by_team_and_date", (q) =>
+        q.eq("teamId", args.teamId).eq("date", args.date)
+      )
+      .filter((q) => q.eq(q.field("shift"), args.shift))
+      .first();
+
+    return report;
+  },
+});
+
+// Alias for getHandoverReportByDateAndShift (for validation)
+export const getHandoverReport = query({
   args: {
     teamId: v.string(),
     date: v.string(),
