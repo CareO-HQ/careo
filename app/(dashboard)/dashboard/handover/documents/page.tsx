@@ -240,6 +240,57 @@ export default function HandoverDocumentsPage() {
               </div>
             </div>
 
+            ${resident.foodIntakeLogs && resident.foodIntakeLogs.length > 0 ? `
+              <div style="margin-top: 10px; padding: 8px; background-color: #F0FDF4; border-radius: 4px;">
+                <p class="label" style="font-weight: 600;">Food Intake Details</p>
+                ${resident.foodIntakeLogs.map((log: any) => `
+                  <div style="margin-top: 5px; font-size: 12px;">
+                    <strong>${log.typeOfFoodDrink}</strong> • ${log.amountEaten}
+                    ${log.section ? ` (${log.section})` : ''}
+                    <span style="float: right; color: #6B7280;">${new Date(log.timestamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            ${resident.fluidLogs && resident.fluidLogs.length > 0 ? `
+              <div style="margin-top: 10px; padding: 8px; background-color: #EFF6FF; border-radius: 4px;">
+                <p class="label" style="font-weight: 600;">Fluid Intake Details</p>
+                ${resident.fluidLogs.map((log: any) => `
+                  <div style="margin-top: 5px; font-size: 12px;">
+                    <strong>${log.typeOfFoodDrink}</strong> • <strong style="color: #2563EB;">${log.fluidConsumedMl} ml</strong>
+                    ${log.section ? ` (${log.section})` : ''}
+                    <span style="float: right; color: #6B7280;">${new Date(log.timestamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            ${resident.incidents && resident.incidents.length > 0 ? `
+              <div style="margin-top: 10px; padding: 8px; background-color: #FEF2F2; border-radius: 4px;">
+                <p class="label" style="font-weight: 600;">Incident Details</p>
+                ${resident.incidents.map((inc: any) => `
+                  <div style="margin-top: 5px; font-size: 12px;">
+                    <strong>${inc.type.join(', ')}</strong>
+                    ${inc.level ? ` - Level: ${inc.level}` : ''}
+                    ${inc.time ? `<span style="float: right; color: #6B7280;">${inc.time}</span>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            ${resident.hospitalTransfers && resident.hospitalTransfers.length > 0 ? `
+              <div style="margin-top: 10px; padding: 8px; background-color: #FAF5FF; border-radius: 4px;">
+                <p class="label" style="font-weight: 600;">Hospital Transfer Details</p>
+                ${resident.hospitalTransfers.map((transfer: any) => `
+                  <div style="margin-top: 5px; font-size: 12px;">
+                    <strong>${transfer.hospitalName}</strong>
+                    ${transfer.reason ? `<br/><span style="color: #6B7280;">Reason: ${transfer.reason}</span>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
             ${resident.comments ? `
               <div style="margin-top: 10px;">
                 <p class="label">Comments</p>
@@ -762,8 +813,8 @@ export default function HandoverDocumentsPage() {
                           </p>
                         </div>
 
-                        {/* Report Data */}
-                        <div className="grid grid-cols-4 gap-6 mb-3">
+                        {/* Report Data Summary */}
+                        <div className="grid grid-cols-4 gap-6 mb-4">
                           <div>
                             <p className="text-sm text-gray-500">Food Intake</p>
                             <p className="font-medium">{resident.foodIntakeCount} meals</p>
@@ -782,11 +833,96 @@ export default function HandoverDocumentsPage() {
                           </div>
                         </div>
 
+                        {/* Detailed Food Intake */}
+                        {resident.foodIntakeLogs && resident.foodIntakeLogs.length > 0 && (
+                          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                            <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">Food Intake Details</p>
+                            <div className="space-y-2">
+                              {resident.foodIntakeLogs.map((log: any) => (
+                                <div key={log.id} className="flex items-center justify-between text-sm bg-white dark:bg-gray-800 p-2 rounded">
+                                  <div>
+                                    <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                    <span className="text-gray-500 ml-2">• {log.amountEaten}</span>
+                                    {log.section && <span className="text-gray-400 ml-2">({log.section})</span>}
+                                  </div>
+                                  <span className="text-xs text-gray-400">
+                                    {new Date(log.timestamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Detailed Fluid Intake */}
+                        {resident.fluidLogs && resident.fluidLogs.length > 0 && (
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Fluid Intake Details</p>
+                            <div className="space-y-2">
+                              {resident.fluidLogs.map((log: any) => (
+                                <div key={log.id} className="flex items-center justify-between text-sm bg-white dark:bg-gray-800 p-2 rounded">
+                                  <div>
+                                    <span className="font-medium">{log.typeOfFoodDrink}</span>
+                                    <span className="text-blue-600 dark:text-blue-400 ml-2 font-semibold">• {log.fluidConsumedMl} ml</span>
+                                    {log.section && <span className="text-gray-400 ml-2">({log.section})</span>}
+                                  </div>
+                                  <span className="text-xs text-gray-400">
+                                    {new Date(log.timestamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Detailed Incidents */}
+                        {resident.incidents && resident.incidents.length > 0 && (
+                          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                            <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">Incident Details</p>
+                            <div className="space-y-2">
+                              {resident.incidents.map((inc: any) => (
+                                <div key={inc.id} className="bg-white dark:bg-gray-800 p-2 rounded text-sm">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                      {inc.type.map((t: string) => (
+                                        <Badge key={t} variant="destructive" className="text-xs">{t}</Badge>
+                                      ))}
+                                    </div>
+                                    {inc.time && (
+                                      <span className="text-xs text-gray-400">{inc.time}</span>
+                                    )}
+                                  </div>
+                                  {inc.level && (
+                                    <p className="text-xs text-gray-500">Level: {inc.level}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Detailed Hospital Transfers */}
+                        {resident.hospitalTransfers && resident.hospitalTransfers.length > 0 && (
+                          <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                            <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">Hospital Transfer Details</p>
+                            <div className="space-y-2">
+                              {resident.hospitalTransfers.map((transfer: any) => (
+                                <div key={transfer.id} className="bg-white dark:bg-gray-800 p-2 rounded text-sm">
+                                  <p className="font-medium">{transfer.hospitalName}</p>
+                                  {transfer.reason && (
+                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Reason: {transfer.reason}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Comments */}
                         {resident.comments && (
-                          <div>
+                          <div className="mt-3">
                             <p className="text-sm text-gray-500 mb-1">Comments</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{resident.comments}</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 dark:bg-gray-800 p-2 rounded">{resident.comments}</p>
                           </div>
                         )}
                       </div>

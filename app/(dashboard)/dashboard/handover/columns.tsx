@@ -13,8 +13,10 @@ import { Id } from "@/convex/_generated/dataModel";
 import { getAge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "convex/react";
-import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { useState, useEffect, useRef } from "react";
+import { getCurrentShift } from "@/lib/config/shift-config";
+import { toast } from "sonner";
 
 // Component for displaying handover report
 const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
@@ -267,40 +269,129 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   );
 };
 
-// Component for comments with localStorage persistence
-const CommentsCell = ({ residentId }: { residentId: string }) => {
+// Component for comments with database persistence and auto-save
+const CommentsCell = ({
+  residentId,
+  teamId,
+  currentUserId,
+  currentUserName
+}: {
+  residentId: string;
+  teamId?: string;
+  currentUserId?: string;
+  currentUserName?: string;
+}) => {
   const today = new Date().toISOString().split('T')[0];
-  const storageKey = `handover-comment-${today}-${residentId}`;
+  const shift = getCurrentShift();
+
+  // Fetch existing comment from database
+  const existingComment = useQuery(
+    teamId && currentUserId
+      ? api.handoverComments.getComment
+      : "skip",
+    teamId && currentUserId ? {
+      teamId,
+      residentId: residentId as Id<"residents">,
+      date: today,
+      shift,
+    } : "skip"
+  );
+
+  const saveComment = useMutation(api.handoverComments.saveComment);
 
   const [comment, setComment] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const initialLoadComplete = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Load comment from localStorage on mount
+  // Load existing comment on mount
   useEffect(() => {
-    const savedComment = localStorage.getItem(storageKey);
-    if (savedComment) {
-      setComment(savedComment);
+    if (existingComment && !initialLoadComplete.current) {
+      setComment(existingComment.comment);
+      setLastSavedAt(existingComment.updatedAt);
+      initialLoadComplete.current = true;
     }
-  }, [storageKey]);
+  }, [existingComment]);
 
-  // Save comment to localStorage on change
+  // Auto-save with debounce
   const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setComment(value);
-    localStorage.setItem(storageKey, value);
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout for auto-save (2 seconds)
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (!teamId || !currentUserId || !currentUserName) return;
+      if (value === existingComment?.comment) return;
+
+      setIsSaving(true);
+      try {
+        await saveComment({
+          teamId,
+          residentId: residentId as Id<"residents">,
+          date: today,
+          shift,
+          comment: value,
+          createdBy: currentUserId,
+          createdByName: currentUserName,
+        });
+        setLastSavedAt(Date.now());
+      } catch (error) {
+        console.error("Failed to save comment:", error);
+        toast.error("Failed to save comment. Please check your connection and try again.");
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Format last saved time
+  const getLastSavedText = () => {
+    if (!lastSavedAt) return null;
+
+    return `Edited at ${new Date(lastSavedAt).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
   };
 
   return (
-    <Textarea
-      placeholder="Add handover comments..."
-      className="h-[60px] resize-none w-full max-w-md"
-      data-resident-id={residentId}
-      value={comment}
-      onChange={handleCommentChange}
-    />
+    <div className="relative">
+      <Textarea
+        placeholder="Add handover comments..."
+        className="h-[60px] resize-none w-full max-w-md pb-6"
+        data-resident-id={residentId}
+        value={comment}
+        onChange={handleCommentChange}
+      />
+      {(isSaving || lastSavedAt) && (
+        <div className="absolute bottom-1 right-2 text-xs text-muted-foreground italic">
+          {isSaving ? "Saving..." : getLastSavedText()}
+        </div>
+      )}
+    </div>
   );
 };
 
-export const getColumns = (teamId?: string): ColumnDef<Resident, unknown>[] => [
+export const getColumns = (
+  teamId?: string,
+  currentUserId?: string,
+  currentUserName?: string
+): ColumnDef<Resident, unknown>[] => [
   {
     id: "name",
     accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim(),
@@ -464,7 +555,14 @@ export const getColumns = (teamId?: string): ColumnDef<Resident, unknown>[] => [
     size: 400,
     cell: ({ row }) => {
       const resident = row.original;
-      return <CommentsCell residentId={resident._id} />;
+      return (
+        <CommentsCell
+          residentId={resident._id}
+          teamId={teamId}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+        />
+      );
     }
   }
 ];
