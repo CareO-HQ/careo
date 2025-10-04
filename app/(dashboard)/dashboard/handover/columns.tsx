@@ -15,6 +15,8 @@ import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useMutation } from "convex/react";
 import { useState, useEffect, useRef } from "react";
+import { getCurrentShift } from "@/lib/config/shift-config";
+import { toast } from "sonner";
 
 // Component for displaying handover report
 const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
@@ -280,8 +282,7 @@ const CommentsCell = ({
   currentUserName?: string;
 }) => {
   const today = new Date().toISOString().split('T')[0];
-  const currentHour = new Date().getHours();
-  const shift: "day" | "night" = currentHour >= 7 && currentHour < 19 ? "day" : "night";
+  const shift = getCurrentShift();
 
   // Fetch existing comment from database
   const existingComment = useQuery(

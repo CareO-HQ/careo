@@ -33,6 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { CalendarIcon, FileText, MessageSquare, Users } from "lucide-react";
 import { useEffect } from "react";
+import { getCurrentShift } from "@/lib/config/shift-config";
 
 export default function HandoverPage() {
   const router = useRouter();
@@ -41,12 +42,6 @@ export default function HandoverPage() {
   const residents = useQuery(api.residents.getByTeamId, {
     teamId: activeTeamId ?? "skip"
   }) as Resident[] | undefined;
-
-  // Auto-detect current shift based on time (7 AM - 7 PM = day, else night)
-  const getCurrentShift = (): "day" | "night" => {
-    const currentHour = new Date().getHours();
-    return currentHour >= 7 && currentHour < 19 ? "day" : "night";
-  };
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<"day" | "night">(getCurrentShift());
@@ -144,9 +139,34 @@ export default function HandoverPage() {
           roomNumber: resident.roomNumber,
           age: getAge(resident.dateOfBirth),
           foodIntakeCount: report?.foodIntakeCount || 0,
+          foodIntakeLogs: report?.foodIntakeLogs?.map(log => ({
+            id: log.id.toString(),
+            typeOfFoodDrink: log.typeOfFoodDrink,
+            amountEaten: log.amountEaten,
+            section: log.section,
+            timestamp: log.timestamp,
+          })) || [],
           totalFluid: report?.totalFluid || 0,
+          fluidLogs: report?.fluidLogs?.map(log => ({
+            id: log.id.toString(),
+            typeOfFoodDrink: log.typeOfFoodDrink,
+            fluidConsumedMl: log.fluidConsumedMl,
+            section: log.section,
+            timestamp: log.timestamp,
+          })) || [],
           incidentCount: report?.incidentCount || 0,
+          incidents: report?.incidents?.map(inc => ({
+            id: inc.id.toString(),
+            type: inc.type,
+            level: inc.level,
+            time: inc.time,
+          })) || [],
           hospitalTransferCount: report?.hospitalTransferCount || 0,
+          hospitalTransfers: report?.hospitalTransfers?.map(transfer => ({
+            id: transfer.id.toString(),
+            hospitalName: transfer.hospitalName,
+            reason: transfer.reason,
+          })) || [],
           comments: comments,
         };
       });

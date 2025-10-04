@@ -2025,9 +2025,34 @@ export default defineSchema({
 
         // Report data (from handover.getHandoverReport)
         foodIntakeCount: v.number(),
+        foodIntakeLogs: v.optional(v.array(v.object({
+          id: v.string(),
+          typeOfFoodDrink: v.optional(v.string()),
+          amountEaten: v.optional(v.string()),
+          section: v.optional(v.string()),
+          timestamp: v.number(),
+        }))),
         totalFluid: v.number(),
+        fluidLogs: v.optional(v.array(v.object({
+          id: v.string(),
+          typeOfFoodDrink: v.optional(v.string()),
+          fluidConsumedMl: v.optional(v.number()),
+          section: v.optional(v.string()),
+          timestamp: v.number(),
+        }))),
         incidentCount: v.number(),
+        incidents: v.optional(v.array(v.object({
+          id: v.string(),
+          type: v.array(v.string()),
+          level: v.optional(v.string()),
+          time: v.optional(v.string()),
+        }))),
         hospitalTransferCount: v.number(),
+        hospitalTransfers: v.optional(v.array(v.object({
+          id: v.string(),
+          hospitalName: v.optional(v.string()),
+          reason: v.optional(v.string()),
+        }))),
 
         // Comments from handover sheet
         comments: v.optional(v.string()),
