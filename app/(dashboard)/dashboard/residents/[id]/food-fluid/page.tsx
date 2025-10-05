@@ -89,33 +89,28 @@ const FoodFluidLogSchema = z.object({
 export default function FoodFluidPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
-
-  // Get existing diet information
-  const existingDiet = useQuery(api.diet.getDietByResidentId, {
-    residentId: id as Id<"residents">
-  });
-
-  // Get current day food/fluid logs
-  const currentDayLogs = useQuery(api.foodFluidLogs.getCurrentDayLogs, {
-    residentId: id as Id<"residents">
-  });
-
-  // Get food/fluid summary for today
+  // Use optimized batched query (reduces 4 queries to 3!)
   const today = new Date().toISOString().split('T')[0];
-  const logSummary = useQuery(api.foodFluidLogs.getFoodFluidSummary, {
+  const batchedData = useQuery(api.foodFluidLogs.getResidentFoodFluidData, {
     residentId: id as Id<"residents">,
     date: today
   });
 
-  // Get archived logs for records view
+  // Extract resident, diet, and summary from batched response
+  const resident = batchedData?.resident ?? null;
+  const existingDiet = batchedData?.diet ?? null;
+  const logSummary = batchedData?.summary ?? null;
 
-  // const archivedLogs = useQuery(api.foodFluidLogs.getArchivedLogs, {
-  //   residentId: id as Id<"residents">,
-  //   limit: 50
-  // });
+  // Use separate server-filtered queries for food/fluid logs (better than client filtering!)
+  const foodLogs = useQuery(api.foodFluidLogs.getTodayFoodLogs, {
+    residentId: id as Id<"residents">,
+    limit: 100
+  });
+
+  const fluidLogs = useQuery(api.foodFluidLogs.getTodayFluidLogs, {
+    residentId: id as Id<"residents">,
+    limit: 100
+  });
 
 
   // Auth data
@@ -786,17 +781,16 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                 <h3 className="text-lg font-semibold text-orange-900">Food Intake</h3>
               </div>
               {(() => {
-                const foodLogs = currentDayLogs?.filter(log => 
-                  !(['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl)
-                ) || [];
-                
-                return foodLogs.length > 0 ? (
+                // Use server-filtered foodLogs directly (no client-side filtering needed!)
+                const sortedFoodLogs = foodLogs
+                  ? [...foodLogs].sort((a, b) => b.timestamp - a.timestamp)
+                  : [];
+
+                return sortedFoodLogs.length > 0 ? (
                   <div className="border border-orange-200 bg-orange-50/30 rounded-lg p-4">
                     <div className="space-y-3">
-                      {foodLogs
-                        .sort((a, b) => b.timestamp - a.timestamp)
-                        .map((log, index) => (
-                          <div key={log._id} className={`py-3 ${index !== foodLogs.length - 1 ? 'border-b border-orange-200' : ''}`}>
+                      {sortedFoodLogs.map((log, index) => (
+                          <div key={log._id} className={`py-3 ${index !== sortedFoodLogs.length - 1 ? 'border-b border-orange-200' : ''}`}>
                             <div className="flex-1">
                               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
                                 <div className="flex items-center space-x-2">
@@ -859,17 +853,16 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                 <h3 className="text-lg font-semibold text-blue-900">Fluid Intake</h3>
               </div>
               {(() => {
-                const fluidLogs = currentDayLogs?.filter(log => 
-                  ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl
-                ) || [];
-                
-                return fluidLogs.length > 0 ? (
+                // Use server-filtered fluidLogs directly (no client-side filtering needed!)
+                const sortedFluidLogs = fluidLogs
+                  ? [...fluidLogs].sort((a, b) => b.timestamp - a.timestamp)
+                  : [];
+
+                return sortedFluidLogs.length > 0 ? (
                   <div className="border border-blue-200 bg-blue-50/30 rounded-lg p-4">
                     <div className="space-y-3">
-                      {fluidLogs
-                        .sort((a, b) => b.timestamp - a.timestamp)
-                        .map((log, index) => (
-                          <div key={log._id} className={`py-3 ${index !== fluidLogs.length - 1 ? 'border-b border-blue-200' : ''}`}>
+                      {sortedFluidLogs.map((log, index) => (
+                          <div key={log._id} className={`py-3 ${index !== sortedFluidLogs.length - 1 ? 'border-b border-blue-200' : ''}`}>
                             <div className="flex-1">
                               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
                                 <div className="flex items-center space-x-2">
