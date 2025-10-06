@@ -143,7 +143,7 @@ export function AppSidebar() {
             {/* Notification */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/communication" className="flex items-center justify-between w-full">
+                <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <MessageSquareIcon className="w-4 h-4" />
                     <span>Notification</span>
