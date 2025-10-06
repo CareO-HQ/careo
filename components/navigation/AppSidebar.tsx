@@ -140,13 +140,13 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* Communication */}
+            {/* Notification */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/communication" className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <MessageSquareIcon className="w-4 h-4" />
-                    <span>Communication</span>
+                    <span>Notification</span>
                   </div>
                   <Badge className="bg-red-500 text-white ml-auto h-5 px-1.5 text-xs">3</Badge>
                 </Link>
