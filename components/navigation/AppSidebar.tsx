@@ -20,7 +20,6 @@ import {
   FileTextIcon,
   ClipboardListIcon,
   SettingsIcon,
-  CalendarIcon,
   MessageSquareIcon,
   HomeIcon,
   UsersIcon
@@ -126,16 +125,6 @@ export function AppSidebar() {
                 <Link href="/dashboard/general">
                   <SettingsIcon />
                   <span>General</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Rota */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/rota">
-                  <CalendarIcon />
-                  <span>Rota</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, X } from "lucide-react";
+import { format } from "date-fns";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -97,12 +98,7 @@ export function DataTable<TData, TValue>({
 
           {/* Today's date */}
           <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300">
-            {new Date().toLocaleDateString("en-GB", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric"
-            })}
+            {format(new Date(), "EEEE, d MMMM yyyy")}
           </Badge>
         </div>
 

@@ -170,8 +170,65 @@ export const deleteAppointment = mutation({
     if (!existingAppointment) {
       throw new Error("Appointment not found");
     }
-    
+
     await ctx.db.delete(args.appointmentId);
     return { success: true };
+  },
+});
+
+// Get all appointments for a team with resident details
+export const getAppointmentsByTeam = query({
+  args: {
+    teamId: v.string(),
+    status: v.optional(v.union(
+      v.literal("scheduled"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    )),
+    includeAll: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+
+    let appointments = await ctx.db
+      .query("appointments")
+      .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
+      .collect();
+
+    // If includeAll is false or not specified, only show upcoming scheduled appointments
+    if (!args.includeAll) {
+      appointments = appointments.filter(
+        appointment =>
+          appointment.status === "scheduled" &&
+          appointment.startTime >= now
+      );
+    } else {
+      // Filter by status if specified
+      if (args.status) {
+        appointments = appointments.filter(appointment => appointment.status === args.status);
+      }
+    }
+
+    // Get resident details for each appointment
+    const appointmentsWithResidents = await Promise.all(
+      appointments.map(async (appointment) => {
+        const resident = await ctx.db.get(appointment.residentId);
+        return {
+          ...appointment,
+          resident: resident ? {
+            _id: resident._id,
+            firstName: resident.firstName,
+            lastName: resident.lastName,
+            roomNumber: resident.roomNumber,
+            imageUrl: resident.imageUrl,
+          } : null,
+        };
+      })
+    );
+
+    // Sort by start time (earliest first)
+    return appointmentsWithResidents.sort((a, b) =>
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
   },
 });

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Filter, Bell } from "lucide-react";
+import { Check, Filter, Bell, ArrowLeft } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -105,6 +106,7 @@ const initialNotifications: Notification[] = [
 ];
 
 export default function NotificationPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
@@ -148,6 +150,17 @@ export default function NotificationPage() {
 
   return (
     <div className="w-full">
+      {/* Back Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.back()}
+        className="mb-4"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back
+      </Button>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
