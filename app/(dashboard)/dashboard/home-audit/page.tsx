@@ -64,6 +64,18 @@ const environmentItems = [
   "Safety Pause Audit",
 ];
 
+const residentItems = [
+  "Risk Assessment Audit",
+  "Nutrition Audit",
+  "Skin Care Audit",
+  "Falls Audit",
+  "Safeguarding Audit",
+  "Dignity Audit",
+  "Wellbeing Audit",
+  "Admission Audit",
+  "Infection Control Audit",
+];
+
 const AuditTable = ({ items, category, teamId, onOverdueChange }: { items: string[]; category: string; teamId?: string; onOverdueChange?: (count: number) => void }) => {
   const router = useRouter();
   const [isLoaded, setIsLoaded] = useState(false);
@@ -310,6 +322,7 @@ export default function AuditPage() {
   const [governanceOverdue, setGovernanceOverdue] = useState(0);
   const [clinicalOverdue, setClinicalOverdue] = useState(0);
   const [environmentOverdue, setEnvironmentOverdue] = useState(0);
+  const [residentOverdue, setResidentOverdue] = useState(0);
 
   const teamId = activeOrg?.id;
 
@@ -336,6 +349,7 @@ export default function AuditPage() {
     setGovernanceOverdue(getOverdueCount("governance", governanceItems.length));
     setClinicalOverdue(getOverdueCount("clinical", clinicalItems.length));
     setEnvironmentOverdue(getOverdueCount("environment", environmentItems.length));
+    setResidentOverdue(getOverdueCount("resident", residentItems.length));
   }, [teamId]);
 
   return (
@@ -370,6 +384,14 @@ export default function AuditPage() {
             {environmentOverdue > 0 && (
               <Badge variant="secondary" className="ml-2 bg-red-100 text-red-700 text-xs px-2 py-0.5 h-5 font-normal">
                 {environmentOverdue}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="resident">
+            Residents
+            {residentOverdue > 0 && (
+              <Badge variant="secondary" className="ml-2 bg-red-100 text-red-700 text-xs px-2 py-0.5 h-5 font-normal">
+                {residentOverdue}
               </Badge>
             )}
           </TabsTrigger>
@@ -415,6 +437,20 @@ export default function AuditPage() {
             </Button>
           </div>
           <AuditTable items={environmentItems} category="environment" teamId={teamId} onOverdueChange={setEnvironmentOverdue} />
+        </TabsContent>
+
+        <TabsContent value="resident" className="mt-4">
+          <div className="flex justify-end mb-4">
+            <Button
+              size="sm"
+              className="gap-2 bg-black text-white hover:bg-black/90"
+              onClick={() => router.push("/dashboard/home-audit/resident-report")}
+            >
+              <FileText className="h-4 w-4" />
+              Audit Report
+            </Button>
+          </div>
+          <AuditTable items={residentItems} category="resident" teamId={teamId} onOverdueChange={setResidentOverdue} />
         </TabsContent>
       </Tabs>
     </div>
