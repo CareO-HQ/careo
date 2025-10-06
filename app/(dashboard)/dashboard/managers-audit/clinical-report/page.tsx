@@ -9,27 +9,27 @@ import { Badge } from "@/components/ui/badge";
 const reports = [
   {
     id: 1,
-    title: "Q4 2024 Governance Compliance Report.pdf",
-    date: "15 Dec 2025, 14:27",
+    title: "December 2024 Medicines Management Audit.pdf",
+    date: "20 Dec 2025, 10:15",
   },
   {
     id: 2,
-    title: "Q3 2024 Regulatory Audit Summary.pdf",
-    date: "30 Sept 2025, 09:15",
+    title: "Q4 2024 Infection Control Review.pdf",
+    date: "15 Nov 2025, 13:45",
   },
   {
     id: 3,
-    title: "Q2 2024 Policy Compliance Review.pdf",
-    date: "28 Jun 2025, 16:42",
+    title: "October 2024 Pressure Care Audit.pdf",
+    date: "30 Oct 2025, 08:30",
   },
   {
     id: 4,
-    title: "Q1 2024 Annual Governance Report.pdf",
-    date: "31 Mar 2025, 11:30",
+    title: "Q3 2024 Clinical Standards Report.pdf",
+    date: "25 Sept 2025, 15:20",
   },
 ];
 
-export default function GovernanceReportPage() {
+export default function ClinicalReportPage() {
   const router = useRouter();
 
   return (
@@ -38,7 +38,7 @@ export default function GovernanceReportPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push("/dashboard/home-audit")}
+          onClick={() => router.push("/dashboard/managers-audit")}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
@@ -46,9 +46,9 @@ export default function GovernanceReportPage() {
       </div>
 
       <div className="flex flex-col mb-6">
-        <p className="font-semibold text-xl">Governance & Compliance Audit Report</p>
+        <p className="font-semibold text-xl">Clinical Care & Medicines Audit Report</p>
         <p className="text-sm text-muted-foreground">
-          Comprehensive report for governance and compliance audits
+          Comprehensive report for clinical care and medicines audits
         </p>
       </div>
 

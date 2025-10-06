@@ -38,7 +38,7 @@ export default function EnvironmentReportPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push("/dashboard/home-audit")}
+          onClick={() => router.push("/dashboard/managers-audit")}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
