@@ -288,3 +288,346 @@ export const getDailyFoodFluidReport = query({
     };
   }
 });
+
+// ============================================================================
+// PERFORMANCE OPTIMIZATIONS
+// ============================================================================
+
+/**
+ * BATCHED QUERY: Get all resident food/fluid data in ONE query
+ * Replaces 4 separate queries with 1 optimized query
+ *
+ * Before: resident + diet + logs + summary = 4 queries
+ * After: 1 query returns everything
+ */
+export const getResidentFoodFluidData = query({
+  args: {
+    residentId: v.id("residents"),
+    date: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Parallel fetch (fast!)
+    const [resident, diet, logs] = await Promise.all([
+      ctx.db.get(args.residentId),
+      ctx.db
+        .query("dietInformation")
+        .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+        .first(),
+      ctx.db
+        .query("foodFluidLogs")
+        .withIndex("byResidentAndDate", (q) =>
+          q.eq("residentId", args.residentId).eq("date", args.date)
+        )
+        .filter((q) => q.neq(q.field("isArchived"), true))
+        .collect(),
+    ]);
+
+    // Calculate summary from logs (no extra query needed)
+    const totalFluidIntakeMl = logs
+      .filter((log) => log.fluidConsumedMl)
+      .reduce((sum, log) => sum + (log.fluidConsumedMl || 0), 0);
+
+    const foodEntries = logs.filter(
+      (log) =>
+        log.typeOfFoodDrink &&
+        !["Water", "Tea", "Coffee", "Juice", "Milk"].includes(log.typeOfFoodDrink)
+    ).length;
+
+    const lastRecorded = logs.length > 0 ? Math.max(...logs.map((l) => l.timestamp)) : null;
+
+    return {
+      resident,
+      diet,
+      logs,
+      summary: {
+        foodEntries,
+        totalFluidIntakeMl,
+        lastRecorded,
+      },
+    };
+  },
+});
+
+/**
+ * SERVER-SIDE FILTERED FOOD LOGS
+ * Replaces client-side filtering in UI
+ */
+export const getTodayFoodLogs = query({
+  args: {
+    residentId: v.id("residents"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const today = new Date().toISOString().split("T")[0];
+
+    const logs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("byResidentAndDate", (q) =>
+        q.eq("residentId", args.residentId).eq("date", today)
+      )
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .order("desc")
+      .take(args.limit || 50);
+
+    // Filter food only (server-side!)
+    return logs.filter(
+      (log) =>
+        log.typeOfFoodDrink &&
+        !["Water", "Tea", "Coffee", "Juice", "Milk"].includes(log.typeOfFoodDrink) &&
+        !log.fluidConsumedMl
+    );
+  },
+});
+
+/**
+ * SERVER-SIDE FILTERED FLUID LOGS
+ * Replaces client-side filtering in UI
+ */
+export const getTodayFluidLogs = query({
+  args: {
+    residentId: v.id("residents"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const today = new Date().toISOString().split("T")[0];
+
+    const logs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("byResidentAndDate", (q) =>
+        q.eq("residentId", args.residentId).eq("date", today)
+      )
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .order("desc")
+      .take(args.limit || 50);
+
+    // Filter fluid only (server-side!)
+    return logs.filter(
+      (log) =>
+        ["Water", "Tea", "Coffee", "Juice", "Milk"].includes(log.typeOfFoodDrink) ||
+        log.fluidConsumedMl
+    );
+  },
+});
+
+/**
+ * OPTIMIZED PAGINATION for Documents Page
+ * Returns paginated dates with report status
+ * Prevents client-side generation of thousands of dates
+ */
+export const getPaginatedFoodFluidDates = query({
+  args: {
+    residentId: v.id("residents"),
+    page: v.number(),
+    pageSize: v.number(),
+    year: v.optional(v.number()),
+    month: v.optional(v.number()),
+    sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+  },
+  handler: async (ctx, args) => {
+    // Get resident to determine date range
+    const resident = await ctx.db.get(args.residentId);
+    if (!resident) {
+      return {
+        dates: [],
+        totalCount: 0,
+        totalPages: 0,
+        page: args.page,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    // Determine date range
+    let startDate: Date;
+    let endDate = new Date();
+
+    if (args.year && args.month) {
+      // Specific month and year
+      startDate = new Date(args.year, args.month - 1, 1);
+      endDate = new Date(args.year, args.month, 0); // Last day of month
+    } else if (args.year) {
+      // Specific year
+      startDate = new Date(args.year, 0, 1);
+      endDate = new Date(args.year, 11, 31);
+    } else {
+      // All time (from resident creation to today)
+      startDate = resident.createdAt
+        ? new Date(resident.createdAt)
+        : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      endDate = new Date();
+    }
+
+    // Get all logs in the date range
+    const logs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("timestamp"), startDate.getTime()),
+          q.lte(q.field("timestamp"), endDate.getTime())
+        )
+      )
+      .collect();
+
+    // Get unique dates that have logs
+    const datesWithLogs = new Set(logs.map((log) => log.date));
+
+    // Generate all dates in range
+    const allDates: Array<{ date: string; hasReport: boolean }> = [];
+    const currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split("T")[0];
+      allDates.push({
+        date: dateStr,
+        hasReport: datesWithLogs.has(dateStr),
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Sort dates
+    const sortOrder = args.sortOrder || "desc";
+    allDates.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+    });
+
+    // Calculate pagination
+    const totalCount = allDates.length;
+    const totalPages = Math.ceil(totalCount / args.pageSize);
+    const startIndex = (args.page - 1) * args.pageSize;
+    const endIndex = startIndex + args.pageSize;
+
+    // Get page of results
+    const paginatedDates = allDates.slice(startIndex, endIndex);
+
+    return {
+      dates: paginatedDates,
+      totalCount,
+      totalPages,
+      page: args.page,
+      pageSize: args.pageSize,
+      hasNextPage: args.page < totalPages,
+      hasPreviousPage: args.page > 1,
+    };
+  },
+});
+
+/**
+ * LEGACY: CURSOR-BASED PAGINATION for Documents Page
+ * @deprecated Use getPaginatedFoodFluidDates instead
+ */
+export const getFilteredDates = query({
+  args: {
+    residentId: v.id("residents"),
+    year: v.optional(v.number()),
+    month: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let query = ctx.db
+      .query("foodFluidLogs")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId));
+
+    const logs = await query.collect();
+
+    // Get unique dates
+    const uniqueDates = [...new Set(logs.map((log) => log.date))];
+
+    // Server-side filtering
+    let filteredDates = uniqueDates;
+
+    if (args.year) {
+      filteredDates = filteredDates.filter(
+        (date) => new Date(date).getFullYear() === args.year
+      );
+    }
+
+    if (args.month) {
+      filteredDates = filteredDates.filter(
+        (date) => new Date(date).getMonth() + 1 === args.month
+      );
+    }
+
+    // Sort descending
+    filteredDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    // Limit results
+    return filteredDates.slice(0, args.limit || 100);
+  },
+});
+
+/**
+ * DATE RANGE QUERY (for performance)
+ * Use timestamp index for fast range queries
+ */
+export const getLogsInDateRange = query({
+  args: {
+    residentId: v.id("residents"),
+    startDate: v.number(), // timestamp
+    endDate: v.number(), // timestamp
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const logs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("by_resident_timestamp", (q) => q.eq("residentId", args.residentId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("timestamp"), args.startDate),
+          q.lte(q.field("timestamp"), args.endDate)
+        )
+      )
+      .order("desc")
+      .take(args.limit || 100);
+
+    return logs;
+  },
+});
+
+/**
+ * AUTO-ARCHIVE: Archive logs older than 6 months
+ * Scheduled job to run daily
+ */
+export const autoArchiveOldLogs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const sixMonthsAgo = Date.now() - 6 * 30 * 24 * 60 * 60 * 1000;
+    const sixMonthsAgoDate = new Date(sixMonthsAgo).toISOString().split("T")[0];
+
+    // Find logs older than 6 months that aren't archived
+    const oldLogs = await ctx.db
+      .query("foodFluidLogs")
+      .withIndex("by_archived_date")
+      .filter((q) =>
+        q.and(
+          q.or(
+            q.eq(q.field("isArchived"), false),
+            q.eq(q.field("isArchived"), undefined)
+          ),
+          q.lt(q.field("timestamp"), sixMonthsAgo)
+        )
+      )
+      .collect();
+
+    const now = Date.now();
+
+    // Archive them
+    const archivePromises = oldLogs.map((log) =>
+      ctx.db.patch(log._id, {
+        isArchived: true,
+        archivedAt: now,
+        updatedAt: now,
+      })
+    );
+
+    await Promise.all(archivePromises);
+
+    return {
+      archivedCount: oldLogs.length,
+      olderThan: sixMonthsAgoDate,
+      archivedAt: now,
+    };
+  },
+});

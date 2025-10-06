@@ -489,7 +489,11 @@ export default defineSchema({
     .index("byDateAndArchived", ["date", "isArchived"])
     .index("byOrganizationId", ["organizationId"])
     .index("bySection", ["section"])
-    .index("bySignature", ["signature"]),
+    .index("bySignature", ["signature"])
+    .index("by_resident_timestamp", ["residentId", "timestamp"]) // For date range queries
+    .index("by_resident_archived", ["residentId", "isArchived", "timestamp"]) // For filtering archived
+    .index("by_organization_date", ["organizationId", "date"]) // For org-level reports
+    .index("by_archived_date", ["isArchived", "archivedAt"]), // For auto-archive cleanup
 
   // Quick care notes for residents
   quickCareNotes: defineTable({

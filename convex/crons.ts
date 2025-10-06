@@ -35,13 +35,28 @@ crons.daily(
 );
 
 crons.daily(
-  "Generate day care reports", 
+  "Generate day care reports",
   {
     // London time: 20:00 - generate day reports (8 AM - 8 PM)
     hourUTC: 20,
     minuteUTC: 0
   },
   internal.personalCare.generateDayReports
+);
+
+/**
+ * AUTO-ARCHIVE OLD FOOD/FLUID LOGS (6+ months)
+ * Prevents database bloat and keeps queries fast
+ * Runs at 2 AM daily to archive logs older than 6 months
+ */
+crons.daily(
+  "Auto-archive old food/fluid logs",
+  {
+    // London time: 02:00 - archive logs older than 6 months
+    hourUTC: 2,
+    minuteUTC: 0
+  },
+  internal.foodFluidLogs.autoArchiveOldLogs
 );
 
 export default crons;
