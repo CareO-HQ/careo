@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { authClient } from "@/lib/auth-client";
 import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -374,7 +374,7 @@ const AuditTable = ({ items, category, teamId, onOverdueChange, customRouteMap }
   );
 };
 
-export default function AuditPage() {
+function AuditPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -415,7 +415,7 @@ export default function AuditPage() {
   return (
     <div className="w-full">
       <div className="flex flex-col mb-6">
-        <p className="font-semibold text-xl">Manager's Audit</p>
+        <p className="font-semibold text-xl">Manager&apos;s Audit</p>
         <p className="text-sm text-muted-foreground">
           Manage and track care audits
         </p>
@@ -531,6 +531,14 @@ export default function AuditPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function AuditPage() {
+  return (
+    <Suspense fallback={<div className="w-full p-8 text-center">Loading...</div>}>
+      <AuditPageContent />
+    </Suspense>
   );
 }
 
