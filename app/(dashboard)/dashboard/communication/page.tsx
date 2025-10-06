@@ -69,6 +69,51 @@ const initialNotifications: Notification[] = [
     timestamp: new Date(Date.now() - 86400000),
     category: "audit"
   },
+  {
+    id: "6",
+    title: "Appointment Reminder",
+    message: "Dr. Williams visit scheduled for Margaret Davis at 10:00 AM tomorrow",
+    type: "info",
+    read: false,
+    timestamp: new Date(Date.now() - 14400000),
+    category: "appointment"
+  },
+  {
+    id: "7",
+    title: "Critical Alert",
+    message: "Emergency call button activated in Room 12",
+    type: "urgent",
+    read: false,
+    timestamp: new Date(Date.now() - 18000000),
+    category: "emergency"
+  },
+  {
+    id: "8",
+    title: "Dietary Requirements",
+    message: "New dietary restrictions added for Thomas Anderson",
+    type: "warning",
+    read: false,
+    timestamp: new Date(Date.now() - 21600000),
+    category: "dietary"
+  },
+  {
+    id: "9",
+    title: "Visitor Check-in",
+    message: "Family member checked in to visit Patricia Wilson",
+    type: "info",
+    read: true,
+    timestamp: new Date(Date.now() - 28800000),
+    category: "visitor"
+  },
+  {
+    id: "10",
+    title: "Training Completed",
+    message: "Monthly safeguarding training completed by all staff",
+    type: "success",
+    read: true,
+    timestamp: new Date(Date.now() - 172800000),
+    category: "training"
+  },
 ];
 
 export default function NotificationPage() {
