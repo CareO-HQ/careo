@@ -134,7 +134,11 @@ export function CareFileDialogRenderer({
 
     case "photography-consent":
       return (
-        <PhotographyConsentDialog {...commonProps} initialData={editData} />
+        <PhotographyConsentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
       );
 
     case "dnacpr":
