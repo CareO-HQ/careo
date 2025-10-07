@@ -5,183 +5,51 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, User, MapPin, Phone, CalendarDays } from "lucide-react";
 import { useMemo } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
-
-type AppointmentType = "GP Visit" | "Hospital" | "Dentist" | "Optician" | "Specialist" | "Other";
-
-interface Appointment {
-  id: string;
-  teamId: string;
-  residentName: string;
-  residentRoom: string;
-  appointmentType: AppointmentType;
-  date: string;
-  time: string;
-  location: string;
-  provider: string;
-  notes: string;
-  contactNumber?: string;
-  accompaniedBy?: string;
-}
-
-// Dummy data with team assignments
-const allAppointments: Appointment[] = [
-  // Team 1 appointments
-  {
-    id: "1",
-    teamId: "team1",
-    residentName: "Margaret Wilson",
-    residentRoom: "Room 12",
-    appointmentType: "GP Visit",
-    date: "2025-10-08",
-    time: "10:30",
-    location: "Dr. Smith's Clinic, 45 High Street",
-    provider: "Dr. James Smith",
-    notes: "Regular check-up and blood pressure monitoring",
-    contactNumber: "020 7946 0958",
-    accompaniedBy: "Sarah Johnson (Care Assistant)",
-  },
-  {
-    id: "2",
-    teamId: "team1",
-    residentName: "John Peterson",
-    residentRoom: "Room 8",
-    appointmentType: "Hospital",
-    date: "2025-10-09",
-    time: "14:00",
-    location: "St. Mary's Hospital - Cardiology Department",
-    provider: "Dr. Emily Chen",
-    notes: "Follow-up appointment for heart condition",
-    contactNumber: "020 7946 1234",
-    accompaniedBy: "Michael Brown (Senior Carer)",
-  },
-  {
-    id: "4",
-    teamId: "team1",
-    residentName: "Arthur Brown",
-    residentRoom: "Room 22",
-    appointmentType: "Optician",
-    date: "2025-10-15",
-    time: "09:00",
-    location: "Vision Care Centre, 12 Oak Avenue",
-    provider: "Sarah Williams - Optometrist",
-    notes: "Eye test and new prescription glasses",
-    contactNumber: "020 7946 9012",
-  },
-  {
-    id: "5",
-    teamId: "team1",
-    residentName: "Elizabeth Davis",
-    residentRoom: "Room 5",
-    appointmentType: "Specialist",
-    date: "2025-10-20",
-    time: "15:30",
-    location: "Royal Hospital - Rheumatology",
-    provider: "Dr. Patricia Moore",
-    notes: "Arthritis management consultation",
-    contactNumber: "020 7946 3456",
-    accompaniedBy: "David Wilson (Manager)",
-  },
-  // Team 2 appointments
-  {
-    id: "7",
-    teamId: "team2",
-    residentName: "Sarah Thompson",
-    residentRoom: "Room 24",
-    appointmentType: "Dentist",
-    date: "2025-10-12",
-    time: "11:30",
-    location: "City Dental Care, 89 Park Lane",
-    provider: "Dr. Michael Scott",
-    notes: "Routine dental check and cleaning",
-    contactNumber: "020 7946 7890",
-    accompaniedBy: "Emma Roberts (Care Assistant)",
-  },
-  {
-    id: "8",
-    teamId: "team2",
-    residentName: "William Harris",
-    residentRoom: "Room 31",
-    appointmentType: "Hospital",
-    date: "2025-10-14",
-    time: "13:00",
-    location: "General Hospital - Neurology",
-    provider: "Dr. Rebecca Jones",
-    notes: "Neurological assessment follow-up",
-    contactNumber: "020 7946 5432",
-  },
-  {
-    id: "9",
-    teamId: "team2",
-    residentName: "Patricia Anderson",
-    residentRoom: "Room 27",
-    appointmentType: "GP Visit",
-    date: "2025-10-16",
-    time: "10:00",
-    location: "Riverside Medical Centre",
-    provider: "Dr. Thomas Green",
-    notes: "Diabetes monitoring and medication review",
-    contactNumber: "020 7946 2468",
-    accompaniedBy: "James Miller (Senior Carer)",
-  },
-];
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { ErrorState } from "@/components/ErrorState";
+import { format } from "date-fns";
 
 export default function AppointmentPage() {
-  const { activeTeamId, activeTeam, isLoading } = useActiveTeam();
+  const { activeTeamId, activeTeam, isLoading: teamLoading } = useActiveTeam();
 
-  const getTypeColor = (type: AppointmentType) => {
-    switch (type) {
-      case "GP Visit":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
-      case "Hospital":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-      case "Dentist":
-        return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200";
-      case "Optician":
-        return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
-      case "Specialist":
-        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
-    }
-  };
+  // Fetch appointments for the active team from Convex
+  const appointmentsData = useQuery(
+    api.appointments.getAppointmentsByTeam,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
 
-  // Filter appointments by active team and only show upcoming appointments
+  // Transform appointments data for display
   const upcomingAppointments = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (!appointmentsData) return [];
 
-    // Use actual activeTeamId when available, fallback to "team1" for demo
-    const teamToFilter = activeTeamId || "team1";
+    // Data is already filtered and sorted by the backend query
+    // Just return it directly
+    return appointmentsData;
+  }, [appointmentsData]);
 
-    return allAppointments
-      .filter((apt) => {
-        const aptDate = new Date(apt.date);
-        // Filter by team and only show upcoming appointments (today or future)
-        return apt.teamId === teamToFilter && aptDate >= today;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [activeTeamId]);
-
-  // Calculate stats
+  // Calculate stats from real appointment data
   const stats = useMemo(() => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
     const nextMonth = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     return {
       total: upcomingAppointments.length,
       thisWeek: upcomingAppointments.filter((a) => {
-        const aptDate = new Date(a.date);
+        const aptDate = new Date(a.startTime);
+        aptDate.setHours(0, 0, 0, 0);
         return aptDate >= today && aptDate <= nextWeek;
       }).length,
       thisMonth: upcomingAppointments.filter((a) => {
-        const aptDate = new Date(a.date);
+        const aptDate = new Date(a.startTime);
+        aptDate.setHours(0, 0, 0, 0);
         return aptDate >= today && aptDate <= nextMonth;
       }).length,
       today: upcomingAppointments.filter((a) => {
-        const aptDate = new Date(a.date);
-        const todayDate = new Date();
-        return aptDate.toDateString() === todayDate.toDateString();
+        const aptDate = new Date(a.startTime);
+        return aptDate.toDateString() === today.toDateString();
       }).length,
     };
   }, [upcomingAppointments]);
@@ -200,12 +68,27 @@ export default function AppointmentPage() {
     return null;
   };
 
-  if (isLoading) {
+  // Loading state
+  if (teamLoading || appointmentsData === undefined) {
     return (
       <div className="container mx-auto space-y-6 p-6">
         <div className="flex items-center justify-center py-12">
-          <p className="text-muted-foreground">Loading appointments...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground ml-3">Loading appointments...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Error state - no team selected
+  if (!activeTeamId) {
+    return (
+      <div className="container mx-auto space-y-6 p-6">
+        <ErrorState
+          message="No team selected"
+          description="Please select a team to view appointments."
+          showBackButton={false}
+        />
       </div>
     );
   }
@@ -269,11 +152,15 @@ export default function AppointmentPage() {
       {/* Appointments List */}
       <div className="grid grid-cols-1 gap-4">
         {upcomingAppointments.map((appointment) => {
-          const daysUntil = getDaysUntil(appointment.date);
+          const daysUntil = getDaysUntil(appointment.startTime);
+          const residentName = appointment.resident
+            ? `${appointment.resident.firstName} ${appointment.resident.lastName}`
+            : "Unknown Resident";
+          const roomNumber = appointment.resident?.roomNumber || "N/A";
 
           return (
             <Card
-              key={appointment.id}
+              key={appointment._id}
               className="hover:shadow-md transition-shadow border-l-4"
               style={{
                 borderLeftColor:
@@ -288,12 +175,12 @@ export default function AppointmentPage() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <CardTitle className="text-lg">{appointment.residentName}</CardTitle>
+                      <CardTitle className="text-lg">{residentName}</CardTitle>
                       <Badge variant="outline" className="text-xs">
-                        {appointment.residentRoom}
+                        Room {roomNumber}
                       </Badge>
-                      <Badge className={getTypeColor(appointment.appointmentType)}>
-                        {appointment.appointmentType}
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {appointment.title}
                       </Badge>
                       {daysUntil && (
                         <Badge
@@ -314,12 +201,7 @@ export default function AppointmentPage() {
                     <Calendar className="w-5 h-5 mt-0.5 text-muted-foreground" />
                     <div>
                       <div className="text-sm font-medium">
-                        {new Date(appointment.date).toLocaleDateString("en-GB", {
-                          weekday: "long",
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
+                        {format(new Date(appointment.startTime), "EEEE, MMMM d, yyyy")}
                       </div>
                       <div className="text-xs text-muted-foreground">Appointment Date</div>
                     </div>
@@ -328,54 +210,39 @@ export default function AppointmentPage() {
                   <div className="flex items-start gap-3">
                     <Clock className="w-5 h-5 mt-0.5 text-muted-foreground" />
                     <div>
-                      <div className="text-sm font-medium">{appointment.time}</div>
+                      <div className="text-sm font-medium">
+                        {format(new Date(appointment.startTime), "h:mm a")}
+                        {appointment.endTime && ` - ${format(new Date(appointment.endTime), "h:mm a")}`}
+                      </div>
                       <div className="text-xs text-muted-foreground">Appointment Time</div>
                     </div>
                   </div>
 
+                  {appointment.staffId && (
                   <div className="flex items-start gap-3">
                     <User className="w-5 h-5 mt-0.5 text-muted-foreground" />
                     <div>
-                      <div className="text-sm font-medium">{appointment.provider}</div>
-                      <div className="text-xs text-muted-foreground">Healthcare Provider</div>
+                        <div className="text-sm font-medium">{appointment.staffId}</div>
+                        <div className="text-xs text-muted-foreground">Assigned Staff</div>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="flex items-start gap-3">
                     <MapPin className="w-5 h-5 mt-0.5 text-muted-foreground" />
                     <div>
-                      <div className="text-sm font-medium">{appointment.location}</div>
+                      <div className="text-sm font-medium">{appointment.location || "Not specified"}</div>
                       <div className="text-xs text-muted-foreground">Location</div>
                     </div>
                   </div>
-
-                  {appointment.contactNumber && (
-                    <div className="flex items-start gap-3">
-                      <Phone className="w-5 h-5 mt-0.5 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">{appointment.contactNumber}</div>
-                        <div className="text-xs text-muted-foreground">Contact Number</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {appointment.accompaniedBy && (
-                    <div className="flex items-start gap-3">
-                      <User className="w-5 h-5 mt-0.5 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">{appointment.accompaniedBy}</div>
-                        <div className="text-xs text-muted-foreground">Accompanied By</div>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                {appointment.notes && (
+                {appointment.description && (
                   <div className="pt-3 border-t">
                     <div className="text-xs font-medium text-muted-foreground mb-1.5">
                       Additional Notes
                     </div>
-                    <p className="text-sm leading-relaxed">{appointment.notes}</p>
+                    <p className="text-sm leading-relaxed">{appointment.description}</p>
                   </div>
                 )}
               </CardContent>
