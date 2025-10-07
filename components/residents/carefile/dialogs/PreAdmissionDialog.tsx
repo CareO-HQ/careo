@@ -97,61 +97,61 @@ export default function PreAdmissionDialog({
           savedAsDraft: false,
           consentAcceptedAt: initialData.consentAcceptedAt || 0,
           careHomeName: initialData.careHomeName ?? careHomeName,
-          nhsHealthCareNumber: initialData.nhsHealthCareNumber ?? "1",
+          nhsHealthCareNumber: initialData.nhsHealthCareNumber ?? "",
           userName:
             initialData.userName ??
             resident.firstName + " " + resident.lastName,
-          jobRole: initialData.jobRole ?? "1",
-          date: initialData.date ?? new Date().getTime(),
+          jobRole: initialData.jobRole ?? "",
+          date: initialData.date ?? undefined,
           firstName: initialData.firstName ?? resident.firstName ?? "",
           lastName: initialData.lastName ?? resident.lastName ?? "",
-          address: initialData.address ?? "1",
+          address: initialData.address ?? "",
           phoneNumber: initialData.phoneNumber ?? resident.phoneNumber ?? "",
-          ethnicity: initialData.ethnicity ?? "1",
+          ethnicity: initialData.ethnicity ?? "",
           gender: initialData.gender ?? undefined,
-          religion: initialData.religion ?? "1",
+          religion: initialData.religion ?? "",
           dateOfBirth: initialData.dateOfBirth ?? resident.dateOfBirth ?? "",
           kinFirstName: initialData.kinFirstName ?? firstKin?.name ?? "",
-          kinLastName: initialData.kinLastName ?? "1",
+          kinLastName: initialData.kinLastName ?? "",
           kinRelationship:
             initialData.kinRelationship ?? firstKin?.relationship ?? "",
           kinPhoneNumber:
             initialData.kinPhoneNumber ?? firstKin?.phoneNumber ?? "",
           // Professional contacts
-          careManagerName: initialData.careManagerName ?? "1",
-          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? "1",
-          districtNurseName: initialData.districtNurseName ?? "1",
-          districtNursePhoneNumber: initialData.districtNursePhoneNumber ?? "1",
-          generalPractitionerName: initialData.generalPractitionerName ?? "1",
+          careManagerName: initialData.careManagerName ?? "",
+          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? "",
+          districtNurseName: initialData.districtNurseName ?? "",
+          districtNursePhoneNumber: initialData.districtNursePhoneNumber ?? "",
+          generalPractitionerName: initialData.generalPractitionerName ?? "",
           generalPractitionerPhoneNumber:
-            initialData.generalPractitionerPhoneNumber ?? "1",
+            initialData.generalPractitionerPhoneNumber ?? "",
           providerHealthcareInfoName:
-            initialData.providerHealthcareInfoName ?? "1",
+            initialData.providerHealthcareInfoName ?? "",
           providerHealthcareInfoDesignation:
-            initialData.providerHealthcareInfoDesignation ?? "1",
+            initialData.providerHealthcareInfoDesignation ?? "",
           // Medical information
-          allergies: initialData.allergies ?? "1",
-          medicalHistory: initialData.medicalHistory ?? "1",
-          medicationPrescribed: initialData.medicationPrescribed ?? "1",
+          allergies: initialData.allergies ?? "",
+          medicalHistory: initialData.medicalHistory ?? "",
+          medicationPrescribed: initialData.medicationPrescribed ?? "",
           // Assessment sections
-          consentCapacityRights: initialData.consentCapacityRights ?? "1",
-          medication: initialData.medication ?? "1",
-          mobility: initialData.mobility ?? "1",
-          nutrition: initialData.nutrition ?? "1",
-          continence: initialData.continence ?? "1",
-          hygieneDressing: initialData.hygieneDressing ?? "1",
-          skin: initialData.skin ?? "1",
-          cognition: initialData.cognition ?? "1",
-          infection: initialData.infection ?? "1",
-          breathing: initialData.breathing ?? "1",
+          consentCapacityRights: initialData.consentCapacityRights ?? "",
+          medication: initialData.medication ?? "",
+          mobility: initialData.mobility ?? "",
+          nutrition: initialData.nutrition ?? "",
+          continence: initialData.continence ?? "",
+          hygieneDressing: initialData.hygieneDressing ?? "",
+          skin: initialData.skin ?? "",
+          cognition: initialData.cognition ?? "",
+          infection: initialData.infection ?? "",
+          breathing: initialData.breathing ?? "",
           alteredStateOfConsciousness:
-            initialData.alteredStateOfConsciousness ?? "1",
+            initialData.alteredStateOfConsciousness ?? "",
           // Palliative and End of life care
           dnacpr: initialData.dnacpr ?? undefined,
           advancedDecision: initialData.advancedDecision ?? undefined,
           capacity: initialData.capacity ?? undefined,
           advancedCarePlan: initialData.advancedCarePlan ?? undefined,
-          comments: initialData.comments ?? "1",
+          comments: initialData.comments ?? "",
           // Preferences
           roomPreferences: initialData.roomPreferences ?? "",
           admissionContact: initialData.admissionContact ?? "",
@@ -178,53 +178,53 @@ export default function PreAdmissionDialog({
           savedAsDraft: false,
           consentAcceptedAt: 0,
           careHomeName,
-          nhsHealthCareNumber: "1",
+          nhsHealthCareNumber: "",
           userName: resident.firstName + " " + resident.lastName,
-          jobRole: "1",
-          date: new Date().getTime(),
+          jobRole: "",
+          date: undefined,
           firstName: resident.firstName ?? "",
           lastName: resident.lastName ?? "",
-          address: "1",
+          address: "",
           phoneNumber: resident.phoneNumber ?? "",
-          ethnicity: "1",
+          ethnicity: "",
           gender: undefined,
-          religion: "1",
+          religion: "",
           dateOfBirth: resident.dateOfBirth ?? "",
           kinFirstName: firstKin?.name ?? "",
-          kinLastName: "1",
+          kinLastName: "",
           kinRelationship: firstKin?.relationship ?? "",
           kinPhoneNumber: firstKin?.phoneNumber ?? "",
           // Professional contacts
-          careManagerName: "1",
-          careManagerPhoneNumber: "1",
-          districtNurseName: "1",
-          districtNursePhoneNumber: "1",
-          generalPractitionerName: "1",
-          generalPractitionerPhoneNumber: "1",
-          providerHealthcareInfoName: "1",
-          providerHealthcareInfoDesignation: "1",
+          careManagerName: "",
+          careManagerPhoneNumber: "",
+          districtNurseName: "",
+          districtNursePhoneNumber: "",
+          generalPractitionerName: "",
+          generalPractitionerPhoneNumber: "",
+          providerHealthcareInfoName: "",
+          providerHealthcareInfoDesignation: "",
           // Medical information
-          allergies: "1",
-          medicalHistory: "1",
-          medicationPrescribed: "1",
+          allergies: "",
+          medicalHistory: "",
+          medicationPrescribed: "",
           // Assessment sections
-          consentCapacityRights: "1",
-          medication: "1",
-          mobility: "1",
-          nutrition: "1",
-          continence: "1",
-          hygieneDressing: "1",
-          skin: "1",
-          cognition: "1",
-          infection: "1",
-          breathing: "1",
-          alteredStateOfConsciousness: "1",
+          consentCapacityRights: "",
+          medication: "",
+          mobility: "",
+          nutrition: "",
+          continence: "",
+          hygieneDressing: "",
+          skin: "",
+          cognition: "",
+          infection: "",
+          breathing: "",
+          alteredStateOfConsciousness: "",
           // Palliative and End of life care
           dnacpr: undefined,
           advancedDecision: undefined,
           capacity: undefined,
           advancedCarePlan: undefined,
-          comments: "1",
+          comments: "",
           // Preferences
           roomPreferences: "",
           admissionContact: "",
@@ -585,28 +585,42 @@ export default function PreAdmissionDialog({
                         <Popover
                           open={datePopoverOpen}
                           onOpenChange={setDatePopoverOpen}
+                          modal={false}
                         >
                           <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-[240px] pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" captionLayout="dropdown" />
+                          <PopoverContent
+                            className="w-auto p-0 z-[100]"
+                            align="start"
+                          >
+                            <Calendar
+                              mode="single"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              captionLayout="dropdown"
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(date.getTime());
+                                  setDatePopoverOpen(false);
+                                }
+                              }}
+                            />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -736,53 +750,47 @@ export default function PreAdmissionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel required>Date of Birth</FormLabel>
-                        <FormControl>
-                          <Popover
-                            open={dobPopoverOpen}
-                            onOpenChange={setDobPopoverOpen}
-                          >
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className={cn(
-                                    "w-[240px] pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? (
-                                    format(field.value, "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              className="w-auto p-0"
-                              align="start"
-                              onInteractOutside={(e) => e.preventDefault()}
+                        <Popover
+                          open={dobPopoverOpen}
+                          onOpenChange={setDobPopoverOpen}
+                          modal={false}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
                             >
-                              <Calendar
-                                mode="single"
-                                selected={
-                                  field.value
-                                    ? new Date(field.value)
-                                    : undefined
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto p-0 z-[100]"
+                            align="start"
+                          >
+                            <Calendar
+                              mode="single"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              captionLayout="dropdown"
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(date.getTime());
+                                  setDobPopoverOpen(false);
                                 }
-                                captionLayout="dropdown"
-                                onSelect={(date) => {
-                                  if (date) {
-                                    field.onChange(date);
-                                    setDobPopoverOpen(true);
-                                  }
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </FormControl>
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1578,30 +1586,28 @@ export default function PreAdmissionDialog({
                       <Popover
                         open={plannedDatePopoverOpen}
                         onOpenChange={setPlannedDatePopoverOpen}
+                        modal={false}
                       >
                         <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={cn(
-                                "w-[240px] pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "w-[240px] pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
                         </PopoverTrigger>
                         <PopoverContent
-                          className="w-auto p-0"
+                          className="w-auto p-0 z-[100]"
                           align="start"
-                          onInteractOutside={(e) => e.preventDefault()}
                         >
                           <Calendar
                             mode="single"
@@ -1611,8 +1617,8 @@ export default function PreAdmissionDialog({
                             captionLayout="dropdown"
                             onSelect={(date) => {
                               if (date) {
-                                field.onChange(date);
-                                setPlannedDatePopoverOpen(true);
+                                field.onChange(date.getTime());
+                                setPlannedDatePopoverOpen(false);
                               }
                             }}
                           />

@@ -24,7 +24,7 @@ export const config = {
       key: "preAdmission",
       value: "Pre-Admission",
       description:
-        "Pre-Admission Assessment Form and Infection prevention and control pre-admission risk assessment",
+        "This forms should be completed before the resident is admitted to the care home.",
       carePlan: false,
       forms: [
         {
