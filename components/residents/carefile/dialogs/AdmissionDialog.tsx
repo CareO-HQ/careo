@@ -68,6 +68,7 @@ export default function AdmissionDialog({
 }: AdmissionDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
   const submitAssessment = useMutation(
     api.careFiles.admission.submitAdmissionAssessment
@@ -79,6 +80,22 @@ export default function AdmissionDialog({
   const firstKin = resident.emergencyContacts?.find(
     (contact) => contact.isPrimary
   );
+
+  // Debug: Log initialData to check for data issues
+  if (initialData) {
+    if (
+      typeof initialData.kinRelationship !== "string" &&
+      initialData.kinRelationship !== undefined
+    ) {
+      console.warn(
+        "⚠️ Invalid kinRelationship type:",
+        typeof initialData.kinRelationship,
+        "Value:",
+        initialData.kinRelationship
+      );
+      console.warn("Full initialData:", initialData);
+    }
+  }
 
   const form = useForm<z.infer<typeof admissionAssessmentSchema>>({
     resolver: zodResolver(admissionAssessmentSchema),
@@ -93,78 +110,86 @@ export default function AdmissionDialog({
           firstName: initialData.firstName ?? resident.firstName ?? "",
           lastName: initialData.lastName ?? resident.lastName ?? "",
           dateOfBirth:
-            initialData.dateOfBirth ?? resident.dateOfBirth ?? Date.now(),
+            typeof initialData.dateOfBirth === "number"
+              ? initialData.dateOfBirth
+              : typeof resident.dateOfBirth === "number"
+                ? resident.dateOfBirth
+                : resident.dateOfBirth
+                  ? new Date(resident.dateOfBirth).getTime()
+                  : Date.now(),
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-          admittedFrom: initialData.admittedFrom ?? "1",
-          religion: initialData.religion ?? "1",
+          admittedFrom: initialData.admittedFrom ?? "",
+          religion: initialData.religion ?? "",
           telephoneNumber:
             initialData.telephoneNumber ?? resident.phoneNumber ?? "",
           gender: initialData.gender ?? undefined,
-          NHSNumber: initialData.NHSNumber ?? "1",
-          ethnicity: initialData.ethnicity ?? "1",
+          NHSNumber: initialData.NHSNumber ?? "",
+          ethnicity: initialData.ethnicity ?? "",
           // Next of kin
           kinFirstName: initialData.kinFirstName ?? firstKin?.name ?? "",
-          kinLastName: initialData.kinLastName ?? "1",
+          kinLastName: initialData.kinLastName ?? "",
           kinRelationship:
-            initialData.kinRelationship ?? firstKin?.relationship ?? "",
+            typeof initialData.kinRelationship === "string"
+              ? initialData.kinRelationship
+              : (firstKin?.relationship ?? ""),
           kinTelephoneNumber:
             initialData.kinTelephoneNumber ?? firstKin?.phoneNumber ?? "",
-          kinAddress: initialData.kinAddress ?? "1",
-          kinEmail: initialData.kinEmail ?? "example@example.com",
+          kinAddress: initialData.kinAddress ?? "",
+          kinEmail: initialData.kinEmail ?? "",
           // Emergency contacts
-          emergencyContactName: initialData.emergencyContactName ?? "1",
+          emergencyContactName: initialData.emergencyContactName ?? "",
           emergencyContactTelephoneNumber:
-            initialData.emergencyContactTelephoneNumber ?? "1",
+            initialData.emergencyContactTelephoneNumber ?? "",
           emergencyContactRelationship:
-            initialData.emergencyContactRelationship ?? "1",
+            initialData.emergencyContactRelationship ?? "",
           emergencyContactPhoneNumber:
-            initialData.emergencyContactPhoneNumber ?? "1",
+            initialData.emergencyContactPhoneNumber ?? "",
           // Care manager
-          careManagerName: initialData.careManagerName ?? "1",
+          careManagerName: initialData.careManagerName ?? "",
           careManagerTelephoneNumber:
-            initialData.careManagerTelephoneNumber ?? "1",
-          careManagerRelationship: initialData.careManagerRelationship ?? "1",
-          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? "1",
-          careManagerAddress: initialData.careManagerAddress ?? "1",
-          careManagerJobRole: initialData.careManagerJobRole ?? "1",
+            initialData.careManagerTelephoneNumber ?? "",
+          careManagerRelationship: initialData.careManagerRelationship ?? "",
+          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? "",
+          careManagerAddress: initialData.careManagerAddress ?? "",
+          careManagerJobRole: initialData.careManagerJobRole ?? "",
           // GP
-          GPName: initialData.GPName ?? "1",
-          GPAddress: initialData.GPAddress ?? "1",
-          GPPhoneNumber: initialData.GPPhoneNumber ?? "1",
+          GPName: initialData.GPName ?? "",
+          GPAddress: initialData.GPAddress ?? "",
+          GPPhoneNumber: initialData.GPPhoneNumber ?? "",
           // Medical information
-          allergies: initialData.allergies ?? "1",
-          medicalHistory: initialData.medicalHistory ?? "1",
-          prescribedMedications: initialData.prescribedMedications ?? "1",
-          consentCapacityRights: initialData.consentCapacityRights ?? "1",
-          medication: initialData.medication ?? "1",
+          allergies: initialData.allergies ?? "",
+          medicalHistory: initialData.medicalHistory ?? "",
+          prescribedMedications: initialData.prescribedMedications ?? "",
+          consentCapacityRights: initialData.consentCapacityRights ?? "",
+          medication: initialData.medication ?? "",
           // Skin integrity
-          skinIntegrityEquipment: initialData.skinIntegrityEquipment ?? "1",
-          skinIntegrityWounds: initialData.skinIntegrityWounds ?? "1",
+          skinIntegrityEquipment: initialData.skinIntegrityEquipment ?? "",
+          skinIntegrityWounds: initialData.skinIntegrityWounds ?? "",
           // Sleep
-          bedtimeRoutine: initialData.bedtimeRoutine ?? "1",
+          bedtimeRoutine: initialData.bedtimeRoutine ?? "",
           // Infection control
-          currentInfection: initialData.currentInfection ?? "1",
+          currentInfection: initialData.currentInfection ?? "",
           antibioticsPrescribed: initialData.antibioticsPrescribed ?? false,
           // Breathing
-          prescribedBreathing: initialData.prescribedBreathing ?? "1",
+          prescribedBreathing: initialData.prescribedBreathing ?? "",
           // Mobility
           mobilityIndependent: initialData.mobilityIndependent ?? false,
-          assistanceRequired: initialData.assistanceRequired ?? "1",
-          equipmentRequired: initialData.equipmentRequired ?? "1",
+          assistanceRequired: initialData.assistanceRequired ?? "",
+          equipmentRequired: initialData.equipmentRequired ?? "",
           // Nutrition
-          weight: initialData.weight ?? "1",
-          height: initialData.height ?? "1",
-          iddsiFood: initialData.iddsiFood ?? "1",
-          iddsiFluid: initialData.iddsiFluid ?? "1",
-          dietType: initialData.dietType ?? "1",
-          nutritionalSupplements: initialData.nutritionalSupplements ?? "1",
+          weight: initialData.weight ?? "",
+          height: initialData.height ?? "",
+          iddsiFood: initialData.iddsiFood ?? "",
+          iddsiFluid: initialData.iddsiFluid ?? "",
+          dietType: initialData.dietType ?? "",
+          nutritionalSupplements: initialData.nutritionalSupplements ?? "",
           nutritionalAssistanceRequired:
-            initialData.nutritionalAssistanceRequired ?? "1",
+            initialData.nutritionalAssistanceRequired ?? "",
           chockingRisk: initialData.chockingRisk ?? false,
-          additionalComments: initialData.additionalComments ?? "1",
+          additionalComments: initialData.additionalComments ?? "",
           // Continence and hygiene
-          continence: initialData.continence ?? "1",
-          hygiene: initialData.hygiene ?? "1"
+          continence: initialData.continence ?? "",
+          hygiene: initialData.hygiene ?? ""
         }
       : {
           // Default values for new forms
@@ -174,70 +199,75 @@ export default function AdmissionDialog({
           userId,
           firstName: resident.firstName ?? "",
           lastName: resident.lastName ?? "",
-          dateOfBirth: resident.dateOfBirth ?? Date.now(),
+          dateOfBirth:
+            typeof resident.dateOfBirth === "number"
+              ? resident.dateOfBirth
+              : resident.dateOfBirth
+                ? new Date(resident.dateOfBirth).getTime()
+                : Date.now(),
           bedroomNumber: resident.roomNumber ?? "",
-          admittedFrom: "1",
-          religion: "1",
+          admittedFrom: "",
+          religion: "",
           telephoneNumber: resident.phoneNumber ?? "",
           gender: undefined,
-          NHSNumber: "1",
-          ethnicity: "1",
+          NHSNumber: "",
+          ethnicity: "",
           // Next of kin
           kinFirstName: firstKin?.name ?? "",
-          kinLastName: "1",
-          kinRelationship: firstKin?.relationship ?? "",
-          kinTelephoneNumber: firstKin?.phoneNumber ?? "",
-          kinAddress: "1",
-          kinEmail: "example@example.com",
+          kinLastName: "",
+          kinRelationship: "",
+          kinTelephoneNumber: "",
+          kinAddress: "",
+          kinEmail: "",
           // Emergency contacts
-          emergencyContactName: "1",
-          emergencyContactTelephoneNumber: "1",
-          emergencyContactRelationship: "1",
-          emergencyContactPhoneNumber: "1",
+          emergencyContactName: "",
+          emergencyContactTelephoneNumber: "",
+          emergencyContactRelationship: "",
+          emergencyContactPhoneNumber: "",
           // Care manager
-          careManagerName: "1",
-          careManagerTelephoneNumber: "1",
-          careManagerRelationship: "1",
-          careManagerPhoneNumber: "1",
-          careManagerAddress: "1",
-          careManagerJobRole: "1",
+          careManagerName: "",
+          careManagerTelephoneNumber: "",
+          careManagerRelationship: "",
+          careManagerPhoneNumber: "",
+          careManagerAddress: "",
+          careManagerJobRole: "",
           // GP
-          GPName: "1",
-          GPAddress: "1",
-          GPPhoneNumber: "1",
+          GPName: "",
+          GPAddress: "",
+          GPPhoneNumber: "",
           // Medical information
-          allergies: "1",
-          medicalHistory: "1",
-          prescribedMedications: "1",
-          consentCapacityRights: "1",
-          medication: "1",
+          allergies: "",
+          medicalHistory: "",
+          prescribedMedications: "",
+          consentCapacityRights: "",
+          medication: "",
           // Skin integrity
-          skinIntegrityEquipment: "1",
-          skinIntegrityWounds: "1",
+          skinIntegrityEquipment: "",
+          skinIntegrityWounds: "",
           // Sleep
-          bedtimeRoutine: "1",
+          bedtimeRoutine: "",
           // Infection control
-          currentInfection: "1",
+          currentInfection: "",
           antibioticsPrescribed: false,
           // Breathing
-          prescribedBreathing: "1",
+          prescribedBreathing: "",
           // Mobility
           mobilityIndependent: false,
-          assistanceRequired: "1",
-          equipmentRequired: "1",
+          assistanceRequired: "",
+          equipmentRequired: "",
           // Nutrition
-          weight: "1",
-          height: "1",
-          iddsiFood: "1",
-          iddsiFluid: "1",
-          dietType: "1",
-          nutritionalSupplements: "1",
-          nutritionalAssistanceRequired: "1",
+          weight: "",
+          height: "",
+          iddsiFood: "",
+          iddsiFluid: "",
+          dietType: "",
+          nutritionalSupplements: "",
+          nutritionalAssistanceRequired: "",
           chockingRisk: false,
-          additionalComments: "1",
+          additionalComments: "",
           // Continence and hygiene
-          continence: "1",
-          hygiene: "1"
+          continence: "",
+          hygiene: ""
         }
   });
 
@@ -245,6 +275,9 @@ export default function AdmissionDialog({
 
   const handleNext = async () => {
     let isValid = false;
+
+    // Close the date popover when moving between steps
+    setDatePopoverOpen(false);
 
     if (step === 1) {
       const fieldsToValidate = [
@@ -310,6 +343,9 @@ export default function AdmissionDialog({
   };
 
   const handlePrevious = () => {
+    // Close the date popover when moving between steps
+    setDatePopoverOpen(false);
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -349,7 +385,7 @@ export default function AdmissionDialog({
     switch (step) {
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-1">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -358,7 +394,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>First Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="John" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -371,7 +407,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Last Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Smith"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -383,7 +423,11 @@ export default function AdmissionDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date of Birth</FormLabel>
-                    <Popover>
+                    <Popover
+                      open={datePopoverOpen}
+                      onOpenChange={setDatePopoverOpen}
+                      modal
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -408,7 +452,13 @@ export default function AdmissionDialog({
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.getTime());
+                              setDatePopoverOpen(false);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -426,7 +476,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Bedroom Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Room 101"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -439,7 +493,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>NHS Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="123 456 7890"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -473,7 +531,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Telephone Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="07123 456789"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -486,7 +548,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Ethnicity</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="White British"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -499,7 +565,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Religion</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Christian"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -512,7 +582,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Admitted From</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Hospital"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -524,16 +598,16 @@ export default function AdmissionDialog({
 
       case 2:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-2">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="kinFirstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>First Name</FormLabel>
+                    <FormLabel required>Next of Kin First Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="Jane" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -544,9 +618,9 @@ export default function AdmissionDialog({
                 name="kinLastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Last Name</FormLabel>
+                    <FormLabel required>Next of Kin Last Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="Doe" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -559,7 +633,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Relationship</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Daughter"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -572,7 +650,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Telephone Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="07123 456789"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -586,7 +668,13 @@ export default function AdmissionDialog({
                 <FormItem>
                   <FormLabel required>Email</FormLabel>
                   <FormControl>
-                    <Input className="w-full" type="email" {...field} />
+                    <Input
+                      className="w-full"
+                      type="email"
+                      placeholder="jane.doe@example.com"
+                      autoComplete="off"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -599,7 +687,11 @@ export default function AdmissionDialog({
                 <FormItem>
                   <FormLabel required>Address</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input
+                      placeholder="123 Main Street, London, SW1A 1AA"
+                      autoComplete="off"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -610,7 +702,7 @@ export default function AdmissionDialog({
 
       case 3:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-3">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -619,7 +711,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Contact Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Robert Smith"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -632,7 +728,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Relationship</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="Son" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -645,7 +741,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Telephone Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="07987 654321"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -658,7 +758,11 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Alternative Phone Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="020 1234 5678"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -670,13 +774,11 @@ export default function AdmissionDialog({
 
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-4">
             <div className="space-y-6">
               <div>
-                <h4 className="text-md font-medium mb-3">
-                  Care Manager (Optional)
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <h4 className="text-md font-medium mb-3">Care Manager</h4>
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <FormField
                     control={form.control}
                     name="careManagerName"
@@ -684,7 +786,7 @@ export default function AdmissionDialog({
                       <FormItem>
                         <FormLabel>Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Sarah Johnson" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -697,7 +799,7 @@ export default function AdmissionDialog({
                       <FormItem>
                         <FormLabel>Job Role</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Social Worker" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -710,7 +812,7 @@ export default function AdmissionDialog({
                       <FormItem>
                         <FormLabel>Telephone Number</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="020 7946 0958" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -723,7 +825,7 @@ export default function AdmissionDialog({
                       <FormItem>
                         <FormLabel>Alternative Phone</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="07700 900123" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -737,7 +839,10 @@ export default function AdmissionDialog({
                     <FormItem>
                       <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Textarea
+                          placeholder="Social Services Office, Town Hall, London, EC1A 1AA"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -746,10 +851,8 @@ export default function AdmissionDialog({
               </div>
 
               <div>
-                <h4 className="text-md font-medium mb-3">
-                  GP Information (Optional)
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <h4 className="text-md font-medium mb-3">GP Information</h4>
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <FormField
                     control={form.control}
                     name="GPName"
@@ -757,7 +860,7 @@ export default function AdmissionDialog({
                       <FormItem>
                         <FormLabel>GP Name</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="Dr. Michael Brown" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -770,7 +873,7 @@ export default function AdmissionDialog({
                       <FormItem>
                         <FormLabel>GP Phone Number</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input placeholder="020 7946 0123" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -784,7 +887,10 @@ export default function AdmissionDialog({
                     <FormItem>
                       <FormLabel>GP Address</FormLabel>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Textarea
+                          placeholder="City Medical Centre, 45 High Street, London, W1A 2BC"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -797,7 +903,7 @@ export default function AdmissionDialog({
 
       case 5:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-5">
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -869,7 +975,7 @@ export default function AdmissionDialog({
 
       case 6:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-6">
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -880,7 +986,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe any equipment needed for skin integrity..."
+                        placeholder="Pressure relieving mattress"
                       />
                     </FormControl>
                     <FormMessage />
@@ -896,7 +1002,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe any existing wounds..."
+                        placeholder="Stage 2 pressure ulcer on left heel"
                       />
                     </FormControl>
                     <FormMessage />
@@ -912,7 +1018,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe preferred bedtime routine..."
+                        placeholder="Prefers to go to bed at 10pm with a warm drink"
                       />
                     </FormControl>
                     <FormMessage />
@@ -928,7 +1034,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe any current infections..."
+                        placeholder="Urinary tract infection"
                       />
                     </FormControl>
                     <FormMessage />
@@ -962,7 +1068,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe any breathing equipment..."
+                        placeholder="Oxygen therapy 2L/min"
                       />
                     </FormControl>
                     <FormMessage />
@@ -975,7 +1081,7 @@ export default function AdmissionDialog({
 
       case 7:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-7">
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -1004,7 +1110,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe any assistance required for mobility..."
+                        placeholder="Requires assistance of 2 people for transfers"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1018,10 +1124,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Equipment Required</FormLabel>
                     <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Describe any mobility equipment required..."
-                      />
+                      <Textarea {...field} placeholder="Walking frame" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1033,7 +1136,7 @@ export default function AdmissionDialog({
 
       case 8:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-8">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -1042,7 +1145,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Weight</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="e.g., 70kg" />
+                      <Input {...field} placeholder="70kg" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1055,7 +1158,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>Height</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="e.g., 170cm" />
+                      <Input {...field} placeholder="170cm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1068,7 +1171,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>IDDSI Food Level</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="e.g., Level 7" />
+                      <Input {...field} placeholder="Level 7" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1081,29 +1184,30 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel required>IDDSI Fluid Level</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="e.g., Level 0" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="dietType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Diet Type</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="e.g., Regular, Diabetic, Vegetarian"
-                      />
+                      <Input {...field} placeholder="Level 0" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="dietType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Diet Type</FormLabel>
+                  <FormControl>
+                    <Input
+                      className="w-full"
+                      {...field}
+                      placeholder="Regular"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -1112,10 +1216,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Nutritional Supplements</FormLabel>
                     <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="List any nutritional supplements..."
-                      />
+                      <Textarea {...field} placeholder="Fortisip twice daily" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1130,7 +1231,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe any assistance needed with eating..."
+                        placeholder="Requires full assistance with feeding"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1164,7 +1265,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Any additional nutritional information..."
+                        placeholder="Food preferences and dining habits"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1177,7 +1278,7 @@ export default function AdmissionDialog({
 
       case 9:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-9">
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -1186,10 +1287,7 @@ export default function AdmissionDialog({
                   <FormItem>
                     <FormLabel>Continence</FormLabel>
                     <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Describe continence status and any requirements..."
-                      />
+                      <Textarea {...field} placeholder="Fully continent" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1204,7 +1302,7 @@ export default function AdmissionDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Describe hygiene preferences and requirements..."
+                        placeholder="Requires full assistance with bathing"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1272,7 +1370,11 @@ export default function AdmissionDialog({
       </DialogHeader>
 
       <Form {...form}>
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="space-y-6"
+          autoComplete="off"
+        >
           <div className="max-h-[60vh] overflow-y-auto px-1">
             {renderStepContent()}
           </div>
