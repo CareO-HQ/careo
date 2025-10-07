@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogDescription,
   DialogFooter,
@@ -68,6 +67,12 @@ export default function DnacprDialog({
 }: DnacprDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [residentDatePopoverOpen, setResidentDatePopoverOpen] = useState(false);
+  const [relativeDatePopoverOpen, setRelativeDatePopoverOpen] = useState(false);
+  const [nokDatePopoverOpen, setNokDatePopoverOpen] = useState(false);
+  const [gpDatePopoverOpen, setGpDatePopoverOpen] = useState(false);
 
   const submitDnacpr = useMutation(api.careFiles.dnacpr.submitDnacpr);
   const updateDnacpr = useMutation(api.careFiles.dnacpr.updateDnacpr);
@@ -87,7 +92,13 @@ export default function DnacprDialog({
             `${resident.firstName} ${resident.lastName}`,
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
           dateOfBirth:
-            initialData.dateOfBirth ?? resident.dateOfBirth ?? Date.now(),
+            typeof initialData.dateOfBirth === "number"
+              ? initialData.dateOfBirth
+              : typeof resident.dateOfBirth === "number"
+                ? resident.dateOfBirth
+                : resident.dateOfBirth
+                  ? new Date(resident.dateOfBirth).getTime()
+                  : Date.now(),
           dnacpr: initialData.dnacpr ?? false,
           dnacprComments: initialData.dnacprComments ?? "",
           reason: initialData.reason ?? "TERMINAL-PROGRESSIVE",
@@ -117,7 +128,12 @@ export default function DnacprDialog({
           userId,
           residentName: `${resident.firstName} ${resident.lastName}`,
           bedroomNumber: resident.roomNumber ?? "",
-          dateOfBirth: resident.dateOfBirth ?? Date.now(),
+          dateOfBirth:
+            typeof resident.dateOfBirth === "number"
+              ? resident.dateOfBirth
+              : resident.dateOfBirth
+                ? new Date(resident.dateOfBirth).getTime()
+                : Date.now(),
           dnacpr: false,
           dnacprComments: "",
           reason: "TERMINAL-PROGRESSIVE",
@@ -143,6 +159,14 @@ export default function DnacprDialog({
 
   const handleNext = async () => {
     let isValid = false;
+
+    // Close all date popovers when moving between steps
+    setDobPopoverOpen(false);
+    setDatePopoverOpen(false);
+    setResidentDatePopoverOpen(false);
+    setRelativeDatePopoverOpen(false);
+    setNokDatePopoverOpen(false);
+    setGpDatePopoverOpen(false);
 
     if (step === 1) {
       const fieldsToValidate = [
@@ -186,6 +210,14 @@ export default function DnacprDialog({
   };
 
   const handlePrevious = () => {
+    // Close all date popovers when moving between steps
+    setDobPopoverOpen(false);
+    setDatePopoverOpen(false);
+    setResidentDatePopoverOpen(false);
+    setRelativeDatePopoverOpen(false);
+    setNokDatePopoverOpen(false);
+    setGpDatePopoverOpen(false);
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -240,7 +272,7 @@ export default function DnacprDialog({
     switch (step) {
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-1">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -268,55 +300,65 @@ export default function DnacprDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="dateOfBirth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Date of Birth</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={
-                            field.value ? new Date(field.value) : undefined
-                          }
-                          onSelect={(date) => field.onChange(date?.getTime())}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
+            <FormField
+              control={form.control}
+              name="dateOfBirth"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Date of Birth</FormLabel>
+                  <Popover
+                    open={dobPopoverOpen}
+                    onOpenChange={setDobPopoverOpen}
+                    modal
+                  >
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(new Date(field.value), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        captionLayout="dropdown"
+                        mode="single"
+                        selected={
+                          field.value ? new Date(field.value) : undefined
+                        }
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setDobPopoverOpen(false);
+                          }
+                        }}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         );
 
       case 2:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-2">
             <FormField
               control={form.control}
               name="dnacpr"
@@ -398,7 +440,11 @@ export default function DnacprDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Date of Decision</FormLabel>
-                  <Popover>
+                  <Popover
+                    open={datePopoverOpen}
+                    onOpenChange={setDatePopoverOpen}
+                    modal
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -420,10 +466,16 @@ export default function DnacprDialog({
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
+                        captionLayout="dropdown"
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("2000-01-01")
                         }
@@ -439,7 +491,7 @@ export default function DnacprDialog({
 
       case 3:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-3">
             <h4 className="text-md font-medium">Discussion with Resident</h4>
             <FormField
               control={form.control}
@@ -495,7 +547,11 @@ export default function DnacprDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Date of Discussion</FormLabel>
-                  <Popover>
+                  <Popover
+                    modal
+                    open={residentDatePopoverOpen}
+                    onOpenChange={setResidentDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -516,11 +572,17 @@ export default function DnacprDialog({
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
+                        captionLayout="dropdown"
                         mode="single"
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setResidentDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("2000-01-01")
                         }
@@ -536,7 +598,7 @@ export default function DnacprDialog({
 
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-4">
             <h4 className="text-md font-medium">Discussion with Relatives</h4>
             <FormField
               control={form.control}
@@ -590,7 +652,11 @@ export default function DnacprDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Date of Discussion</FormLabel>
-                  <Popover>
+                  <Popover
+                    modal
+                    open={relativeDatePopoverOpen}
+                    onOpenChange={setRelativeDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -611,11 +677,17 @@ export default function DnacprDialog({
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
+                        captionLayout="dropdown"
                         mode="single"
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setRelativeDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("2000-01-01")
                         }
@@ -631,7 +703,7 @@ export default function DnacprDialog({
 
       case 5:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-5">
             <h4 className="text-md font-medium">Discussion with Next of Kin</h4>
             <FormField
               control={form.control}
@@ -685,7 +757,11 @@ export default function DnacprDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Date of Discussion</FormLabel>
-                  <Popover>
+                  <Popover
+                    modal
+                    open={nokDatePopoverOpen}
+                    onOpenChange={setNokDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -710,7 +786,12 @@ export default function DnacprDialog({
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setNokDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("2000-01-01")
                         }
@@ -726,7 +807,7 @@ export default function DnacprDialog({
 
       case 6:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-6">
             <FormField
               control={form.control}
               name="comments"
@@ -748,14 +829,18 @@ export default function DnacprDialog({
 
       case 7:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-7">
             <FormField
               control={form.control}
               name="gpDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>GP Date</FormLabel>
-                  <Popover>
+                  <Popover
+                    modal
+                    open={gpDatePopoverOpen}
+                    onOpenChange={setGpDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -776,11 +861,17 @@ export default function DnacprDialog({
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
+                        captionLayout="dropdown"
                         mode="single"
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setGpDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("2000-01-01")
                         }
@@ -891,7 +982,11 @@ export default function DnacprDialog({
       </DialogHeader>
 
       <Form {...form}>
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="space-y-6"
+          autoComplete="off"
+        >
           <div className="max-h-[60vh] overflow-y-auto px-1">
             {renderStepContent()}
           </div>
