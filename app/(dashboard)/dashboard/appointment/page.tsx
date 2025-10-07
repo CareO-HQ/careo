@@ -219,9 +219,9 @@ export default function AppointmentPage() {
                   </div>
 
                   {appointment.staffId && (
-                  <div className="flex items-start gap-3">
-                    <User className="w-5 h-5 mt-0.5 text-muted-foreground" />
-                    <div>
+                    <div className="flex items-start gap-3">
+                      <User className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                      <div>
                         <div className="text-sm font-medium">{appointment.staffId}</div>
                         <div className="text-xs text-muted-foreground">Assigned Staff</div>
                       </div>

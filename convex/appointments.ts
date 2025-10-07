@@ -190,10 +190,31 @@ export const getAppointmentsByTeam = query({
   handler: async (ctx, args) => {
     const now = new Date().toISOString();
 
-    let appointments = await ctx.db
-      .query("appointments")
+    // First, get all residents in this team
+    const residents = await ctx.db
+      .query("residents")
       .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
       .collect();
+
+    const residentIds = residents.map((r) => r._id);
+
+    // If no residents in team, return empty array
+    if (residentIds.length === 0) {
+      return [];
+    }
+
+    // Get all appointments for these residents
+    const allAppointments = await Promise.all(
+      residentIds.map((residentId) =>
+        ctx.db
+          .query("appointments")
+          .withIndex("byResidentId", (q) => q.eq("residentId", residentId))
+          .collect()
+      )
+    );
+
+    // Flatten the array of arrays
+    let appointments = allAppointments.flat();
 
     // If includeAll is false or not specified, only show upcoming scheduled appointments
     if (!args.includeAll) {
