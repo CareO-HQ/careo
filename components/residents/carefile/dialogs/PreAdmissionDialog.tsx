@@ -45,6 +45,7 @@ import { z } from "zod";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
 
 interface PreAdmissionDialogProps {
   teamId: string;
@@ -74,6 +75,9 @@ export default function PreAdmissionDialog({
   const [plannedDatePopoverOpen, setPlannedDatePopoverOpen] = useState(false);
   const [isLoading, startTransition] = useTransition();
 
+  const { data: session } = authClient.useSession();
+  const currentUserName = session?.user?.name ?? "";
+
   const firstKin = resident.emergencyContacts?.find(
     (contact) => contact.isPrimary
   );
@@ -98,9 +102,7 @@ export default function PreAdmissionDialog({
           consentAcceptedAt: initialData.consentAcceptedAt || 0,
           careHomeName: initialData.careHomeName ?? careHomeName,
           nhsHealthCareNumber: initialData.nhsHealthCareNumber ?? "",
-          userName:
-            initialData.userName ??
-            resident.firstName + " " + resident.lastName,
+          userName: initialData.userName ?? currentUserName,
           jobRole: initialData.jobRole ?? "",
           date: initialData.date ?? undefined,
           firstName: initialData.firstName ?? resident.firstName ?? "",
@@ -179,7 +181,7 @@ export default function PreAdmissionDialog({
           consentAcceptedAt: 0,
           careHomeName,
           nhsHealthCareNumber: "",
-          userName: resident.firstName + " " + resident.lastName,
+          userName: currentUserName,
           jobRole: "",
           date: undefined,
           firstName: resident.firstName ?? "",
@@ -267,7 +269,7 @@ export default function PreAdmissionDialog({
             originalFormData: initialData,
             originalFormId: initialData?._id,
             residentId: residentId as Id<"residents">,
-            auditedBy: resident.firstName + " " + resident.lastName, // Using resident name as we don't have userName here
+            auditedBy: currentUserName,
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
@@ -553,7 +555,7 @@ export default function PreAdmissionDialog({
                     name="userName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Name</FormLabel>
+                        <FormLabel required>Worker name</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -566,7 +568,7 @@ export default function PreAdmissionDialog({
                     name="jobRole"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel required>Job Role</FormLabel>
+                        <FormLabel required>Job role</FormLabel>
                         <FormControl>
                           <Input placeholder="Nurse" {...field} />
                         </FormControl>
@@ -575,59 +577,54 @@ export default function PreAdmissionDialog({
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Expected admission date</FormLabel>
-                        <Popover
-                          open={datePopoverOpen}
-                          onOpenChange={setDatePopoverOpen}
-                          modal={false}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={cn(
-                                "w-[240px] pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto p-0 z-[100]"
-                            align="start"
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Expected admission date</FormLabel>
+                      <Popover
+                        open={datePopoverOpen}
+                        onOpenChange={setDatePopoverOpen}
+                        modal
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
                           >
-                            <Calendar
-                              mode="single"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            captionLayout="dropdown"
+                            onSelect={(date) => {
+                              if (date) {
+                                field.onChange(date.getTime());
+                                setDatePopoverOpen(false);
                               }
-                              captionLayout="dropdown"
-                              onSelect={(date) => {
-                                if (date) {
-                                  field.onChange(date.getTime());
-                                  setDatePopoverOpen(false);
-                                }
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </>
             )}
             {step === 3 && (
@@ -753,7 +750,7 @@ export default function PreAdmissionDialog({
                         <Popover
                           open={dobPopoverOpen}
                           onOpenChange={setDobPopoverOpen}
-                          modal={false}
+                          modal
                         >
                           <PopoverTrigger asChild>
                             <Button
@@ -772,10 +769,7 @@ export default function PreAdmissionDialog({
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto p-0 z-[100]"
-                            align="start"
-                          >
+                          <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
                               selected={
@@ -784,7 +778,9 @@ export default function PreAdmissionDialog({
                               captionLayout="dropdown"
                               onSelect={(date) => {
                                 if (date) {
-                                  field.onChange(date.getTime());
+                                  field.onChange(
+                                    date.toISOString().split("T")[0]
+                                  );
                                   setDobPopoverOpen(false);
                                 }
                               }}
@@ -849,7 +845,7 @@ export default function PreAdmissionDialog({
                       <FormItem>
                         <FormLabel required>Phone Number</FormLabel>
                         <FormControl>
-                          <Input placeholder="+1 (555) 987-6543" {...field} />
+                          <Input placeholder="+44 7123 456 789" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -885,7 +881,7 @@ export default function PreAdmissionDialog({
                         <FormItem>
                           <FormLabel required>Phone Number</FormLabel>
                           <FormControl>
-                            <Input placeholder="+1 (555) 987-6543" {...field} />
+                            <Input placeholder="+44 " {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -916,7 +912,7 @@ export default function PreAdmissionDialog({
                         <FormItem>
                           <FormLabel required>Phone Number</FormLabel>
                           <FormControl>
-                            <Input placeholder="+1 (555) 987-6543" {...field} />
+                            <Input placeholder="+44 " {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -949,7 +945,7 @@ export default function PreAdmissionDialog({
                         <FormItem>
                           <FormLabel required>Phone Number</FormLabel>
                           <FormControl>
-                            <Input placeholder="+1 (555) 987-6543" {...field} />
+                            <Input placeholder="+44 " {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1586,7 +1582,7 @@ export default function PreAdmissionDialog({
                       <Popover
                         open={plannedDatePopoverOpen}
                         onOpenChange={setPlannedDatePopoverOpen}
-                        modal={false}
+                        modal
                       >
                         <PopoverTrigger asChild>
                           <Button
@@ -1605,10 +1601,7 @@ export default function PreAdmissionDialog({
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 z-[100]"
-                          align="start"
-                        >
+                        <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
                             selected={
