@@ -234,15 +234,35 @@ export const getAppointmentsByTeam = query({
     const appointmentsWithResidents = await Promise.all(
       appointments.map(async (appointment) => {
         const resident = await ctx.db.get(appointment.residentId);
+
+        if (!resident) {
+          return {
+            ...appointment,
+            resident: null,
+          };
+        }
+
+        // Get the resident's image URL
+        const residentImage = await ctx.db
+          .query("files")
+          .filter((q) => q.eq(q.field("type"), "resident"))
+          .filter((q) => q.eq(q.field("userId"), resident._id))
+          .first();
+
+        let imageUrl = null;
+        if (residentImage?.format === "image") {
+          imageUrl = await ctx.storage.getUrl(residentImage.body);
+        }
+
         return {
           ...appointment,
-          resident: resident ? {
+          resident: {
             _id: resident._id,
             firstName: resident.firstName,
             lastName: resident.lastName,
             roomNumber: resident.roomNumber,
-            imageUrl: resident.imageUrl,
-          } : null,
+            imageUrl: imageUrl,
+          },
         };
       })
     );

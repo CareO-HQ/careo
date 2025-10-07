@@ -105,12 +105,7 @@ export default function AppointmentPage() {
 
       {/* Appointments List */}
       <div className="space-y-0">
-        {!appointmentsData ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading appointments...</p>
-          </div>
-        ) : filteredAppointments.length === 0 ? (
+        {filteredAppointments.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
             <p className="text-muted-foreground">No appointments</p>
