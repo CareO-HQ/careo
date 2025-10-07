@@ -22,7 +22,8 @@ import {
   SettingsIcon,
   MessageSquareIcon,
   HomeIcon,
-  UsersIcon
+  UsersIcon,
+  CalendarIcon
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -115,6 +116,16 @@ export function AppSidebar() {
                 <Link href="/dashboard/handover">
                   <ClipboardListIcon />
                   <span>Handover</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Appointment */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/appointment">
+                  <CalendarIcon />
+                  <span>Appointment</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
