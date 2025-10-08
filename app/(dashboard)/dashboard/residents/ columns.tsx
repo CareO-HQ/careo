@@ -151,13 +151,13 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
   );
 };
 
-// Component for displaying notifications (with dummy data for demonstration)
+// Component for displaying alerts (with dummy data for demonstration)
 const NotificationsCell = ({ residentId }: { residentId: string }) => {
-  // Generate dummy notification based on residentId for demonstration
+  // Generate dummy alert based on residentId for demonstration
   const hash = residentId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const dummyMinutesUntil = hash % 35; // Random value between 0-34
 
-  // Check if there are notifications (within 30 minutes)
+  // Check if there are alerts (within 30 minutes)
   const hasNotifications = dummyMinutesUntil <= 30;
 
   const dummyMedications = [
@@ -172,7 +172,7 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
   const scheduledTime = new Date();
   scheduledTime.setMinutes(scheduledTime.getMinutes() + dummyMinutesUntil);
 
-  // Dummy notification count (1-3 notifications)
+  // Dummy alert count (1-3 alerts)
   const notificationCount = (hash % 3) + 1;
 
   if (!hasNotifications) {
@@ -232,7 +232,7 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
           {notificationCount > 1 && (
             <div className="pt-2 border-t">
               <p className="text-xs text-muted-foreground">
-                +{notificationCount - 1} more notification{notificationCount > 2 ? 's' : ''}
+                +{notificationCount - 1} more alert{notificationCount > 2 ? 's' : ''}
               </p>
             </div>
           )}
@@ -577,11 +577,11 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     }
   },
   {
-    accessorKey: "notifications",
+    accessorKey: "alerts",
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm">
-          Notifications
+          Alerts
         </div>
       );
     },
