@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id, Doc } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -50,19 +50,27 @@ import {
   Plus,
   Eye,
   Clock,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { CreateAppointmentForm } from "./form/create-appointment-form";
 import { FormDateTimePicker } from "@/components/ui/date-time-picker";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorState } from "@/components/ErrorState";
 
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
 };
 
-export default function DailyCarePage({ params }: DailyCarePageProps) {
+// Type aliases for better type safety
+type Appointment = Doc<"appointments">;
+type AppointmentNote = Doc<"appointmentNotes">;
+type Resident = Doc<"residents">;
+
+function DailyCarePage({ params }: DailyCarePageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const resident = useQuery(api.residents.getById, {
@@ -98,12 +106,15 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Edit Appointment Dialog state
   const [isEditAppointmentDialogOpen, setIsEditAppointmentDialogOpen] = React.useState(false);
   const [editAppointmentLoading, setEditAppointmentLoading] = React.useState(false);
-  const [appointmentToEdit, setAppointmentToEdit] = React.useState<any>(null);
+  const [appointmentToEdit, setAppointmentToEdit] = React.useState<Appointment | null>(null);
 
   // Delete Appointment Dialog state
   const [isDeleteAppointmentDialogOpen, setIsDeleteAppointmentDialogOpen] = React.useState(false);
   const [deleteAppointmentLoading, setDeleteAppointmentLoading] = React.useState(false);
-  const [appointmentToDelete, setAppointmentToDelete] = React.useState<any>(null);
+  const [appointmentToDelete, setAppointmentToDelete] = React.useState<Appointment | null>(null);
+
+  // Loading state for individual appointment operations
+  const [loadingAppointmentId, setLoadingAppointmentId] = React.useState<string | null>(null);
 
   // Delete confirmation dialog state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
@@ -191,9 +202,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     activeOnly: true,
   });
 
-  // Get appointments for the resident
-  const appointments = useQuery(api.appointments.getAppointmentsByResident, {
+  // Get upcoming appointments for the resident (server-side filtered)
+  const appointments = useQuery(api.appointments.getUpcomingAppointments, {
     residentId: id as Id<"residents">,
+    limit: 50, // Reasonable limit for pagination
   });
 
   // Get all users for staff selection
@@ -372,7 +384,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   };
 
   // Handle edit appointment
-  const handleEditAppointment = (appointment: any) => {
+  const handleEditAppointment = (appointment: Appointment) => {
+    setLoadingAppointmentId(appointment._id);
     setAppointmentToEdit(appointment);
     editAppointmentForm.setValue("title", appointment.title || "");
     editAppointmentForm.setValue("description", appointment.description || "");
@@ -380,6 +393,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     editAppointmentForm.setValue("location", appointment.location || "");
     editAppointmentForm.setValue("staffId", appointment.staffId || "none");
     setIsEditAppointmentDialogOpen(true);
+    // Clear loading state when dialog opens
+    setLoadingAppointmentId(null);
   };
 
   // Handle edit appointment submission
@@ -407,16 +422,25 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       setAppointmentToEdit(null);
     } catch (error) {
       console.error("Error updating appointment:", error);
-      toast.error("Failed to update appointment");
+      toast.error("Failed to update appointment. Please try again.", {
+        duration: 5000,
+        action: {
+          label: "Retry",
+          onClick: () => onEditAppointmentSubmit(data),
+        },
+      });
     } finally {
       setEditAppointmentLoading(false);
     }
   };
 
   // Handle delete appointment
-  const handleDeleteAppointment = (appointment: any) => {
+  const handleDeleteAppointment = (appointment: Appointment) => {
+    setLoadingAppointmentId(appointment._id);
     setAppointmentToDelete(appointment);
     setIsDeleteAppointmentDialogOpen(true);
+    // Clear loading state when dialog opens
+    setLoadingAppointmentId(null);
   };
 
   // Confirm delete appointment
@@ -434,41 +458,78 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       setAppointmentToDelete(null);
     } catch (error) {
       console.error("Error deleting appointment:", error);
-      toast.error("Failed to delete appointment");
+      toast.error("Failed to delete appointment. Please try again.", {
+        duration: 5000,
+        action: {
+          label: "Retry",
+          onClick: () => confirmDeleteAppointment(),
+        },
+      });
     } finally {
       setDeleteAppointmentLoading(false);
     }
   };
 
-  if (resident === undefined) {
+  // Appointments are already filtered and sorted by the backend query
+  // No need for client-side filtering - this improves performance significantly
+  const upcomingAppointments = useMemo(() => {
+    if (!appointments) return [];
+    // Data is already filtered for upcoming appointments and sorted by startTime (soonest first)
+    return Array.isArray(appointments) ? appointments : [];
+  }, [appointments]);
+
+  // Pagination logic
+  const totalPages = upcomingAppointments.length > 0 ? Math.ceil(upcomingAppointments.length / appointmentsPerPage) : 0;
+  const startIndex = (currentPage - 1) * appointmentsPerPage;
+  const endIndex = startIndex + appointmentsPerPage;
+  const currentAppointments = upcomingAppointments.slice(startIndex, endIndex);
+
+  // Handle page navigation
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  // Loading state - queries are still fetching
+  if (resident === undefined || appointments === undefined || appointmentNotes === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+          <p className="mt-2 text-muted-foreground">Loading appointments...</p>
         </div>
       </div>
     );
   }
 
+  // Error state - resident not found
   if (resident === null) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Resident not found</p>
-          <p className="text-muted-foreground">
-            The resident you&apos;re looking for doesn&apos;t exist.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
-        </div>
-      </div>
+      <ErrorState
+        message="Resident not found"
+        description="The resident you're looking for doesn't exist or may have been removed."
+        onRetry={() => router.refresh()}
+        showBackButton={true}
+      />
+    );
+  }
+
+  // Error state - failed to load appointments
+  if (!appointments) {
+    return (
+      <ErrorState
+        message="Failed to load appointments"
+        description="We couldn't load the appointments for this resident. Please check your connection and try again."
+        onRetry={() => window.location.reload()}
+        showBackButton={true}
+      />
     );
   }
 
@@ -494,7 +555,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   };
 
   // Helper function to get display text for notes
-  const getNoteDisplayText = (note: any) => {
+  const getNoteDisplayText = (note: AppointmentNote): string => {
     switch (note.category) {
       case "special_instructions":
         return note.instructions || "Special Instructions";
@@ -582,25 +643,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       return `Tomorrow at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
     } else {
       return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-    }
-  };
-
-  // Pagination logic
-  const totalPages = appointments ? Math.ceil(appointments.length / appointmentsPerPage) : 0;
-  const startIndex = (currentPage - 1) * appointmentsPerPage;
-  const endIndex = startIndex + appointmentsPerPage;
-  const currentAppointments = appointments?.slice(startIndex, endIndex) || [];
-
-  // Handle page navigation
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
     }
   };
 
@@ -791,23 +833,23 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           <CardTitle className="block sm:hidden">
             <div className="flex items-center space-x-2 mb-2">
               <Calendar className="w-5 h-5 text-blue-600" />
-              <span>Scheduled Appointments</span>
+              <span>Upcoming Appointments</span>
             </div>
             <Badge variant="outline" className="self-start">
-              {appointments?.length || 0} appointments
+              {upcomingAppointments.length} upcoming
             </Badge>
           </CardTitle>
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
             <Calendar className="w-5 h-5 text-blue-600" />
-            <span>Scheduled Appointments</span>
+            <span>Upcoming Appointments</span>
             <Badge variant="outline" className="ml-auto">
-              {appointments?.length || 0} appointments
+              {upcomingAppointments.length} upcoming
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="border-0" >
-          {appointments && appointments.length > 0 ? (
+          {upcomingAppointments.length > 0 ? (
             <>
               <div className="space-y-4">
                 {currentAppointments.map((appointment) => (
@@ -826,17 +868,33 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                             size="sm"
                             variant="outline"
                             onClick={() => handleEditAppointment(appointment)}
+                            disabled={loadingAppointmentId === appointment._id}
                             className="h-6 px-2 text-xs "
                           >
-                            Edit
+                            {loadingAppointmentId === appointment._id ? (
+                              <>
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                Loading...
+                              </>
+                            ) : (
+                              "Edit"
+                            )}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleDeleteAppointment(appointment)}
+                            disabled={loadingAppointmentId === appointment._id}
                             className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
                           >
-                            Delete
+                            {loadingAppointmentId === appointment._id ? (
+                              <>
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              "Delete"
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -874,7 +932,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                   {/* Mobile Layout */}
                   <div className="sm:hidden">
                     <div className="text-center text-xs text-gray-500 mb-3">
-                      {startIndex + 1}-{Math.min(endIndex, appointments.length)} of {appointments.length} appointments
+                      {startIndex + 1}-{Math.min(endIndex, upcomingAppointments.length)} of {upcomingAppointments.length} upcoming
                     </div>
                     <div className="flex items-center justify-between">
                       <Button
@@ -900,11 +958,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                       </Button>
                     </div>
                   </div>
-                  
+
                   {/* Desktop Layout */}
                   <div className="hidden sm:flex sm:items-center sm:justify-between">
                     <div className="text-sm text-gray-500">
-                      Showing {startIndex + 1}-{Math.min(endIndex, appointments.length)} of {appointments.length} appointments
+                      Showing {startIndex + 1}-{Math.min(endIndex, upcomingAppointments.length)} of {upcomingAppointments.length} upcoming appointments
                     </div>
                     <div className="flex items-center space-x-2">
                       <Button
@@ -936,8 +994,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           ) : (
             <div className="text-center py-8">
               <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">No appointments scheduled</p>
-              <p className="text-xs text-gray-400 mt-1">Create your first appointment using the button above</p>
+              <p className="text-gray-500">No upcoming appointments</p>
+              <p className="text-xs text-gray-400 mt-1">Create a new appointment using the button above</p>
             </div>
           )}
         </CardContent>
@@ -1472,5 +1530,14 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Wrap component with ErrorBoundary for production-ready error handling
+export default function AppointmentsPageWithErrorBoundary(props: DailyCarePageProps) {
+  return (
+    <ErrorBoundary>
+      <DailyCarePage {...props} />
+    </ErrorBoundary>
   );
 }

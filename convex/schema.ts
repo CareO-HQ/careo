@@ -491,7 +491,11 @@ export default defineSchema({
     .index("byDateAndArchived", ["date", "isArchived"])
     .index("byOrganizationId", ["organizationId"])
     .index("bySection", ["section"])
-    .index("bySignature", ["signature"]),
+    .index("bySignature", ["signature"])
+    .index("by_resident_timestamp", ["residentId", "timestamp"]) // For date range queries
+    .index("by_resident_archived", ["residentId", "isArchived", "timestamp"]) // For filtering archived
+    .index("by_organization_date", ["organizationId", "date"]) // For org-level reports
+    .index("by_archived_date", ["isArchived", "archivedAt"]), // For auto-archive cleanup
 
   // Quick care notes for residents
   quickCareNotes: defineTable({
@@ -1474,6 +1478,30 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_form_and_resident", ["formType", "residentId"]),
 
+  residentAuditItems: defineTable({
+    residentId: v.id("residents"),
+    itemName: v.string(),
+    status: v.union(
+      v.literal("n/a"),
+      v.literal("pending"),
+      v.literal("in-progress"),
+      v.literal("completed"),
+      v.literal("overdue"),
+      v.literal("not-applicable")
+    ),
+    auditorName: v.optional(v.string()),
+    lastAuditedDate: v.optional(v.string()),
+    dueDate: v.optional(v.string()),
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number())
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_resident_and_item", ["residentId", "itemName"]),
+
   photographyConsents: photographyConsents
     .index("by_resident", ["residentId"])
     .index("by_team", ["teamId"])
@@ -2015,6 +2043,91 @@ export default defineSchema({
     .index("byResidentAndType", ["residentId", "vitalType"])
     .index("byDate", ["recordDate"])
     .index("by_created_at", ["createdAt"]),
+
+  // Handover Reports - archived handover sheets
+  handoverReports: defineTable({
+    date: v.string(), // Date of the handover (YYYY-MM-DD)
+    shift: v.union(v.literal("day"), v.literal("night")), // Day or night shift
+    teamId: v.string(),
+    teamName: v.string(),
+    organizationId: v.string(),
+
+    // Handover data for each resident
+    residentHandovers: v.array(
+      v.object({
+        residentId: v.id("residents"),
+        residentName: v.string(),
+        roomNumber: v.optional(v.string()),
+        age: v.number(),
+
+        // Report data (from handover.getHandoverReport)
+        foodIntakeCount: v.number(),
+        foodIntakeLogs: v.optional(v.array(v.object({
+          id: v.string(),
+          typeOfFoodDrink: v.optional(v.string()),
+          amountEaten: v.optional(v.string()),
+          section: v.optional(v.string()),
+          timestamp: v.number(),
+        }))),
+        totalFluid: v.number(),
+        fluidLogs: v.optional(v.array(v.object({
+          id: v.string(),
+          typeOfFoodDrink: v.optional(v.string()),
+          fluidConsumedMl: v.optional(v.number()),
+          section: v.optional(v.string()),
+          timestamp: v.number(),
+        }))),
+        incidentCount: v.number(),
+        incidents: v.optional(v.array(v.object({
+          id: v.string(),
+          type: v.array(v.string()),
+          level: v.optional(v.string()),
+          time: v.optional(v.string()),
+        }))),
+        hospitalTransferCount: v.number(),
+        hospitalTransfers: v.optional(v.array(v.object({
+          id: v.string(),
+          hospitalName: v.optional(v.string()),
+          reason: v.optional(v.string()),
+        }))),
+
+        // Comments from handover sheet
+        comments: v.optional(v.string()),
+      })
+    ),
+
+    // Metadata
+    createdBy: v.string(),
+    createdByName: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.string()),
+    updatedByName: v.optional(v.string()),
+  })
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_date", ["date"])
+    .index("by_shift", ["shift"])
+    .index("by_team_and_date", ["teamId", "date"])
+    .index("by_created_at", ["createdAt"]),
+
+  // Handover Comments - real-time comments during handover (before archiving)
+  handoverComments: defineTable({
+    teamId: v.string(),
+    residentId: v.id("residents"),
+    date: v.string(), // YYYY-MM-DD
+    shift: v.union(v.literal("day"), v.literal("night")),
+    comment: v.string(),
+
+    // Metadata
+    createdBy: v.string(), // User ID
+    createdByName: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_team_date_shift", ["teamId", "date", "shift"])
+    .index("by_resident_date", ["residentId", "date"])
+    .index("by_team_resident", ["teamId", "residentId", "date"]),
 
   // Multidisciplinary Care Team Members
   multidisciplinaryCareTeam: defineTable({
