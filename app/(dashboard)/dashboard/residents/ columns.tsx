@@ -101,7 +101,7 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
 
   if (!nextIntake) {
     // No upcoming medication
-    return <Badge variant="outline">No upcoming medication</Badge>;
+    return <Badge variant="outline">None</Badge>;
   }
 
   const scheduledDate = new Date(nextIntake.scheduledTime);
@@ -566,7 +566,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm">
-          Next Scheduled Medication
+          Next Medication
         </div>
       );
     },
