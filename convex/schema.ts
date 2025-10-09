@@ -468,6 +468,124 @@ export default defineSchema({
     .index("byResidentId", ["residentId"])
     .index("byOrganizationId", ["organizationId"]),
 
+  // Personal interests and preferences for residents
+  personalInterests: defineTable({
+    residentId: v.id("residents"),
+    mainInterests: v.optional(v.array(v.string())),
+    hobbies: v.optional(v.array(v.string())),
+    socialPreferences: v.optional(v.array(v.string())),
+    favoriteActivities: v.optional(v.array(v.string())),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"]),
+
+  // Social activities for residents
+  socialActivities: defineTable({
+    residentId: v.id("residents"),
+    activityDate: v.string(), // Date in ISO format (YYYY-MM-DD)
+    activityTime: v.string(), // Time in HH:mm format
+    activityType: v.union(
+      v.literal("group_activity"),
+      v.literal("one_on_one"),
+      v.literal("family_visit"),
+      v.literal("outing"),
+      v.literal("entertainment"),
+      v.literal("exercise"),
+      v.literal("crafts"),
+      v.literal("music"),
+      v.literal("reading"),
+      v.literal("games"),
+      v.literal("therapy"),
+      v.literal("religious"),
+      v.literal("other")
+    ),
+    activityName: v.string(),
+    participants: v.optional(v.string()),
+    location: v.optional(v.string()),
+    duration: v.optional(v.string()),
+    engagementLevel: v.optional(
+      v.union(
+        v.literal("very_engaged"),
+        v.literal("engaged"),
+        v.literal("somewhat_engaged"),
+        v.literal("minimal"),
+        v.literal("disengaged")
+      )
+    ),
+    moodBefore: v.optional(
+      v.union(
+        v.literal("excellent"),
+        v.literal("good"),
+        v.literal("neutral"),
+        v.literal("poor"),
+        v.literal("very_poor")
+      )
+    ),
+    moodAfter: v.optional(
+      v.union(
+        v.literal("excellent"),
+        v.literal("good"),
+        v.literal("neutral"),
+        v.literal("poor"),
+        v.literal("very_poor")
+      )
+    ),
+    socialInteraction: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("responsive"),
+        v.literal("minimal"),
+        v.literal("withdrawn")
+      )
+    ),
+    enjoyment: v.optional(
+      v.union(
+        v.literal("loved_it"),
+        v.literal("enjoyed"),
+        v.literal("neutral"),
+        v.literal("disliked"),
+        v.literal("refused")
+      )
+    ),
+    recordedBy: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number()
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byActivityDate", ["residentId", "activityDate"]),
+
+  // Social connections for residents
+  socialConnections: defineTable({
+    residentId: v.id("residents"),
+    name: v.string(),
+    relationship: v.string(), // "Roommate", "Daughter", "Friend", "Activity Partner"
+    type: v.union(
+      v.literal("family"),
+      v.literal("friend"),
+      v.literal("staff"),
+      v.literal("other")
+    ),
+    contactFrequency: v.string(), // "Daily", "Weekly", "3x/week", "Monthly"
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byType", ["residentId", "type"]),
+
   // Food and fluid logs for residents
   foodFluidLogs: defineTable({
     residentId: v.id("residents"),

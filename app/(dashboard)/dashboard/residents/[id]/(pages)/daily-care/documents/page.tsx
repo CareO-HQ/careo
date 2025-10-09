@@ -704,167 +704,84 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
       {/* View Report Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              {selectedReport?.type === 'day' ? (
-                <Sun className="w-5 h-5 text-amber-600" />
-              ) : (
-                <Moon className="w-5 h-5 text-indigo-600" />
-              )}
-              <span>
-                {selectedReport?.type === 'day' ? 'Day' : 'Night'} Shift Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
-              </span>
+            <DialogTitle>
+              {selectedReport?.type === 'day' ? 'Day' : 'Night'} Shift Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
             </DialogTitle>
             <DialogDescription>
               All activities logged for {selectedReport?.type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM'}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
-            {selectedReport && (
-              <div className="space-y-6">
-                {selectedReportData === undefined ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-2 text-muted-foreground">Loading report...</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Report Overview */}
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Shift Overview</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Shift Period</p>
-                          <p className="font-medium">
-                            {selectedReport.type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Total Activities</p>
-                          <p className="font-medium">
-                            {(() => {
-                              if (selectedReport.type === 'day') {
-                                const dayActivities = (selectedReportData?.tasks || []).filter((task: any) =>
-                                  isDayShift(task.createdAt)
-                                );
-                                return dayActivities.length;
-                              } else {
-                                const allNightActivities = [
-                                  ...(selectedReportData?.tasks || []),
-                                  ...(yesterdayReportData?.tasks || [])
-                                ];
-                                const nightShiftActivities = allNightActivities.filter(activity =>
-                                  isNightShift(activity.createdAt)
-                                );
-                                return nightShiftActivities.length;
-                              }
-                            })()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Activities Log */}
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Activities Log</h3>
-                      {(() => {
-                        let activities = [];
-                        if (selectedReport.type === 'day') {
-                          activities = (selectedReportData?.tasks || []).filter((task: any) =>
-                            isDayShift(task.createdAt)
-                          );
-                        } else {
-                          const allNightActivities = [
-                            ...(selectedReportData?.tasks || []),
-                            ...(yesterdayReportData?.tasks || [])
-                          ];
-                          activities = allNightActivities.filter(activity =>
-                            isNightShift(activity.createdAt)
-                          );
-                        }
-
-                        return activities.length > 0 ? (
-                          <div className="space-y-3 max-h-60 overflow-y-auto">
-                            {activities.map((activity: any, index: number) => (
-                              <div key={index} className={`p-3 border rounded-lg ${
-                                selectedReport.type === 'day' ? 'border-amber-200 bg-amber-50' : 'border-indigo-200 bg-indigo-50'
-                              }`}>
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <div className="flex items-center space-x-2 mb-1">
-                                      {selectedReport.type === 'day' ? (
-                                        <Sun className="w-4 h-4 text-amber-600" />
-                                      ) : (
-                                        <Moon className="w-4 h-4 text-indigo-600" />
-                                      )}
-                                      <p className="font-medium">{activity.taskType}</p>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">
-                                      {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                    </p>
-                                    {activity.notes && (
-                                      <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
-                                    )}
-                                  </div>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    activity.status === 'completed'
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {activity.status}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-gray-500 py-8 text-center">
-                            No activities logged for {selectedReport.type} shift
-                          </p>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Record Information */}
-                    <div>
-                      <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Report Type</p>
-                          <p className="font-medium">
-                            {selectedReport.type === 'day' ? 'Day' : 'Night'} Shift Report
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Generated</p>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4 text-gray-400" />
-                            <p className="font-medium">{format(new Date(), "PPP")}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+          <div className={`space-y-2 ${(() => {
+            if (!selectedReport) return '';
+            let activityCount = 0;
+            if (selectedReport.type === 'day') {
+              activityCount = (selectedReportData?.tasks || []).filter((task: any) => isDayShift(task.createdAt)).length;
+            } else {
+              const allNightActivities = [
+                ...(selectedReportData?.tasks || []),
+                ...(yesterdayReportData?.tasks || [])
+              ];
+              activityCount = allNightActivities.filter(activity => isNightShift(activity.createdAt)).length;
+            }
+            return activityCount > 2 ? 'overflow-y-auto max-h-[60vh]' : '';
+          })()}`}>
+            {selectedReportData === undefined ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading report...</p>
               </div>
-            )}
-          </ScrollArea>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
-            >
-              Close
-            </Button>
-            {selectedReport && (
-              <Button
-                onClick={() => handleDownloadReport(selectedReport, selectedReport.type)}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download PDF
-              </Button>
-            )}
+            ) : (() => {
+              let activities = [];
+              if (selectedReport?.type === 'day') {
+                activities = (selectedReportData?.tasks || []).filter((task: any) =>
+                  isDayShift(task.createdAt)
+                );
+              } else {
+                const allNightActivities = [
+                  ...(selectedReportData?.tasks || []),
+                  ...(yesterdayReportData?.tasks || [])
+                ];
+                activities = allNightActivities.filter(activity =>
+                  isNightShift(activity.createdAt)
+                );
+              }
+
+              return activities.length > 0 ? (
+                activities.map((activity: any, index: number) => (
+                  <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-sm">{activity.taskType}</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {activity.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+                      </span>
+                    </div>
+
+                    {activity.notes && (
+                      <div className="text-xs text-muted-foreground mt-2">
+                        <span className="font-medium">Notes:</span> {activity.notes}
+                      </div>
+                    )}
+
+                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                      Recorded by: {activity.completedBy || 'Unknown'}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 py-8 text-center">
+                  No activities logged for {selectedReport?.type} shift
+                </p>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>
