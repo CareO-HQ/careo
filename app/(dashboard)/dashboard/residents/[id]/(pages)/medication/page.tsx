@@ -4,6 +4,7 @@ import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,6 +13,24 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   ArrowLeft,
   Pill,
@@ -22,7 +41,9 @@ import {
   Plus,
   Search,
   Eye,
-  User
+  User,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
@@ -34,9 +55,23 @@ type MedicationPageProps = {
 export default function MedicationPage({ params }: MedicationPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const { data: user } = authClient.useSession();
+  const [selectedTime, setSelectedTime] = React.useState<string | null>(null);
+  const [expandedMedication, setExpandedMedication] = React.useState<string | null>(null);
+  const [medicationDetails, setMedicationDetails] = React.useState<{[key: string]: {
+    pickup: string;
+    given: string;
+    status: string;
+    actualTime: string;
+    staff: string;
+    note: string;
+  }}>({});
+
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
+  const currentUserName = user?.user?.name || "Staff Member";
 
   if (resident === undefined) {
     return (
@@ -132,9 +167,19 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
   const todaySchedule = [
     { time: "08:00", medications: ["Metformin 500mg", "Amlodipine 5mg"], status: "completed" },
+    { time: "10:00", medications: ["Aspirin 75mg"], status: "pending" },
     { time: "12:00", medications: ["Vitamin D 1000IU"], status: "pending" },
-    { time: "20:00", medications: ["Metformin 500mg"], status: "pending" }
+    { time: "14:00", medications: ["Paracetamol 500mg"], status: "pending" },
+    { time: "18:00", medications: ["Ramipril 5mg", "Vitamin B12"], status: "pending" },
+    { time: "20:00", medications: ["Metformin 500mg"], status: "pending" },
+    { time: "22:00", medications: ["Atorvastatin 20mg"], status: "pending" },
+    { time: "00:00", medications: ["Melatonin 3mg"], status: "pending" }
   ];
+
+  // Get medications for selected time
+  const selectedSchedule = selectedTime
+    ? todaySchedule.find(schedule => schedule.time === selectedTime)
+    : null;
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -268,7 +313,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Today's Medication Schedule */}
-      <Card className="shadow-sm">
+      <Card className="shadow-sm border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -292,40 +337,213 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {todaySchedule.map((schedule, index) => (
-              <div key={index} className="flex items-center space-x-4 p-4 border rounded-lg">
-                <div className="text-lg font-mono font-bold text-gray-600 min-w-[60px]">
-                  {schedule.time}
-                </div>
-                <div className="flex-1">
-                  <div className="space-y-1">
-                    {schedule.medications.map((med, medIndex) => (
-                      <p key={medIndex} className="text-sm">{med}</p>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {schedule.status === "completed" ? (
-                    <Badge className="bg-green-100 text-green-700 border-green-200">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Completed
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700">
-                      <Clock className="w-3 h-3 mr-1" />
-                      Pending
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            ))}
+          {/* Time Options */}
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-gray-700">Morning</span>
+            <Button
+              variant={selectedTime === "08:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("08:00")}
+            >
+              08:00
+            </Button>
+            <Button
+              variant={selectedTime === "10:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("10:00")}
+            >
+              10:00
+            </Button>
+            <Button
+              variant={selectedTime === "12:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("12:00")}
+            >
+              12:00
+            </Button>
+            <span className="text-sm font-semibold text-gray-700 ml-2">Afternoon</span>
+            <Button
+              variant={selectedTime === "14:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("14:00")}
+            >
+              14:00
+            </Button>
+            <Button
+              variant={selectedTime === "18:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("18:00")}
+            >
+              18:00
+            </Button>
+            <span className="text-sm font-semibold text-gray-700 ml-2">Evening</span>
+            <Button
+              variant={selectedTime === "22:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("22:00")}
+            >
+              22:00
+            </Button>
+            <Button
+              variant={selectedTime === "00:00" ? "default" : "outline"}
+              size="sm"
+              className="font-mono"
+              onClick={() => setSelectedTime("00:00")}
+            >
+              00:00
+            </Button>
           </div>
+
+          {/* Medications Table */}
+          {selectedTime ? (
+            selectedSchedule ? (
+              <div className="border rounded-lg overflow-hidden bg-white">
+                <Table>
+                  <TableHeader className="bg-gray-50">
+                    <TableRow className="border-b hover:bg-gray-50">
+                      <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 border-r">Medication</TableHead>
+                      <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 text-center border-r">Popped Out</TableHead>
+                      <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 border-r">Status</TableHead>
+                      <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 border-r">Time</TableHead>
+                      <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 border-r">Staff</TableHead>
+                      <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600">Note</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedSchedule.medications.map((med, medIndex) => {
+                      const medKey = `${selectedTime}-${medIndex}`;
+                      const details = medicationDetails[medKey] || {
+                        pickup: "",
+                        given: "",
+                        status: "pending",
+                        actualTime: "",
+                        staff: "",
+                        note: ""
+                      };
+
+                      return (
+                        <TableRow key={medIndex} className="border-b last:border-0 hover:bg-gray-50/50">
+                          <TableCell className="px-3 py-2.5 text-sm border-r">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400 text-xs">{medIndex + 1}.</span>
+                              <span className="text-gray-900">{med}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-center border-r">
+                            <button
+                              type="button"
+                              onClick={() => setMedicationDetails(prev => ({
+                                ...prev,
+                                [medKey]: { ...details, pickup: details.pickup === "popped" ? "" : "popped" }
+                              }))}
+                              className={`w-4 h-4 rounded-full border border-dashed transition-all ${
+                                details.pickup === "popped"
+                                  ? 'border-black bg-black'
+                                  : 'border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              {details.pickup === "popped" && (
+                                <span className="flex items-center justify-center">
+                                  <CheckCircle className="w-2.5 h-2.5 text-white" />
+                                </span>
+                              )}
+                            </button>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 border-r">
+                            <Select
+                              value={details.status}
+                              onValueChange={(value) => setMedicationDetails(prev => ({
+                                ...prev,
+                                [medKey]: { ...details, status: value }
+                              }))}
+                            >
+                              <SelectTrigger className="h-6 w-auto border-0 shadow-none focus:ring-0 gap-1 px-0">
+                                <SelectValue placeholder="Select">
+                                  {details.status && (
+                                    <Badge variant="secondary" className={`text-xs h-5 px-2 border-0 font-normal ${
+                                      details.status === "pending" ? 'bg-orange-100 text-orange-700 hover:bg-orange-100' :
+                                      details.status === "given" ? 'bg-green-100 text-green-700 hover:bg-green-100' :
+                                      details.status === "refused" ? 'bg-red-100 text-red-700 hover:bg-red-100' :
+                                      details.status === "missed" ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100' :
+                                      'bg-gray-100 text-gray-700 hover:bg-gray-100'
+                                    }`}>
+                                      {details.status.charAt(0).toUpperCase() + details.status.slice(1)}
+                                    </Badge>
+                                  )}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">
+                                  <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700 border-0">Pending</Badge>
+                                </SelectItem>
+                                <SelectItem value="given">
+                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border-0">Given</Badge>
+                                </SelectItem>
+                                <SelectItem value="refused">
+                                  <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 border-0">Refused</Badge>
+                                </SelectItem>
+                                <SelectItem value="missed">
+                                  <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-700 border-0">Missed</Badge>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 border-r">
+                            <Input
+                              type="time"
+                              className="h-6 text-xs border-0 shadow-none focus-visible:ring-0 px-0 text-gray-600"
+                              value={details.actualTime}
+                              onChange={(e) => setMedicationDetails(prev => ({
+                                ...prev,
+                                [medKey]: { ...details, actualTime: e.target.value }
+                              }))}
+                            />
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 border-r">
+                            <div className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                              {currentUserName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5">
+                            <Input
+                              placeholder="Add notes..."
+                              className="h-6 text-xs border-0 shadow-none focus-visible:ring-0 px-0 text-gray-600 placeholder:text-gray-400"
+                              value={details.note}
+                              onChange={(e) => setMedicationDetails(prev => ({
+                                ...prev,
+                                [medKey]: { ...details, note: e.target.value }
+                              }))}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Pill className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p>No medications scheduled for this time</p>
+              </div>
+            )
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Clock className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p>Select a time to view medications</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Active Medications */}
-      <Card className="shadow-sm">
+      <Card className="shadow-sm border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -351,7 +569,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {mockMedications.map((medication) => (
-              <Card key={medication.id} className="border border-gray-200 shadow-sm">
+              <Card key={medication.id} className="border border-dashed border-gray-300">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
@@ -394,7 +612,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </Card>
 
       {/* Medication Overview */}
-      <Card className="shadow-sm">
+      <Card className="shadow-sm border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -429,47 +647,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         </CardContent>
       </Card>
 
-      {/* Medication Actions */}
-      <Card className="">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Pill className="w-5 h-5 text-green-600" />
-            <span>Medication Actions</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              className="h-16 text-lg bg-green-600 hover:bg-green-700 text-white"
-            >
-              <Plus className="w-6 h-6 mr-3" />
-              Add New Medication
-            </Button>
-            <Button
-             className="h-16 text-lg bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => router.push(`/dashboard/residents/${id}/medication/documents`)}
-            >
-              <Eye className="w-6 h-6 mr-3" />
-              View Medication History
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Development Notice */}
-      <Card className="bg-blue-50 border-blue-200 shadow-sm">
-        <CardContent className="p-6 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Pill className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-          <h3 className="text-lg font-semibold text-blue-800 mb-2">Enhanced Features Coming Soon</h3>
-          <p className="text-blue-600 text-sm">
-            Advanced medication tracking, administration records, and prescription management features are in development.
-          </p>
-        </CardContent>
-      </Card>
+ 
     </div>
   );
 }

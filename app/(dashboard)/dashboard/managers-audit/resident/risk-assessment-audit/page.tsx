@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, UserPlus, Calendar as CalendarIcon, AlertCircle, Archive } from "lucide-react";
+import { ArrowLeft, Plus, UserPlus, Calendar as CalendarIcon, AlertCircle, Archive, X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -46,6 +46,22 @@ import { getAge } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
+type QuestionType = "compliance" | "date" | "text";
+
+type Question = {
+  id: string;
+  label: string;
+  type: QuestionType;
+};
+
+const DEFAULT_QUESTIONS: Question[] = [
+  { id: "q1", label: "Date", type: "date" },
+  { id: "q2", label: "All Risk Assessment Completed", type: "compliance" },
+  { id: "q3", label: "Care Needs Reviewed", type: "compliance" },
+  { id: "q4", label: "Are there any safeguarding concerns?", type: "compliance" },
+  { id: "q5", label: "Comment", type: "text" },
+];
+
 type ActionPlan = {
   id: string;
   note: string;
@@ -62,16 +78,14 @@ export default function RiskAssessmentAuditPage() {
     teamId: activeTeamId ?? "skip"
   }) as Resident[] | undefined;
 
-  const [auditData, setAuditData] = useState<Record<string, {
-    date: string;
-    completed: string;
-    careNeedsReviewed: string;
-    safeguardingConcerns: string;
-    comment: string;
-  }>>({});
+  const [questions, setQuestions] = useState<Question[]>(DEFAULT_QUESTIONS);
+  const [auditData, setAuditData] = useState<Record<string, Record<string, string>>>({});
 
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
+  const [newQuestionTitle, setNewQuestionTitle] = useState('');
+  const [newQuestionType, setNewQuestionType] = useState<QuestionType>('text');
   const [auditDate, setAuditDate] = useState<Date>(new Date());
   const [currentAction, setCurrentAction] = useState<ActionPlan>({
     id: '',
@@ -83,54 +97,118 @@ export default function RiskAssessmentAuditPage() {
 
   const auditorName = session?.user?.name || "Unknown Auditor";
 
-  const handleDateChange = (residentId: string, date: string) => {
+  const handleAnswerChange = (residentId: string, questionId: string, value: string) => {
     setAuditData(prev => ({
       ...prev,
       [residentId]: {
         ...prev[residentId],
-        date
+        [questionId]: value
       }
     }));
   };
 
-  const handleCompletedChange = (residentId: string, completed: string) => {
-    setAuditData(prev => ({
-      ...prev,
-      [residentId]: {
-        ...prev[residentId],
-        completed
-      }
-    }));
+  const openAddQuestionDialog = () => {
+    setNewQuestionTitle('');
+    setNewQuestionType('text');
+    setIsQuestionDialogOpen(true);
   };
 
-  const handleCareNeedsReviewedChange = (residentId: string, careNeedsReviewed: string) => {
-    setAuditData(prev => ({
-      ...prev,
-      [residentId]: {
-        ...prev[residentId],
-        careNeedsReviewed
-      }
-    }));
+  const addNewQuestion = () => {
+    if (newQuestionTitle.trim()) {
+      const newQuestion: Question = {
+        id: `q${questions.length + 1}`,
+        label: newQuestionTitle,
+        type: newQuestionType
+      };
+      setQuestions([...questions, newQuestion]);
+      setIsQuestionDialogOpen(false);
+      setNewQuestionTitle('');
+      setNewQuestionType('text');
+    }
   };
 
-  const handleSafeguardingConcernsChange = (residentId: string, safeguardingConcerns: string) => {
-    setAuditData(prev => ({
-      ...prev,
-      [residentId]: {
-        ...prev[residentId],
-        safeguardingConcerns
-      }
-    }));
+  const deleteQuestion = (questionId: string) => {
+    setQuestions(prev => prev.filter(q => q.id !== questionId));
+    setAuditData(prev => {
+      const newData = { ...prev };
+      Object.keys(newData).forEach(residentId => {
+        if (newData[residentId][questionId]) {
+          delete newData[residentId][questionId];
+        }
+      });
+      return newData;
+    });
   };
 
-  const handleCommentChange = (residentId: string, comment: string) => {
-    setAuditData(prev => ({
-      ...prev,
-      [residentId]: {
-        ...prev[residentId],
-        comment
-      }
-    }));
+  const renderQuestionCell = (question: Question, residentId: string) => {
+    const value = auditData[residentId]?.[question.id] || "";
+
+    switch (question.type) {
+      case "compliance":
+        return (
+          <TableCell key={question.id} className="px-3 py-2.5 border-r">
+            <Select
+              value={value}
+              onValueChange={(val) => handleAnswerChange(residentId, question.id, val)}
+            >
+              <SelectTrigger className="h-6 w-auto border-0 shadow-none focus:ring-0 gap-1 px-0">
+                <SelectValue placeholder="Select">
+                  {value && (
+                    <Badge variant="secondary" className={`text-xs h-5 px-2 border-0 font-normal ${
+                      value === "compliant" ? "bg-green-100 text-green-700 hover:bg-green-100" :
+                      value === "non-compliant" ? "bg-red-100 text-red-700 hover:bg-red-100" :
+                      value === "not-applicable" ? "bg-black text-white hover:bg-black" :
+                      "bg-yellow-100 text-yellow-700 hover:bg-yellow-100"
+                    }`}>
+                      {value === "compliant" ? "Compliant" :
+                       value === "non-compliant" ? "Non Compliant" :
+                       value === "not-applicable" ? "Not Applicable" : ""}
+                    </Badge>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="compliant">
+                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border-0">Compliant</Badge>
+                </SelectItem>
+                <SelectItem value="non-compliant">
+                  <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 border-0">Non Compliant</Badge>
+                </SelectItem>
+                <SelectItem value="not-applicable">
+                  <Badge variant="secondary" className="text-xs bg-black text-white border-0">Not Applicable</Badge>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </TableCell>
+        );
+
+      case "date":
+        return (
+          <TableCell key={question.id} className="px-3 py-2.5 border-r">
+            <Input
+              type="date"
+              value={value}
+              onChange={(e) => handleAnswerChange(residentId, question.id, e.target.value)}
+              className="h-6 text-xs border-0 shadow-none focus-visible:ring-0 px-0 text-gray-600"
+            />
+          </TableCell>
+        );
+
+      case "text":
+        return (
+          <TableCell key={question.id} className="px-3 py-2.5 border-r">
+            <Input
+              placeholder="Enter text..."
+              value={value}
+              onChange={(e) => handleAnswerChange(residentId, question.id, e.target.value)}
+              className="h-6 text-xs border-0 shadow-none focus-visible:ring-0 px-0 text-gray-600 placeholder:text-gray-400"
+            />
+          </TableCell>
+        );
+
+      default:
+        return null;
+    }
   };
 
   const openAddActionDialog = () => {
@@ -201,20 +279,41 @@ export default function RiskAssessmentAuditPage() {
       {/* Table */}
       <div className="border rounded-lg overflow-hidden bg-card">
         <Table>
-          <TableHeader>
-            <TableRow className="border-b bg-muted/50">
-              <TableHead className="h-11 text-xs font-medium w-[230px]">Name</TableHead>
-              <TableHead className="h-11 text-xs font-medium w-[130px]">Date</TableHead>
-              <TableHead className="h-11 text-xs font-medium w-[180px]">All Risk Assessment Completed</TableHead>
-              <TableHead className="h-11 text-xs font-medium w-[180px]">Care Needs Reviewed</TableHead>
-              <TableHead className="h-11 text-xs font-medium w-[200px]">Are there any safeguarding concerns?</TableHead>
-              <TableHead className="h-11 text-xs font-medium">Comment</TableHead>
+          <TableHeader className="bg-gray-50">
+            <TableRow className="border-b hover:bg-gray-50">
+              <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 border-r w-[230px]">Name</TableHead>
+              {questions.map((question) => (
+                <TableHead key={question.id} className="h-9 px-3 py-2 text-xs font-medium text-gray-600 border-r min-w-[180px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{question.label}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 p-0 hover:bg-red-100 hover:text-red-600"
+                      onClick={() => deleteQuestion(question.id)}
+                      title="Delete question"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </TableHead>
+              ))}
+              <TableHead className="h-9 px-3 py-2 text-xs font-medium text-gray-600 w-[50px]">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={openAddQuestionDialog}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {!residents || residents.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={questions.length + 2} className="h-24 text-center text-muted-foreground">
                   {!activeTeamId ? "Please select a team" : "No residents found for this team"}
                 </TableCell>
               </TableRow>
