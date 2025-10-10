@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -370,16 +371,16 @@ const CommentsCell = ({
   };
 
   return (
-    <div className="relative">
-      <Textarea
+    <div className="relative w-full h-full">
+      <Input
         placeholder="Add handover comments..."
-        className="h-[40px] resize-none w-full max-w-md pb-5 text-sm border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+        className="h-8 w-full text-sm border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-2"
         data-resident-id={residentId}
         value={comment}
         onChange={handleCommentChange}
       />
       {(isSaving || lastSavedAt) && (
-        <div className="absolute bottom-1 right-2 text-xs text-muted-foreground italic">
+        <div className="absolute bottom-0 right-2 text-[10px] text-muted-foreground italic">
           {isSaving ? "Saving..." : getLastSavedText()}
         </div>
       )}

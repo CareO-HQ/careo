@@ -181,34 +181,34 @@ export default function CareOAuditPage() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="w-12">
+              <TableHead className="w-12 border-r last:border-r-0">
                 <input type="checkbox" className="rounded border-gray-300" />
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium border-r last:border-r-0">
                 <div className="flex items-center gap-1">
                   <span>Audit</span>
                   <Plus className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium border-r last:border-r-0">
                 <div className="flex items-center gap-1">
                   <span>Status</span>
                   <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium border-r last:border-r-0">
                 <div className="flex items-center gap-1">
                   <span>Auditor</span>
                   <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium border-r last:border-r-0">
                 <div className="flex items-center gap-1">
                   <span>Last Audited</span>
                   <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium border-r last:border-r-0">
                 <div className="flex items-center gap-1">
                   <span>Due</span>
                   <Plus className="h-3 w-3 text-muted-foreground" />
@@ -219,10 +219,10 @@ export default function CareOAuditPage() {
           <TableBody>
             {filteredAudits.map((audit) => (
               <TableRow key={audit.id} className="hover:bg-muted/50">
-                <TableCell>
+                <TableCell className="border-r last:border-r-0">
                   <input type="checkbox" className="rounded border-gray-300" />
                 </TableCell>
-                <TableCell>
+                <TableCell className="border-r last:border-r-0">
                   <button
                     onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
                     className="font-medium hover:underline text-left"
@@ -230,14 +230,14 @@ export default function CareOAuditPage() {
                     {audit.name}
                   </button>
                 </TableCell>
-                <TableCell>
+                <TableCell className="border-r last:border-r-0">
                   <Badge variant="secondary" className={getStatusColor(audit.status)}>
                     {audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
                   </Badge>
                 </TableCell>
-                <TableCell>{audit.auditor}</TableCell>
-                <TableCell className="text-muted-foreground">{audit.lastAudited}</TableCell>
-                <TableCell className="text-muted-foreground">{audit.dueDate}</TableCell>
+                <TableCell className="border-r last:border-r-0">{audit.auditor}</TableCell>
+                <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.lastAudited}</TableCell>
+                <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.dueDate}</TableCell>
               </TableRow>
             ))}
           </TableBody>

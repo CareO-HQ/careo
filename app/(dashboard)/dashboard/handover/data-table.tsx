@@ -74,14 +74,13 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="w-full">
-
-      <Table className="border-collapse">
+      <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="hover:bg-transparent">
+            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b">
               {headerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id} className="border-r border-l">
+                  <TableHead key={header.id} className="border-r last:border-r-0">
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -101,12 +100,12 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="hover:bg-muted/50 border-b h-16"
+                  className="hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className="border-r border-l py-3"
+                      className="border-r last:border-r-0"
                       style={{
                         width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined
                       }}

@@ -22,6 +22,10 @@ import {
   Moon,
   Eye,
   FileText,
+  MoreHorizontal,
+  ArrowUpDown,
+  SlidersHorizontal,
+  Plus,
 } from "lucide-react";
 
 export default function HandoverDocumentsPage() {
@@ -96,14 +100,22 @@ export default function HandoverDocumentsPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Handover
           </Button>
+          <Button variant="ghost" size="icon">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2 border-b px-6 py-3">
-        <Badge variant="outline" className="rounded-sm">
-          {groupedHandovers.length} Reports
-        </Badge>
+        <Button variant="ghost" size="sm" className="h-8">
+          <ArrowUpDown className="h-4 w-4 mr-2" />
+          Sort
+        </Button>
+        <Button variant="ghost" size="sm" className="h-8">
+          <SlidersHorizontal className="h-4 w-4 mr-2" />
+          Filter
+        </Button>
       </div>
 
       {/* Table */}
@@ -111,22 +123,25 @@ export default function HandoverDocumentsPage() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="w-12">
+              <TableHead className="w-12 h-8 py-1">
                 <input type="checkbox" className="rounded border-gray-300" />
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium h-8 py-1">
                 <div className="flex items-center gap-1">
                   <span>Date</span>
+                  <Plus className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium h-8 py-1">
                 <div className="flex items-center gap-1">
                   <span>Day Shift</span>
+                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
-              <TableHead className="font-medium">
+              <TableHead className="font-medium h-8 py-1">
                 <div className="flex items-center gap-1">
                   <span>Night Shift</span>
+                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
                 </div>
               </TableHead>
             </TableRow>
@@ -134,26 +149,24 @@ export default function HandoverDocumentsPage() {
           <TableBody>
             {groupedHandovers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-64 text-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <FileText className="w-12 h-12 text-gray-400 mb-3" />
-                    <p className="text-gray-500 font-medium">No handover reports found</p>
-                    <p className="text-gray-400 text-sm mt-1">No handover reports recorded yet</p>
+                <TableCell colSpan={4} className="h-8 py-1 text-center">
+                  <div className="flex items-center justify-center">
+                    <span className="text-muted-foreground text-sm">No handover reports found</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : (
               groupedHandovers.map((item: any) => (
                 <TableRow key={item.date} className="hover:bg-muted/50">
-                  <TableCell>
+                  <TableCell className="h-8 py-1">
                     <input type="checkbox" className="rounded border-gray-300" />
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium h-8 py-1">
                     {format(new Date(item.date), "dd MMM yyyy")}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="h-8 py-1">
                     {item.day ? (
-                      <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-300 rounded-sm">
+                      <Badge variant="secondary" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 h-5 text-xs">
                         <Sun className="w-3 h-3 mr-1" />
                         Day Report
                       </Badge>
@@ -161,9 +174,9 @@ export default function HandoverDocumentsPage() {
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="h-8 py-1">
                     {item.night ? (
-                      <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-300 rounded-sm">
+                      <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 h-5 text-xs">
                         <Moon className="w-3 h-3 mr-1" />
                         Night Report
                       </Badge>

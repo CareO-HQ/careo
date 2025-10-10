@@ -234,6 +234,7 @@ export default function HandoverPage() {
             variant="outline"
             size="sm"
             onClick={() => router.push("/dashboard/handover/documents")}
+            className="h-8"
           >
             All Handovers
           </Button>
@@ -242,10 +243,18 @@ export default function HandoverPage() {
             size="sm"
             onClick={() => setIsDialogOpen(true)}
             disabled={!residents || residents.length === 0}
+            className="h-8"
           >
             Save as Archive
           </Button>
         </div>
+      </div>
+
+      {/* Filters - matching careo-audit style */}
+      <div className="flex items-center gap-2 border-b px-6 py-3">
+        <Badge variant="outline" className="rounded-sm">
+          {residents?.length || 0} Residents
+        </Badge>
       </div>
 
       {/* Table */}
