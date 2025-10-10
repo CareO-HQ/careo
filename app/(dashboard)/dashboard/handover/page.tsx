@@ -6,6 +6,7 @@ import { useQuery, useMutation, useConvex } from "convex/react";
 import { useRouter } from "next/navigation";
 import { Resident } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { getColumns } from "./columns";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
@@ -219,34 +220,45 @@ export default function HandoverPage() {
   };
 
   return (
-    <div className="container mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Handover Sheet</h1>
-        <Button
-          variant="outline"
-          onClick={() => router.push("/dashboard/handover/documents")}
-        >
-          All Handovers
-        </Button>
+    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b px-6 py-4">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-semibold">Handover Sheet</h1>
+          <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm">
+            {format(new Date(), "EEEE, d MMMM yyyy")}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/dashboard/handover/documents")}
+          >
+            All Handovers
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setIsDialogOpen(true)}
+            disabled={!residents || residents.length === 0}
+          >
+            Save as Archive
+          </Button>
+        </div>
       </div>
-      <DataTable<Resident, unknown>
-        columns={getColumns(
-          activeTeamId ?? undefined,
-          currentUser?.userId,
-          currentUser?.name || "Unknown"
-        )}
-        data={residents || []}
-        teamName={activeTeam?.name ?? ""}
-      />
-      <div className="flex justify-end pb-6">
-        <Button
-          variant="default"
-          size="lg"
-          onClick={() => setIsDialogOpen(true)}
-          disabled={!residents || residents.length === 0}
-        >
-          Save as Archive
-        </Button>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <DataTable<Resident, unknown>
+          columns={getColumns(
+            activeTeamId ?? undefined,
+            currentUser?.userId,
+            currentUser?.name || "Unknown"
+          )}
+          data={residents || []}
+          teamName={activeTeam?.name ?? ""}
+        />
       </div>
 
       {/* Save Handover Dialog */}
