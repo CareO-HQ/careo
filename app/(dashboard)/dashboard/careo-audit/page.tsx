@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -48,6 +49,7 @@ interface Audit {
 }
 
 export default function CareOAuditPage() {
+  const router = useRouter();
   const [audits, setAudits] = useState<Audit[]>([
     {
       id: "1",
@@ -69,12 +71,7 @@ export default function CareOAuditPage() {
   });
 
   const handleNewAudit = () => {
-    if (activeTab === "resident") {
-      setIsDialogOpen(true);
-    } else {
-      // For other tabs, show a placeholder or different behavior
-      alert(`Create new audit for ${activeTab}`);
-    }
+    setIsDialogOpen(true);
   };
 
   const handleCreateAudit = () => {
@@ -209,7 +206,12 @@ export default function CareOAuditPage() {
                     <div className="flex items-center justify-center w-6 h-6 rounded bg-muted text-muted-foreground">
                       <span className="text-xs">📋</span>
                     </div>
-                    <span className="font-medium">{audit.name}</span>
+                    <button
+                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
+                      className="font-medium hover:underline text-left"
+                    >
+                      {audit.name}
+                    </button>
                   </div>
                 </TableCell>
                 <TableCell>
