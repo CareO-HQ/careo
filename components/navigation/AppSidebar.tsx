@@ -159,16 +159,6 @@ export function AppSidebar() {
         <SidebarGroup className="mt-0">
           <SidebarGroupLabel>Audit</SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* Manager Audit */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/managers-audit">
-                  <FileTextIcon />
-                  <span>Manager Audit</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
             {/* CareO Audit */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
@@ -178,7 +168,6 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
