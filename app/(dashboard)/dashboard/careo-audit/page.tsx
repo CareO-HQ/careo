@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,17 +50,30 @@ interface Audit {
 
 export default function CareOAuditPage() {
   const router = useRouter();
-  const [audits, setAudits] = useState<Audit[]>([
-    {
-      id: "1",
-      name: "Risk Assessment Audit",
-      status: "active",
-      auditor: "John Smith",
-      lastAudited: "2 months ago",
-      dueDate: "1 month",
-      category: "resident",
-    },
-  ]);
+  const [audits, setAudits] = useState<Audit[]>([]);
+
+  // Load audits from localStorage on mount
+  useEffect(() => {
+    const savedAudits = localStorage.getItem('careo-audits');
+    if (savedAudits) {
+      setAudits(JSON.parse(savedAudits));
+    } else {
+      // Set default audit if none exist
+      const defaultAudits = [
+        {
+          id: "1",
+          name: "Risk Assessment Audit",
+          status: "active",
+          auditor: "John Smith",
+          lastAudited: "2 months ago",
+          dueDate: "1 month",
+          category: "resident",
+        },
+      ];
+      setAudits(defaultAudits);
+      localStorage.setItem('careo-audits', JSON.stringify(defaultAudits));
+    }
+  }, []);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("resident");
@@ -80,7 +93,7 @@ export default function CareOAuditPage() {
     }
 
     const newAudit: Audit = {
-      id: (audits.length + 1).toString(),
+      id: Date.now().toString(),
       name: formData.auditName,
       status: "active",
       auditor: formData.auditorName,
@@ -89,9 +102,17 @@ export default function CareOAuditPage() {
       category: activeTab,
     };
 
-    setAudits([...audits, newAudit]);
+    const updatedAudits = [...audits, newAudit];
+    setAudits(updatedAudits);
+
+    // Save to localStorage
+    localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+
     setIsDialogOpen(false);
     setFormData({ auditName: "", auditorName: "", frequency: "" });
+
+    // Navigate to the new audit page
+    router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}`);
   };
 
   const filteredAudits = audits.filter(audit => audit.category === activeTab);
@@ -202,17 +223,12 @@ export default function CareOAuditPage() {
                   <input type="checkbox" className="rounded border-gray-300" />
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-6 h-6 rounded bg-muted text-muted-foreground">
-                      <span className="text-xs">📋</span>
-                    </div>
-                    <button
-                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
-                      className="font-medium hover:underline text-left"
-                    >
-                      {audit.name}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
+                    className="font-medium hover:underline text-left"
+                  >
+                    {audit.name}
+                  </button>
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary" className={getStatusColor(audit.status)}>

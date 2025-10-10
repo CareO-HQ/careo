@@ -44,12 +44,13 @@ import { format } from "date-fns";
 interface Question {
   id: string;
   text: string;
+  type: "compliance" | "yesno";
 }
 
 interface Answer {
   residentId: string;
   questionId: string;
-  completed: boolean;
+  value: string; // "compliant" | "non-compliant" | "not-applicable" | "yes" | "no"
   notes?: string;
 }
 
@@ -73,7 +74,19 @@ export default function ResidentAuditPage() {
   const auditId = params.auditId as string;
 
   const { activeTeamId } = useActiveTeam();
-  const [auditName] = useState("Risk Assessment Audit");
+  const [auditName, setAuditName] = useState("Risk Assessment Audit");
+
+  // Load audit name from localStorage
+  useEffect(() => {
+    const savedAudits = localStorage.getItem('careo-audits');
+    if (savedAudits) {
+      const audits = JSON.parse(savedAudits);
+      const currentAudit = audits.find((audit: any) => audit.id === auditId);
+      if (currentAudit) {
+        setAuditName(currentAudit.name);
+      }
+    }
+  }, [auditId]);
 
   // Fetch real residents from database
   const dbResidents = useQuery(api.residents.getByTeamId, {
@@ -89,6 +102,7 @@ export default function ResidentAuditPage() {
 
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState("");
+  const [newQuestionType, setNewQuestionType] = useState<"compliance" | "yesno">("compliance");
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
@@ -112,10 +126,12 @@ export default function ResidentAuditPage() {
     const newQuestion: Question = {
       id: `q${questions.length + 1}`,
       text: newQuestionText,
+      type: newQuestionType,
     };
 
     setQuestions([...questions, newQuestion]);
     setNewQuestionText("");
+    setNewQuestionType("compliance");
     setIsQuestionDialogOpen(false);
   };
 
@@ -124,7 +140,7 @@ export default function ResidentAuditPage() {
     setAnswers(answers.filter(a => a.questionId !== questionId));
   };
 
-  const handleToggleAnswer = (residentId: string, questionId: string) => {
+  const handleAnswerChange = (residentId: string, questionId: string, value: string) => {
     const existingAnswer = answers.find(
       a => a.residentId === residentId && a.questionId === questionId
     );
@@ -133,14 +149,14 @@ export default function ResidentAuditPage() {
       setAnswers(
         answers.map(a =>
           a.residentId === residentId && a.questionId === questionId
-            ? { ...a, completed: !a.completed }
+            ? { ...a, value }
             : a
         )
       );
     } else {
       setAnswers([
         ...answers,
-        { residentId, questionId, completed: true },
+        { residentId, questionId, value },
       ]);
     }
   };
@@ -330,17 +346,76 @@ export default function ResidentAuditPage() {
                       className="border-r"
                       style={{ width: `${width}px` }}
                     >
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={answer?.completed || false}
-                          onCheckedChange={() =>
-                            handleToggleAnswer(resident._id, question.id)
-                          }
-                        />
-                        <span className="text-sm">
-                          {answer?.completed ? "✅ Complete" : "⏳ Pending"}
-                        </span>
-                      </div>
+                      <Select
+                        value={answer?.value || ""}
+                        onValueChange={(value) => handleAnswerChange(resident._id, question.id, value)}
+                      >
+                        <SelectTrigger className="h-7 border-0 shadow-none w-fit px-2">
+                          {answer?.value ? (
+                            <Badge
+                              variant="secondary"
+                              className={`text-xs px-2 py-0.5 ${
+                                answer?.value === "compliant" || answer?.value === "yes" ? "bg-green-100 text-green-800" :
+                                answer?.value === "non-compliant" || answer?.value === "no" ? "bg-red-100 text-red-800" :
+                                "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {answer.value === "compliant" ? "Compliant" :
+                               answer.value === "non-compliant" ? "Non-Compliant" :
+                               answer.value === "yes" ? "Yes" :
+                               answer.value === "no" ? "No" :
+                               "N/A"}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Select</span>
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {question.type === "compliance" ? (
+                            <>
+                              <SelectItem value="compliant" className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                  Compliant
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="non-compliant" className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                  Non-Compliant
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="not-applicable" className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                                  Not Applicable
+                                </div>
+                              </SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="yes" className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                  Yes
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="no" className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                  No
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="not-applicable" className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                                  Not Applicable
+                                </div>
+                              </SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                   );
                 })}
@@ -365,49 +440,52 @@ export default function ResidentAuditPage() {
         <div className="border-t"></div>
 
         {/* Action Plans Section */}
-        <div className="px-2 py-4 space-y-4">
-          <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
-            Action Plan
-          </Button>
-
-          {/* Action Plan Cards */}
-          {actionPlans.filter(plan => plan.auditId === auditId).length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              {actionPlans.filter(plan => plan.auditId === auditId).map((plan) => (
-                <div
-                  key={plan.id}
-                  className="border rounded-lg p-4 space-y-3 bg-card"
-                >
-                  <p className="text-sm">{plan.text}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {plan.assignedTo && (
-                      <Badge variant="secondary" className="text-xs">
-                        {plan.assignedTo}
-                      </Badge>
-                    )}
-                    {plan.dueDate && (
-                      <Badge variant="secondary" className="text-xs">
-                        {format(plan.dueDate, "MMM dd, yyyy")}
-                      </Badge>
-                    )}
-                    {plan.priority && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs flex items-center gap-1"
-                      >
-                        <div className={`w-2 h-2 rounded-full ${
-                          plan.priority === "High" ? "bg-red-500" :
-                          plan.priority === "Medium" ? "bg-yellow-500" :
-                          "bg-green-500"
-                        }`}></div>
-                        {plan.priority}
-                      </Badge>
-                    )}
+        <div className="py-4 space-y-4">
+          <div className="px-2 pb-4 border-b border-dashed">
+            <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
+              Action Plan
+            </Button>
+          </div>
+          <div className="px-2">
+            {/* Action Plan Cards */}
+            {actionPlans.filter(plan => plan.auditId === auditId).length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {actionPlans.filter(plan => plan.auditId === auditId).map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="border rounded-lg p-4 space-y-3 bg-card"
+                  >
+                    <p className="text-sm">{plan.text}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {plan.assignedTo && (
+                        <Badge variant="secondary" className="text-xs">
+                          {plan.assignedTo}
+                        </Badge>
+                      )}
+                      {plan.dueDate && (
+                        <Badge variant="secondary" className="text-xs">
+                          {format(plan.dueDate, "MMM dd, yyyy")}
+                        </Badge>
+                      )}
+                      {plan.priority && (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs flex items-center gap-1"
+                        >
+                          <div className={`w-2 h-2 rounded-full ${
+                            plan.priority === "High" ? "bg-red-500" :
+                            plan.priority === "Medium" ? "bg-yellow-500" :
+                            "bg-green-500"
+                          }`}></div>
+                          {plan.priority}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -593,6 +671,21 @@ export default function ResidentAuditPage() {
                 value={newQuestionText}
                 onChange={(e) => setNewQuestionText(e.target.value)}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="questionType">Question Type</Label>
+              <Select
+                value={newQuestionType}
+                onValueChange={(value: "compliance" | "yesno") => setNewQuestionType(value)}
+              >
+                <SelectTrigger id="questionType">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compliance">Compliant / Non-Compliant / Not Applicable</SelectItem>
+                  <SelectItem value="yesno">Yes / No / Not Applicable</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
