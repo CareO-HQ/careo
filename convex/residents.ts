@@ -336,3 +336,216 @@ export const update = mutation({
     return residentId;
   }
 });
+
+// Helper function to calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  return age;
+};
+
+// Helper function to calculate length of stay
+const calculateLengthOfStay = (admissionDate: string): { days: number; months: number; years: number } => {
+  const today = new Date();
+  const admission = new Date(admissionDate);
+  const diffTime = Math.abs(today.getTime() - admission.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  const years = Math.floor(diffDays / 365);
+  const remainingDays = diffDays % 365;
+  const months = Math.floor(remainingDays / 30);
+  const days = remainingDays % 30;
+
+  return { days: diffDays, months, years };
+};
+
+// Audit log mutation
+export const logAuditEntry = mutation({
+  args: {
+    residentId: v.id("residents"),
+    action: v.union(
+      v.literal("created"),
+      v.literal("updated"),
+      v.literal("viewed"),
+      v.literal("discharged"),
+      v.literal("status_changed"),
+      v.literal("deleted")
+    ),
+    userId: v.string(),
+    userName: v.optional(v.string()),
+    changes: v.optional(v.any()),
+    fieldChanged: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("residentAuditLog", {
+      ...args,
+      timestamp: Date.now(),
+    });
+  },
+});
+
+// Get audit log for a resident
+export const getAuditLog = query({
+  args: {
+    residentId: v.id("residents"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 50;
+    return await ctx.db
+      .query("residentAuditLog")
+      .withIndex("byResidentAndTimestamp", (q) =>
+        q.eq("residentId", args.residentId)
+      )
+      .order("desc")
+      .take(limit);
+  },
+});
+
+// Optimized query to get resident with all related data
+export const getResidentOverview = query({
+  args: {
+    residentId: v.id("residents"),
+    includeAuditLog: v.optional(v.boolean()),
+  },
+  returns: v.union(v.null(), v.any()),
+  handler: async (ctx, args): Promise<any> => {
+    const resident = await ctx.db.get(args.residentId);
+
+    if (!resident) {
+      return null;
+    }
+
+    // Fetch all related data in parallel
+    const [contacts, residentImage, auditLog]: [any, any, any] = await Promise.all([
+      ctx.db
+        .query("emergencyContacts")
+        .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+        .collect(),
+      ctx.runQuery(api.files.image.getResidentImageByResidentId, {
+        residentId: resident._id as string
+      }),
+      args.includeAuditLog
+        ? ctx.db
+            .query("residentAuditLog")
+            .withIndex("byResidentAndTimestamp", (q) =>
+              q.eq("residentId", args.residentId)
+            )
+            .order("desc")
+            .take(10)
+        : Promise.resolve([])
+    ]);
+
+    // Calculate age and length of stay on backend
+    const age = calculateAge(resident.dateOfBirth);
+    const lengthOfStay = calculateLengthOfStay(resident.admissionDate);
+
+    return {
+      ...resident,
+      age,
+      lengthOfStay,
+      emergencyContacts: contacts,
+      imageUrl: residentImage?.url || "No image",
+      recentAuditLog: auditLog,
+    };
+  },
+});
+
+// Get active residents only (for filtering out discharged/deceased)
+export const getActiveByTeamId = query({
+  args: {
+    teamId: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args): Promise<any[]> => {
+    const residents = await ctx.db
+      .query("residents")
+      .withIndex("byTeamAndStatus", (q) =>
+        q.eq("teamId", args.teamId).eq("status", "active")
+      )
+      .collect();
+
+    // Process residents with images
+    const results: any[] = [];
+    for (const resident of residents) {
+      const residentImage: any = await ctx.runQuery(api.files.image.getResidentImageByResidentId, {
+        residentId: resident._id as string
+      });
+
+      results.push({
+        ...resident,
+        age: calculateAge(resident.dateOfBirth),
+        imageUrl: residentImage?.url || "No image"
+      });
+    }
+
+    return results;
+  }
+});
+
+// Update resident status with audit logging
+export const updateResidentStatus = mutation({
+  args: {
+    residentId: v.id("residents"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("discharged"),
+      v.literal("deceased"),
+      v.literal("transferred"),
+      v.literal("hospital")
+    ),
+    reason: v.optional(v.string()),
+    userId: v.string(),
+    userName: v.optional(v.string()),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const resident = await ctx.db.get(args.residentId);
+
+    if (!resident) {
+      throw new Error("Resident not found");
+    }
+
+    const oldStatus = resident.status || "active";
+    const updateData: any = {
+      status: args.status,
+      updatedAt: Date.now(),
+    };
+
+    // Set discharge date if being discharged
+    if (args.status === "discharged" || args.status === "deceased") {
+      updateData.dischargeDate = Date.now();
+      updateData.dischargeReason = args.reason;
+      // Set data retention date (7 years for healthcare records in UK)
+      updateData.dataRetentionUntil = Date.now() + (7 * 365 * 24 * 60 * 60 * 1000);
+    }
+
+    await ctx.db.patch(args.residentId, updateData);
+
+    // Log the status change
+    await ctx.db.insert("residentAuditLog", {
+      residentId: args.residentId,
+      action: "status_changed",
+      userId: args.userId,
+      userName: args.userName,
+      changes: {
+        before: { status: oldStatus },
+        after: { status: args.status, reason: args.reason }
+      },
+      organizationId: args.organizationId,
+      timestamp: Date.now(),
+    });
+
+    return args.residentId;
+  },
+});

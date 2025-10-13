@@ -86,20 +86,19 @@ export default function HandoverDocumentsPage() {
     <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/dashboard/handover")}
+            className="h-8 w-8"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <FileText className="w-4 h-4" />
           <h1 className="text-xl font-semibold">Handover History</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/dashboard/handover")}
-            className="h-8"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Handover
-          </Button>
           <Button variant="ghost" size="icon">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -166,20 +165,34 @@ export default function HandoverDocumentsPage() {
                   </TableCell>
                   <TableCell className="h-8 py-1">
                     {item.day ? (
-                      <Badge variant="secondary" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 h-5 text-xs">
-                        <Sun className="w-3 h-3 mr-1" />
-                        Day Report
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                      <Badge
+                         
+                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black"
+                          onClick={() => router.push(`/dashboard/handover/documents/${item.day._id}`)}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Badge>
+                    
+                      </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell className="h-8 py-1">
                     {item.night ? (
-                      <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 h-5 text-xs">
-                        <Moon className="w-3 h-3 mr-1" />
-                        Night Report
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                         <Badge
+                          variant="outline"
+                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100"
+                          onClick={() => router.push(`/dashboard/handover/documents/${item.night._id}`)}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Badge>
+                    
+                      </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}

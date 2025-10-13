@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -12,11 +12,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, ClipboardCheck } from "lucide-react";
+import { Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, ClipboardCheck, Eye, Download, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -37,6 +38,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { Id } from "@/convex/_generated/dataModel";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Audit {
   id: string;
@@ -48,9 +54,40 @@ interface Audit {
   category: string;
 }
 
+interface Resident {
+  _id: Id<"residents">;
+  firstName: string;
+  lastName: string;
+  roomNumber?: string;
+  dateOfBirth: string;
+  teamId: string;
+  teamName?: string;
+  imageUrl?: string;
+}
+
 export default function CareOAuditPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [audits, setAudits] = useState<Audit[]>([]);
+  const { activeTeamId } = useActiveTeam();
+
+  // Get tab from URL query params, default to "resident"
+  const tabFromUrl = searchParams.get("tab") || "resident";
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
+
+  // Update activeTab when URL changes
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  // Fetch residents for the active team
+  const residents = useQuery(
+    api.residents.getByTeamId,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
 
   // Load audits from localStorage on mount
   useEffect(() => {
@@ -76,7 +113,9 @@ export default function CareOAuditPage() {
   }, []);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("resident");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [auditToDelete, setAuditToDelete] = useState<Audit | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     auditName: "",
     auditorName: "",
@@ -115,6 +154,37 @@ export default function CareOAuditPage() {
     router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}`);
   };
 
+  const handleDeleteClick = (audit: Audit) => {
+    setOpenDropdownId(null); // Close the dropdown menu
+    setAuditToDelete(audit);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!auditToDelete) return;
+
+    const auditId = auditToDelete.id;
+
+    // Close dialog first
+    setIsDeleteDialogOpen(false);
+    setAuditToDelete(null);
+
+    // Use setTimeout to ensure dialog is fully closed before state update
+    setTimeout(() => {
+      // Update audits state
+      const updatedAudits = audits.filter(audit => audit.id !== auditId);
+      setAudits(updatedAudits);
+
+      // Update localStorage
+      localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+    }, 0);
+  };
+
+  const handleCancelDelete = () => {
+    setIsDeleteDialogOpen(false);
+    setAuditToDelete(null);
+  };
+
   const filteredAudits = audits.filter(audit => audit.category === activeTab);
 
   const getStatusColor = (status: string) => {
@@ -147,101 +217,270 @@ export default function CareOAuditPage() {
 
       {/* Tabs */}
       <div className="border-b px-6 py-3">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="resident">Resident Audit</TabsTrigger>
-              <TabsTrigger value="carefile">Care File Audit</TabsTrigger>
-              <TabsTrigger value="governance">Governance & Complaints</TabsTrigger>
-              <TabsTrigger value="clinical">Clinical Care & Medicines</TabsTrigger>
-              <TabsTrigger value="environment">Environment & Safety</TabsTrigger>
-            </TabsList>
-            <Button onClick={handleNewAudit} size="sm" className="h-8">
-              <Plus className="h-4 w-4 mr-2" />
-              New Audit
-            </Button>
-          </div>
+        <Tabs value={activeTab} onValueChange={(value) => {
+          setActiveTab(value);
+          router.push(`/dashboard/careo-audit?tab=${value}`);
+        }}>
+          <TabsList>
+            <TabsTrigger value="resident">Resident Audit</TabsTrigger>
+            <TabsTrigger value="carefile">Care File Audit</TabsTrigger>
+            <TabsTrigger value="governance">Governance & Complaints</TabsTrigger>
+            <TabsTrigger value="clinical">Clinical Care & Medicines</TabsTrigger>
+            <TabsTrigger value="environment">Environment & Safety</TabsTrigger>
+          </TabsList>
         </Tabs>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 border-b px-6 py-3">
-        <Button variant="ghost" size="sm" className="h-8">
-          <ArrowUpDown className="h-4 w-4 mr-2" />
-          Sort
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8">
-          <SlidersHorizontal className="h-4 w-4 mr-2" />
-          Filter
-        </Button>
+      <div className="flex items-center justify-between border-b px-6 py-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="h-8">
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            Sort
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8">
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filter
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeTab !== "carefile" && (
+            <Button onClick={handleNewAudit} size="sm" className="h-8">
+              <Plus className="h-4 w-4 mr-2" />
+              New Audit
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="w-12 border-r last:border-r-0">
-                <input type="checkbox" className="rounded border-gray-300" />
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Audit</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Status</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Auditor</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Last Audited</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Due</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAudits.map((audit) => (
-              <TableRow key={audit.id} className="hover:bg-muted/50">
-                <TableCell className="border-r last:border-r-0">
+        {activeTab === "carefile" ? (
+          // Residents Table for Care File Audit
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-b">
+                <TableHead className="w-12 border-r last:border-r-0">
                   <input type="checkbox" className="rounded border-gray-300" />
-                </TableCell>
-                <TableCell className="border-r last:border-r-0">
-                  <button
-                    onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
-                    className="font-medium hover:underline text-left"
-                  >
-                    {audit.name}
-                  </button>
-                </TableCell>
-                <TableCell className="border-r last:border-r-0">
-                  <Badge variant="secondary" className={getStatusColor(audit.status)}>
-                    {audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="border-r last:border-r-0">{audit.auditor}</TableCell>
-                <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.lastAudited}</TableCell>
-                <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.dueDate}</TableCell>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Resident</span>
+                    <Plus className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Status</span>
+                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Auditor</span>
+                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Last Audited</span>
+                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Due</span>
+                    <Plus className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0 w-20">
+                  Actions
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {residents && residents.length > 0 ? (
+                residents.map((resident) => (
+                  <TableRow key={resident._id} className="hover:bg-muted/50">
+                    <TableCell className="border-r last:border-r-0">
+                      <input type="checkbox" className="rounded border-gray-300" />
+                    </TableCell>
+                    <TableCell className="border-r last:border-r-0">
+                      <button
+                        onClick={() => router.push(`/dashboard/careo-audit/${resident._id}/carefileaudit`)}
+                        className="flex items-center gap-3 font-medium hover:underline text-left"
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
+                          <AvatarFallback>
+                            {resident.firstName.charAt(0)}{resident.lastName.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{resident.firstName} {resident.lastName}</span>
+                      </button>
+                    </TableCell>
+                    <TableCell className="border-r last:border-r-0">
+                      <div className="flex items-center gap-2 min-w-[120px]">
+                        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500 rounded-full transition-all"
+                            style={{ width: `${Math.floor(Math.random() * 41) + 30}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {Math.floor(Math.random() * 41) + 30}%
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="border-r last:border-r-0">-</TableCell>
+                    <TableCell className="text-muted-foreground border-r last:border-r-0">-</TableCell>
+                    <TableCell className="text-muted-foreground border-r last:border-r-0">-</TableCell>
+                    <TableCell className="border-r last:border-r-0">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${resident._id}/carefileaudit`)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => console.log('Download care file audit:', resident._id)}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    {residents === undefined ? "Loading residents..." : "No residents found in this team"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        ) : (
+          // Audits Table for other tabs
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-b">
+                <TableHead className="w-12 border-r last:border-r-0">
+                  <input type="checkbox" className="rounded border-gray-300" />
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Audit</span>
+                    <Plus className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Status</span>
+                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Auditor</span>
+                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Last Audited</span>
+                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0">
+                  <div className="flex items-center gap-1">
+                    <span>Due</span>
+                    <Plus className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium border-r last:border-r-0 w-20">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody key={filteredAudits.length}>
+              {filteredAudits.map((audit) => (
+                <TableRow key={audit.id} className="hover:bg-muted/50">
+                  <TableCell className="border-r last:border-r-0">
+                    <input type="checkbox" className="rounded border-gray-300" />
+                  </TableCell>
+                  <TableCell className="border-r last:border-r-0">
+                    <button
+                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
+                      className="font-medium hover:underline text-left"
+                    >
+                      {audit.name}
+                    </button>
+                  </TableCell>
+                  <TableCell className="border-r last:border-r-0">
+                    <Badge variant="secondary" className={getStatusColor(audit.status)}>
+                      {audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border-r last:border-r-0">{audit.auditor}</TableCell>
+                  <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.lastAudited}</TableCell>
+                  <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.dueDate}</TableCell>
+                  <TableCell className="border-r last:border-r-0">
+                    <DropdownMenu
+                      open={openDropdownId === audit.id}
+                      onOpenChange={(open) => {
+                        setOpenDropdownId(open ? audit.id : null);
+                      }}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            console.log('Download audit:', audit.id);
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleDeleteClick(audit);
+                          }}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
 
         {/* Bottom border */}
         <div className="border-t"></div>
@@ -311,6 +550,50 @@ export default function CareOAuditPage() {
             </Button>
             <Button type="submit" onClick={handleCreateAudit}>
               Create Audit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsDeleteDialogOpen(false);
+            setAuditToDelete(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Audit</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this audit? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm">
+              <span className="font-semibold">Audit Name:</span> {auditToDelete?.name}
+            </p>
+            <p className="text-sm mt-2">
+              <span className="font-semibold">Auditor:</span> {auditToDelete?.auditor}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancelDelete}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDelete}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

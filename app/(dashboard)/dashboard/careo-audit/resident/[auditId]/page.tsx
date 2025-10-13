@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, X, CalendarIcon } from "lucide-react";
+import { ArrowLeft, Plus, X, CalendarIcon, MoreHorizontal, ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -52,6 +52,7 @@ interface Answer {
   questionId: string;
   value: string; // "compliant" | "non-compliant" | "not-applicable" | "yes" | "no"
   notes?: string;
+  date?: string;
 }
 
 interface Comment {
@@ -98,6 +99,7 @@ export default function ResidentAuditPage() {
   const [answers, setAnswers] = useState<Answer[]>([]);
 
   const [comments, setComments] = useState<Comment[]>([]);
+  const [residentDates, setResidentDates] = useState<{ [residentId: string]: string }>({});
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
 
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
@@ -114,6 +116,7 @@ export default function ResidentAuditPage() {
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
     residentName: 250,
     room: 100,
+    date: 150,
     comment: 300,
   });
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -167,6 +170,27 @@ export default function ResidentAuditPage() {
     );
   };
 
+  const handleDateChange = (residentId: string, questionId: string, date: string) => {
+    const existingAnswer = answers.find(
+      a => a.residentId === residentId && a.questionId === questionId
+    );
+
+    if (existingAnswer) {
+      setAnswers(
+        answers.map(a =>
+          a.residentId === residentId && a.questionId === questionId
+            ? { ...a, date }
+            : a
+        )
+      );
+    } else {
+      setAnswers([
+        ...answers,
+        { residentId, questionId, value: "", date },
+      ]);
+    }
+  };
+
   const handleCommentChange = (residentId: string, text: string) => {
     const existingComment = comments.find(c => c.residentId === residentId);
 
@@ -179,6 +203,13 @@ export default function ResidentAuditPage() {
     } else {
       setComments([...comments, { residentId, text }]);
     }
+  };
+
+  const handleResidentDateChange = (residentId: string, date: string) => {
+    setResidentDates(prev => ({
+      ...prev,
+      [residentId]: date,
+    }));
   };
 
   const getComment = (residentId: string) => {
@@ -238,7 +269,26 @@ export default function ResidentAuditPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setIsQuestionDialogOpen(true)} size="sm">
+          <Button variant="ghost" size="icon">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters & Actions */}
+      <div className="flex items-center justify-between border-b px-6 py-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="h-8">
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            Sort
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8">
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filter
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsQuestionDialogOpen(true)} size="sm" className="h-8">
             <Plus className="h-4 w-4 mr-2" />
             Add Question
           </Button>
@@ -302,6 +352,18 @@ export default function ResidentAuditPage() {
               })}
               <TableHead
                 className="border-r relative"
+                style={{ width: `${columnWidths.date}px` }}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Date</span>
+                  <div
+                    className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50"
+                    onMouseDown={(e) => handleMouseDown('date', e)}
+                  />
+                </div>
+              </TableHead>
+              <TableHead
+                className="border-r relative"
                 style={{ width: `${columnWidths.comment}px` }}
               >
                 <div className="flex items-center justify-between">
@@ -350,14 +412,14 @@ export default function ResidentAuditPage() {
                         value={answer?.value || ""}
                         onValueChange={(value) => handleAnswerChange(resident._id, question.id, value)}
                       >
-                        <SelectTrigger className="h-7 border-0 shadow-none w-fit px-2">
+                        <SelectTrigger className="h-6 border-0 shadow-none w-fit p-0 bg-transparent hover:bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                           {answer?.value ? (
                             <Badge
                               variant="secondary"
-                              className={`text-xs px-2 py-0.5 ${
-                                answer?.value === "compliant" || answer?.value === "yes" ? "bg-green-100 text-green-800" :
-                                answer?.value === "non-compliant" || answer?.value === "no" ? "bg-red-100 text-red-800" :
-                                "bg-gray-100 text-gray-800"
+                              className={`text-xs h-6 ${
+                                answer?.value === "compliant" || answer?.value === "yes" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
+                                answer?.value === "non-compliant" || answer?.value === "no" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
+                                "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
                               }`}
                             >
                               {answer.value === "compliant" ? "Compliant" :
@@ -420,6 +482,32 @@ export default function ResidentAuditPage() {
                   );
                 })}
                 <TableCell
+                  className="border-r"
+                  style={{ width: `${columnWidths.date}px` }}
+                >
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-7 w-full justify-start text-xs font-normal border-0 shadow-none px-2 hover:bg-transparent"
+                      >
+                        {residentDates[resident._id] ? format(new Date(residentDates[resident._id]), "MMM dd, yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={residentDates[resident._id] ? new Date(residentDates[resident._id]) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            handleResidentDateChange(resident._id, format(date, "yyyy-MM-dd"));
+                          }
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </TableCell>
+                <TableCell
                   className="border-r p-0"
                   style={{ width: `${columnWidths.comment}px` }}
                 >
@@ -441,7 +529,7 @@ export default function ResidentAuditPage() {
 
         {/* Action Plans Section */}
         <div className="py-4 space-y-4">
-          <div className="px-2 pb-4 border-b border-dashed">
+          <div className="px-2 pb-4 border-b border-dashed flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
               Action Plan
             </Button>

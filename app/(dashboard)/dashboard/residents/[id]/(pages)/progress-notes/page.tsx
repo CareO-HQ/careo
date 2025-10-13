@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
@@ -61,8 +61,7 @@ import {
   NotebookPen,
   Eye,
   Download,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
   AlertTriangle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -92,18 +91,17 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<any>(null);
-  const [searchQuery] = useState("");
-  const [filterType] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<"all" | "daily" | "incident" | "medical" | "behavioral" | "other">("all");
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedNote, setSelectedNote] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<any>(null);
-  const itemsPerPage = 5;
+  const ITEMS_PER_PAGE = 10;
 
   // Auth data - matching daily care pattern
   const { data: user } = authClient.useSession();
-  
+
   // Current user info for staff display
   const currentUserName = user?.user?.name || user?.user?.email?.split('@')[0] || "";
 
@@ -112,8 +110,23 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     residentId: id as Id<"residents">
   });
 
-  // Get progress notes
-  const progressNotes = useQuery(api.progressNotes.getByResidentId, {
+  // Use paginated query for progress notes
+  const {
+    results: paginatedResults,
+    status,
+    loadMore,
+  } = usePaginatedQuery(
+    api.progressNotes.getByResidentIdPaginated,
+    {
+      residentId: id as Id<"residents">,
+      filterType: filterType,
+      searchQuery: searchQuery,
+    },
+    { initialNumItems: ITEMS_PER_PAGE }
+  );
+
+  // Get cached stats (single fast query instead of 4 slow ones)
+  const noteStatsData = useQuery(api.progressNotes.getStatsByResidentId, {
     residentId: id as Id<"residents">
   });
 
@@ -286,37 +299,14 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     `;
   };
 
-  const filteredNotes = progressNotes?.filter((note: any) => {
-    const matchesSearch =
-      note.note.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterType === "all" || note.type === filterType;
-    return matchesSearch && matchesFilter;
-  }) || [];
+  // Extract notes from paginated results (usePaginatedQuery returns an array directly)
+  const progressNotes = useMemo(() => {
+    // usePaginatedQuery returns the accumulated results directly as an array
+    return paginatedResults || [];
+  }, [paginatedResults]);
 
-  // Pagination logic
-  const totalNotes = filteredNotes.length;
-  const totalPages = Math.ceil(totalNotes / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedNotes = filteredNotes.slice(startIndex, endIndex);
-  const showPagination = totalNotes > 0; // Always show pagination when there are notes
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handlePrevious = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
+  const canLoadMore = status === "CanLoadMore";
+  const isLoading = status === "LoadingMore" || status === "LoadingFirstPage";
 
 
 
@@ -332,7 +322,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     return age;
   };
 
-  if (resident === undefined || progressNotes === undefined) {
+  if (resident === undefined || status === "LoadingFirstPage") {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -367,12 +357,12 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
-  // Calculate stats
+  // Use cached stats (single query, instant response)
   const noteStats = {
-    total: progressNotes?.length || 0,
-    daily: progressNotes?.filter((n: any) => n.type === 'daily').length || 0,
-    medical: progressNotes?.filter((n: any) => n.type === 'medical').length || 0,
-    incident: progressNotes?.filter((n: any) => n.type === 'incident').length || 0,
+    total: noteStatsData?.totalCount || 0,
+    daily: noteStatsData?.dailyCount || 0,
+    medical: noteStatsData?.medicalCount || 0,
+    incident: noteStatsData?.incidentCount || 0,
   };
 
   return (
@@ -406,6 +396,38 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Search and Filter Bar */}
+      <Card className="border-0">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Search notes by content, author, or type..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <Select
+              value={filterType}
+              onValueChange={(value: any) => setFilterType(value)}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="incident">Incident</SelectItem>
+                <SelectItem value="medical">Medical</SelectItem>
+                <SelectItem value="behavioral">Behavioral</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Resident Info Card - Matching incidents pattern */}
       <Card className="border-0">
@@ -516,8 +538,8 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
               <span className="text-gray-900">Recent Progress Notes</span>
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Badge className="bg-gray-100 text-gray-700">{progressNotes?.length || 0} Total</Badge>
-           
+              <Badge className="bg-gray-100 text-gray-700">{noteStats.total} Total</Badge>
+
             </div>
           </div>
         </CardHeader>
@@ -525,14 +547,20 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           {!progressNotes || progressNotes.length === 0 ? (
             <div className="text-center py-8">
               <NotebookPen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No progress notes recorded</p>
+              <p className="text-gray-500 font-medium">
+                {searchQuery || filterType !== "all"
+                  ? "No progress notes found matching your filters"
+                  : "No progress notes recorded"}
+              </p>
               <p className="text-gray-400 text-sm mt-1">
-                Click the Add Progress Note button to add the first note
+                {searchQuery || filterType !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "Click the Add Progress Note button to add the first note"}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {paginatedNotes.map((note: any) => (
+              {progressNotes.map((note: any) => (
                 <div
                   key={note._id}
                   className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
@@ -616,46 +644,37 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                   </div>
                 </div>
               ))}
-              
-              {/* Pagination Controls */}
-              {showPagination && (
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, totalNotes)} of {totalNotes} progress notes
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePrevious}
-                      disabled={currentPage === 1}
-                      className="h-8 w-8 p-0"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="flex items-center space-x-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handlePageChange(page)}
-                          className="h-8 w-8 p-0"
-                        >
-                          {page}
-                        </Button>
-                      ))}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNext}
-                      disabled={currentPage === totalPages}
-                      className="h-8 w-8 p-0"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
+
+              {/* Load More Button */}
+              {canLoadMore && (
+                <div className="flex justify-center pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => loadMore(ITEMS_PER_PAGE)}
+                    disabled={status === "LoadingMore"}
+                    className="w-full sm:w-auto"
+                  >
+                    {status === "LoadingMore" ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
+                        Loading more...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4 mr-2" />
+                        Load More Notes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {progressNotes.length > 0 && !canLoadMore && (
+                <div className="text-center py-4 border-t">
+                  <p className="text-sm text-gray-500">
+                    Showing {progressNotes.length} of {noteStats.total} notes
+                    {(searchQuery || filterType !== "all") && " (filtered)"}
+                  </p>
                 </div>
               )}
             </div>
@@ -663,30 +682,27 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </CardContent>
       </Card>
 
-      {/* View Progress Note Dialog - Matching incidents pattern */}
+      {/* View Progress Note Dialog - Matching Food & Fluid style */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Progress Note Details</DialogTitle>
+            <DialogTitle>Progress Note - {selectedNote && format(new Date(selectedNote.createdAt), "PPP")}</DialogTitle>
             <DialogDescription>
-              Complete progress note for {fullName}
+              Detailed view of this progress note entry
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
-            {selectedNote && (
-              <div className="space-y-6">
-                {/* Note Overview */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Note Overview</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Date & Time</p>
-                      <p className="font-medium">{format(new Date(selectedNote.createdAt), "PPp")}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Note Type</p>
+          <div className="space-y-4">
+            {selectedNote ? (
+              <div className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-semibold text-sm">
+                        {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)} Note
+                      </h4>
                       <Badge
-                        className={`${
+                        variant="outline"
+                        className={`text-xs border-0 ${
                           selectedNote.type === "incident" ? "bg-red-100 text-red-800" :
                           selectedNote.type === "medical" ? "bg-blue-100 text-blue-800" :
                           selectedNote.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
@@ -697,40 +713,36 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                         {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)}
                       </Badge>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Time Recorded</p>
-                      <p className="font-medium">{selectedNote.time}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Author</p>
-                      <p className="font-medium">{selectedNote.authorName}</p>
-                    </div>
                   </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {selectedNote.time}
+                  </span>
                 </div>
 
-                {/* Note Content */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Note Content</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap">{selectedNote.note}</p>
+                <div className="mb-3 p-3 bg-gray-50 rounded-md">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNote.note}</p>
                 </div>
 
-                {/* Metadata */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Created By</p>
-                      <p className="font-medium">{selectedNote.authorName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Date Created</p>
-                      <p className="font-medium">{format(new Date(selectedNote.createdAt), "PPP")}</p>
-                    </div>
-                  </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    <span className="font-medium">Date:</span> {format(new Date(selectedNote.createdAt), "MMM d, yyyy")}
+                  </span>
+                  <span>
+                    <span className="font-medium">Time:</span> {selectedNote.time}
+                  </span>
+                  <span>
+                    <span className="font-medium">Author:</span> {selectedNote.authorName}
+                  </span>
+                </div>
+
+                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                  Recorded by: {selectedNote.authorName} on {format(new Date(selectedNote.createdAt), "PPP")}
                 </div>
               </div>
+            ) : (
+              <p className="text-gray-500 py-8 text-center">No note selected</p>
             )}
-          </ScrollArea>
+          </div>
           <div className="flex justify-end space-x-2 pt-4 border-t">
             <Button
               variant="outline"

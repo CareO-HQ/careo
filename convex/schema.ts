@@ -177,6 +177,17 @@ export default defineSchema({
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
+    // Status tracking
+    status: v.optional(v.union(
+      v.literal("active"),
+      v.literal("discharged"),
+      v.literal("deceased"),
+      v.literal("transferred"),
+      v.literal("hospital")
+    )),
+    dischargeDate: v.optional(v.number()),
+    dischargeReason: v.optional(v.string()),
+    dataRetentionUntil: v.optional(v.number()),
     // GP Details
     gpName: v.optional(v.string()),
     gpAddress: v.optional(v.string()),
@@ -252,7 +263,9 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byRoomNumber", ["roomNumber"])
     .index("byFullName", ["firstName", "lastName"])
-    .index("byActiveStatus", ["isActive"]),
+    .index("byActiveStatus", ["isActive"])
+    .index("byStatus", ["status"])
+    .index("byTeamAndStatus", ["teamId", "status"]),
 
   // Emergency contacts for residents
   emergencyContacts: defineTable({
@@ -269,6 +282,33 @@ export default defineSchema({
     .index("byResidentId", ["residentId"])
     .index("byOrganizationId", ["organizationId"])
     .index("byPrimary", ["isPrimary"]),
+
+  // Audit trail for resident data changes
+  residentAuditLog: defineTable({
+    residentId: v.id("residents"),
+    action: v.union(
+      v.literal("created"),
+      v.literal("updated"),
+      v.literal("viewed"),
+      v.literal("discharged"),
+      v.literal("status_changed"),
+      v.literal("deleted")
+    ),
+    userId: v.string(),
+    userName: v.optional(v.string()),
+    changes: v.optional(v.any()), // JSON object with before/after values
+    fieldChanged: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    organizationId: v.string(),
+    timestamp: v.number()
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byUserId", ["userId"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTimestamp", ["timestamp"])
+    .index("byResidentAndTimestamp", ["residentId", "timestamp"])
+    .index("byAction", ["action"]),
 
   medication: defineTable({
     residentId: v.optional(v.string()),
@@ -2111,7 +2151,22 @@ export default defineSchema({
   })
     .index("by_residentId", ["residentId"])
     .index("by_createdAt", ["createdAt"])
-    .index("by_type", ["type"]),
+    .index("by_type", ["type"])
+    .index("by_resident_and_createdAt", ["residentId", "createdAt"])
+    .index("by_resident_and_type", ["residentId", "type", "createdAt"]),
+
+  // Progress Notes Statistics (cached counts for performance)
+  progressNoteStats: defineTable({
+    residentId: v.id("residents"),
+    totalCount: v.number(),
+    dailyCount: v.number(),
+    medicalCount: v.number(),
+    incidentCount: v.number(),
+    behavioralCount: v.number(),
+    otherCount: v.number(),
+    lastUpdated: v.string(), // ISO timestamp
+  })
+    .index("by_residentId", ["residentId"]),
 
   // Trust Incident Reports table
   trustIncidentReports: defineTable({
