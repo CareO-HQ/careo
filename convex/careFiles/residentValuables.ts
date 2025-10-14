@@ -192,6 +192,35 @@ export const getResidentValuablesByResidentId = query({
 });
 
 /**
+ * Get all resident valuables assessments for a resident (with organization check)
+ */
+export const getResidentValuablesByResident = query({
+  args: {
+    residentId: v.id("residents"),
+    organizationId: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Verify resident exists and user has access
+    const resident = await ctx.db.get(args.residentId);
+    if (!resident) {
+      throw new Error("Resident not found");
+    }
+
+    if (resident.organizationId !== args.organizationId) {
+      throw new Error("Unauthorized access to resident");
+    }
+
+    const assessments = await ctx.db
+      .query("residentValuablesAssessments")
+      .filter((q) => q.eq(q.field("residentId"), args.residentId))
+      .collect();
+
+    return assessments;
+  }
+});
+
+/**
  * Delete a resident valuables assessment
  */
 export const deleteResidentValuables = mutation({
@@ -216,14 +245,27 @@ export const deleteResidentValuables = mutation({
  */
 export const getPDFUrl = query({
   args: {
-    assessmentId: v.id("residentValuablesAssessments")
+    assessmentId: v.id("residentValuablesAssessments"),
+    organizationId: v.string()
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
+    // Verify assessment exists
     const assessment = await ctx.db.get(args.assessmentId);
-    if (!assessment?.pdfFileId) {
-      return null;
+    if (!assessment) {
+      throw new Error("Assessment not found");
     }
-    return await ctx.storage.getUrl(assessment.pdfFileId);
+
+    // Verify user has access to this assessment's organization
+    if (assessment.organizationId !== args.organizationId) {
+      throw new Error("Unauthorized access to assessment");
+    }
+
+    // Return PDF URL if available
+    if (assessment.pdfFileId) {
+      return await ctx.storage.getUrl(assessment.pdfFileId);
+    }
+
+    return null;
   }
 });
