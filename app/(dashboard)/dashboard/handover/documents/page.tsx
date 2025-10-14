@@ -56,7 +56,7 @@ export default function HandoverDocumentsPage() {
       return acc;
     }, {});
 
-    let filtered = Object.values(grouped);
+    const filtered = Object.values(grouped);
 
     // Sort by date descending
     filtered.sort((a: any, b: any) => {

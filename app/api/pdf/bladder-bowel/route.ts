@@ -31,10 +31,6 @@ function formatEnumValue(value: string): string {
     .join(" ");
 }
 
-function formatBooleanValue(value: boolean | undefined): string {
-  if (value === undefined) return "Not specified";
-  return value ? "Yes" : "No";
-}
 
 function generateBladderBowelHTML(data: any): string {
   return `

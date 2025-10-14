@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,7 +65,7 @@ interface Resident {
   imageUrl?: string;
 }
 
-export default function CareOAuditPage() {
+function CareOAuditPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [audits, setAudits] = useState<Audit[]>([]);
@@ -599,5 +599,13 @@ export default function CareOAuditPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function CareOAuditPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <CareOAuditPageContent />
+    </Suspense>
   );
 }

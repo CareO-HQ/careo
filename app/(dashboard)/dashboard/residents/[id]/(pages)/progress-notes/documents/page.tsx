@@ -49,11 +49,9 @@ import {
   NotebookPen,
   ChevronLeft,
   ChevronRight,
-  Clock,
   AlertTriangle,
   Stethoscope,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 type ProgressNotesDocumentsPageProps = {

@@ -61,7 +61,7 @@ export default function UpdateTeamForm({
 
   useEffect(() => {
     form.setValue("name", teamName);
-  }, [teamName]);
+  }, [teamName, form]);
 
   return (
     <Form {...form}>

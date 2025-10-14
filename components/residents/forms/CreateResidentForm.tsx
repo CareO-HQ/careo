@@ -213,7 +213,7 @@ export function CreateResidentForm({
         form.setValue("teamId", residentData.teamId);
       }
     }
-  }, [editMode, residentData, form]);
+  }, [editMode, residentData, form, getDefaultValues]);
 
   async function onSubmit(values: FormType) {
     startTransition(async () => {

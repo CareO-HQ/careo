@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -44,12 +43,16 @@ import {
 import {
   ArrowLeft,
   Moon,
-  User,
   Calendar,
   Clock,
   Plus,
   Eye,
-  Badge
+  ChevronDown,
+  BedDouble,
+  ShieldCheck,
+  Home,
+  StickyNote,
+  RotateCw,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
@@ -85,8 +88,6 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     residentId: id as Id<"residents">
   });
 
-  // Get today's date
-  const today = new Date().toISOString().split('T')[0];
 
   // Form setup
   const form = useForm<NightCheckFormData>({
@@ -160,23 +161,6 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     return age;
   };
 
-  const calculateLengthOfStay = (admissionDate: string) => {
-    const today = new Date();
-    const admission = new Date(admissionDate);
-    const diffTime = Math.abs(today.getTime() - admission.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 30) {
-      return `${diffDays} days`;
-    } else if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30);
-      return `${months} month${months > 1 ? 's' : ''}`;
-    } else {
-      const years = Math.floor(diffDays / 365);
-      const remainingMonths = Math.floor((diffDays % 365) / 30);
-      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
-    }
-  };
 
   if (resident === undefined) {
     return (

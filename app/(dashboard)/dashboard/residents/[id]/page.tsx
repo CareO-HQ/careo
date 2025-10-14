@@ -3,7 +3,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
@@ -14,13 +13,11 @@ import {
   Bell,
   Calendar,
   ChevronRight,
-  ClipboardList,
   FileText,
   Folder,
   Heart,
   Moon,
   Pill,
-  Puzzle,
   PuzzleIcon,
   Stethoscope,
   TrendingDown,

@@ -140,6 +140,7 @@ export default defineSchema({
 
   folders: defineTable({
     name: v.string(),
+    residentId: v.optional(v.id("residents")),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
     parentFolderId: v.optional(v.id("folders")),
@@ -153,7 +154,8 @@ export default defineSchema({
     .index("byTeamId", ["teamId"])
     .index("byParentFolderId", ["parentFolderId"])
     .index("byCreatedBy", ["createdBy"])
-    .index("byName", ["name"]),
+    .index("byName", ["name"])
+    .index("byResidentId", ["residentId"]),
 
   teamMembers: defineTable({
     userId: v.string(),

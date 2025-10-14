@@ -22,11 +22,9 @@ import {
   MapPin,
   Clock,
   User,
-  Mail,
   FileText,
   Users,
   Edit3,
-  PhoneCall
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -67,7 +65,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     }
 
     return resident.age;
-  }, [resident?.age, resident?.dateOfBirth]);
+  }, [resident]);
 
   const lengthOfStayDisplay = React.useMemo(() => {
     if (!resident?.admissionDate) return "";
