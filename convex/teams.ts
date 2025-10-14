@@ -130,15 +130,34 @@ export const getOrganizationName = query({
   },
   handler: async (ctx, { organizationId }) => {
     try {
-      const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
-        model: "organization",
-        where: [{ field: "id", value: organizationId }]
-      });
+      const organization = await ctx.runQuery(
+        components.betterAuth.lib.findOne,
+        {
+          model: "organization",
+          where: [{ field: "id", value: organizationId }]
+        }
+      );
 
-      return organization ? { id: organization.id, name: organization.name } : null;
+      return organization
+        ? { id: organization.id, name: organization.name }
+        : null;
     } catch (error) {
       console.error("Error getting organization name:", error);
       return null;
     }
+  }
+});
+
+// Get all team members by teamId
+export const getAllTeamMembersByTeamId = query({
+  args: {
+    teamId: v.string()
+  },
+  handler: async (ctx, { teamId }) => {
+    const teamMembers = await ctx.db
+      .query("teamMembers")
+      .withIndex("byTeamId", (q) => q.eq("teamId", teamId))
+      .collect();
+    return teamMembers;
   }
 });
