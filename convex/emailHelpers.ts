@@ -72,6 +72,10 @@ export const getPDFStorageId = query({
         );
         return assessment?.pdfFileId || null;
       }
+      case "timl": {
+        const assessment = await ctx.db.get(formId as Id<"timlAssessments">);
+        return assessment?.pdfFileId || null;
+      }
       default:
         return null;
     }
