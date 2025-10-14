@@ -8,7 +8,9 @@ export const CreateTimlAssessmentSchema = z.object({
   userId: z.string(),
 
   // Agree on being completed
-  agree: z.boolean(),
+  agree: z.boolean().refine((val) => val === true, {
+    message: "You must agree before continuing"
+  }),
 
   // Resident details
   firstName: z.string().min(1, "First name is required"),
@@ -68,4 +70,3 @@ export const CreateTimlAssessmentSchema = z.object({
 export type CreateTimlAssessmentData = z.infer<
   typeof CreateTimlAssessmentSchema
 >;
-

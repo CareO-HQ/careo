@@ -101,10 +101,10 @@ export const getAllUsers = query({
       .query("users")
       .filter((q) => q.neq(q.field("name"), undefined))
       .collect();
-    
-    return users.map(user => ({
+
+    return users.map((user) => ({
       _id: user._id,
-      name: user.name || user.email.split('@')[0], // Fallback to email prefix if no name
+      name: user.name || user.email.split("@")[0], // Fallback to email prefix if no name
       email: user.email
     }));
   }

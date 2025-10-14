@@ -77,6 +77,16 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const skinIntegrityAssessments = useQuery(
+    api.careFiles.skinIntegrity.getSkinIntegrityAssessmentsByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
+  const residentValuablesAssessments = useQuery(
+    api.careFiles.residentValuables.getResidentValuablesByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -109,6 +119,14 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   )?.[0];
 
   const latestTimlAssessment = timlAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestSkinIntegrityAssessment = skinIntegrityAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestResidentValuablesAssessment = residentValuablesAssessments?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -181,6 +199,26 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestTimlAssessment ? { assessmentId: latestTimlAssessment._id } : "skip"
   );
 
+  const skinIntegrityPdfUrl = useQuery(
+    api.careFiles.skinIntegrity.getPDFUrl,
+    latestSkinIntegrityAssessment && activeOrg?.id
+      ? {
+          assessmentId: latestSkinIntegrityAssessment._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
+  const residentValuablesPdfUrl = useQuery(
+    api.careFiles.residentValuables.getPDFUrl,
+    latestResidentValuablesAssessment && activeOrg?.id
+      ? {
+          assessmentId: latestResidentValuablesAssessment._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -199,6 +237,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     if (latestPeepForm) ids.push(latestPeepForm._id);
     if (latestDependencyAssessment) ids.push(latestDependencyAssessment._id);
     if (latestTimlAssessment) ids.push(latestTimlAssessment._id);
+    if (latestSkinIntegrityAssessment)
+      ids.push(latestSkinIntegrityAssessment._id);
+    if (latestResidentValuablesAssessment)
+      ids.push(latestResidentValuablesAssessment._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -211,7 +253,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestDnacprForm,
     latestPeepForm,
     latestDependencyAssessment,
-    latestTimlAssessment
+    latestTimlAssessment,
+    latestSkinIntegrityAssessment,
+    latestResidentValuablesAssessment
   ]);
 
   const auditStatus = useQuery(
@@ -240,6 +284,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   console.log("  photographyConsents:", photographyConsents);
   console.log("  dnacprForms:", dnacprForms);
   console.log("  peepForms:", peepForms);
+  console.log("  skinIntegrityAssessments:", skinIntegrityAssessments);
+  console.log("  residentValuablesAssessments:", residentValuablesAssessments);
   console.log("formIds:", formIds);
   console.log("auditStatus:", auditStatus);
   console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
@@ -632,6 +678,70 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: timlAudit?.auditedBy
     };
 
+    // Skin Integrity Assessment form
+    const hasSkinIntegrityData = !!latestSkinIntegrityAssessment;
+    const skinIntegrityHasPdfFileId = !!(latestSkinIntegrityAssessment as any)
+      ?.pdfFileId;
+    const skinIntegrityAudit = latestSkinIntegrityAssessment
+      ? auditStatus?.[latestSkinIntegrityAssessment._id as string]
+      : undefined;
+
+    console.log("Skin Integrity audit lookup:");
+    console.log("  Form ID:", latestSkinIntegrityAssessment?._id);
+    console.log("  Audit found:", skinIntegrityAudit);
+    console.log("  Is audited:", skinIntegrityAudit?.isAudited);
+
+    state["skin-integrity-form"] = {
+      status: getFormStatus(
+        hasSkinIntegrityData,
+        latestSkinIntegrityAssessment?.status === "draft",
+        skinIntegrityHasPdfFileId,
+        skinIntegrityPdfUrl
+      ),
+      hasData: hasSkinIntegrityData,
+      hasPdfFileId: skinIntegrityHasPdfFileId,
+      pdfUrl: skinIntegrityPdfUrl,
+      lastUpdated: latestSkinIntegrityAssessment?._creationTime,
+      completedAt:
+        latestSkinIntegrityAssessment?.status !== "draft"
+          ? latestSkinIntegrityAssessment?.submittedAt
+          : undefined,
+      isAudited: skinIntegrityAudit?.isAudited || false,
+      auditedAt: skinIntegrityAudit?.auditedAt,
+      auditedBy: skinIntegrityAudit?.auditedBy
+    };
+
+    // Resident Valuables Assessment form
+    const hasResidentValuablesData = !!latestResidentValuablesAssessment;
+    const residentValuablesHasPdfFileId = !!(
+      latestResidentValuablesAssessment as any
+    )?.pdfFileId;
+    const residentValuablesAudit = latestResidentValuablesAssessment
+      ? auditStatus?.[latestResidentValuablesAssessment._id as string]
+      : undefined;
+
+    console.log("Resident Valuables audit lookup:");
+    console.log("  Form ID:", latestResidentValuablesAssessment?._id);
+    console.log("  Audit found:", residentValuablesAudit);
+    console.log("  Is audited:", residentValuablesAudit?.isAudited);
+
+    state["resident-valuables-form"] = {
+      status: getFormStatus(
+        hasResidentValuablesData,
+        false, // Resident valuables doesn't support draft mode
+        residentValuablesHasPdfFileId,
+        residentValuablesPdfUrl
+      ),
+      hasData: hasResidentValuablesData,
+      hasPdfFileId: residentValuablesHasPdfFileId,
+      pdfUrl: residentValuablesPdfUrl,
+      lastUpdated: latestResidentValuablesAssessment?._creationTime,
+      completedAt: latestResidentValuablesAssessment?._creationTime,
+      isAudited: residentValuablesAudit?.isAudited || false,
+      auditedAt: residentValuablesAudit?.auditedAt,
+      auditedBy: residentValuablesAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -648,6 +758,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestPeepForm,
     latestDependencyAssessment,
     latestTimlAssessment,
+    latestSkinIntegrityAssessment,
+    latestResidentValuablesAssessment,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
@@ -659,6 +771,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     peepPdfUrl,
     dependencyAssessmentPdfUrl,
     timlPdfUrl,
+    skinIntegrityPdfUrl,
+    residentValuablesPdfUrl,
     auditStatus
   ]);
 
@@ -735,6 +849,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     admissionAssessments,
     photographyConsents,
     dnacprForms,
-    peepForms
+    peepForms,
+    skinIntegrityAssessments,
+    residentValuablesAssessments
   };
 }
