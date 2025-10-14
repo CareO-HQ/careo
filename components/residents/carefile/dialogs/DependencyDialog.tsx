@@ -26,8 +26,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
-  SelectValue
+  SelectTrigger
 } from "@/components/ui/select";
 import { DependencyAssessmentSchema } from "@/schemas/residents/care-file/dependencySchema";
 import { Resident } from "@/types";
@@ -66,6 +65,7 @@ export default function DependencyDialog({
 }: DependencyDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
   const submitAssessment = useMutation(
     api.careFiles.dependency.submitDependencyAssessment
@@ -88,7 +88,7 @@ export default function DependencyDialog({
         }
       : {
           // Default values for new forms
-          dependencyLevel: "A",
+          dependencyLevel: undefined,
           completedBy: "",
           completedBySignature: "",
           date: Date.now(),
@@ -98,8 +98,21 @@ export default function DependencyDialog({
 
   const totalSteps = 2;
 
+  const getDependencyLevelLabel = (level: string) => {
+    const labels: Record<string, string> = {
+      A: "Level A - High Dependency",
+      B: "Level B - Medium-High Dependency",
+      C: "Level C - Medium Dependency",
+      D: "Level D - Low Dependency"
+    };
+    return labels[level] || "Select dependency level";
+  };
+
   const handleNext = async () => {
     let isValid = false;
+
+    // Close the date popover when moving between steps
+    setDatePopoverOpen(false);
 
     if (step === 1) {
       const fieldsToValidate = ["dependencyLevel"] as const;
@@ -123,6 +136,9 @@ export default function DependencyDialog({
   };
 
   const handlePrevious = () => {
+    // Close the date popover when moving between steps
+    setDatePopoverOpen(false);
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -165,116 +181,84 @@ export default function DependencyDialog({
     });
   };
 
-  const getDependencyLevelDescription = (level: string) => {
-    switch (level) {
-      case "A":
-        return "High dependency - Requires extensive care and supervision";
-      case "B":
-        return "Medium-high dependency - Requires significant care assistance";
-      case "C":
-        return "Medium dependency - Requires moderate care assistance";
-      case "D":
-        return "Low dependency - Requires minimal care assistance";
-      default:
-        return "";
-    }
-  };
-
   const renderStepContent = () => {
     switch (step) {
       case 1:
         return (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Please select the appropriate dependency level for{" "}
-                <span className="font-medium">
-                  {resident.firstName} {resident.lastName}
-                </span>
-              </div>
-
-              <FormField
-                control={form.control}
-                name="dependencyLevel"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required className="text-base font-medium">
-                      Dependency Level
-                    </FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select dependency level" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="A">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">
-                              Level A - High Dependency
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                              Requires extensive care and supervision
-                            </span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="B">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">
-                              Level B - Medium-High Dependency
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                              Requires significant care assistance
-                            </span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="C">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">
-                              Level C - Medium Dependency
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                              Requires moderate care assistance
-                            </span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="D">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">
-                              Level D - Low Dependency
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                              Requires minimal care assistance
-                            </span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    {field.value && (
-                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                        <p className="text-sm text-blue-800">
+          <div className="space-y-6 h-20">
+            <FormField
+              control={form.control}
+              name="dependencyLevel"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required className="text-base font-medium">
+                    Dependency Level
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        {field.value ? (
+                          <span>{getDependencyLevelLabel(field.value)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            Select dependency level
+                          </span>
+                        )}
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="A">
+                        <div className="flex flex-col items-start">
                           <span className="font-medium">
-                            Level {field.value}:
-                          </span>{" "}
-                          {getDependencyLevelDescription(field.value)}
-                        </p>
-                      </div>
-                    )}
-                  </FormItem>
-                )}
-              />
-            </div>
+                            Level A - High Dependency
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Requires extensive care and supervision
+                          </span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="B">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">
+                            Level B - Medium-High Dependency
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Requires significant care assistance
+                          </span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="C">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">
+                            Level C - Medium Dependency
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Requires moderate care assistance
+                          </span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="D">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">
+                            Level D - Low Dependency
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Requires minimal care assistance
+                          </span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         );
 
       case 2:
         return (
           <div className="space-y-4">
-            <div className="text-sm text-muted-foreground mb-4">
-              Please complete the assessment details and provide your signature.
-            </div>
-
             <FormField
               control={form.control}
               name="completedBy"
@@ -312,7 +296,11 @@ export default function DependencyDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Assessment Date</FormLabel>
-                  <Popover>
+                  <Popover
+                    open={datePopoverOpen}
+                    onOpenChange={setDatePopoverOpen}
+                    modal
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -337,7 +325,13 @@ export default function DependencyDialog({
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("1900-01-01")
                         }
@@ -348,34 +342,6 @@ export default function DependencyDialog({
                 </FormItem>
               )}
             />
-
-            {/* Summary of selected dependency level */}
-            <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md">
-              <h4 className="font-medium text-sm mb-2">Assessment Summary</h4>
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Resident:</span>{" "}
-                  <span className="font-medium">
-                    {resident.firstName} {resident.lastName}
-                  </span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Room:</span>{" "}
-                  <span className="font-medium">{resident.roomNumber}</span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">
-                    Dependency Level:
-                  </span>{" "}
-                  <span className="font-medium">
-                    Level {form.watch("dependencyLevel")}
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {getDependencyLevelDescription(form.watch("dependencyLevel"))}
-                </p>
-              </div>
-            </div>
           </div>
         );
 
