@@ -80,10 +80,9 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId });
 
-  // Get all completed appointments for this resident
-  const completedAppointments = useQuery(api.appointments.getAppointmentsByResident, {
+  // Get all appointments for this resident (archived appointments)
+  const allAppointments = useQuery(api.appointments.getAppointmentsByResident, {
     residentId: id as Id<"residents">,
-    status: "completed"
   });
 
   // Calculate resident details
@@ -94,18 +93,25 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
 
   // Get unique years from appointments for filter
   const availableYears = useMemo(() => {
-    if (!completedAppointments || completedAppointments.length === 0) return [];
-    const years = [...new Set(completedAppointments.map(appointment =>
+    if (!allAppointments || allAppointments.length === 0) return [];
+    const years = [...new Set(allAppointments.map(appointment =>
       new Date(appointment.startTime).getFullYear()
     ))];
     return years.sort((a, b) => b - a);
-  }, [completedAppointments]);
+  }, [allAppointments]);
 
   // Filter and sort appointments
   const filteredAppointments = useMemo(() => {
-    if (!completedAppointments) return [];
+    if (!allAppointments) return [];
 
-    let filtered = [...completedAppointments];
+    // Only show appointments up to today (exclude future appointments)
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+
+    let filtered = [...allAppointments].filter(appointment => {
+      const appointmentDate = new Date(appointment.startTime);
+      return appointmentDate <= today; // Only include today and past appointments
+    });
 
     // Apply search filter
     if (searchQuery) {
@@ -141,7 +147,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
     });
 
     return filtered;
-  }, [completedAppointments, searchQuery, selectedMonth, selectedYear, sortOrder]);
+  }, [allAppointments, searchQuery, selectedMonth, selectedYear, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
@@ -188,7 +194,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   };
 
   // Loading state
-  if (!resident || !completedAppointments) {
+  if (!resident || !allAppointments) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -201,19 +207,19 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
 
   // Calculate stats
   const appointmentStats = {
-    total: completedAppointments.length,
-    thisMonth: completedAppointments.filter(appointment => {
+    total: allAppointments.length,
+    thisMonth: allAppointments.filter(appointment => {
       const appointmentDate = new Date(appointment.startTime);
       const now = new Date();
       return appointmentDate.getMonth() === now.getMonth() && appointmentDate.getFullYear() === now.getFullYear();
     }).length,
-    thisWeek: completedAppointments.filter(appointment => {
+    thisWeek: allAppointments.filter(appointment => {
       const appointmentDate = new Date(appointment.startTime);
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       return appointmentDate >= weekAgo;
     }).length,
-    uniqueLocations: new Set(completedAppointments.filter(a => a.location).map(appointment => appointment.location)).size,
+    uniqueLocations: new Set(allAppointments.filter(a => a.location).map(appointment => appointment.location)).size,
   };
 
   return (
@@ -429,7 +435,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
               <CalendarCheck className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No appointments found</p>
               <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No completed appointments recorded yet"}
+                {searchQuery ? "Try adjusting your search criteria" : "No archived appointments recorded yet"}
               </p>
             </div>
           ) : (
@@ -486,10 +492,24 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge className="bg-green-100 text-green-800 border-0">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Completed
-                          </Badge>
+                          {appointment.status === "completed" ? (
+                            <Badge className="bg-green-100 text-green-800 border-0">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Completed
+                            </Badge>
+                          ) : appointment.status === "cancelled" ? (
+                            <Badge className="bg-red-100 text-red-800 border-0">
+                              Cancelled
+                            </Badge>
+                          ) : appointment.status === "rescheduled" ? (
+                            <Badge className="bg-yellow-100 text-yellow-800 border-0">
+                              Rescheduled
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-800 border-0">
+                              Scheduled
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -591,10 +611,24 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Status</p>
-                      <Badge className="bg-green-100 text-green-800 border-0">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Completed
-                      </Badge>
+                      {selectedAppointment.status === "completed" ? (
+                        <Badge className="bg-green-100 text-green-800 border-0">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Completed
+                        </Badge>
+                      ) : selectedAppointment.status === "cancelled" ? (
+                        <Badge className="bg-red-100 text-red-800 border-0">
+                          Cancelled
+                        </Badge>
+                      ) : selectedAppointment.status === "rescheduled" ? (
+                        <Badge className="bg-yellow-100 text-yellow-800 border-0">
+                          Rescheduled
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-blue-100 text-blue-800 border-0">
+                          Scheduled
+                        </Badge>
+                      )}
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Location</p>
@@ -646,7 +680,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Record Type</p>
-                      <p className="font-medium">Completed Appointment</p>
+                      <p className="font-medium">Archived Appointment</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Created</p>
