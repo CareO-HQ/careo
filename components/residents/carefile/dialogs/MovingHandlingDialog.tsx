@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   DialogDescription,
   DialogFooter,
@@ -17,6 +18,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,8 +33,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { movingHandlingAssessmentSchema } from "@/schemas/residents/care-file/movingHandlingSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -60,6 +69,7 @@ export default function MovingHandlingDialog({
 }: MovingHandlingDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const submitAssessment = useMutation(
     api.careFiles.movingHandling.submitMovingHandlingAssessment
   );
@@ -252,6 +262,9 @@ export default function MovingHandlingDialog({
   const handleNext = async () => {
     let isValid = false;
 
+    // Close the date popover when moving between steps
+    setDatePopoverOpen(false);
+
     if (step === 1) {
       const fieldsToValidate = [
         "residentName",
@@ -319,6 +332,9 @@ export default function MovingHandlingDialog({
   };
 
   const handleBack = () => {
+    // Close the date popover when moving between steps
+    setDatePopoverOpen(false);
+
     if (step === 1) {
       return;
     }
@@ -1311,13 +1327,51 @@ export default function MovingHandlingDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel required>Completion Date</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            placeholder="Completion Date"
-                            {...field}
-                          />
-                        </FormControl>
+                        <Popover
+                          open={datePopoverOpen}
+                          onOpenChange={setDatePopoverOpen}
+                          modal
+                        >
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(new Date(field.value), "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={
+                                field.value ? new Date(field.value) : undefined
+                              }
+                              captionLayout="dropdown"
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(
+                                    date.toISOString().split("T")[0]
+                                  );
+                                  setDatePopoverOpen(false);
+                                }
+                              }}
+                              disabled={(date) =>
+                                date > new Date() ||
+                                date < new Date("1900-01-01")
+                              }
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}

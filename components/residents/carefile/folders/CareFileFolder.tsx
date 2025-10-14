@@ -1,5 +1,14 @@
 "use client";
 
+import CarePlanEvaluationDialog from "@/components/residents/carefile/CarePlanEvaluationDialog";
+import CarePlanDialog from "@/components/residents/carefile/dialogs/CarePlanDialog";
+import EmailPDF from "@/components/residents/carefile/EmailPDF";
+import { FolderProgressIndicator } from "@/components/residents/carefile/FolderCompletionIndicator";
+import FormStatusIndicator, {
+  FormStatusBadge
+} from "@/components/residents/carefile/FormStatusIndicator";
+import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
+import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -14,6 +23,8 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
+import { useFolderForms } from "@/hooks/use-folder-forms";
+import { usePdfUrl } from "@/hooks/use-pdf-url";
 import { authClient } from "@/lib/auth-client";
 import { CareFileFormKey } from "@/types/care-files";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -25,27 +36,9 @@ import {
   FolderIcon,
   Trash2
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import CarePlanEvaluationDialog from "../CarePlanEvaluationDialog";
-import AdmissionDialog from "../dialogs/AdmissionDialog";
-import CarePlanDialog from "../dialogs/CarePlanDialog";
-import BladderBowelDialog from "../dialogs/ContinenceDialog";
-import DependencyDialog from "../dialogs/DependencyDialog";
-import DnacprDialog from "../dialogs/DnarcpDialog";
-import InfectionPreventionDialog from "../dialogs/InfectionPreventionDialog";
-import LongTermFallRiskDialog from "../dialogs/LongTermFallRiskDialog";
-import MovingHandlingDialog from "../dialogs/MovingHandlingDialog";
-import PeepDialog from "../dialogs/PeepDialog";
-import PhotographyConsentDialog from "../dialogs/PhotographyConsentDialog";
-import PreAdmissionDialog from "../dialogs/PreAdmissionDialog";
-import TimlDialog from "../dialogs/TimlDialog";
-import EmailPDF from "../EmailPDF";
-import { FolderProgressIndicator } from "../FolderCompletionIndicator";
-import FormStatusIndicator, { FormStatusBadge } from "../FormStatusIndicator";
-import UploadFileModal from "./UploadFileModal";
-import SkinIntegrityDialog from "../dialogs/SkinIntegrityDialog";
-import ResidentValuablesDialog from "../dialogs/ResidentValuables";
+import EmailPDFWithStorageId from "../EmailPDFWithStorageId";
 
 interface CareFileFolderProps {
   index: number;
@@ -86,410 +79,26 @@ export default function CareFileFolder({
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
 
-  // Use our new care file forms hook
   const { getFormState, canDownloadPdf, getCompletedFormsCount } =
     useCareFileForms({ residentId });
 
-  // Get form keys for this folder
   const folderFormKeys = (forms || []).map(
     (form) => form.key as CareFileFormKey
   );
   const completedCount = getCompletedFormsCount(folderFormKeys);
   const totalCount = folderFormKeys.length;
 
-  // Get resident data for dialogs
   const resident = useQuery(api.residents.getById, {
     residentId: residentId || ("skip" as Id<"residents">)
   });
 
-  // Get unaudited forms for this folder
-  const unauditedForms = useQuery(
-    api.managerAudits.getUnauditedForms,
-    activeOrg?.id
-      ? {
-          residentId: residentId,
-          organizationId: activeOrg.id,
-          formKeys: folderFormKeys
-        }
-      : "skip"
-  );
-
-  // Query custom uploaded PDFs for this folder
   const customPdfs = useQuery(
     api.careFilePdfs.getPdfsByResidentAndFolder,
     residentId ? { residentId, folderName } : "skip"
   );
 
-  // Query all form submissions for forms in this folder to show all PDFs
-  const allPreAdmissionForms = useQuery(
-    api.careFiles.preadmission.getPreAdmissionFormsByResident,
-    folderFormKeys.includes("preAdmission-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allInfectionPreventionForms = useQuery(
-    api.careFiles.infectionPrevention
-      .getInfectionPreventionAssessmentsByResident,
-    folderFormKeys.includes("infection-prevention") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allBladderBowelForms = useQuery(
-    api.careFiles.bladderBowel.getBladderBowelAssessmentsByResident,
-    folderFormKeys.includes("blader-bowel-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allMovingHandlingForms = useQuery(
-    api.careFiles.movingHandling.getMovingHandlingAssessmentsByResident,
-    folderFormKeys.includes("moving-handling-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allLongTermFallsForms = useQuery(
-    api.careFiles.longTermFalls.getLatestAssessmentByResident,
-    folderFormKeys.includes("long-term-fall-risk-form") && residentId
-      ? {
-          residentId: residentId as Id<"residents">,
-          organizationId: activeOrg?.id ?? ""
-        }
-      : "skip"
-  );
-
-  const allAdmissionForms = useQuery(
-    api.careFiles.admission.getAdmissionAssessmentsByResident,
-    folderFormKeys.includes("admission-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allPhotographyConsentForms = useQuery(
-    api.careFiles.photographyConsent.getPhotographyConsentsByResident,
-    folderFormKeys.includes("photography-consent") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allDnacprForms = useQuery(
-    api.careFiles.dnacpr.getDnacprsByResident,
-    folderFormKeys.includes("dnacpr") && residentId ? { residentId } : "skip"
-  );
-
-  const allPeepForms = useQuery(
-    api.careFiles.peep.getPeepsByResident,
-    folderFormKeys.includes("peep") && residentId ? { residentId } : "skip"
-  );
-
-  const allDependencyAssessmentForms = useQuery(
-    api.careFiles.dependency.getDependencyAssessmentsByResident,
-    folderFormKeys.includes("dependency-assessment") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  const allTimlAssessmentForms = useQuery(
-    api.careFiles.timl.getTimlAssessmentsByResident,
-    folderFormKeys.includes("timl") && residentId ? { residentId } : "skip"
-  );
-
-  const allSkinIntegrityForms = useQuery(
-    api.careFiles.skinIntegrity.getSkinIntegrityAssessmentsByResident,
-    folderFormKeys.includes("skin-integrity-form") &&
-      residentId &&
-      activeOrg?.id
-      ? { residentId, organizationId: activeOrg.id }
-      : "skip"
-  );
-
-  const allResidentValuablesForms = useQuery(
-    api.careFiles.residentValuables.getResidentValuablesByResidentId,
-    folderFormKeys.includes("resident-valuables-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
-
-  // Debug the query condition step by step
-  const hasCarePlanProp = carePlan;
-  const hasResidentId = !!residentId;
-  const queryCondition = hasCarePlanProp && hasResidentId;
-
-  const allCarePlanForms = useQuery(
-    api.careFiles.carePlan.getCarePlanAssessmentsByResidentAndFolder,
-    queryCondition ? { residentId, folderKey } : "skip"
-  );
-
-  // Helper function to get all PDFs from all form submissions for this folder only
-  const getAllPdfFiles = useMemo(() => {
-    const pdfFiles: Array<{
-      formKey: string;
-      formId: string;
-      name: string;
-      url?: string;
-      completedAt: number;
-      isLatest: boolean;
-    }> = [];
-
-    // Only process forms that belong to this folder
-    const formKeysInThisFolder = folderFormKeys;
-
-    // Process Pre-admission forms
-    if (
-      allPreAdmissionForms &&
-      formKeysInThisFolder.includes("preAdmission-form")
-    ) {
-      const sortedForms = [...allPreAdmissionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "preAdmission-form",
-          formId: form._id,
-          name: "Pre-Admission Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Infection Prevention forms
-    if (
-      allInfectionPreventionForms &&
-      formKeysInThisFolder.includes("infection-prevention")
-    ) {
-      const sortedForms = [...allInfectionPreventionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "infection-prevention",
-          formId: form._id,
-          name: "Infection Prevention Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Bladder/Bowel forms
-    if (
-      allBladderBowelForms &&
-      formKeysInThisFolder.includes("blader-bowel-form")
-    ) {
-      const sortedForms = [...allBladderBowelForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "blader-bowel-form",
-          formId: form._id,
-          name: "Bladder & Bowel Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Moving & Handling forms
-    if (
-      allMovingHandlingForms &&
-      formKeysInThisFolder.includes("moving-handling-form")
-    ) {
-      const sortedForms = [...allMovingHandlingForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "moving-handling-form",
-          formId: form._id,
-          name: "Moving & Handling Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Long Term Falls forms
-    if (
-      allLongTermFallsForms &&
-      formKeysInThisFolder.includes("long-term-fall-risk-form")
-    ) {
-      pdfFiles.push({
-        formKey: "long-term-fall-risk-form",
-        formId: allLongTermFallsForms._id,
-        name: "Long Term Falls Risk Assessment",
-        completedAt: allLongTermFallsForms._creationTime,
-        isLatest: true // Since we only get the latest one
-      });
-    }
-
-    // Process Admission forms
-    if (allAdmissionForms && formKeysInThisFolder.includes("admission-form")) {
-      const sortedForms = [...allAdmissionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "admission-form",
-          formId: form._id,
-          name: "Admission Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Photography Consent forms
-    if (
-      allPhotographyConsentForms &&
-      formKeysInThisFolder.includes("photography-consent")
-    ) {
-      const sortedForms = [...allPhotographyConsentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "photography-consent",
-          formId: form._id,
-          name: "Photography Consent Form",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process DNACPR forms
-    if (allDnacprForms && formKeysInThisFolder.includes("dnacpr")) {
-      const sortedForms = [...allDnacprForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "dnacpr",
-          formId: form._id,
-          name: "DNACPR Form",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process PEEP forms
-    if (allPeepForms && formKeysInThisFolder.includes("peep")) {
-      const sortedForms = [...allPeepForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "peep",
-          formId: form._id,
-          name: "Personal Emergency Evacuation Plan",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Dependency Assessment forms
-    if (
-      allDependencyAssessmentForms &&
-      formKeysInThisFolder.includes("dependency-assessment")
-    ) {
-      const sortedForms = [...allDependencyAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "dependency-assessment",
-          formId: form._id,
-          name: "Dependency Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process TIML Assessment forms
-    if (allTimlAssessmentForms && formKeysInThisFolder.includes("timl")) {
-      const sortedForms = [...allTimlAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "timl",
-          formId: form._id,
-          name: "This Is My Life Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Skin Integrity Assessment forms
-    if (
-      allSkinIntegrityForms &&
-      formKeysInThisFolder.includes("skin-integrity-form")
-    ) {
-      const sortedForms = [...allSkinIntegrityForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "skin-integrity-form",
-          formId: form._id,
-          name: "Skin Integrity Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Resident Valuables forms
-    if (
-      allResidentValuablesForms &&
-      formKeysInThisFolder.includes("resident-valuables-form")
-    ) {
-      const sortedForms = [...allResidentValuablesForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      sortedForms.forEach((form, index) => {
-        pdfFiles.push({
-          formKey: "resident-valuables-form",
-          formId: form._id,
-          name: "Resident Valuables Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
-        });
-      });
-    }
-
-    // Process Care Plan forms - DON'T add to general files list
-    // Care plans are shown in their own dedicated section
-    // if (allCarePlanForms) {
-    //   const sortedForms = [...allCarePlanForms].sort(
-    //     (a, b) => b._creationTime - a._creationTime
-    //   );
-    //   sortedForms.forEach((form, index) => {
-    //     pdfFiles.push({
-    //       formKey: "care-plan-form",
-    //       formId: form._id,
-    //       name: "Care Plan Assessment",
-    //       completedAt: form._creationTime,
-    //       isLatest: index === 0
-    //     });
-    //   });
-    // }
-
-    // Sort all PDFs by completion date (newest first)
-    const sortedPdfFiles = pdfFiles.sort(
-      (a, b) => b.completedAt - a.completedAt
-    );
-
-    return sortedPdfFiles;
-  }, [
+  // Use the folder forms hook to fetch all forms for this folder
+  const {
     allPreAdmissionForms,
     allInfectionPreventionForms,
     allBladderBowelForms,
@@ -503,8 +112,15 @@ export default function CareFileFolder({
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
-    folderFormKeys
-  ]);
+    allCarePlanForms,
+    getAllPdfFiles: folderPdfFiles
+  } = useFolderForms({
+    residentId,
+    folderFormKeys,
+    organizationId: activeOrg?.id,
+    folderKey,
+    includeCarePlans: carePlan
+  });
 
   // Component to handle individual PDF file with URL fetching
   const PdfFileItem = ({
@@ -520,84 +136,11 @@ export default function CareFileFolder({
       isLatest: boolean;
     };
   }) => {
-    const pdfUrl = useQuery(
-      file.formKey === "preAdmission-form"
-        ? api.careFiles.preadmission.getPDFUrl
-        : file.formKey === "infection-prevention"
-          ? api.careFiles.infectionPrevention.getPDFUrl
-          : file.formKey === "blader-bowel-form"
-            ? api.careFiles.bladderBowel.getPDFUrl
-            : file.formKey === "moving-handling-form"
-              ? api.careFiles.movingHandling.getPDFUrl
-              : file.formKey === "long-term-fall-risk-form"
-                ? api.careFiles.longTermFalls.getPDFUrl
-                : file.formKey === "care-plan-form"
-                  ? api.careFiles.carePlan.getPDFUrl
-                  : file.formKey === "admission-form"
-                    ? api.careFiles.admission.getPDFUrl
-                    : file.formKey === "photography-consent"
-                      ? api.careFiles.photographyConsent.getPDFUrl
-                      : file.formKey === "dnacpr"
-                        ? api.careFiles.dnacpr.getPDFUrl
-                        : file.formKey === "peep"
-                          ? api.careFiles.peep.getPDFUrl
-                          : file.formKey === "dependency-assessment"
-                            ? api.careFiles.dependency.getPDFUrl
-                            : file.formKey === "timl"
-                              ? api.careFiles.timl.getPDFUrl
-                              : file.formKey === "skin-integrity-form"
-                                ? api.careFiles.skinIntegrity.getPDFUrl
-                                : file.formKey === "resident-valuables-form"
-                                  ? api.careFiles.residentValuables.getPDFUrl
-                                  : ("skip" as any),
-      file.formKey === "preAdmission-form"
-        ? { formId: file.formId as Id<"preAdmissionCareFiles"> }
-        : file.formKey === "infection-prevention"
-          ? {
-              assessmentId: file.formId as Id<"infectionPreventionAssessments">
-            }
-          : file.formKey === "blader-bowel-form"
-            ? { assessmentId: file.formId as Id<"bladderBowelAssessments"> }
-            : file.formKey === "moving-handling-form"
-              ? { assessmentId: file.formId as Id<"movingHandlingAssessments"> }
-              : file.formKey === "long-term-fall-risk-form"
-                ? {
-                    assessmentId:
-                      file.formId as Id<"longTermFallsRiskAssessments">
-                  }
-                : file.formKey === "care-plan-form"
-                  ? { assessmentId: file.formId as Id<"carePlanAssessments"> }
-                  : file.formKey === "admission-form"
-                    ? { assessmentId: file.formId as Id<"admissionAssesments"> }
-                    : file.formKey === "photography-consent"
-                      ? { consentId: file.formId as Id<"photographyConsents"> }
-                      : file.formKey === "dnacpr"
-                        ? { dnacprId: file.formId as Id<"dnacprs"> }
-                        : file.formKey === "peep"
-                          ? { peepId: file.formId as Id<"peeps"> }
-                          : file.formKey === "dependency-assessment"
-                            ? {
-                                assessmentId:
-                                  file.formId as Id<"dependencyAssessments">
-                              }
-                            : file.formKey === "timl"
-                              ? {
-                                  assessmentId:
-                                    file.formId as Id<"timlAssessments">
-                                }
-                              : file.formKey === "skin-integrity-form"
-                                ? {
-                                    assessmentId:
-                                      file.formId as Id<"skinIntegrityAssessments">,
-                                    organizationId: activeOrg?.id ?? ""
-                                  }
-                                : file.formKey === "resident-valuables-form"
-                                  ? {
-                                      assessmentId:
-                                        file.formId as Id<"residentValuablesAssessments">
-                                    }
-                                  : "skip"
-    );
+    const pdfUrl = usePdfUrl({
+      formKey: file.formKey as CareFileFormKey,
+      formId: file.formId,
+      organizationId: activeOrg?.id
+    });
 
     if (!pdfUrl) return null;
 
@@ -990,308 +533,10 @@ export default function CareFileFolder({
     }
   };
 
-  const handleOpenReview = (formType: string, formId: string) => {
-    // Store the form info for fetching data
-    setReviewFormData({
-      formType,
-      formId,
-      formDisplayName: getFormDisplayName(formType)
-    });
-
-    // Map form type to dialog key
-    const dialogKeyMap: Record<string, string> = {
-      movingHandlingAssessment: "moving-handling-form",
-      infectionPreventionAssessment: "infection-prevention",
-      bladderBowelAssessment: "blader-bowel-form",
-      preAdmissionCareFile: "preAdmission-form",
-      carePlanAssessment: "care-plan-form",
-      longTermFallsRiskAssessment: "long-term-fall-risk-form",
-      admissionAssesment: "admission-form",
-      photographyConsent: "photography-consent",
-      dnacpr: "dnacpr",
-      peep: "peep",
-      dependencyAssessment: "dependency-assessment",
-      timlAssessment: "timl",
-      skinIntegrityAssessment: "skin-integrity-form",
-      residentValuablesAssessment: "resident-valuables-form"
-    };
-
-    setActiveDialogKey(dialogKeyMap[formType]);
-    setIsDialogOpen(true);
-  };
-
-  // Map form types to display names
-  const getFormDisplayName = (formType: string): string => {
-    const mapping: Record<string, string> = {
-      preAdmissionCareFile: "Pre-Admission Care File",
-      infectionPreventionAssessment: "Infection Prevention Assessment",
-      bladderBowelAssessment: "Bladder & Bowel Assessment",
-      movingHandlingAssessment: "Moving & Handling Assessment",
-      longTermFallsRiskAssessment: "Long Term Falls Risk Assessment",
-      carePlanAssessment: "Care Plan Assessment",
-      admissionAssesment: "Admission Assessment",
-      photographyConsent: "Photography Consent Form",
-      dnacpr: "DNACPR Form",
-      peep: "Personal Emergency Evacuation Plan",
-      dependencyAssessment: "Dependency Assessment",
-      timlAssessment: "This Is My Life Assessment",
-      skinIntegrityAssessment: "Skin Integrity Assessment",
-      residentValuablesAssessment: "Resident Valuables Assessment"
-    };
-    return mapping[formType] || formType;
-  };
-
-  const renderDialogContent = () => {
-    const isReviewMode = !!reviewFormData;
-    const editData = isReviewMode ? formDataForEdit : null;
-    console.log("EDIT DATA", editData);
-
-    // If we're in review mode and still loading data, show loading state
-    if (isReviewMode && formDataForEdit === undefined) {
-      return (
-        <div className="flex items-center justify-center p-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading form data...</p>
-          </div>
-        </div>
-      );
-    }
-
-    switch (activeDialogKey) {
-      case "preAdmission-form":
-        return (
-          <PreAdmissionDialog
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            careHomeName={activeOrg?.name ?? ""}
-            resident={resident}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "admission-form":
-        return (
-          <AdmissionDialog
-            resident={resident}
-            teamId={activeTeamId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            residentId={residentId}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "infection-prevention":
-        return (
-          <InfectionPreventionDialog
-            resident={resident}
-            teamId={activeTeamId}
-            organizationId={activeOrg?.id ?? ""}
-            userName={currentUser?.user.name ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "blader-bowel-form":
-        return (
-          <BladderBowelDialog
-            resident={resident}
-            teamId={activeTeamId}
-            organizationId={activeOrg?.id ?? ""}
-            residentId={residentId}
-            userId={currentUser?.user.id ?? ""}
-            userName={currentUser?.user.name ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "moving-handling-form":
-        return (
-          <MovingHandlingDialog
-            resident={resident}
-            teamId={activeTeamId}
-            organizationId={activeOrg?.id ?? ""}
-            residentId={residentId}
-            userId={currentUser?.user.id ?? ""}
-            userName={currentUser?.user.name ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "long-term-fall-risk-form":
-        return (
-          <LongTermFallRiskDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            userName={currentUser?.user.name ?? ""}
-          />
-        );
-      case "care-plan-form":
-        return (
-          <CarePlanDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            userName={currentUser?.user.name ?? ""}
-            folderKey={folderKey}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "photography-consent":
-        return (
-          <PhotographyConsentDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-
-      case "dnacpr":
-        return (
-          <DnacprDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-      case "peep":
-        return (
-          <PeepDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-
-      case "dependency-assessment":
-        return (
-          <DependencyDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-
-      case "timl":
-        return (
-          <TimlDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-
-      case "skin-integrity-form":
-        return (
-          <SkinIntegrityDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-
-      case "resident-valuables-form":
-        return (
-          <ResidentValuablesDialog
-            resident={resident}
-            teamId={activeTeamId}
-            residentId={residentId}
-            organizationId={activeOrg?.id ?? ""}
-            userId={currentUser?.user.id ?? ""}
-            initialData={editData}
-            isEditMode={isReviewMode}
-            onClose={() => {
-              setIsDialogOpen(false);
-              setReviewFormData(null);
-            }}
-          />
-        );
-
-      // case 'discharge':
-      //   return <DischargeDialog />;
-      default:
-        return null;
-    }
+  // Handler to close dialog and reset state
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setReviewFormData(null);
   };
 
   return (
@@ -1504,9 +749,9 @@ export default function CareFileFolder({
                   return (
                     <>
                       {/* Generated PDFs from forms */}
-                      {getAllPdfFiles.length > 0 && (
+                      {folderPdfFiles.length > 0 && (
                         <>
-                          {getAllPdfFiles.map((file) => (
+                          {folderPdfFiles.map((file) => (
                             <PdfFileItem
                               key={`${file.formKey}-${file.formId}`}
                               file={file}
@@ -1528,7 +773,7 @@ export default function CareFileFolder({
                       )}
 
                       {/* Show message if no files at all */}
-                      {!getAllPdfFiles.length &&
+                      {!folderPdfFiles.length &&
                         (!customPdfs || !customPdfs.length) && (
                           <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
                             No PDF files available. Complete and submit forms to
@@ -1539,53 +784,6 @@ export default function CareFileFolder({
                   );
                 })()}
               </div>
-              <p className="text-muted-foreground text-sm font-medium mt-10">
-                Manager audit
-              </p>
-              {unauditedForms && unauditedForms.length > 0 ? (
-                <div className="space-y-2">
-                  {unauditedForms.map((form: any) => (
-                    <div
-                      key={`${form.formType}-${form.formId}`}
-                      className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-primary">
-                          {getFormDisplayName(form.formType)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Completed:{" "}
-                          {new Date(form.lastUpdated).toLocaleDateString(
-                            "en-GB",
-                            {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric"
-                            }
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            handleOpenReview(form.formType, form.formId)
-                          }
-                        >
-                          Audit
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/50 text-muted-foreground text-xs">
-                  {unauditedForms === undefined
-                    ? "Loading audit status..."
-                    : "All forms in this folder have been audited"}
-                </div>
-              )}
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
               <Button
@@ -1602,43 +800,23 @@ export default function CareFileFolder({
         </SheetContent>
       </Sheet>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="">{renderDialogContent()}</DialogContent>
+        <DialogContent className="">
+          <CareFileDialogRenderer
+            formKey={activeDialogKey as CareFileFormKey}
+            residentId={residentId}
+            teamId={activeTeamId}
+            organizationId={activeOrg?.id ?? ""}
+            userId={currentUser?.user.id ?? ""}
+            userName={currentUser?.user.name}
+            resident={resident}
+            careHomeName={activeOrg?.name}
+            folderKey={folderKey}
+            formDataForEdit={formDataForEdit}
+            isReviewMode={!!reviewFormData}
+            onClose={handleCloseDialog}
+          />
+        </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// Wrapper component to fetch storage ID and pass to EmailPDF
-interface EmailPDFWithStorageIdProps {
-  formKey: string;
-  formId: string;
-  filename: string;
-  residentName?: string;
-}
-
-function EmailPDFWithStorageId({
-  formKey,
-  formId,
-  filename,
-  residentName
-}: EmailPDFWithStorageIdProps) {
-  const storageId = useQuery(api.emailHelpers.getPDFStorageId, {
-    formKey,
-    formId
-  });
-
-  // Don't render if we don't have a storage ID yet
-  if (!storageId) {
-    return (
-      <div className="h-4 w-4 bg-muted-foreground/20 rounded animate-pulse" />
-    );
-  }
-
-  return (
-    <EmailPDF
-      pdfStorageId={storageId}
-      filename={filename}
-      residentName={residentName}
-    />
   );
 }

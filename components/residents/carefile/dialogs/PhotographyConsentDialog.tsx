@@ -43,6 +43,7 @@ interface PhotographyConsentDialogProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -54,6 +55,7 @@ export default function PhotographyConsentDialog({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -86,7 +88,10 @@ export default function PhotographyConsentDialog({
               ""),
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
           dateOfBirth:
-            initialData.dateOfBirth ?? resident.dateOfBirth ?? Date.now(),
+            initialData.dateOfBirth ??
+            (resident.dateOfBirth
+              ? new Date(resident.dateOfBirth).getTime()
+              : Date.now()),
 
           // Consent fields
           healthcareRecords: initialData.healthcareRecords ?? false,
@@ -106,8 +111,8 @@ export default function PhotographyConsentDialog({
           representativeDate: initialData.representativeDate ?? undefined,
 
           // Staff fields
-          nameStaff: initialData.nameStaff ?? "",
-          staffSignature: initialData.staffSignature ?? "",
+          nameStaff: initialData.nameStaff ?? userName,
+          staffSignature: initialData.staffSignature ?? userName,
           date: initialData.date ?? Date.now()
         }
       : {
@@ -120,7 +125,9 @@ export default function PhotographyConsentDialog({
             `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
             "",
           bedroomNumber: resident.roomNumber ?? "",
-          dateOfBirth: resident.dateOfBirth ?? Date.now(),
+          dateOfBirth: resident.dateOfBirth
+            ? new Date(resident.dateOfBirth).getTime()
+            : Date.now(),
 
           // Consent fields
           healthcareRecords: false,
@@ -137,8 +144,8 @@ export default function PhotographyConsentDialog({
           representativeDate: undefined,
 
           // Staff fields
-          nameStaff: "",
-          staffSignature: "",
+          nameStaff: userName,
+          staffSignature: userName,
           date: Date.now()
         }
   });

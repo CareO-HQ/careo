@@ -66,6 +66,9 @@ export default function PeepDialog({
 }: PeepDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [completionDatePopoverOpen, setCompletionDatePopoverOpen] =
+    useState(false);
 
   // Using type-safe mutations for PEEP functionality
   const submitPeep = useMutation("careFiles/peep:submitPeep" as any);
@@ -81,43 +84,56 @@ export default function PeepDialog({
             initialData.residentName ??
             `${resident.firstName} ${resident.lastName}`,
           residentDateOfBirth:
-            initialData.residentDateOfBirth ??
-            resident.dateOfBirth ??
-            Date.now(),
+            typeof initialData.residentDateOfBirth === "number"
+              ? initialData.residentDateOfBirth
+              : typeof resident.dateOfBirth === "number"
+                ? resident.dateOfBirth
+                : resident.dateOfBirth
+                  ? new Date(resident.dateOfBirth).getTime()
+                  : Date.now(),
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
           understands: initialData.understands ?? false,
           staffNeeded: initialData.staffNeeded ?? 1,
           equipmentNeeded: initialData.equipmentNeeded ?? "",
           communicationNeeds: initialData.communicationNeeds ?? "",
           steps: initialData.steps ?? [],
-          oxigenInUse: initialData.oxigenInUse ?? undefined,
+          oxigenInUse: initialData.oxigenInUse ?? false,
           oxigenComments: initialData.oxigenComments ?? "",
-          residentSmokes: initialData.residentSmokes ?? undefined,
+          residentSmokes: initialData.residentSmokes ?? false,
           residentSmokesComments: initialData.residentSmokesComments ?? "",
-          furnitureFireRetardant:
-            initialData.furnitureFireRetardant ?? undefined,
+          furnitureFireRetardant: initialData.furnitureFireRetardant ?? false,
           furnitureFireRetardantComments:
             initialData.furnitureFireRetardantComments ?? "",
           completedBy: initialData.completedBy ?? "",
           completedBySignature: initialData.completedBySignature ?? "",
-          date: initialData.date ?? Date.now(),
+          date:
+            typeof initialData.date === "number"
+              ? initialData.date
+              : initialData.date
+                ? new Date(initialData.date).getTime()
+                : Date.now(),
           status: initialData.status ?? "draft"
         }
       : {
           // Default values for new forms
           residentName: `${resident.firstName} ${resident.lastName}`,
-          residentDateOfBirth: resident.dateOfBirth ?? Date.now(),
+          residentDateOfBirth:
+            typeof resident.dateOfBirth === "number"
+              ? resident.dateOfBirth
+              : resident.dateOfBirth
+                ? new Date(resident.dateOfBirth).getTime()
+                : Date.now(),
           bedroomNumber: resident.roomNumber ?? "",
           understands: false,
           staffNeeded: 0,
           equipmentNeeded: "",
           communicationNeeds: "",
           steps: [],
-          oxigenInUse: undefined,
+          oxigenInUse: false,
           oxigenComments: "",
-          residentSmokes: undefined,
+          residentSmokes: false,
           residentSmokesComments: "",
-          furnitureFireRetardant: undefined,
+          furnitureFireRetardant: false,
           furnitureFireRetardantComments: "",
           completedBy: "",
           completedBySignature: "",
@@ -135,6 +151,10 @@ export default function PeepDialog({
 
   const handleNext = async () => {
     let isValid = false;
+
+    // Close all date popovers when moving between steps
+    setDobPopoverOpen(false);
+    setCompletionDatePopoverOpen(false);
 
     if (step === 1) {
       // Resident Information
@@ -169,7 +189,7 @@ export default function PeepDialog({
       isValid = await form.trigger(fieldsToValidate);
     }
 
-    if (isValid || step === totalSteps) {
+    if (isValid) {
       if (step < totalSteps) {
         setStep(step + 1);
       } else {
@@ -179,6 +199,10 @@ export default function PeepDialog({
   };
 
   const handlePrevious = () => {
+    // Close all date popovers when moving between steps
+    setDobPopoverOpen(false);
+    setCompletionDatePopoverOpen(false);
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -232,7 +256,7 @@ export default function PeepDialog({
     switch (step) {
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-1">
             <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
@@ -253,7 +277,11 @@ export default function PeepDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date of Birth</FormLabel>
-                    <Popover>
+                    <Popover
+                      modal
+                      open={dobPopoverOpen}
+                      onOpenChange={setDobPopoverOpen}
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -274,11 +302,17 @@ export default function PeepDialog({
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
+                          captionLayout="dropdown"
                           mode="single"
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.getTime());
+                              setDobPopoverOpen(false);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -308,7 +342,7 @@ export default function PeepDialog({
 
       case 2:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-2">
             <FormField
               control={form.control}
               name="understands"
@@ -395,7 +429,7 @@ export default function PeepDialog({
 
       case 3:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-3">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <FormLabel>Evacuation Steps</FormLabel>
@@ -464,7 +498,7 @@ export default function PeepDialog({
 
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-4">
             <FormField
               control={form.control}
               name="oxigenInUse"
@@ -595,7 +629,7 @@ export default function PeepDialog({
 
       case 5:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-5">
             <FormField
               control={form.control}
               name="completedBy"
@@ -633,7 +667,11 @@ export default function PeepDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Completion Date</FormLabel>
-                  <Popover>
+                  <Popover
+                    modal
+                    open={completionDatePopoverOpen}
+                    onOpenChange={setCompletionDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -654,11 +692,17 @@ export default function PeepDialog({
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
+                        captionLayout="dropdown"
                         mode="single"
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setCompletionDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) =>
                           date > new Date() || date < new Date("1900-01-01")
                         }
@@ -713,7 +757,11 @@ export default function PeepDialog({
       </DialogHeader>
 
       <Form {...form}>
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="space-y-6"
+          autoComplete="off"
+        >
           <div className="max-h-[60vh] overflow-y-auto px-1">
             {renderStepContent()}
           </div>

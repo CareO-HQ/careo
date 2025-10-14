@@ -61,6 +61,9 @@ export default function TimlDialog({
 }: TimlDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [dateOfBirthPopoverOpen, setDateOfBirthPopoverOpen] = useState(false);
+  const [completionDatePopoverOpen, setCompletionDatePopoverOpen] =
+    useState(false);
 
   // TODO: Replace with actual Convex mutations once they're created
   const submitAssessment = useMutation(api.careFiles.timl.submitTimlAssessment);
@@ -80,7 +83,7 @@ export default function TimlDialog({
           firstName: initialData.firstName ?? resident.firstName ?? "",
           lastName: initialData.lastName ?? resident.lastName ?? "",
           dateOfBirth:
-            initialData.dateOfBirth ?? resident.dateOfBirth ?? Date.now(),
+            initialData.dateOfBirth ?? new Date(resident.dateOfBirth).getTime(),
           desiredName: initialData.desiredName ?? resident.firstName ?? "",
           // Childhood
           born: initialData.born ?? "",
@@ -135,7 +138,7 @@ export default function TimlDialog({
           agree: false,
           firstName: resident.firstName ?? "",
           lastName: resident.lastName ?? "",
-          dateOfBirth: resident.dateOfBirth ?? Date.now(),
+          dateOfBirth: new Date(resident.dateOfBirth).getTime() ?? Date.now(),
           desiredName: resident.firstName ?? "",
           // Childhood
           born: "",
@@ -186,6 +189,10 @@ export default function TimlDialog({
 
   const handleNext = async () => {
     let isValid = false;
+
+    // Close the date popovers when moving between steps
+    setDateOfBirthPopoverOpen(false);
+    setCompletionDatePopoverOpen(false);
 
     if (step === 1) {
       const fieldsToValidate = [
@@ -263,6 +270,10 @@ export default function TimlDialog({
   };
 
   const handlePrevious = () => {
+    // Close the date popovers when moving between steps
+    setDateOfBirthPopoverOpen(false);
+    setCompletionDatePopoverOpen(false);
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -299,26 +310,23 @@ export default function TimlDialog({
     switch (step) {
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-1">
             <FormField
               control={form.control}
               name="agree"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
+                <FormItem>
+                  <div className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormLabel>
-                      I agree to complete this life story assessment
+                      The resident has agreed to complete this life story
+                      assessment
                     </FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      This assessment helps us understand your life experiences
-                      and preferences.
-                    </p>
                   </div>
                   <FormMessage />
                 </FormItem>
@@ -333,7 +341,7 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel required>First Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} autoComplete="off" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -346,7 +354,7 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel required>Last Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} autoComplete="off" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -358,7 +366,11 @@ export default function TimlDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date of Birth</FormLabel>
-                    <Popover>
+                    <Popover
+                      open={dateOfBirthPopoverOpen}
+                      onOpenChange={setDateOfBirthPopoverOpen}
+                      modal
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -383,7 +395,13 @@ export default function TimlDialog({
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.getTime());
+                              setDateOfBirthPopoverOpen(false);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -403,7 +421,11 @@ export default function TimlDialog({
                       What would you like to be called?
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Preferred name" />
+                      <Input
+                        {...field}
+                        placeholder="Preferred name"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -415,7 +437,7 @@ export default function TimlDialog({
 
       case 2:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-2">
             <h4 className="text-lg font-medium">Childhood</h4>
             <div className="grid grid-cols-1 gap-4">
               <FormField
@@ -428,6 +450,7 @@ export default function TimlDialog({
                       <Input
                         {...field}
                         placeholder="City, country, or region"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -446,6 +469,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Names of family members"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -459,7 +483,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>What work did your family members do?</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Family occupations" />
+                      <Textarea
+                        {...field}
+                        placeholder="Family occupations"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -475,6 +503,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Childhood homes and locations"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -491,6 +520,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="School names and locations"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -507,6 +537,7 @@ export default function TimlDialog({
                       <Input
                         {...field}
                         placeholder="Favourite school subject"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -539,7 +570,11 @@ export default function TimlDialog({
                     <FormItem>
                       <FormLabel>What were their names?</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Pet names" />
+                        <Input
+                          {...field}
+                          placeholder="Pet names"
+                          autoComplete="off"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -552,7 +587,7 @@ export default function TimlDialog({
 
       case 3:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-3">
             <h4 className="text-lg font-medium">Adolescence & Early Career</h4>
             <div className="grid grid-cols-1 gap-4">
               <FormField
@@ -567,6 +602,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="School leaving details"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -583,6 +619,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Early career and jobs"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -596,7 +633,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>Where did you work?</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Workplace locations" />
+                      <Textarea
+                        {...field}
+                        placeholder="Workplace locations"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -612,6 +653,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Training, courses, or qualifications"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -628,6 +670,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Work memories and experiences"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -646,6 +689,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Military service details"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -658,7 +702,7 @@ export default function TimlDialog({
 
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-4">
             <h4 className="text-lg font-medium">Adulthood & Relationships</h4>
             <div className="grid grid-cols-1 gap-4">
               <FormField
@@ -668,7 +712,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>Did you have a partner?</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Partner details" />
+                      <Textarea
+                        {...field}
+                        placeholder="Partner details"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -681,7 +729,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>What was their name?</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Partner's name" />
+                      <Input
+                        {...field}
+                        placeholder="Partner's name"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -697,6 +749,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="How and where you met"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -710,7 +763,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>Where and when did you get married?</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Wedding details" />
+                      <Textarea
+                        {...field}
+                        placeholder="Wedding details"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -723,7 +780,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>What did you wear?</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Wedding attire" />
+                      <Textarea
+                        {...field}
+                        placeholder="Wedding attire"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -736,7 +797,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>What flowers did you have?</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Wedding flowers" />
+                      <Input
+                        {...field}
+                        placeholder="Wedding flowers"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -752,6 +817,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Honeymoon destination"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -768,6 +834,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Adult homes and locations"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -786,6 +853,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Children's names and details"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -804,6 +872,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Grandchildren's names and details"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -819,7 +888,11 @@ export default function TimlDialog({
                       Do you have special friends? What are their names?
                     </FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Special friends" />
+                      <Textarea
+                        {...field}
+                        placeholder="Special friends"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -837,6 +910,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Friendship details and current contact"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -849,7 +923,7 @@ export default function TimlDialog({
 
       case 5:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-5">
             <h4 className="text-lg font-medium">Retirement</h4>
             <div className="grid grid-cols-1 gap-4">
               <FormField
@@ -859,7 +933,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel>When did you retire?</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Retirement details" />
+                      <Textarea
+                        {...field}
+                        placeholder="Retirement details"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -875,6 +953,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Retirement plans and expectations"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -893,6 +972,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Hobbies and interests during retirement"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -911,6 +991,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Major changes during retirement"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -923,7 +1004,7 @@ export default function TimlDialog({
 
       case 6:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-6">
             <h4 className="text-lg font-medium">Current Preferences</h4>
             <div className="grid grid-cols-1 gap-4">
               <FormField
@@ -936,6 +1017,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Current activities and interests you enjoy"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -952,6 +1034,7 @@ export default function TimlDialog({
                       <Textarea
                         {...field}
                         placeholder="Reading preferences - books, magazines, newspapers"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -964,7 +1047,7 @@ export default function TimlDialog({
 
       case 7:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key="step-7">
             <h4 className="text-lg font-medium">Assessment Completion</h4>
             <div className="grid grid-cols-1 gap-4">
               <FormField
@@ -977,6 +1060,7 @@ export default function TimlDialog({
                       <Input
                         {...field}
                         placeholder="Name of person completing assessment"
+                        autoComplete="off"
                       />
                     </FormControl>
                     <FormMessage />
@@ -990,7 +1074,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel required>Job Role</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Job role/position" />
+                      <Input
+                        {...field}
+                        placeholder="Job role/position"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1003,7 +1091,11 @@ export default function TimlDialog({
                   <FormItem>
                     <FormLabel required>Signature</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Digital signature" />
+                      <Input
+                        {...field}
+                        placeholder="Digital signature"
+                        autoComplete="off"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1015,7 +1107,11 @@ export default function TimlDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date</FormLabel>
-                    <Popover>
+                    <Popover
+                      open={completionDatePopoverOpen}
+                      onOpenChange={setCompletionDatePopoverOpen}
+                      modal
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -1040,7 +1136,13 @@ export default function TimlDialog({
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.getTime());
+                              setCompletionDatePopoverOpen(false);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -1116,7 +1218,11 @@ export default function TimlDialog({
       </DialogHeader>
 
       <Form {...form}>
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="space-y-6"
+          autoComplete="off"
+        >
           <div className="max-h-[60vh] overflow-y-auto px-1">
             {renderStepContent()}
           </div>

@@ -104,6 +104,18 @@ export default function ResidentValuables({
           completedBy: "",
           witnessedBy: "",
           valuables: [],
+          n50: undefined,
+          n20: undefined,
+          n10: undefined,
+          n5: undefined,
+          n2: undefined,
+          n1: undefined,
+          p50: undefined,
+          p20: undefined,
+          p10: undefined,
+          p5: undefined,
+          p2: undefined,
+          p1: undefined,
           total: 0,
           clothing: [],
           other: []
@@ -271,49 +283,50 @@ export default function ResidentValuables({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={
-                            field.value ? new Date(field.value) : undefined
-                          }
-                          onSelect={(date) => field.onChange(date?.getTime())}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(new Date(field.value), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={
+                          field.value ? new Date(field.value) : undefined
+                        }
+                        onSelect={(date) => field.onChange(date?.getTime())}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -414,6 +427,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -434,6 +448,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -454,6 +469,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -474,6 +490,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -494,6 +511,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -514,6 +532,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -536,6 +555,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -556,6 +576,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -576,6 +597,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -596,6 +618,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -616,6 +639,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);
@@ -636,6 +660,7 @@ export default function ResidentValuables({
                       <Input
                         type="number"
                         {...field}
+                        value={field.value ?? ""}
                         onChange={(e) => {
                           field.onChange(e.target.valueAsNumber || undefined);
                           setTimeout(calculateTotal, 0);

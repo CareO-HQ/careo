@@ -2,13 +2,12 @@
 
 import CareFileFolder from "@/components/residents/carefile/folders/CareFileFolder";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { config } from "@/config";
+import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
-import { usePathname } from "next/navigation";
 import { DownloadIcon } from "lucide-react";
-import { api } from "@/convex/_generated/api";
+import { usePathname } from "next/navigation";
 
 export default function CareFilePage() {
   const careFiles = config.careFiles;
@@ -25,7 +24,7 @@ export default function CareFilePage() {
   );
 
   return (
-    <div>
+    <div className="flex flex-col gap-4">
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-col">
           <p className="font-semibold text-xl">Care File</p>
@@ -38,41 +37,24 @@ export default function CareFilePage() {
           Download all files
         </Button>
       </div>
-      <Tabs defaultValue="all" className="w-fit mt-6">
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="to-do" disabled>
-            To Do
-          </TabsTrigger>
-          <TabsTrigger value="done" disabled>
-            Completed
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="all" className="flex flex-col gap-1 mt-2 w-md">
-          {careFiles.map(
-            (file, index) =>
-              file.type === "folder" && (
-                <CareFileFolder
-                  index={index}
-                  key={file.key}
-                  folderName={file.value}
-                  folderKey={file.key}
-                  carePlan={file.carePlan}
-                  description={file.description}
-                  forms={file.forms}
-                  preAddissionState={preAddissionState}
-                  residentId={residentId}
-                />
-              )
-          )}
-        </TabsContent>
-        <TabsContent value="to-do">
-          Not done the care files for the resident.
-        </TabsContent>
-        <TabsContent value="done">
-          Done the care files for the resident.
-        </TabsContent>
-      </Tabs>
+      <div className="flex flex-col max-w-md">
+        {careFiles.map(
+          (file, index) =>
+            file.type === "folder" && (
+              <CareFileFolder
+                index={index}
+                key={file.key}
+                folderName={file.value}
+                folderKey={file.key}
+                carePlan={file.carePlan}
+                description={file.description}
+                forms={file.forms}
+                preAddissionState={preAddissionState}
+                residentId={residentId}
+              />
+            )
+        )}
+      </div>
     </div>
   );
 }

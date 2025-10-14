@@ -68,6 +68,12 @@ export default function CarePlanDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [dateWrittenPopoverOpen, setDateWrittenPopoverOpen] = useState(false);
+  const [reviewDatePopoverOpen, setReviewDatePopoverOpen] = useState(false);
+  const [plannedCareDatePopovers, setPlannedCareDatePopovers] = useState<
+    Record<number, boolean>
+  >({});
 
   const submitAssessment = useMutation(
     api.careFiles.carePlan.submitCarePlanAssessment
@@ -87,7 +93,14 @@ export default function CarePlanDialog({
           residentName:
             initialData.residentName ||
             `${resident.firstName} ${resident.lastName}`,
-          dob: initialData.dob || new Date(resident.dateOfBirth).getTime(),
+          dob:
+            typeof initialData.dob === "number"
+              ? initialData.dob
+              : typeof resident.dateOfBirth === "number"
+                ? resident.dateOfBirth
+                : resident.dateOfBirth
+                  ? new Date(resident.dateOfBirth).getTime()
+                  : Date.now(),
           bedroomNumber: initialData.bedroomNumber || resident.roomNumber || "",
           writtenBy: isEditMode ? userName : initialData.writtenBy || userName,
           dateWritten: initialData.dateWritten || Date.now(),
@@ -114,7 +127,13 @@ export default function CarePlanDialog({
           residentName: resident
             ? `${resident.firstName} ${resident.lastName}`
             : "",
-          dob: resident ? new Date(resident.dateOfBirth).getTime() : Date.now(),
+          dob: resident
+            ? typeof resident.dateOfBirth === "number"
+              ? resident.dateOfBirth
+              : resident.dateOfBirth
+                ? new Date(resident.dateOfBirth).getTime()
+                : Date.now()
+            : Date.now(),
           bedroomNumber: resident?.roomNumber || "",
           writtenBy: userName,
           dateWritten: Date.now(),
@@ -185,6 +204,12 @@ export default function CarePlanDialog({
   const handleNextStep = async () => {
     let isValid = false;
 
+    // Close all date popovers when moving between steps
+    setDobPopoverOpen(false);
+    setDateWrittenPopoverOpen(false);
+    setReviewDatePopoverOpen(false);
+    setPlannedCareDatePopovers({});
+
     if (step === 1) {
       const fieldsToValidate = [
         "nameOfCarePlan",
@@ -235,6 +260,12 @@ export default function CarePlanDialog({
   };
 
   const handlePreviousStep = () => {
+    // Close all date popovers when moving between steps
+    setDobPopoverOpen(false);
+    setDateWrittenPopoverOpen(false);
+    setReviewDatePopoverOpen(false);
+    setPlannedCareDatePopovers({});
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -301,7 +332,11 @@ export default function CarePlanDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date of Birth</FormLabel>
-                    <Popover>
+                    <Popover
+                      modal
+                      open={dobPopoverOpen}
+                      onOpenChange={setDobPopoverOpen}
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -322,11 +357,17 @@ export default function CarePlanDialog({
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
+                          captionLayout="dropdown"
                           mode="single"
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.getTime());
+                              setDobPopoverOpen(false);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -390,7 +431,11 @@ export default function CarePlanDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date Written</FormLabel>
-                    <Popover>
+                    <Popover
+                      modal
+                      open={dateWrittenPopoverOpen}
+                      onOpenChange={setDateWrittenPopoverOpen}
+                    >
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -411,13 +456,18 @@ export default function CarePlanDialog({
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
+                          captionLayout="dropdown"
                           mode="single"
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.getTime());
+                              setDateWrittenPopoverOpen(false);
+                            }
+                          }}
                           disabled={(date) => date < new Date("1900-01-01")}
-                          initialFocus
                         />
                       </PopoverContent>
                     </Popover>
@@ -514,7 +564,16 @@ export default function CarePlanDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel required>Date</FormLabel>
-                          <Popover>
+                          <Popover
+                            modal
+                            open={plannedCareDatePopovers[index] || false}
+                            onOpenChange={(open) =>
+                              setPlannedCareDatePopovers((prev) => ({
+                                ...prev,
+                                [index]: open
+                              }))
+                            }
+                          >
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
@@ -538,19 +597,25 @@ export default function CarePlanDialog({
                               align="start"
                             >
                               <Calendar
+                                captionLayout="dropdown"
                                 mode="single"
                                 selected={
                                   field.value
                                     ? new Date(field.value)
                                     : undefined
                                 }
-                                onSelect={(date) =>
-                                  field.onChange(date?.getTime())
-                                }
+                                onSelect={(date) => {
+                                  if (date) {
+                                    field.onChange(date.getTime());
+                                    setPlannedCareDatePopovers((prev) => ({
+                                      ...prev,
+                                      [index]: false
+                                    }));
+                                  }
+                                }}
                                 disabled={(date) =>
                                   date < new Date("1900-01-01")
                                 }
-                                initialFocus
                               />
                             </PopoverContent>
                           </Popover>
@@ -676,7 +741,11 @@ export default function CarePlanDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Review Date</FormLabel>
-                  <Popover>
+                  <Popover
+                    modal
+                    open={reviewDatePopoverOpen}
+                    onOpenChange={setReviewDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -697,13 +766,18 @@ export default function CarePlanDialog({
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
+                        captionLayout="dropdown"
                         mode="single"
                         selected={
                           field.value ? new Date(field.value) : undefined
                         }
-                        onSelect={(date) => field.onChange(date?.getTime())}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(date.getTime());
+                            setReviewDatePopoverOpen(false);
+                          }
+                        }}
                         disabled={(date) => date < new Date("1900-01-01")}
-                        initialFocus
                       />
                     </PopoverContent>
                   </Popover>
