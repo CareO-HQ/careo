@@ -2353,5 +2353,75 @@ export default defineSchema({
     .index("byOrganization", ["organizationId"])
     .index("byTeam", ["teamId"])
     .index("byCreatedBy", ["createdBy"])
-    .index("byNoteDate", ["noteDate"])
+    .index("byNoteDate", ["noteDate"]),
+
+  // Night Check Configurations
+  nightCheckConfigurations: defineTable({
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    checkType: v.union(
+      v.literal("night_check"),
+      v.literal("positioning"),
+      v.literal("pad_change"),
+      v.literal("bed_rails"),
+      v.literal("environmental"),
+      v.literal("night_note"),
+      v.literal("cleaning")
+    ),
+
+    frequencyMinutes: v.optional(v.number()),
+    selectedItems: v.optional(v.array(v.string())),
+
+    isActive: v.boolean(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_resident_active", ["residentId", "isActive"])
+    .index("by_check_type", ["checkType"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  // Night Check Recordings
+  nightCheckRecordings: defineTable({
+    configurationId: v.id("nightCheckConfigurations"),
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    checkType: v.union(
+      v.literal("night_check"),
+      v.literal("positioning"),
+      v.literal("pad_change"),
+      v.literal("bed_rails"),
+      v.literal("environmental"),
+      v.literal("night_note"),
+      v.literal("cleaning")
+    ),
+
+    recordDate: v.string(),
+    recordTime: v.string(),
+    recordDateTime: v.number(),
+
+    checkData: v.any(),
+
+    notes: v.optional(v.string()),
+    recordedBy: v.string(),
+    recordedByName: v.string(),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_resident_date", ["residentId", "recordDate"])
+    .index("by_configuration", ["configurationId"])
+    .index("by_check_type", ["checkType"])
+    .index("by_date_time", ["recordDateTime"])
+    .index("by_recorded_by", ["recordedBy"])
+    .index("by_team_date", ["teamId", "recordDate"])
+    .index("by_organization_date", ["organizationId", "recordDate"])
 });
