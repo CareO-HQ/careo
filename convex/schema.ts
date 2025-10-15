@@ -1,18 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { managerAuditsValidator } from "./schemas/managerAudits";
 import {
-  admissionAssesments,
-  movingHandlingAssessments,
-  longTermFallsRiskAssessments,
-  photographyConsents,
+  dependencyAssessments,
   dnacprs,
   peeps,
-  dependencyAssessments,
-  timlAssessments,
+  photographyConsents,
+  residentValuablesAssessments,
   skinIntegrityAssessments,
-  residentValuablesAssessments
+  timlAssessments
 } from "./schemas/carefiles";
+import { managerAuditsValidator } from "./schemas/managerAudits";
 
 const TaskStatus = v.union(
   v.literal("pending"),
@@ -1573,6 +1570,7 @@ export default defineSchema({
 
   carePlanAssessments: defineTable({
     residentId: v.id("residents"),
+    previousCarePlanId: v.optional(v.id("carePlanAssessments")),
 
     userId: v.string(),
 
@@ -2062,37 +2060,53 @@ export default defineSchema({
 
         // Report data (from handover.getHandoverReport)
         foodIntakeCount: v.number(),
-        foodIntakeLogs: v.optional(v.array(v.object({
-          id: v.string(),
-          typeOfFoodDrink: v.optional(v.string()),
-          amountEaten: v.optional(v.string()),
-          section: v.optional(v.string()),
-          timestamp: v.number(),
-        }))),
+        foodIntakeLogs: v.optional(
+          v.array(
+            v.object({
+              id: v.string(),
+              typeOfFoodDrink: v.optional(v.string()),
+              amountEaten: v.optional(v.string()),
+              section: v.optional(v.string()),
+              timestamp: v.number()
+            })
+          )
+        ),
         totalFluid: v.number(),
-        fluidLogs: v.optional(v.array(v.object({
-          id: v.string(),
-          typeOfFoodDrink: v.optional(v.string()),
-          fluidConsumedMl: v.optional(v.number()),
-          section: v.optional(v.string()),
-          timestamp: v.number(),
-        }))),
+        fluidLogs: v.optional(
+          v.array(
+            v.object({
+              id: v.string(),
+              typeOfFoodDrink: v.optional(v.string()),
+              fluidConsumedMl: v.optional(v.number()),
+              section: v.optional(v.string()),
+              timestamp: v.number()
+            })
+          )
+        ),
         incidentCount: v.number(),
-        incidents: v.optional(v.array(v.object({
-          id: v.string(),
-          type: v.array(v.string()),
-          level: v.optional(v.string()),
-          time: v.optional(v.string()),
-        }))),
+        incidents: v.optional(
+          v.array(
+            v.object({
+              id: v.string(),
+              type: v.array(v.string()),
+              level: v.optional(v.string()),
+              time: v.optional(v.string())
+            })
+          )
+        ),
         hospitalTransferCount: v.number(),
-        hospitalTransfers: v.optional(v.array(v.object({
-          id: v.string(),
-          hospitalName: v.optional(v.string()),
-          reason: v.optional(v.string()),
-        }))),
+        hospitalTransfers: v.optional(
+          v.array(
+            v.object({
+              id: v.string(),
+              hospitalName: v.optional(v.string()),
+              reason: v.optional(v.string())
+            })
+          )
+        ),
 
         // Comments from handover sheet
-        comments: v.optional(v.string()),
+        comments: v.optional(v.string())
       })
     ),
 
@@ -2102,7 +2116,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
     updatedBy: v.optional(v.string()),
-    updatedByName: v.optional(v.string()),
+    updatedByName: v.optional(v.string())
   })
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"])
@@ -2123,7 +2137,7 @@ export default defineSchema({
     createdBy: v.string(), // User ID
     createdByName: v.string(),
     createdAt: v.number(),
-    updatedAt: v.number(),
+    updatedAt: v.number()
   })
     .index("by_team_date_shift", ["teamId", "date", "shift"])
     .index("by_resident_date", ["residentId", "date"])

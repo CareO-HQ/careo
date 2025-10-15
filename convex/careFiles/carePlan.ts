@@ -184,6 +184,82 @@ export const updateCarePlanAssessment = mutation({
 });
 
 /**
+ * Create a new version of a care plan, linking to the previous version
+ */
+export const createNewCarePlanVersion = mutation({
+  args: {
+    previousCarePlanId: v.id("carePlanAssessments"),
+
+    // Updated care plan details
+    identifiedNeeds: v.string(),
+    aims: v.string(),
+
+    // Planned care entries
+    plannedCareDate: v.array(
+      v.object({
+        date: v.number(),
+        time: v.optional(v.string()),
+        details: v.string(),
+        signature: v.string()
+      })
+    ),
+
+    // Metadata
+    userId: v.string(),
+    writtenBy: v.string()
+  },
+  returns: v.id("carePlanAssessments"),
+  handler: async (ctx, args) => {
+    const { previousCarePlanId, ...updateData } = args;
+
+    // Get the previous care plan
+    const previousCarePlan = await ctx.db.get(previousCarePlanId);
+    if (!previousCarePlan) {
+      throw new Error("Previous care plan not found");
+    }
+
+    // Create new care plan with updated data
+    const newCarePlanId = await ctx.db.insert("carePlanAssessments", {
+      // Copy basic info from previous care plan
+      residentId: previousCarePlan.residentId,
+      residentName: previousCarePlan.residentName,
+      dob: previousCarePlan.dob,
+      bedroomNumber: previousCarePlan.bedroomNumber,
+      nameOfCarePlan: previousCarePlan.nameOfCarePlan,
+      carePlanNumber: previousCarePlan.carePlanNumber,
+      folderKey: previousCarePlan.folderKey,
+
+      // Updated info
+      userId: updateData.userId,
+      writtenBy: updateData.writtenBy,
+      dateWritten: Date.now(),
+      date: Date.now(),
+
+      // Updated care plan content
+      identifiedNeeds: updateData.identifiedNeeds,
+      aims: updateData.aims,
+      plannedCareDate: updateData.plannedCareDate,
+
+      // Link to previous version
+      previousCarePlanId: previousCarePlanId,
+
+      // Metadata
+      status: "submitted" as const,
+      submittedAt: Date.now()
+    });
+
+    // Schedule PDF generation
+    await ctx.scheduler.runAfter(
+      1000,
+      internal.careFiles.carePlan.generatePDFAndUpdateRecord,
+      { assessmentId: newCarePlanId }
+    );
+
+    return newCarePlanId;
+  }
+});
+
+/**
  * Generate PDF and update the record with the file ID
  */
 export const generatePDFAndUpdateRecord = internalAction({

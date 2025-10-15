@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -5,16 +7,15 @@ import {
   SheetHeader,
   SheetTitle
 } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { format } from "date-fns";
-import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 export default function CarePlanSheetContent({
   open,
@@ -36,7 +37,17 @@ export default function CarePlanSheetContent({
     assessmentId: carePlan.formId as Id<"carePlanAssessments">
   });
 
-  // State for managing planned care entries
+  // Get current user
+  const { data: currentUser } = authClient.useSession();
+
+  // Mutation for creating new care plan version
+  const createNewVersion = useMutation(
+    api.careFiles.carePlan.createNewCarePlanVersion
+  );
+
+  // State for managing form data
+  const [aims, setAims] = useState("");
+  const [identifiedNeeds, setIdentifiedNeeds] = useState("");
   const [plannedCareEntries, setPlannedCareEntries] = useState<
     Array<{
       date: number;
@@ -45,11 +56,14 @@ export default function CarePlanSheetContent({
       signature: string;
     }>
   >([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize planned care entries when data loads
+  // Initialize form data when care plan loads
   useEffect(() => {
-    if (carePlanData?.plannedCareDate) {
-      setPlannedCareEntries(carePlanData.plannedCareDate);
+    if (carePlanData) {
+      setAims(carePlanData.aims || "");
+      setIdentifiedNeeds(carePlanData.identifiedNeeds || "");
+      setPlannedCareEntries(carePlanData.plannedCareDate || []);
     }
   }, [carePlanData]);
 
@@ -86,6 +100,57 @@ export default function CarePlanSheetContent({
   // Delete planned care entry
   const handleDeleteEntry = (index: number) => {
     setPlannedCareEntries(plannedCareEntries.filter((_, i) => i !== index));
+  };
+
+  // Handle updating care plan (creates new version)
+  const handleUpdateCarePlan = async () => {
+    if (!currentUser?.user?.id || !currentUser?.user?.name) {
+      toast.error("User information not available");
+      return;
+    }
+
+    if (!identifiedNeeds.trim() || !aims.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (plannedCareEntries.length === 0) {
+      toast.error("Please add at least one planned care entry");
+      return;
+    }
+
+    // Validate planned care entries
+    for (const entry of plannedCareEntries) {
+      if (!entry.details.trim() || !entry.signature.trim()) {
+        toast.error("All planned care entries must have details and signature");
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await createNewVersion({
+        previousCarePlanId: carePlan.formId as Id<"carePlanAssessments">,
+        identifiedNeeds: identifiedNeeds.trim(),
+        aims: aims.trim(),
+        plannedCareDate: plannedCareEntries,
+        userId: currentUser.user.id,
+        writtenBy: currentUser.user.name
+      });
+
+      toast.success(
+        "Care plan updated successfully! A new version has been created."
+      );
+
+      // Close the sheet after successful update
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error updating care plan:", error);
+      toast.error("Failed to update care plan. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!carePlanData) {
@@ -138,10 +203,12 @@ export default function CarePlanSheetContent({
                     {format(new Date(carePlanData.dateWritten), "dd MMM yyyy")}
                   </span>
                 </div>
-                <div className="text-orange-500 text-xs italic w-full bg-orange-50 px-2 py-1 rounded-md mt-1">
-                  Previous versions of this care plan can be found under
-                  documentation.
-                </div>
+                {carePlanData.previousCarePlanId && (
+                  <div className="text-orange-500 text-xs italic w-full bg-orange-50 px-2 py-1 rounded-md mt-1">
+                    Previous versions of this care plan can be found under
+                    documentation.
+                  </div>
+                )}
               </SheetDescription>
             </div>
           </div>
@@ -181,7 +248,12 @@ export default function CarePlanSheetContent({
               <p className="text-muted-foreground text-sm font-medium">Aims</p>
             </div>
             <div className="flex flex-col justify-start items-start gap-1">
-              <Textarea value={carePlanData.aims} className="w-full" readOnly />
+              <Textarea
+                value={aims}
+                onChange={(e) => setAims(e.target.value)}
+                className="w-full"
+                placeholder="Enter care plan aims..."
+              />
             </div>
 
             {/* Identified Needs */}
@@ -192,8 +264,10 @@ export default function CarePlanSheetContent({
             </div>
             <div className="flex flex-col justify-start items-start gap-1">
               <Textarea
-                defaultValue={carePlanData.identifiedNeeds}
+                value={identifiedNeeds}
+                onChange={(e) => setIdentifiedNeeds(e.target.value)}
                 className="w-full"
+                placeholder="Enter identified needs..."
               />
             </div>
 
@@ -303,7 +377,13 @@ export default function CarePlanSheetContent({
               )}
             </div>
 
-            <Button className="mt-4">Update Care Plan</Button>
+            <Button
+              className="mt-4"
+              onClick={handleUpdateCarePlan}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Updating..." : "Update Care Plan"}
+            </Button>
           </div>
         </div>
       </SheetContent>
