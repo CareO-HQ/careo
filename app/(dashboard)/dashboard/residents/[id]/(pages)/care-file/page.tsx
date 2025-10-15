@@ -1,6 +1,7 @@
 "use client";
 
 import CareFileFolder from "@/components/residents/carefile/folders/CareFileFolder";
+import CareFileSidebar from "@/components/residents/carefile/folders/CareFileSidebar";
 import { Button } from "@/components/ui/button";
 import { config } from "@/config";
 import { api } from "@/convex/_generated/api";
@@ -8,9 +9,18 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
 import { DownloadIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export default function CareFilePage() {
   const careFiles = config.careFiles;
+  const [selectedFolder, setSelectedFolder] = useState<{
+    index: number;
+    folderName: string;
+    folderKey: string;
+    carePlan: boolean;
+    description: string;
+    forms: { type: string; key: string; value: string }[] | undefined;
+  } | null>(null);
 
   const path = usePathname();
   const pathname = path.split("/");
@@ -24,37 +34,60 @@ export default function CareFilePage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-row justify-between items-center">
-        <div className="flex flex-col">
-          <p className="font-semibold text-xl">Care File</p>
-          <p className="text-sm text-muted-foreground">
-            Create and manage the care files for the resident.
-          </p>
+    <div className="flex gap-4 h-full">
+      {/* Left side - Folder list */}
+      <div className="flex flex-col gap-4 flex-1">
+        <div className="flex flex-row justify-between items-center">
+          <div className="flex flex-col">
+            <p className="font-semibold text-xl">Care File</p>
+            <p className="text-sm text-muted-foreground">
+              Create and manage the care files for the resident.
+            </p>
+          </div>
+          <Button variant="ghost" disabled>
+            <DownloadIcon />
+            Download all files
+          </Button>
         </div>
-        <Button variant="ghost" disabled>
-          <DownloadIcon />
-          Download all files
-        </Button>
+        <div className="flex flex-col max-w-md">
+          {careFiles.map(
+            (file, index) =>
+              file.type === "folder" && (
+                <CareFileFolder
+                  index={index}
+                  key={file.key}
+                  folderName={file.value}
+                  folderKey={file.key}
+                  carePlan={file.carePlan}
+                  description={file.description}
+                  forms={file.forms}
+                  preAddissionState={preAddissionState}
+                  residentId={residentId}
+                  onFolderClick={() =>
+                    setSelectedFolder({
+                      index,
+                      folderName: file.value,
+                      folderKey: file.key,
+                      carePlan: file.carePlan,
+                      description: file.description,
+                      forms: file.forms
+                    })
+                  }
+                  isSelected={selectedFolder?.folderKey === file.key}
+                />
+              )
+          )}
+        </div>
       </div>
-      <div className="flex flex-col max-w-md">
-        {careFiles.map(
-          (file, index) =>
-            file.type === "folder" && (
-              <CareFileFolder
-                index={index}
-                key={file.key}
-                folderName={file.value}
-                folderKey={file.key}
-                carePlan={file.carePlan}
-                description={file.description}
-                forms={file.forms}
-                preAddissionState={preAddissionState}
-                residentId={residentId}
-              />
-            )
-        )}
-      </div>
+
+      {/* Right side - Persistent sidebar */}
+      {selectedFolder && (
+        <CareFileSidebar
+          {...selectedFolder}
+          residentId={residentId}
+          onClose={() => setSelectedFolder(null)}
+        />
+      )}
     </div>
   );
 }

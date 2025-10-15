@@ -294,3 +294,173 @@ export const getPDFUrl = query({
     return `${baseUrl}/api/pdf/care-plan?assessmentId=${args.assessmentId}`;
   }
 });
+
+/**
+ * Create dummy care plan assessments for testing
+ */
+export const createDummyCarePlans = mutation({
+  args: {
+    residentId: v.id("residents"),
+    folderKey: v.string(),
+    userId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const resident = await ctx.db.get(args.residentId);
+    if (!resident) {
+      throw new Error("Resident not found");
+    }
+
+    const dummyCarePlans = [
+      {
+        nameOfCarePlan: "Mobility and Falls Prevention",
+        identifiedNeeds: "Resident requires assistance with mobilisation due to reduced strength in lower limbs. History of falls.",
+        aims: "Maintain current mobility level, prevent falls, increase confidence in walking with appropriate aids.",
+        plannedCareDate: [
+          {
+            date: Date.now() - 7 * 24 * 60 * 60 * 1000,
+            time: "09:00",
+            details: "Physiotherapy exercises - leg strengthening, 15 minutes daily",
+            signature: "J. Smith"
+          },
+          {
+            date: Date.now() - 5 * 24 * 60 * 60 * 1000,
+            time: "14:00",
+            details: "Walking practice with zimmer frame in corridor",
+            signature: "M. Jones"
+          },
+          {
+            date: Date.now() - 2 * 24 * 60 * 60 * 1000,
+            time: "10:00",
+            details: "Review mobility equipment for suitability",
+            signature: "A. Williams"
+          }
+        ]
+      },
+      {
+        nameOfCarePlan: "Nutrition and Hydration",
+        identifiedNeeds: "Resident has poor appetite and reduced fluid intake. Weight loss of 3kg in last month. Risk of dehydration and malnutrition.",
+        aims: "Improve nutritional intake, maintain adequate hydration, monitor weight weekly, achieve weight stabilisation.",
+        plannedCareDate: [
+          {
+            date: Date.now() - 6 * 24 * 60 * 60 * 1000,
+            time: "08:00",
+            details: "Fortified breakfast with supplement drink. Record intake.",
+            signature: "L. Brown"
+          },
+          {
+            date: Date.now() - 4 * 24 * 60 * 60 * 1000,
+            time: "12:00",
+            details: "Offer preferred meals - smaller portions more frequently",
+            signature: "K. Taylor"
+          },
+          {
+            date: Date.now() - 1 * 24 * 60 * 60 * 1000,
+            time: "Throughout day",
+            details: "Fluid monitoring - encourage 1500ml daily. Use preferred beverages.",
+            signature: "P. Davis"
+          }
+        ]
+      },
+      {
+        nameOfCarePlan: "Personal Care and Dignity",
+        identifiedNeeds: "Resident requires full assistance with personal care. Sensitive about maintaining dignity and privacy.",
+        aims: "Provide compassionate personal care while maintaining dignity, encourage independence where possible, respect privacy preferences.",
+        plannedCareDate: [
+          {
+            date: Date.now() - 8 * 24 * 60 * 60 * 1000,
+            time: "07:30",
+            details: "Morning wash - ensure door closed, explain each step, allow choices on clothing",
+            signature: "R. Wilson"
+          },
+          {
+            date: Date.now() - 3 * 24 * 60 * 60 * 1000,
+            time: "20:00",
+            details: "Evening routine - respect preferred bedtime, assist with night attire",
+            signature: "S. Anderson"
+          }
+        ]
+      },
+      {
+        nameOfCarePlan: "Medication Management",
+        identifiedNeeds: "Resident on multiple medications for chronic conditions. Requires administration support and monitoring for side effects.",
+        aims: "Ensure safe medication administration, monitor effectiveness and side effects, maintain accurate records.",
+        plannedCareDate: [
+          {
+            date: Date.now() - 9 * 24 * 60 * 60 * 1000,
+            time: "08:00 & 20:00",
+            details: "Administer prescribed medications with food. Check for any adverse reactions.",
+            signature: "T. Martin"
+          },
+          {
+            date: Date.now() - 4 * 24 * 60 * 60 * 1000,
+            time: "As needed",
+            details: "Monitor blood pressure weekly. Report any readings outside normal range.",
+            signature: "N. Clark"
+          }
+        ]
+      },
+      {
+        nameOfCarePlan: "Social and Emotional Wellbeing",
+        identifiedNeeds: "Resident showing signs of low mood and social isolation. Previously enjoyed arts and crafts, visiting with family.",
+        aims: "Improve mood and engagement, facilitate family contact, encourage participation in activities, reduce feelings of loneliness.",
+        plannedCareDate: [
+          {
+            date: Date.now() - 10 * 24 * 60 * 60 * 1000,
+            time: "10:00",
+            details: "Invite to arts and crafts session in lounge. One-to-one support if needed.",
+            signature: "E. Roberts"
+          },
+          {
+            date: Date.now() - 6 * 24 * 60 * 60 * 1000,
+            time: "15:00",
+            details: "Arrange video call with family members. Assist with technology.",
+            signature: "H. Thomas"
+          },
+          {
+            date: Date.now() - 2 * 24 * 60 * 60 * 1000,
+            time: "Daily",
+            details: "Spend 15 minutes chatting about interests, look at photo albums together",
+            signature: "C. Walker"
+          }
+        ]
+      }
+    ];
+
+    const createdIds = [];
+
+    for (const plan of dummyCarePlans) {
+      const carePlanId = await ctx.db.insert("carePlanAssessments", {
+        residentId: args.residentId,
+        userId: args.userId,
+        folderKey: args.folderKey,
+        nameOfCarePlan: plan.nameOfCarePlan,
+        residentName: resident.fullName,
+        dob: resident.dob,
+        bedroomNumber: resident.roomNumber || "N/A",
+        writtenBy: "Dr. Sarah Thompson",
+        dateWritten: Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000,
+        carePlanNumber: `CP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        identifiedNeeds: plan.identifiedNeeds,
+        aims: plan.aims,
+        plannedCareDate: plan.plannedCareDate,
+        discussedWith: "Resident and family representative",
+        signature: resident.fullName,
+        date: Date.now(),
+        staffSignature: "Dr. Sarah Thompson",
+        status: "submitted" as const,
+        submittedAt: Date.now() - Math.random() * 20 * 24 * 60 * 60 * 1000
+      });
+
+      createdIds.push(carePlanId);
+
+      // Schedule PDF generation
+      await ctx.scheduler.runAfter(
+        1000,
+        internal.careFiles.carePlan.generatePDFAndUpdateRecord,
+        { assessmentId: carePlanId }
+      );
+    }
+
+    return createdIds;
+  }
+});
