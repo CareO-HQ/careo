@@ -46,6 +46,7 @@ interface CareFileSidebarProps {
     | undefined;
   residentId: Id<"residents">;
   onClose: () => void;
+  onCarePlanClick: (carePlan: { name: string; date: number }) => void;
 }
 
 export default function CareFileSidebar({
@@ -56,7 +57,8 @@ export default function CareFileSidebar({
   description,
   forms,
   residentId,
-  onClose
+  onClose,
+  onCarePlanClick
 }: CareFileSidebarProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
@@ -642,7 +644,8 @@ export default function CareFileSidebar({
                   ].map((dummyPlan, index) => (
                     <div
                       key={`dummy-${index}`}
-                      className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-2 py-2 border"
+                      className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-2 py-2 border cursor-pointer"
+                      onClick={() => onCarePlanClick(dummyPlan)}
                     >
                       <div className="flex-1 flex items-center gap-2">
                         <div className="bg-red-50 rounded-md">
@@ -677,7 +680,7 @@ export default function CareFileSidebar({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <CarePlanEvaluationDialog />
                         <DownloadIcon className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer opacity-50" />
                       </div>
