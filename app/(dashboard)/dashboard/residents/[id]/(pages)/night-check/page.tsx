@@ -49,6 +49,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Moon,
@@ -104,6 +105,13 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   // Fetch night check configurations for this resident
   const nightCheckConfigs = useQuery(api.nightCheckConfigurations.getByResident, {
     residentId: id as Id<"residents">
+  });
+
+  // Fetch today's recordings for this resident
+  const todayDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const todayRecordings = useQuery(api.nightCheckRecordings.getByResidentAndDate, {
+    residentId: id as Id<"residents">,
+    recordDate: todayDate,
   });
 
   // Mutations
@@ -165,6 +173,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const [dialogType, setDialogType] = React.useState<
     "night_check" | "positioning" | "pad_change" | "bed_rails" | "environmental" | "night_note" | "cleaning"
   >("night_check");
+  const [activeTab, setActiveTab] = React.useState<string>("all");
 
   // State for resident's night check items
   const [nightCheckItems, setNightCheckItems] = React.useState<Array<{
@@ -484,7 +493,9 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
   const addCustomEquipment = () => {
     if (customEquipmentInput.trim()) {
-      setCustomEquipmentList(prev => [...prev, customEquipmentInput.trim()]);
+      const newItem = customEquipmentInput.trim();
+      setCustomEquipmentList(prev => [...prev, newItem]);
+      setSelectedEquipment(prev => [...prev, newItem]); // Auto-select the newly added item
       setCustomEquipmentInput("");
       setShowCustomEquipmentInput(false);
       toast.success("Custom equipment item added");
@@ -493,7 +504,9 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
   const addCustomEnvironmentalItem = () => {
     if (customEnvironmentalInput.trim()) {
-      setCustomEnvironmentalList(prev => [...prev, customEnvironmentalInput.trim()]);
+      const newItem = customEnvironmentalInput.trim();
+      setCustomEnvironmentalList(prev => [...prev, newItem]);
+      setSelectedEnvironmentalItems(prev => [...prev, newItem]); // Auto-select the newly added item
       setCustomEnvironmentalInput("");
       setShowCustomEnvironmentalInput(false);
       toast.success("Custom environmental item added");
@@ -552,7 +565,9 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
   const addCustomCleaningItem = () => {
     if (customCleaningInput.trim()) {
-      setCustomCleaningList(prev => [...prev, customCleaningInput.trim()]);
+      const newItem = customCleaningInput.trim();
+      setCustomCleaningList(prev => [...prev, newItem]);
+      setSelectedCleaningItems(prev => [...prev, newItem]); // Auto-select the newly added item
       setCustomCleaningInput("");
       setShowCustomCleaningInput(false);
       toast.success("Custom cleaning item added");
@@ -918,10 +933,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
             <div className="flex flex-col space-y-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="bg-blue-600 hover:bg-blue-700 text-white w-full"
-                  >
+                  <Button variant="outline" className="w-full">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Night Checks
                     <ChevronDown className="w-4 h-4 ml-2" />
@@ -1032,10 +1044,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
-                  >
+                  <Button variant="outline">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Night Checks
                     <ChevronDown className="w-4 h-4 ml-2" />
@@ -1116,7 +1125,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
       </Card>
 
       {/* Night Check Recording - Shows added items */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Moon className="w-5 h-5 text-blue-600" />
@@ -1187,7 +1196,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
       </Card>
 
       {/* Today's Night Checks */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Clock className="w-5 h-5 text-gray-600" />
@@ -1198,18 +1207,104 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Mock data - replace with actual query results */}
-          <div className="text-center py-8">
-            <div className="flex justify-center mb-4">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Moon className="w-8 h-8 text-blue-600" />
-              </div>
-            </div>
-            <p className="text-gray-600 font-medium mb-2">No night checks recorded yet</p>
-            <p className="text-sm text-gray-500">
-              Start recording {fullName}&apos;s night checks using the button above
-            </p>
-          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+              <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+              <TabsTrigger value="night_check" className="text-xs">Night Check</TabsTrigger>
+              <TabsTrigger value="positioning" className="text-xs">Positioning</TabsTrigger>
+              <TabsTrigger value="pad_change" className="text-xs">Pad Change</TabsTrigger>
+              <TabsTrigger value="bed_rails" className="text-xs">Bed Rails</TabsTrigger>
+              <TabsTrigger value="environmental" className="text-xs">Environmental</TabsTrigger>
+              <TabsTrigger value="night_note" className="text-xs">Night Note</TabsTrigger>
+              <TabsTrigger value="cleaning" className="text-xs">Cleaning</TabsTrigger>
+            </TabsList>
+
+            {["all", "night_check", "positioning", "pad_change", "bed_rails", "environmental", "night_note", "cleaning"].map((tabValue) => {
+              const filteredRecordings = tabValue === "all"
+                ? todayRecordings
+                : todayRecordings?.filter(r => r.checkType === tabValue);
+
+              return (
+                <TabsContent key={tabValue} value={tabValue} className="mt-4">
+                  {!filteredRecordings || filteredRecordings.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="flex justify-center mb-4">
+                        <div className="p-3 bg-blue-100 rounded-full">
+                          <Moon className="w-8 h-8 text-blue-600" />
+                        </div>
+                      </div>
+                      <p className="text-gray-600 font-medium mb-2">
+                        {tabValue === "all" ? "No night checks recorded yet" : `No ${tabValue.replace('_', ' ')} checks recorded yet`}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Start recording {fullName}&apos;s night checks using the buttons above
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredRecordings.map((recording) => {
+                        const typeLabels: Record<string, string> = {
+                          night_check: "Night Check",
+                          positioning: "Positioning",
+                          pad_change: "Pad Change",
+                          bed_rails: "Bed Rails Check",
+                          environmental: "Environmental Check",
+                          night_note: "Night Note",
+                          cleaning: "Cleaning"
+                        };
+
+                        // Get items based on check type
+                        let itemsList: string[] = [];
+                        if (recording.checkType === "environmental" && recording.checkData?.items_checked) {
+                          itemsList = recording.checkData.items_checked;
+                        } else if (recording.checkType === "bed_rails" && recording.checkData?.equipment_checked) {
+                          itemsList = recording.checkData.equipment_checked;
+                        } else if (recording.checkType === "cleaning" && recording.checkData?.items_cleaned) {
+                          itemsList = recording.checkData.items_cleaned;
+                        }
+
+                        const itemLabels: Record<string, string> = {
+                          // Environmental items
+                          window: "Window",
+                          curtains: "Curtains",
+                          door: "Door",
+                          temperature: "Temperature",
+                          // Equipment items
+                          bed_rails: "Bed Rails",
+                          oxygen: "Oxygen Equipment",
+                          air_bed: "Air Bed / Pressure Mattress",
+                          call_bell: "Call Bell",
+                          monitor: "Monitor/Sensors",
+                          mobility_aids: "Mobility Aids",
+                          // Cleaning items
+                          bed: "Bed",
+                          floor: "Floor",
+                          bathroom: "Bathroom",
+                          surfaces: "Surfaces",
+                          bins: "Bins"
+                        };
+
+                        return (
+                          <div key={recording._id} className="text-sm border-b pb-2 last:border-b-0">
+                            <span className="font-medium">{recording.recordTime}</span>
+                            {" - "}
+                            <span className="text-muted-foreground">{typeLabels[recording.checkType] || recording.checkType}</span>
+                            {itemsList.length > 0 && (
+                              <span className="text-muted-foreground"> - Items: {itemsList.map(item => itemLabels[item] || item).join(", ")}</span>
+                            )}
+                            {recording.notes && (
+                              <span className="text-muted-foreground"> - {recording.notes}</span>
+                            )}
+                            <span className="text-xs text-muted-foreground ml-2 italic">sign by {recording.recordedByName}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+              );
+            })}
+          </Tabs>
         </CardContent>
       </Card>
 

@@ -43,6 +43,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Utensils,
@@ -132,6 +133,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
   const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(user?.user?.name || "");
   const [showLogAnotherActions, setShowLogAnotherActions] = React.useState(false);
+  const [activeHistoryTab, setActiveHistoryTab] = React.useState<string>("food");
 
 
   // Form setup
@@ -652,7 +654,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
       </Card>
 
       {/* Food & Fluid Entry Buttons */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Utensils className="w-5 h-5 text-gray-600" />
@@ -736,7 +738,7 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Today's Food & Fluid History */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -773,62 +775,36 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div id="food-fluid-history-content" className="space-y-6">
-            {/* Food History Section - TOP */}
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Utensils className="w-5 h-5 text-orange-600" />
-                <h3 className="text-lg font-semibold text-orange-900">Food Intake</h3>
-              </div>
+          <Tabs value={activeHistoryTab} onValueChange={setActiveHistoryTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="food" className="text-sm">Food</TabsTrigger>
+              <TabsTrigger value="fluid" className="text-sm">Fluid</TabsTrigger>
+            </TabsList>
+
+            {/* Food Tab */}
+            <TabsContent value="food" className="mt-4">
               {(() => {
-                // Use server-filtered foodLogs directly (no client-side filtering needed!)
                 const sortedFoodLogs = foodLogs
                   ? [...foodLogs].sort((a, b) => b.timestamp - a.timestamp)
                   : [];
 
                 return sortedFoodLogs.length > 0 ? (
-                  <div className="border border-orange-200 bg-orange-50/30 rounded-lg p-4">
-                    <div className="space-y-3">
-                      {sortedFoodLogs.map((log, index) => (
-                          <div key={log._id} className={`py-3 ${index !== sortedFoodLogs.length - 1 ? 'border-b border-orange-200' : ''}`}>
-                            <div className="flex-1">
-                              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
-                                <div className="flex items-center space-x-2">
-                                  <Utensils className="w-4 h-4 text-orange-600" />
-                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline" className="text-xs bg-white">
-                                    {getSectionDisplayName(log.section)}
-                                  </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                                        'bg-yellow-100 text-yellow-800 border-yellow-300'
-                                      }`}
-                                  >
-                                    {log.amountEaten}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="text-sm text-gray-700">
-                                <div className="flex flex-col md:flex-row md:items-center md:gap-3">
-                                  <p className="mb-1 md:mb-0">
-                                    Portion: {log.portionServed}
-                                  </p>
-                                  <p className="text-xs text-gray-600">
-                                    {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })} • Logged by {log.signature}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
+                  <div className="space-y-2">
+                    {sortedFoodLogs.map((log) => (
+                      <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
+                        <span className="font-medium">
+                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        {" - "}
+                        <span className="text-muted-foreground">{log.typeOfFoodDrink}</span>
+                        <span className="text-muted-foreground"> - Portion: {log.portionServed}</span>
+                        <span className="text-muted-foreground"> - Amount: {log.amountEaten}</span>
+                        <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -844,63 +820,34 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                   </div>
                 );
               })()}
-            </div>
+            </TabsContent>
 
-            {/* Fluid History Section - BOTTOM */}
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Droplets className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-blue-900">Fluid Intake</h3>
-              </div>
+            {/* Fluid Tab */}
+            <TabsContent value="fluid" className="mt-4">
               {(() => {
-                // Use server-filtered fluidLogs directly (no client-side filtering needed!)
                 const sortedFluidLogs = fluidLogs
                   ? [...fluidLogs].sort((a, b) => b.timestamp - a.timestamp)
                   : [];
 
                 return sortedFluidLogs.length > 0 ? (
-                  <div className="border border-blue-200 bg-blue-50/30 rounded-lg p-4">
-                    <div className="space-y-3">
-                      {sortedFluidLogs.map((log, index) => (
-                          <div key={log._id} className={`py-3 ${index !== sortedFluidLogs.length - 1 ? 'border-b border-blue-200' : ''}`}>
-                            <div className="flex-1">
-                              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-1">
-                                <div className="flex items-center space-x-2">
-                                  <Droplets className="w-4 h-4 text-blue-600" />
-                                  <span className="font-medium">{log.typeOfFoodDrink}</span>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline" className="text-xs bg-white">
-                                    {getSectionDisplayName(log.section)}
-                                  </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs ${log.amountEaten === 'All' ? 'bg-green-100 text-green-800 border-green-300' :
-                                      log.amountEaten === 'None' ? 'bg-red-100 text-red-800 border-red-300' :
-                                        'bg-yellow-100 text-yellow-800 border-yellow-300'
-                                      }`}
-                                  >
-                                    {log.amountEaten}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="text-sm text-gray-700">
-                                <div className="flex flex-col md:flex-row md:items-center md:gap-3">
-                                  <p className="mb-1 md:mb-0">
-                                    {log.fluidConsumedMl ? `Volume: ${log.fluidConsumedMl}ml` : `Portion: ${log.portionServed}`}
-                                  </p>
-                                  <p className="text-xs text-gray-600">
-                                    {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })} • Logged by {log.signature}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
+                  <div className="space-y-2">
+                    {sortedFluidLogs.map((log) => (
+                      <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
+                        <span className="font-medium">
+                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        {" - "}
+                        <span className="text-muted-foreground">{log.typeOfFoodDrink}</span>
+                        <span className="text-muted-foreground">
+                          {log.fluidConsumedMl ? ` - Volume: ${log.fluidConsumedMl}ml` : ` - Portion: ${log.portionServed}`}
+                        </span>
+                        <span className="text-muted-foreground"> - Amount: {log.amountEaten}</span>
+                        <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -916,8 +863,8 @@ export default function FoodFluidPage({ params }: { params: { id: string } }) {
                   </div>
                 );
               })()}
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

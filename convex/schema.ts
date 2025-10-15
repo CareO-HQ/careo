@@ -430,8 +430,12 @@ export default defineSchema({
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.optional(v.number())
   })
+    // ✅ OPTIMIZED: Composite indexes for scalability
     .index("by_resident_date", ["residentId", "date"])
-    .index("by_date", ["date"]),
+    .index("by_date", ["date"])
+    .index("by_resident_createdAt", ["residentId", "createdAt"])
+    .index("by_status", ["status"])
+    .index("by_created_by", ["createdBy"]),
 
   // Append-only task "events" (recommended for concurrency & audit)
   personalCareTaskEvents: defineTable({
@@ -464,7 +468,13 @@ export default defineSchema({
     payload: v.optional(v.any()),
 
     createdAt: v.number() // Date.now()
-  }).index("by_daily", ["dailyId"]),
+  })
+    // ✅ OPTIMIZED: Composite indexes for scalability
+    .index("by_daily", ["dailyId"])
+    .index("by_daily_taskType", ["dailyId", "taskType"])
+    .index("by_daily_createdAt", ["dailyId", "createdAt"])
+    .index("by_performedBy", ["performedBy"])
+    .index("by_status", ["status"]),
 
   // Diet information for residents
   dietInformation: defineTable({
