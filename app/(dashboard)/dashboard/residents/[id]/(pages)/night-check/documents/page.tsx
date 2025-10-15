@@ -47,15 +47,15 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  Activity,
+  Moon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type DailyCareDocumentsPageProps = {
+type NightCheckDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPageProps) {
+export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const residentId = id as Id<"residents">;
@@ -77,7 +77,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   const resident = useQuery(api.residents.getById, { residentId });
 
   // Use server-side pagination query
-  const paginatedData = useQuery(api.personalCare.getPaginatedDailyCareReports, {
+  const paginatedData = useQuery(api.nightCheckRecordings.getPaginatedNightCheckReports, {
     residentId,
     page: currentPage,
     pageSize: itemsPerPage,
@@ -88,13 +88,12 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
   // Get the selected report data when viewing
   const selectedReportData = useQuery(
-    api.personalCare.getDailyPersonalCare,
+    api.nightCheckRecordings.getByResidentAndDate,
     selectedReport ? {
       residentId: id as Id<"residents">,
-      date: selectedReport.date,
+      recordDate: selectedReport.date,
     } : "skip"
   );
-
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -154,7 +153,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     const headers = ["Date", "Report Type", "Status"];
     const rows = filteredReports.map(report => [
       report.date,
-      "Daily Care Report",
+      "Night Check Report",
       "Archived"
     ]);
 
@@ -168,7 +167,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `daily-care-reports-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `night-check-reports-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -183,22 +182,20 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
     const reportToDownload = selectedReportData && selectedReport?.date === report.date
       ? selectedReportData
-      : { activities: [], reportGenerated: false };
+      : [];
 
     const htmlContent = generatePDFContent({
       resident,
-      report: reportToDownload,
+      recordings: reportToDownload,
       date: report.date
     });
 
     generatePDFFromHTML(htmlContent);
-    toast.success('Daily care report will open for printing');
+    toast.success('Night check report will open for printing');
   };
 
-  const generatePDFContent = ({ resident, report, date }: { resident: any; report: any; date: string; }) => {
-    const completedCount = report.tasks?.filter((a: any) => a.status === 'completed').length || 0;
-    const totalActivities = report.tasks?.length || 0;
-    const completionRate = totalActivities > 0 ? Math.round((completedCount / totalActivities) * 100) : 0;
+  const generatePDFContent = ({ resident, recordings, date }: { resident: any; recordings: any[]; date: string; }) => {
+    const totalChecks = recordings.length;
 
     const formattedDate = new Date(date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -207,9 +204,19 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       day: 'numeric'
     });
 
+    const typeLabels: Record<string, string> = {
+      night_check: "Night Check",
+      positioning: "Positioning",
+      pad_change: "Pad Change",
+      bed_rails: "Bed Rails Check",
+      environmental: "Environmental Check",
+      night_note: "Night Note",
+      cleaning: "Cleaning"
+    };
+
     return `
       <div class="header">
-        <h1>Daily Care Report</h1>
+        <h1>Night Check Report</h1>
         <p style="color: #64748B; margin: 0;">${resident.firstName} ${resident.lastName}</p>
       </div>
 
@@ -219,26 +226,26 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <p>${formattedDate}</p>
         </div>
         <div class="info-box">
-          <h3>Total Activities</h3>
-          <p>${totalActivities}</p>
+          <h3>Total Checks</h3>
+          <p>${totalChecks}</p>
         </div>
         <div class="info-box">
-          <h3>Completion Rate</h3>
-          <p>${completionRate}%</p>
+          <h3>Room</h3>
+          <p>${resident.roomNumber || 'N/A'}</p>
         </div>
       </div>
 
       <div class="activities">
-        <h2>Activities Log</h2>
-        ${report.tasks && report.tasks.length > 0
-          ? report.tasks.map((activity: any) => `
+        <h2>Night Checks Log</h2>
+        ${recordings && recordings.length > 0
+          ? recordings.map((recording: any) => `
               <div class="activity-item">
-                <strong>${activity.taskType}</strong><br>
-                ${activity.completedAt ? `Completed: ${new Date(activity.completedAt).toLocaleTimeString()}` : 'Status: Pending'}<br>
-                ${activity.notes ? `Notes: ${activity.notes}` : ''}
+                <strong>${recording.recordTime} - ${typeLabels[recording.checkType] || recording.checkType}</strong><br>
+                ${recording.notes ? `Notes: ${recording.notes}` : ''}<br>
+                <span style="color: #64748B; font-size: 12px;">Recorded by: ${recording.recordedByName}</span>
               </div>
             `).join('')
-          : '<p>No activities logged for this day.</p>'
+          : '<p>No night checks logged for this day.</p>'
         }
       </div>
     `;
@@ -252,11 +259,11 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Daily Care Report</title>
+          <title>Night Check Report</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; }
             .header { text-align: center; margin-bottom: 20px; }
-            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+            .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
             .info-box { background: #f5f5f5; padding: 10px; border-radius: 5px; }
             .activity-item { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; }
           </style>
@@ -279,7 +286,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading daily care reports...</p>
+          <p className="mt-2 text-muted-foreground">Loading night check reports...</p>
         </div>
       </div>
     );
@@ -311,10 +318,10 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}/daily-care`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/night-check`)}
           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
         >
-          Daily Care
+          Night Check
         </Button>
         <span>/</span>
         <span className="text-foreground">All Reports</span>
@@ -325,18 +332,18 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${id}/daily-care`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/night-check`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-100 rounded-lg">
-            <Activity className="w-6 h-6 text-blue-600" />
+            <Moon className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Daily Care Reports History</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Night Check Reports History</h1>
             <p className="text-muted-foreground text-sm">
-              Complete history of daily care shift reports for {fullName}
+              Complete history of night check reports for {fullName}
             </p>
           </div>
         </div>
@@ -376,11 +383,11 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-700">Daily Reports</p>
+                <p className="text-sm font-medium text-purple-700">Night Reports</p>
                 <p className="text-2xl font-bold text-purple-900">{reportStats.total}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
-                <Activity className="w-5 h-5 text-purple-600" />
+                <Moon className="w-5 h-5 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -508,16 +515,16 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Daily Care Reports ({filteredReports.length})
+            Night Check Reports ({filteredReports.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {filteredReports.length === 0 ? (
             <div className="text-center py-12">
-              <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <Moon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No reports found</p>
               <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No daily care reports recorded yet"}
+                {searchQuery ? "Try adjusting your search criteria" : "No night check reports recorded yet"}
               </p>
             </div>
           ) : (
@@ -544,8 +551,8 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                         <TableCell>
                           {report.hasData ? (
                             <div className="flex items-center space-x-2">
-                              <Activity className="w-4 h-4 text-blue-600" />
-                              <span className="text-sm">Daily Care Report</span>
+                              <Moon className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm">Night Check Report</span>
                             </div>
                           ) : (
                             <span className="text-sm text-gray-400">-</span>
@@ -655,16 +662,16 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              Daily Care Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
+              Night Check Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
             </DialogTitle>
             <DialogDescription>
-              All activities logged for this day
+              All night checks logged for this day
             </DialogDescription>
           </DialogHeader>
           <div className={`space-y-2 ${(() => {
             if (!selectedReport) return '';
-            const activityCount = (selectedReportData?.tasks || []).length;
-            return activityCount > 2 ? 'overflow-y-auto max-h-[60vh]' : '';
+            const checkCount = (selectedReportData || []).length;
+            return checkCount > 2 ? 'overflow-y-auto max-h-[60vh]' : '';
           })()}`}>
             {selectedReportData === undefined ? (
               <div className="text-center py-8">
@@ -672,39 +679,46 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                 <p className="mt-2 text-muted-foreground">Loading report...</p>
               </div>
             ) : (() => {
-              const activities = selectedReportData?.tasks || [];
+              const recordings = selectedReportData || [];
 
-              return activities.length > 0 ? (
-                activities.map((activity: any, index: number) => (
+              const typeLabels: Record<string, string> = {
+                night_check: "Night Check",
+                positioning: "Positioning",
+                pad_change: "Pad Change",
+                bed_rails: "Bed Rails Check",
+                environmental: "Environmental Check",
+                night_note: "Night Note",
+                cleaning: "Cleaning"
+              };
+
+              return recordings.length > 0 ? (
+                recordings.map((recording: any, index: number) => (
                   <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-sm">{activity.taskType}</h4>
+                          <h4 className="font-semibold text-sm">{typeLabels[recording.checkType] || recording.checkType}</h4>
                           <Badge variant="outline" className="text-xs">
-                            {activity.status}
+                            {recording.recordTime}
                           </Badge>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {activity.createdAt ? new Date(activity.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
-                      </span>
                     </div>
 
-                    {activity.notes && (
+                    {recording.notes && (
                       <div className="text-xs text-muted-foreground mt-2">
-                        <span className="font-medium">Notes:</span> {activity.notes}
+                        <span className="font-medium">Notes:</span> {recording.notes}
                       </div>
                     )}
 
                     <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      Recorded by: {activity.payload?.primaryStaff || activity.payload?.staff || 'Unknown'}
+                      Recorded by: {recording.recordedByName}
                     </div>
                   </div>
                 ))
               ) : (
                 <p className="text-gray-500 py-8 text-center">
-                  No activities logged for this day
+                  No night checks logged for this day
                 </p>
               );
             })()}

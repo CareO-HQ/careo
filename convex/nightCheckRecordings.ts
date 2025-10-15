@@ -224,3 +224,97 @@ export const getById = query({
     return recording;
   },
 });
+
+// Get paginated night check reports for a resident
+export const getPaginatedNightCheckReports = query({
+  args: {
+    residentId: v.id("residents"),
+    page: v.number(),
+    pageSize: v.number(),
+    dateRangeFilter: v.optional(v.union(
+      v.literal("last_7"),
+      v.literal("last_30"),
+      v.literal("last_90"),
+      v.literal("all")
+    )),
+    month: v.optional(v.number()),
+    year: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Get all night check recordings with data
+    const recordings = await ctx.db
+      .query("nightCheckRecordings")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .collect();
+
+    const datesWithData = [...new Set(recordings.map(record => record.recordDate))];
+
+    if (datesWithData.length === 0) {
+      return {
+        dates: [],
+        totalCount: 0,
+        hasMore: false,
+        earliestDate: null
+      };
+    }
+
+    // UK TIMEZONE: Get current date in UK timezone (Europe/London)
+    const nowUTC = new Date();
+    const today = new Date(nowUTC.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    today.setHours(0, 0, 0, 0);
+
+    const earliestDataDate = new Date(Math.min(...datesWithData.map(d => new Date(d + 'T00:00:00Z').getTime())));
+    earliestDataDate.setHours(0, 0, 0, 0);
+
+    let startDate = earliestDataDate;
+    if (args.dateRangeFilter === "last_7") {
+      startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (args.dateRangeFilter === "last_30") {
+      startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else if (args.dateRangeFilter === "last_90") {
+      startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+    }
+
+    // Generate all dates in range
+    const allDates: Array<{ date: string; hasData: boolean }> = [];
+    const currentDate = new Date(Math.max(startDate.getTime(), earliestDataDate.getTime()));
+    currentDate.setHours(0, 0, 0, 0);
+
+    while (currentDate <= today) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+
+      // Apply month/year filters
+      let includeDate = true;
+      if (args.month !== undefined) {
+        includeDate = currentDate.getMonth() + 1 === args.month;
+      }
+      if (args.year !== undefined && includeDate) {
+        includeDate = currentDate.getFullYear() === args.year;
+      }
+
+      if (includeDate) {
+        allDates.push({
+          date: dateStr,
+          hasData: datesWithData.includes(dateStr)
+        });
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Sort newest first
+    allDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Paginate
+    const startIndex = (args.page - 1) * args.pageSize;
+    const endIndex = startIndex + args.pageSize;
+    const paginatedDates = allDates.slice(startIndex, endIndex);
+
+    return {
+      dates: paginatedDates,
+      totalCount: allDates.length,
+      hasMore: endIndex < allDates.length,
+      earliestDate: earliestDataDate.toISOString().split('T')[0]
+    };
+  }
+});

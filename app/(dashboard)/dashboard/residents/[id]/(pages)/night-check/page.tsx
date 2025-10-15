@@ -870,7 +870,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
+    <div className="container mx-auto p-6 space-y-6 max-w-6xl" style={{ scrollbarGutter: 'stable' }}>
       {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
         <Button
