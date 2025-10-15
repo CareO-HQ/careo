@@ -270,45 +270,45 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   );
 
   // Debug logging
-  console.log("=== AUDIT STATUS DEBUG ===");
-  console.log("Raw form data:");
-  console.log("  preAdmissionForms:", preAdmissionForms);
-  console.log(
-    "  infectionPreventionAssessments:",
-    infectionPreventionAssessments
-  );
-  console.log("  bladderBowelAssessments:", bladderBowelAssessments);
-  console.log("  movingHandlingAssessments:", movingHandlingAssessments);
-  console.log("  longTermFallsAssessment:", longTermFallsAssessment);
-  console.log("  admissionAssessments:", admissionAssessments);
-  console.log("  photographyConsents:", photographyConsents);
-  console.log("  dnacprForms:", dnacprForms);
-  console.log("  peepForms:", peepForms);
-  console.log("  skinIntegrityAssessments:", skinIntegrityAssessments);
-  console.log("  residentValuablesAssessments:", residentValuablesAssessments);
-  console.log("formIds:", formIds);
-  console.log("auditStatus:", auditStatus);
-  console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
-  console.log(
-    "latestInfectionPreventionAssessment ID:",
-    latestInfectionPreventionAssessment?._id
-  );
-  console.log(
-    "latestBladderBowelAssessment ID:",
-    latestBladderBowelAssessment?._id
-  );
-  console.log(
-    "latestMovingHandlingAssessment ID:",
-    latestMovingHandlingAssessment?._id
-  );
-  console.log(
-    "latestLongTermFallsAssessment ID:",
-    latestLongTermFallsAssessment?._id
-  );
-  console.log("latestAdmissionAssessment ID:", latestAdmissionAssessment?._id);
-  console.log("latestPhotographyConsent ID:", latestPhotographyConsent?._id);
-  console.log("latestDnacprForm ID:", latestDnacprForm?._id);
-  console.log("latestPeepForm ID:", latestPeepForm?._id);
+  // console.log("=== AUDIT STATUS DEBUG ===");
+  // console.log("Raw form data:");
+  // console.log("  preAdmissionForms:", preAdmissionForms);
+  // console.log(
+  //   "  infectionPreventionAssessments:",
+  //   infectionPreventionAssessments
+  // );
+  // console.log("  bladderBowelAssessments:", bladderBowelAssessments);
+  // console.log("  movingHandlingAssessments:", movingHandlingAssessments);
+  // console.log("  longTermFallsAssessment:", longTermFallsAssessment);
+  // console.log("  admissionAssessments:", admissionAssessments);
+  // console.log("  photographyConsents:", photographyConsents);
+  // console.log("  dnacprForms:", dnacprForms);
+  // console.log("  peepForms:", peepForms);
+  // console.log("  skinIntegrityAssessments:", skinIntegrityAssessments);
+  // console.log("  residentValuablesAssessments:", residentValuablesAssessments);
+  // console.log("formIds:", formIds);
+  // console.log("auditStatus:", auditStatus);
+  // console.log("latestPreAdmissionForm ID:", latestPreAdmissionForm?._id);
+  // console.log(
+  //   "latestInfectionPreventionAssessment ID:",
+  //   latestInfectionPreventionAssessment?._id
+  // );
+  // console.log(
+  //   "latestBladderBowelAssessment ID:",
+  //   latestBladderBowelAssessment?._id
+  // );
+  // console.log(
+  //   "latestMovingHandlingAssessment ID:",
+  //   latestMovingHandlingAssessment?._id
+  // );
+  // console.log(
+  //   "latestLongTermFallsAssessment ID:",
+  //   latestLongTermFallsAssessment?._id
+  // );
+  // console.log("latestAdmissionAssessment ID:", latestAdmissionAssessment?._id);
+  // console.log("latestPhotographyConsent ID:", latestPhotographyConsent?._id);
+  // console.log("latestDnacprForm ID:", latestDnacprForm?._id);
+  // console.log("latestPeepForm ID:", latestPeepForm?._id);
 
   // Helper function to determine form status
   const getFormStatus = (
@@ -336,10 +336,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestPreAdmissionForm._id as string]
       : undefined;
 
-    console.log("Pre-admission audit lookup:");
-    console.log("  Form ID:", latestPreAdmissionForm?._id);
-    console.log("  Audit found:", preAdmissionAudit);
-    console.log("  Is audited:", preAdmissionAudit?.isAudited);
+    // console.log("Pre-admission audit lookup:");
+    // console.log("  Form ID:", latestPreAdmissionForm?._id);
+    // console.log("  Audit found:", preAdmissionAudit);
+    // console.log("  Is audited:", preAdmissionAudit?.isAudited);
 
     state["preAdmission-form"] = {
       status: getFormStatus(
@@ -368,10 +368,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestInfectionPreventionAssessment._id as string]
       : undefined;
 
-    console.log("Infection prevention audit lookup:");
-    console.log("  Form ID:", latestInfectionPreventionAssessment?._id);
-    console.log("  Audit found:", infectionPreventionAudit);
-    console.log("  Is audited:", infectionPreventionAudit?.isAudited);
+    // console.log("Infection prevention audit lookup:");
+    // console.log("  Form ID:", latestInfectionPreventionAssessment?._id);
+    // console.log("  Audit found:", infectionPreventionAudit);
+    // console.log("  Is audited:", infectionPreventionAudit?.isAudited);
 
     state["infection-prevention"] = {
       status: getFormStatus(
@@ -398,11 +398,6 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     const bladderBowelAudit = latestBladderBowelAssessment
       ? auditStatus?.[latestBladderBowelAssessment._id as string]
       : undefined;
-
-    console.log("Bladder bowel audit lookup:");
-    console.log("  Form ID:", latestBladderBowelAssessment?._id);
-    console.log("  Audit found:", bladderBowelAudit);
-    console.log("  Is audited:", bladderBowelAudit?.isAudited);
 
     state["blader-bowel-form"] = {
       status: getFormStatus(
@@ -431,10 +426,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestMovingHandlingAssessment._id as string]
       : undefined;
 
-    console.log("Moving handling audit lookup:");
-    console.log("  Form ID:", latestMovingHandlingAssessment?._id);
-    console.log("  Audit found:", movingHandlingAudit);
-    console.log("  Is audited:", movingHandlingAudit?.isAudited);
+    // console.log("Moving handling audit lookup:");
+    // console.log("  Form ID:", latestMovingHandlingAssessment?._id);
+    // console.log("  Audit found:", movingHandlingAudit);
+    // console.log("  Is audited:", movingHandlingAudit?.isAudited);
 
     state["moving-handling-form"] = {
       status: getFormStatus(
@@ -463,10 +458,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestLongTermFallsAssessment._id as string]
       : undefined;
 
-    console.log("Long Term Falls audit lookup:");
-    console.log("  Form ID:", latestLongTermFallsAssessment?._id);
-    console.log("  Audit found:", longTermFallsAudit);
-    console.log("  Is audited:", longTermFallsAudit?.isAudited);
+    // console.log("Long Term Falls audit lookup:");
+    // console.log("  Form ID:", latestLongTermFallsAssessment?._id);
+    // console.log("  Audit found:", longTermFallsAudit);
+    // console.log("  Is audited:", longTermFallsAudit?.isAudited);
 
     state["long-term-fall-risk-form"] = {
       status: getFormStatus(
@@ -495,10 +490,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestAdmissionAssessment._id as string]
       : undefined;
 
-    console.log("Admission audit lookup:");
-    console.log("  Form ID:", latestAdmissionAssessment?._id);
-    console.log("  Audit found:", admissionAudit);
-    console.log("  Is audited:", admissionAudit?.isAudited);
+    // console.log("Admission audit lookup:");
+    // console.log("  Form ID:", latestAdmissionAssessment?._id);
+    // console.log("  Audit found:", admissionAudit);
+    // console.log("  Is audited:", admissionAudit?.isAudited);
 
     state["admission-form"] = {
       status: getFormStatus(
@@ -528,10 +523,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestPhotographyConsent._id as string]
       : undefined;
 
-    console.log("Photography consent audit lookup:");
-    console.log("  Form ID:", latestPhotographyConsent?._id);
-    console.log("  Audit found:", photographyConsentAudit);
-    console.log("  Is audited:", photographyConsentAudit?.isAudited);
+    // console.log("Photography consent audit lookup:");
+    // console.log("  Form ID:", latestPhotographyConsent?._id);
+    // console.log("  Audit found:", photographyConsentAudit);
+    // console.log("  Is audited:", photographyConsentAudit?.isAudited);
 
     state["photography-consent"] = {
       status: getFormStatus(
@@ -560,10 +555,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestDnacprForm._id as string]
       : undefined;
 
-    console.log("DNACPR audit lookup:");
-    console.log("  Form ID:", latestDnacprForm?._id);
-    console.log("  Audit found:", dnacprAudit);
-    console.log("  Is audited:", dnacprAudit?.isAudited);
+    // console.log("DNACPR audit lookup:");
+    // console.log("  Form ID:", latestDnacprForm?._id);
+    // console.log("  Audit found:", dnacprAudit);
+    // console.log("  Is audited:", dnacprAudit?.isAudited);
 
     state["dnacpr"] = {
       status: getFormStatus(
@@ -592,10 +587,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestPeepForm._id as string]
       : undefined;
 
-    console.log("PEEP audit lookup:");
-    console.log("  Form ID:", latestPeepForm?._id);
-    console.log("  Audit found:", peepAudit);
-    console.log("  Is audited:", peepAudit?.isAudited);
+    // console.log("PEEP audit lookup:");
+    // console.log("  Form ID:", latestPeepForm?._id);
+    // console.log("  Audit found:", peepAudit);
+    // console.log("  Is audited:", peepAudit?.isAudited);
 
     state["peep"] = {
       status: getFormStatus(
@@ -653,10 +648,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestTimlAssessment._id as string]
       : undefined;
 
-    console.log("TIML audit lookup:");
-    console.log("  Form ID:", latestTimlAssessment?._id);
-    console.log("  Audit found:", timlAudit);
-    console.log("  Is audited:", timlAudit?.isAudited);
+    // console.log("TIML audit lookup:");
+    // console.log("  Form ID:", latestTimlAssessment?._id);
+    // console.log("  Audit found:", timlAudit);
+    // console.log("  Is audited:", timlAudit?.isAudited);
 
     state["timl"] = {
       status: getFormStatus(
@@ -686,10 +681,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestSkinIntegrityAssessment._id as string]
       : undefined;
 
-    console.log("Skin Integrity audit lookup:");
-    console.log("  Form ID:", latestSkinIntegrityAssessment?._id);
-    console.log("  Audit found:", skinIntegrityAudit);
-    console.log("  Is audited:", skinIntegrityAudit?.isAudited);
+    // console.log("Skin Integrity audit lookup:");
+    // console.log("  Form ID:", latestSkinIntegrityAssessment?._id);
+    // console.log("  Audit found:", skinIntegrityAudit);
+    // console.log("  Is audited:", skinIntegrityAudit?.isAudited);
 
     state["skin-integrity-form"] = {
       status: getFormStatus(
@@ -720,10 +715,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ? auditStatus?.[latestResidentValuablesAssessment._id as string]
       : undefined;
 
-    console.log("Resident Valuables audit lookup:");
-    console.log("  Form ID:", latestResidentValuablesAssessment?._id);
-    console.log("  Audit found:", residentValuablesAudit);
-    console.log("  Is audited:", residentValuablesAudit?.isAudited);
+    // console.log("Resident Valuables audit lookup:");
+    // console.log("  Form ID:", latestResidentValuablesAssessment?._id);
+    // console.log("  Audit found:", residentValuablesAudit);
+    // console.log("  Is audited:", residentValuablesAudit?.isAudited);
 
     state["resident-valuables-form"] = {
       status: getFormStatus(

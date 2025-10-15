@@ -39,6 +39,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import EmailPDFWithStorageId from "../EmailPDFWithStorageId";
+import CarePlanSheetContent from "./CarePlanSheet";
 
 interface CareFileFolderProps {
   index: number;
@@ -75,6 +76,14 @@ export default function CareFileFolder({
   } | null>(null);
   const [editingPdfId, setEditingPdfId] = useState<string | null>(null);
   const [editingPdfName, setEditingPdfName] = useState("");
+  const [carePlanSheetOpen, setCarePlanSheetOpen] = useState(false);
+  const [selectedCarePlan, setSelectedCarePlan] = useState<{
+    formKey: string;
+    formId: string;
+    name: string;
+    completedAt: number;
+    isLatest: boolean;
+  } | null>(null);
   const { activeTeamId } = useActiveTeam();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
@@ -144,9 +153,19 @@ export default function CareFileFolder({
 
     if (!pdfUrl) return null;
 
+    const handleCarePlanClick = () => {
+      if (isCarePlan) {
+        setSelectedCarePlan(file);
+        setCarePlanSheetOpen(true);
+      }
+    };
+
     return (
       <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
-        <div className="flex-1 flex items-center gap-2">
+        <div
+          className={`flex-1 flex items-center gap-2 ${isCarePlan ? "cursor-pointer" : ""}`}
+          onClick={handleCarePlanClick}
+        >
           <div className="bg-red-50 rounded-md">
             <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
           </div>
@@ -186,7 +205,8 @@ export default function CareFileFolder({
           />
           <DownloadIcon
             className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-            onClick={async () => {
+            onClick={async (e) => {
+              e.stopPropagation();
               try {
                 await downloadFromUrl(pdfUrl, `${file.name}.pdf`);
                 toast.success("PDF downloaded successfully");
@@ -817,6 +837,15 @@ export default function CareFileFolder({
           />
         </DialogContent>
       </Dialog>
+
+      {/* Care Plan Sheet on the left side */}
+      {selectedCarePlan && (
+        <CarePlanSheetContent
+          open={carePlanSheetOpen}
+          onOpenChange={setCarePlanSheetOpen}
+          carePlan={selectedCarePlan}
+        />
+      )}
     </div>
   );
 }
