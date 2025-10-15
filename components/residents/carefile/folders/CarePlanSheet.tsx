@@ -24,7 +24,6 @@ export default function CarePlanSheetContent({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   carePlan: {
-    aims: string;
     formKey: string;
     formId: string;
     name: string;
