@@ -2199,5 +2199,18 @@ export default defineSchema({
     carePlanId: v.id("carePlanAssessments"),
     evaluationDate: v.number(),
     comments: v.string()
+  }).index("by_care_plan", ["carePlanId"]),
+
+  // Care plan reminders
+  carePlanReminders: defineTable({
+    carePlanId: v.id("carePlanAssessments"),
+    reminderDate: v.number(),
+    reminderStatus: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdBy: v.string(),
+    createdAt: v.number()
   }).index("by_care_plan", ["carePlanId"])
 });

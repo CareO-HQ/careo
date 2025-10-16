@@ -76,6 +76,16 @@ export const submitCarePlanAssessment = mutation({
       submittedAt: Date.now()
     });
 
+    // Create reminder 30 days after creation
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    await ctx.db.insert("carePlanReminders", {
+      carePlanId: carePlanId,
+      reminderDate: Date.now() + thirtyDaysInMs,
+      reminderStatus: "pending" as const,
+      createdBy: args.userId,
+      createdAt: Date.now()
+    });
+
     // Schedule PDF generation after successful save if not a draft
     await ctx.scheduler.runAfter(
       1000, // 1 second delay
@@ -237,6 +247,20 @@ export const createNewCarePlanVersion = mutation({
       throw new Error("Previous care plan not found");
     }
 
+    // Cancel the reminder for the previous care plan
+    const previousReminders = await ctx.db
+      .query("carePlanReminders")
+      .withIndex("by_care_plan", (q) => q.eq("carePlanId", previousCarePlanId))
+      .collect();
+
+    for (const reminder of previousReminders) {
+      if (reminder.reminderStatus === "pending") {
+        await ctx.db.patch(reminder._id, {
+          reminderStatus: "cancelled" as const
+        });
+      }
+    }
+
     // Create new care plan with updated data
     const newCarePlanId = await ctx.db.insert("carePlanAssessments", {
       // Copy basic info from previous care plan
@@ -265,6 +289,16 @@ export const createNewCarePlanVersion = mutation({
       // Metadata
       status: "submitted" as const,
       submittedAt: Date.now()
+    });
+
+    // Create reminder 30 days after creation
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    await ctx.db.insert("carePlanReminders", {
+      carePlanId: newCarePlanId,
+      reminderDate: Date.now() + thirtyDaysInMs,
+      reminderStatus: "pending" as const,
+      createdBy: updateData.userId,
+      createdAt: Date.now()
     });
 
     // Schedule PDF generation
