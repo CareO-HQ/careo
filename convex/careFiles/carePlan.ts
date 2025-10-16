@@ -470,3 +470,57 @@ export const getPDFUrl = query({
     return `${baseUrl}/api/pdf/care-plan?assessmentId=${args.assessmentId}`;
   }
 });
+
+/**
+ * Cron job to check for care plan reminders
+ * Compares dates only (ignoring time)
+ */
+export const checkCarePlanReminders = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    // Get current date at midnight (start of day)
+    const now = new Date();
+    const todayMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ).getTime();
+
+    // Get all pending reminders
+    const allReminders = await ctx.db.query("carePlanReminders").collect();
+
+    let checkedCount = 0;
+    let dueCount = 0;
+
+    for (const reminder of allReminders) {
+      if (reminder.reminderStatus === "pending") {
+        checkedCount++;
+
+        // Get reminder date at midnight (start of day)
+        const reminderDateObj = new Date(reminder.reminderDate);
+        const reminderMidnight = new Date(
+          reminderDateObj.getFullYear(),
+          reminderDateObj.getMonth(),
+          reminderDateObj.getDate()
+        ).getTime();
+
+        // Check if reminder date (date only) is today or in the past
+        if (reminderMidnight <= todayMidnight) {
+          dueCount++;
+          // TODO: Add notification logic here
+          // For example: send email, create notification, etc.
+          console.log(
+            `Care plan reminder due: ${reminder._id} for care plan ${reminder.carePlanId}`
+          );
+        }
+      }
+    }
+
+    console.log(
+      `Care plan reminder check complete: ${checkedCount} pending reminders checked, ${dueCount} due today or overdue`
+    );
+
+    return null;
+  }
+});

@@ -59,4 +59,20 @@ crons.daily(
   internal.foodFluidLogs.autoArchiveOldLogs
 );
 
+/**
+ * CHECK CARE PLAN REMINDERS
+ * Checks for care plans due for review (30 days after creation)
+ * Compares dates only (ignoring time component)
+ * Runs at 6 AM daily to notify staff at start of day
+ */
+crons.daily(
+  "Check care plan reminders",
+  {
+    // London time: 06:00 - check for care plans due for review
+    hourUTC: 6,
+    minuteUTC: 0
+  },
+  internal.careFiles.carePlan.checkCarePlanReminders
+);
+
 export default crons;
