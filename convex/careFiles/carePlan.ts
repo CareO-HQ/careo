@@ -279,6 +279,53 @@ export const createNewCarePlanVersion = mutation({
 });
 
 /**
+ * Create a care plan evaluation
+ */
+export const createCarePlanEvaluation = mutation({
+  args: {
+    carePlanId: v.id("carePlanAssessments"),
+    evaluationDate: v.number(),
+    comments: v.string()
+  },
+  returns: v.id("carePlanEvaluations"),
+  handler: async (ctx, args) => {
+    // Verify care plan exists
+    const carePlan = await ctx.db.get(args.carePlanId);
+    if (!carePlan) {
+      throw new Error("Care plan not found");
+    }
+
+    // Insert the evaluation
+    const evaluationId = await ctx.db.insert("carePlanEvaluations", {
+      carePlanId: args.carePlanId,
+      evaluationDate: args.evaluationDate,
+      comments: args.comments
+    });
+
+    return evaluationId;
+  }
+});
+
+/**
+ * Get evaluations for a care plan
+ */
+export const getCarePlanEvaluations = query({
+  args: {
+    carePlanId: v.id("carePlanAssessments")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const evaluations = await ctx.db
+      .query("carePlanEvaluations")
+      .withIndex("by_care_plan", (q) => q.eq("carePlanId", args.carePlanId))
+      .order("desc")
+      .collect();
+
+    return evaluations;
+  }
+});
+
+/**
  * Generate PDF and update the record with the file ID
  */
 export const generatePDFAndUpdateRecord = internalAction({

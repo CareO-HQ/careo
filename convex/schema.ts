@@ -2199,5 +2199,5 @@ export default defineSchema({
     carePlanId: v.id("carePlanAssessments"),
     evaluationDate: v.number(),
     comments: v.string()
-  })
+  }).index("by_care_plan", ["carePlanId"])
 });

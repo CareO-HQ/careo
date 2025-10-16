@@ -38,12 +38,22 @@ export default function CarePlanSheetContent({
     assessmentId: carePlan.formId as Id<"carePlanAssessments">
   });
 
+  // Fetch evaluations for this care plan
+  const evaluations = useQuery(api.careFiles.carePlan.getCarePlanEvaluations, {
+    carePlanId: carePlan.formId as Id<"carePlanAssessments">
+  });
+
   // Get current user
   const { data: currentUser } = authClient.useSession();
 
   // Mutation for creating new care plan version
   const createNewVersion = useMutation(
     api.careFiles.carePlan.createNewCarePlanVersion
+  );
+
+  // Mutation for creating evaluation
+  const createEvaluation = useMutation(
+    api.careFiles.carePlan.createCarePlanEvaluation
   );
 
   // State for managing form data
@@ -59,6 +69,8 @@ export default function CarePlanSheetContent({
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasModified, setHasModified] = useState(false);
+  const [showEvaluationForm, setShowEvaluationForm] = useState(false);
+  const [evaluationComments, setEvaluationComments] = useState("");
 
   // Initialize form data when care plan loads
   useEffect(() => {
@@ -112,6 +124,38 @@ export default function CarePlanSheetContent({
     setPlannedCareEntries(plannedCareEntries.filter((_, i) => i !== index));
     setHasModified(true);
     toast.info("CHANGE");
+  };
+
+  // Handle submitting evaluation
+  const handleSubmitEvaluation = async () => {
+    if (!currentUser?.user?.id) {
+      toast.error("User information not available");
+      return;
+    }
+
+    if (!evaluationComments.trim()) {
+      toast.error("Please enter evaluation comments");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await createEvaluation({
+        carePlanId: carePlan.formId as Id<"carePlanAssessments">,
+        evaluationDate: Date.now(),
+        comments: evaluationComments.trim()
+      });
+
+      toast.success("Evaluation submitted successfully!");
+      setEvaluationComments("");
+      setShowEvaluationForm(false);
+    } catch (error) {
+      console.error("Error submitting evaluation:", error);
+      toast.error("Failed to submit evaluation. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle updating care plan (creates new version)
@@ -404,8 +448,107 @@ export default function CarePlanSheetContent({
               {isSubmitting ? "Updating..." : "Update Care Plan"}
             </Button>
             <Separator className="my-4" />
-            <div className="flex flex-row justify-center items-start">
-              New evaluation
+
+            {/* Evaluations Section */}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-row justify-between items-center gap-2">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Evaluations
+                </p>
+                {!showEvaluationForm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowEvaluationForm(true)}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Evaluation
+                  </Button>
+                )}
+              </div>
+
+              {showEvaluationForm && (
+                <div className="rounded-lg border p-4 bg-muted/20 space-y-3">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">
+                      {currentUser?.user?.name || "Unknown User"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(), "dd MMMM yyyy 'at' HH:mm")}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Comments
+                    </label>
+                    <Textarea
+                      value={evaluationComments}
+                      onChange={(e) => setEvaluationComments(e.target.value)}
+                      placeholder="Enter evaluation comments..."
+                      className="min-h-[100px]"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSubmitEvaluation}
+                      disabled={isSubmitting || !evaluationComments.trim()}
+                      size="sm"
+                    >
+                      {isSubmitting ? "Submitting..." : "Submit Evaluation"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowEvaluationForm(false);
+                        setEvaluationComments("");
+                      }}
+                      disabled={isSubmitting}
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Display existing evaluations */}
+              {evaluations && evaluations.length > 0 && (
+                <div className="space-y-3 mt-4">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Previous Evaluations
+                  </p>
+                  {evaluations.map((evaluation) => (
+                    <div
+                      key={evaluation._id}
+                      className="rounded-lg border p-4 bg-background space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          {format(
+                            new Date(evaluation.evaluationDate),
+                            "dd MMMM yyyy 'at' HH:mm"
+                          )}
+                        </p>
+                      </div>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">
+                        {evaluation.comments}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {evaluations &&
+                evaluations.length === 0 &&
+                !showEvaluationForm && (
+                  <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+                    No evaluations yet. Click &quot;New Evaluation&quot; to
+                    create one.
+                  </div>
+                )}
             </div>
           </div>
         </div>
