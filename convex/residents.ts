@@ -150,7 +150,7 @@ export const getByOrganization = query({
     organizationId: v.string()
   },
   returns: v.array(v.any()),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     const residents = await ctx.db
       .query("residents")
       .withIndex("byOrganizationId", (q) =>
@@ -159,7 +159,20 @@ export const getByOrganization = query({
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
-    return residents;
+    // Process residents with images
+    const results: Array<Record<string, unknown>> = [];
+    for (const resident of residents) {
+      const residentImage: { url: string | null; storageId: string } | null =
+        await ctx.runQuery(api.files.image.getResidentImageByResidentId, {
+          residentId: resident._id as string
+        });
+      results.push({
+        ...resident,
+        imageUrl: residentImage?.url || "No image"
+      });
+    }
+
+    return results;
   }
 });
 

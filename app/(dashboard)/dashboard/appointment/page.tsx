@@ -25,10 +25,18 @@ export default function AppointmentPage() {
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  // Fetch appointments for the active team from Convex
+  // Fetch appointments - either for specific team or entire organization
   const appointmentsData = useQuery(
-    api.appointments.getAppointmentsByTeam,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
+    activeTeamId
+      ? api.appointments.getAppointmentsByTeam
+      : activeOrganizationId
+      ? api.appointments.getAppointmentsByOrganization
+      : "skip",
+    activeTeamId
+      ? { teamId: activeTeamId }
+      : activeOrganizationId
+      ? { organizationId: activeOrganizationId }
+      : "skip"
   );
 
   const markAppointmentAsRead = useMutation(api.appointmentNotifications.markAppointmentAsRead);
@@ -111,8 +119,8 @@ export default function AppointmentPage() {
     );
   }
 
-  // No active team selected state
-  if (!activeTeamId) {
+  // No active team or organization selected state
+  if (!activeTeamId && !activeOrganizationId) {
     return (
       <div className="w-full">
         <Button

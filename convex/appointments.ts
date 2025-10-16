@@ -297,6 +297,128 @@ export const getAppointmentsByTeam = query({
   },
 });
 
+// Get appointments for an entire organization
+export const getAppointmentsByOrganization = query({
+  args: {
+    organizationId: v.string(),
+    status: v.optional(v.union(
+      v.literal("scheduled"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    )),
+    includeAll: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+
+    // Get current user for read status
+    const identity = await ctx.auth.getUserIdentity();
+    let currentUser: any = null;
+    if (identity) {
+      currentUser = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+        .first();
+    }
+
+    // Get all residents in this organization
+    const residents = await ctx.db
+      .query("residents")
+      .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    const residentIds = residents.map((r) => r._id);
+
+    // If no residents in organization, return empty array
+    if (residentIds.length === 0) {
+      return [];
+    }
+
+    // Get all appointments for these residents
+    const allAppointments = await Promise.all(
+      residentIds.map((residentId) =>
+        ctx.db
+          .query("appointments")
+          .withIndex("byResidentId", (q) => q.eq("residentId", residentId))
+          .collect()
+      )
+    );
+
+    // Flatten the array of arrays
+    let appointments = allAppointments.flat();
+
+    // If includeAll is false or not specified, only show upcoming scheduled appointments
+    if (!args.includeAll) {
+      appointments = appointments.filter(
+        appointment =>
+          appointment.status === "scheduled" &&
+          appointment.startTime >= now
+      );
+    } else {
+      // Filter by status if specified
+      if (args.status) {
+        appointments = appointments.filter(appointment => appointment.status === args.status);
+      }
+    }
+
+    // Get resident details and read status for each appointment
+    const appointmentsWithResidents = await Promise.all(
+      appointments.map(async (appointment) => {
+        const resident = await ctx.db.get(appointment.residentId);
+
+        if (!resident) {
+          return {
+            ...appointment,
+            resident: null,
+            isRead: false,
+          };
+        }
+
+        // Get the resident's image URL
+        const residentImage = await ctx.db
+          .query("files")
+          .filter((q) => q.eq(q.field("type"), "resident"))
+          .filter((q) => q.eq(q.field("userId"), resident._id))
+          .first();
+
+        let imageUrl = null;
+        if (residentImage?.format === "image") {
+          imageUrl = await ctx.storage.getUrl(residentImage.body);
+        }
+
+        // Check if current user has read this appointment
+        let isRead = false;
+        if (currentUser) {
+          const readStatus = await ctx.db
+            .query("appointmentReadStatus")
+            .withIndex("by_user_and_appointment", (q) =>
+              q.eq("userId", currentUser._id).eq("appointmentId", appointment._id)
+            )
+            .first();
+          isRead = !!readStatus;
+        }
+
+        return {
+          ...appointment,
+          isRead,
+          resident: {
+            _id: resident._id,
+            firstName: resident.firstName,
+            lastName: resident.lastName,
+            roomNumber: resident.roomNumber,
+            imageUrl: imageUrl,
+          },
+        };
+      })
+    );
+
+    // Sort by start time (earliest first)
+    return appointmentsWithResidents.sort((a, b) =>
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+  },
+});
+
 // Get count of upcoming appointments for a team or organization
 export const getUpcomingAppointmentsCount = query({
   args: {

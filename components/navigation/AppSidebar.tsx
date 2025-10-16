@@ -165,7 +165,7 @@ export function AppSidebar() {
             {/* Incidents */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
+                <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <FileWarning className="w-4 h-4" />
                     <span>Incidents</span>
