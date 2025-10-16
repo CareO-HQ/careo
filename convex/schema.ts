@@ -2192,5 +2192,12 @@ export default defineSchema({
     .index("byOrganization", ["organizationId"])
     .index("byTeam", ["teamId"])
     .index("byCreatedBy", ["createdBy"])
-    .index("byNoteDate", ["noteDate"])
+    .index("byNoteDate", ["noteDate"]),
+
+  // Care plan Evaluations
+  carePlanEvaluations: defineTable({
+    carePlanId: v.id("carePlanAssessments"),
+    evaluationDate: v.number(),
+    comments: v.string()
+  })
 });

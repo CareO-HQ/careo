@@ -16,6 +16,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 
 export default function CarePlanSheetContent({
   open,
@@ -192,7 +193,7 @@ export default function CarePlanSheetContent({
       <SheetContent
         side="left"
         size="lg"
-        className="z-[60] overflow-y-auto"
+        className="z-[60] overflow-y-auto flex flex-col justify-start"
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -402,6 +403,10 @@ export default function CarePlanSheetContent({
             >
               {isSubmitting ? "Updating..." : "Update Care Plan"}
             </Button>
+            <Separator className="my-4" />
+            <div className="flex flex-row justify-center items-start">
+              New evaluation
+            </div>
           </div>
         </div>
       </SheetContent>
