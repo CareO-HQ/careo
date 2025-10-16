@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Filter, Bell, ArrowLeft } from "lucide-react";
+import { Check, Filter, Bell, ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -12,126 +15,86 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { format } from "date-fns";
+import { toast } from "sonner";
+import { Id } from "@/convex/_generated/dataModel";
 
-type Notification = {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  isRead: boolean;
-  type: "info" | "warning" | "success" | "urgent";
-};
-
-const initialNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "Medication Due",
-    message: "John Smith's medication is due at 2:00 PM",
-    timestamp: "6 Oct 2025, 15:17",
-    isRead: false,
-    type: "warning",
-  },
-  {
-    id: "2",
-    title: "Incident Report",
-    message: "New incident report submitted for Emily Brown",
-    timestamp: "6 Oct 2025, 14:17",
-    isRead: false,
-    type: "urgent",
-  },
-  {
-    id: "3",
-    title: "Care Plan Updated",
-    message: "Care plan for Richard George has been updated",
-    timestamp: "6 Oct 2025, 13:17",
-    isRead: false,
-    type: "info",
-  },
-  {
-    id: "4",
-    title: "Staff Shift Change",
-    message: "Sarah Johnson will be covering evening shift today",
-    timestamp: "6 Oct 2025, 12:17",
-    isRead: false,
-    type: "info",
-  },
-  {
-    id: "5",
-    title: "Audit Complete",
-    message: "Risk Assessment Audit has been completed successfully",
-    timestamp: "5 Oct 2025, 15:17",
-    isRead: false,
-    type: "success",
-  },
-  {
-    id: "6",
-    title: "Appointment Reminder",
-    message: "Dr. Williams visit scheduled for Margaret Davis at 10:00 AM tomorrow",
-    timestamp: "6 Oct 2025, 11:17",
-    isRead: false,
-    type: "info",
-  },
-  {
-    id: "7",
-    title: "Critical Alert",
-    message: "Emergency call button activated in Room 12",
-    timestamp: "6 Oct 2025, 10:17",
-    isRead: true,
-    type: "urgent",
-  },
-  {
-    id: "8",
-    title: "Dietary Requirements",
-    message: "New dietary restrictions added for Thomas Anderson",
-    timestamp: "6 Oct 2025, 09:17",
-    isRead: true,
-    type: "warning",
-  },
-  {
-    id: "9",
-    title: "Visitor Check-in",
-    message: "Family member checked in to visit Patricia Wilson",
-    timestamp: "6 Oct 2025, 07:17",
-    isRead: true,
-    type: "info",
-  },
-  {
-    id: "10",
-    title: "Training Completed",
-    message: "Monthly safeguarding training completed by all staff",
-    timestamp: "4 Oct 2025, 15:17",
-    isRead: true,
-    type: "success",
-  },
-];
+type NotificationType = "info" | "warning" | "success" | "urgent";
 
 export default function NotificationPage() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const { activeTeam, activeTeamId, activeOrganization, activeOrganizationId, isLoading: isTeamLoading } = useActiveTeam();
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // Fetch incidents for the selected team
+  const incidents = useQuery(
+    api.incidents.getIncidentsByTeam,
+    activeTeamId ? { teamId: activeTeamId, limit: 50 } : "skip"
+  );
 
-  const filteredNotifications = notifications.filter(notification => {
-    if (filter === "unread") return !notification.isRead;
+  // Mutations
+  const markIncidentAsRead = useMutation(api.notifications.markIncidentAsRead);
+  const markMultipleAsRead = useMutation(api.notifications.markMultipleIncidentsAsRead);
+
+  // Only show loading if we're waiting for team info, not if no team is selected
+  const isLoading = isTeamLoading;
+
+  // Filter incidents based on read status from database
+  const filteredIncidents = incidents?.filter((incident) => {
+    if (filter === "unread") return !incident.isRead;
     return true;
-  });
+  }) || [];
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(notification =>
-        notification.id === id ? { ...notification, isRead: true } : notification
-      )
-    );
+  const unreadCount = incidents?.filter((incident) => !incident.isRead).length || 0;
+
+  const markAsRead = async (incidentId: Id<"incidents">) => {
+    try {
+      await markIncidentAsRead({ incidentId });
+    } catch (error) {
+      console.error("Error marking incident as read:", error);
+      toast.error("Failed to mark as read");
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev =>
-      prev.map(notification => ({ ...notification, isRead: true }))
-    );
+  const markAllAsRead = async () => {
+    if (!incidents) return;
+
+    const unreadIncidentIds = incidents
+      .filter((incident) => !incident.isRead)
+      .map((incident) => incident._id);
+
+    if (unreadIncidentIds.length === 0) {
+      toast.info("No unread notifications");
+      return;
+    }
+
+    try {
+      await markMultipleAsRead({ incidentIds: unreadIncidentIds });
+      toast.success("All notifications marked as read");
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+      toast.error("Failed to mark all as read");
+    }
   };
 
-  const getTypeColor = (type: string) => {
+  const getIncidentSeverity = (incidentLevel: string): NotificationType => {
+    switch (incidentLevel) {
+      case "death":
+      case "permanent_harm":
+        return "urgent";
+      case "minor_injury":
+        return "warning";
+      case "no_harm":
+        return "info";
+      case "near_miss":
+        return "success";
+      default:
+        return "info";
+    }
+  };
+
+  const getTypeColor = (type: NotificationType) => {
     switch (type) {
       case "urgent":
         return "text-red-600 bg-red-50 border-red-200";
@@ -144,9 +107,68 @@ export default function NotificationPage() {
     }
   };
 
-  const getTypeBadgeText = (type: string) => {
+  const getTypeBadgeText = (type: NotificationType) => {
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
+
+  const formatIncidentLevel = (level: string) => {
+    return level
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
+  const formatIncidentTypes = (types: string[]) => {
+    if (!types || types.length === 0) return "Incident";
+    return types
+      .map((type) => {
+        if (type === "FallWitnessed") return "Fall (Witnessed)";
+        if (type === "FallUnwitnessed") return "Fall (Unwitnessed)";
+        return type;
+      })
+      .join(", ");
+  };
+
+  const handleIncidentClick = async (incident: any) => {
+    // Mark as read when clicking
+    if (!incident.isRead) {
+      await markAsRead(incident._id);
+    }
+
+    if (incident.residentId) {
+      router.push(`/dashboard/residents/${incident.residentId}/incidents`);
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="w-full flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // No active team selected state
+  if (!activeTeamId) {
+    return (
+      <div className="w-full">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <div className="text-center py-12">
+          <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">Please select a team to see notifications</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -167,7 +189,9 @@ export default function NotificationPage() {
           <Bell className="w-6 h-6" />
           <div>
             <h1 className="text-2xl font-semibold">Notifications</h1>
-            <p className="text-sm text-muted-foreground">Stay updated with important alerts and messages</p>
+            <p className="text-sm text-muted-foreground">
+              Incident reports for {activeTeam?.name || 'selected unit'}
+            </p>
           </div>
         </div>
         {unreadCount > 0 && (
@@ -185,7 +209,7 @@ export default function NotificationPage() {
             <SelectValue placeholder="All Notifications" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Notifications</SelectItem>
+            <SelectItem value="all">All Incidents</SelectItem>
             <SelectItem value="unread">Unread</SelectItem>
           </SelectContent>
         </Select>
@@ -203,60 +227,71 @@ export default function NotificationPage() {
         )}
       </div>
 
+      {/* TODO: Add role-based filtering here in the future */}
+      {/* For now, showing all incidents for the selected team/unit */}
+
       {/* Notifications List */}
       <div className="space-y-0">
-        {filteredNotifications.length === 0 ? (
+        {filteredIncidents.length === 0 ? (
           <div className="text-center py-12">
             <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">No notifications</p>
+            <p className="text-muted-foreground">
+              {filter === "unread" ? "No unread notifications" : "No notifications"}
+            </p>
           </div>
         ) : (
-          filteredNotifications.map((notification, index) => (
-            <div
-              key={notification.id}
-              className={`flex items-start gap-3 py-4 hover:bg-muted/30 transition-colors ${
-                !notification.isRead ? "bg-muted/10" : ""
-              }`}
-            >
-              {/* Check Icon */}
-              <div className={`mt-0.5 ${notification.isRead ? "opacity-40" : ""}`}>
-                <Check className="w-5 h-5 text-blue-500" />
-              </div>
+          filteredIncidents.map((incident) => {
+            const severity = getIncidentSeverity(incident.incidentLevel);
+            const residentName = incident.resident
+              ? `${incident.resident.firstName} ${incident.resident.lastName}`
+              : `${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}`;
 
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className={`text-sm ${notification.isRead ? "text-muted-foreground" : "text-foreground"}`}>
-                      <span className="font-medium">{notification.title}</span> - {notification.message}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        Created: {notification.timestamp}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs h-5 ${getTypeColor(notification.type)}`}
-                      >
-                        {getTypeBadgeText(notification.type)}
-                      </Badge>
+            return (
+              <div
+                key={incident._id}
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/30 transition-colors cursor-pointer ${
+                  !incident.isRead ? "bg-muted/10" : ""
+                }`}
+                onClick={() => handleIncidentClick(incident)}
+              >
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className={`text-sm ${incident.isRead ? "text-muted-foreground" : "text-foreground"}`}>
+                        <span className="font-medium">Incident Report</span> - {residentName} • {formatIncidentTypes(incident.incidentTypes)}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">
+                          Created: {format(new Date(incident.date + " " + incident.time), "PPp")}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs h-5 ${getTypeColor(severity)}`}
+                        >
+                          {formatIncidentLevel(incident.incidentLevel)}
+                        </Badge>
+                      </div>
                     </div>
+                    {!incident.isRead && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsRead(incident._id);
+                        }}
+                        className="h-7 px-2 text-xs shrink-0"
+                      >
+                        <Check className="w-3 h-3 mr-1" />
+                        Mark as read
+                      </Button>
+                    )}
                   </div>
-                  {!notification.isRead && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => markAsRead(notification.id)}
-                      className="h-7 px-2 text-xs shrink-0"
-                    >
-                      <Check className="w-3 h-3 mr-1" />
-                      Mark as read
-                    </Button>
-                  )}
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

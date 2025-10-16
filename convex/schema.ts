@@ -1529,12 +1529,16 @@ export default defineSchema({
     createdAt: v.number(),
     createdBy: v.optional(v.id("users")),
     updatedAt: v.optional(v.number()),
-    updatedBy: v.optional(v.id("users"))
+    updatedBy: v.optional(v.id("users")),
+    teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string())
   })
     .index("by_resident", ["residentId"])
     .index("by_date", ["date"])
     .index("by_incident_level", ["incidentLevel"])
-    .index("by_home", ["homeName"]),
+    .index("by_home", ["homeName"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
 
   longTermFallsRiskAssessments: defineTable({
     // Metadata
@@ -2433,5 +2437,15 @@ export default defineSchema({
     .index("by_date_time", ["recordDateTime"])
     .index("by_recorded_by", ["recordedBy"])
     .index("by_team_date", ["teamId", "recordDate"])
-    .index("by_organization_date", ["organizationId", "recordDate"])
+    .index("by_organization_date", ["organizationId", "recordDate"]),
+
+  // Notification Read Status - track which users have read which incidents
+  notificationReadStatus: defineTable({
+    userId: v.id("users"),
+    incidentId: v.id("incidents"),
+    readAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_incident", ["incidentId"])
+    .index("by_user_and_incident", ["userId", "incidentId"])
 });

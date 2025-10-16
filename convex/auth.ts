@@ -72,8 +72,7 @@ export const getCurrentUser = query({
     const customUserData = await ctx.db.get(userMetadata.userId as Id<"users">);
 
     // Get active team details if activeTeamId exists
-
-    let activeTeam: { id: any; name: any } | null = null;
+    let activeTeam: { id: any; name: any; organizationId?: any } | null = null;
     if (customUserData?.activeTeamId) {
       const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "team",
@@ -82,7 +81,23 @@ export const getCurrentUser = query({
       if (team) {
         activeTeam = {
           id: team.id,
-          name: team.name
+          name: team.name,
+          organizationId: team.organizationId
+        };
+      }
+    }
+
+    // Get active organization details if activeOrganizationId exists
+    let activeOrganization: { id: any; name: any } | null = null;
+    if (userMetadata.activeOrganizationId) {
+      const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "organization",
+        where: [{ field: "id", value: userMetadata.activeOrganizationId }]
+      });
+      if (org) {
+        activeOrganization = {
+          id: org.id,
+          name: org.name
         };
       }
     }
@@ -101,6 +116,8 @@ export const getCurrentUser = query({
       isOnboardingComplete: customUserData?.isOnboardingComplete || false,
       activeTeamId: customUserData?.activeTeamId || null, // Include active team ID
       activeTeam: activeTeam, // Include active team details
+      activeOrganizationId: userMetadata.activeOrganizationId || null, // Include active organization ID
+      activeOrganization: activeOrganization, // Include active organization details
       // Include any other custom fields that aren't in Better Auth
       ...(customUserData && {
         customField1: customUserData.name, // Keep custom fields if needed

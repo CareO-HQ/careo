@@ -182,10 +182,6 @@ export function ComprehensiveIncidentForm({
     api.teams.getTeamName,
     resident?.teamId ? { teamId: resident.teamId } : "skip"
   );
-  
-  console.log("resident data:", resident);
-  console.log("organization data:", organizationData);
-  console.log("team data:", teamData);
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
     resolver: zodResolver(ComprehensiveIncidentSchema),
@@ -241,11 +237,12 @@ export function ComprehensiveIncidentForm({
 
   // Update form with resident and organization data when available
   React.useEffect(() => {
-    // Pre-populate Section 1: Incident Details with resident's organization/team
-    if (organizationData?.name) {
-      form.setValue("homeName", organizationData.name);
+    // Pre-populate Section 1: Incident Details with resident's team name
+    // Using team name instead of organization name for consistency with notifications
+    if (teamData?.name) {
+      form.setValue("homeName", teamData.name);
     }
-    
+
     if (teamData?.name) {
       form.setValue("unit", teamData.name);
     }
@@ -372,7 +369,7 @@ export function ComprehensiveIncidentForm({
         time: values.time,
         homeName: values.homeName,
         unit: values.unit,
-        
+
         // Injured person details
         injuredPersonFirstName: values.injuredPersonFirstName,
         injuredPersonSurname: values.injuredPersonSurname,
@@ -381,6 +378,10 @@ export function ComprehensiveIncidentForm({
         residentInternalId: values.residentInternalId,
         dateOfAdmission: values.dateOfAdmission?.toISOString().split('T')[0],
         healthCareNumber: values.healthCareNumber,
+
+        // Metadata for filtering
+        teamId: resident?.teamId,
+        organizationId: resident?.organizationId,
         
         // Status
         injuredPersonStatus: values.injuredPersonStatus,

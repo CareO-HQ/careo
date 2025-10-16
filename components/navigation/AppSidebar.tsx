@@ -28,6 +28,9 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
 import HelpSupportDialog from "./HelpSupportDialog";
@@ -36,6 +39,17 @@ export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+
+  // Get unread notification count - dynamic based on selection
+  const unreadCount = useQuery(
+    api.notifications.getUnreadCount,
+    activeTeamId
+      ? { teamId: activeTeamId, organizationId: undefined }
+      : activeOrganizationId
+      ? { teamId: undefined, organizationId: activeOrganizationId }
+      : "skip"
+  );
 
   return (
     <Sidebar>
@@ -148,7 +162,11 @@ export function AppSidebar() {
                     <MessageSquareIcon className="w-4 h-4" />
                     <span>Notification</span>
                   </div>
-                  <Badge className="bg-red-500 text-white ml-auto h-5 px-1.5 text-xs">3</Badge>
+                  {unreadCount !== undefined && unreadCount > 0 && (
+                    <Badge className="bg-red-500 text-white ml-auto h-5 px-1.5 text-xs">
+                      {unreadCount}
+                    </Badge>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

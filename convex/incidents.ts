@@ -9,7 +9,7 @@ export const create = mutation({
     time: v.string(),
     homeName: v.string(),
     unit: v.string(),
-    
+
     // Section 2: Injured Person Details
     injuredPersonFirstName: v.string(),
     injuredPersonSurname: v.string(),
@@ -18,6 +18,10 @@ export const create = mutation({
     residentInternalId: v.optional(v.string()),
     dateOfAdmission: v.optional(v.string()),
     healthCareNumber: v.optional(v.string()),
+
+    // Metadata for filtering
+    teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
     
     // Section 3: Status of Injured Person
     injuredPersonStatus: v.optional(v.array(v.string())), // Array of status values
@@ -194,6 +198,8 @@ export const create = mutation({
       status: "reported",
       createdAt: Date.now(),
       createdBy: user._id,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
     });
 
     return incident;
@@ -247,13 +253,13 @@ export const getById = query({
 });
 
 export const getIncidentStats = query({
-  args: { 
+  args: {
     residentId: v.optional(v.id("residents")),
     homeName: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     let incidents;
-    
+
     if (args.residentId) {
       incidents = await ctx.db
         .query("incidents")
@@ -271,15 +277,15 @@ export const getIncidentStats = query({
     }
 
     const totalIncidents = incidents.length;
-    const fallsCount = incidents.filter(i => 
+    const fallsCount = incidents.filter(i =>
       // Check array format
       (i.incidentTypes?.includes("FallWitnessed") || i.incidentTypes?.includes("FallUnwitnessed"))
     ).length;
-    const medicationErrors = incidents.filter(i => 
+    const medicationErrors = incidents.filter(i =>
       // Check array format
       i.incidentTypes?.includes("Medication")
     ).length;
-    
+
     const levelBreakdown = {
       death: incidents.filter(i => i.incidentLevel === "death").length,
       permanentHarm: incidents.filter(i => i.incidentLevel === "permanent_harm").length,
@@ -290,11 +296,11 @@ export const getIncidentStats = query({
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const recentIncidents = incidents.filter(i => 
+    const recentIncidents = incidents.filter(i =>
       new Date(i.date) >= thirtyDaysAgo
     );
 
-    const lastIncidentDate = incidents.length > 0 
+    const lastIncidentDate = incidents.length > 0
       ? Math.max(...incidents.map(i => new Date(i.date).getTime()))
       : null;
 
@@ -310,5 +316,229 @@ export const getIncidentStats = query({
       recentIncidents: recentIncidents.length,
       daysSinceLastIncident,
     };
+  },
+});
+
+// Get incidents with resident details for notifications (by homeName - legacy support)
+export const getIncidentsWithResidents = query({
+  args: {
+    homeName: v.string(),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 50;
+
+    // Get current user for read status
+    const identity = await ctx.auth.getUserIdentity();
+    let currentUser = null;
+    if (identity) {
+      currentUser = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+        .first();
+    }
+
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_home", (q) => q.eq("homeName", args.homeName))
+      .order("desc")
+      .take(limit);
+
+    // Fetch resident details and read status for each incident
+    const incidentsWithResidents = await Promise.all(
+      incidents.map(async (incident) => {
+        let resident = null;
+        if (incident.residentId) {
+          resident = await ctx.db.get(incident.residentId);
+        }
+
+        // Check if current user has read this incident
+        let isRead = false;
+        if (currentUser) {
+          const readStatus = await ctx.db
+            .query("notificationReadStatus")
+            .withIndex("by_user_and_incident", (q) =>
+              q.eq("userId", currentUser._id).eq("incidentId", incident._id)
+            )
+            .first();
+          isRead = !!readStatus;
+        }
+
+        return {
+          ...incident,
+          isRead,
+          resident: resident ? {
+            _id: resident._id,
+            firstName: resident.firstName,
+            lastName: resident.lastName,
+            roomNumber: resident.roomNumber,
+            imageUrl: resident.imageUrl
+          } : null
+        };
+      })
+    );
+
+    return incidentsWithResidents;
+  },
+});
+
+// Get incidents by teamId - for notifications (supports both old and new incidents)
+export const getIncidentsByTeam = query({
+  args: {
+    teamId: v.string(),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 50;
+
+    // Get current user for read status
+    const identity = await ctx.auth.getUserIdentity();
+    let currentUser = null;
+    if (identity) {
+      currentUser = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+        .first();
+    }
+
+    // Get all residents for this team
+    const residents = await ctx.db
+      .query("residents")
+      .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
+      .collect();
+
+    const residentIds = residents.map(r => r._id);
+
+    // Get all incidents - we'll filter by residents from this team
+    let allIncidents = await ctx.db
+      .query("incidents")
+      .order("desc")
+      .collect();
+
+    // Filter incidents that belong to this team's residents OR have teamId set
+    const teamIncidents = allIncidents.filter(incident => {
+      // New incidents with teamId
+      if (incident.teamId === args.teamId) return true;
+      // Old incidents - check if residentId belongs to this team
+      if (incident.residentId && residentIds.includes(incident.residentId)) return true;
+      return false;
+    }).slice(0, limit);
+
+    // Fetch resident details and read status for each incident
+    const incidentsWithResidents = await Promise.all(
+      teamIncidents.map(async (incident) => {
+        let resident = null;
+        if (incident.residentId) {
+          resident = await ctx.db.get(incident.residentId);
+        }
+
+        // Check if current user has read this incident
+        let isRead = false;
+        if (currentUser) {
+          const readStatus = await ctx.db
+            .query("notificationReadStatus")
+            .withIndex("by_user_and_incident", (q) =>
+              q.eq("userId", currentUser._id).eq("incidentId", incident._id)
+            )
+            .first();
+          isRead = !!readStatus;
+        }
+
+        return {
+          ...incident,
+          isRead,
+          resident: resident ? {
+            _id: resident._id,
+            firstName: resident.firstName,
+            lastName: resident.lastName,
+            roomNumber: resident.roomNumber,
+            imageUrl: resident.imageUrl
+          } : null
+        };
+      })
+    );
+
+    return incidentsWithResidents;
+  },
+});
+
+// Get incidents by organizationId - for notifications (all teams/units in care home)
+export const getIncidentsByOrganization = query({
+  args: {
+    organizationId: v.string(),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 50;
+
+    // Get current user for read status
+    const identity = await ctx.auth.getUserIdentity();
+    let currentUser = null;
+    if (identity) {
+      currentUser = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+        .first();
+    }
+
+    // Get all residents for this organization
+    const residents = await ctx.db
+      .query("residents")
+      .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    const residentIds = residents.map(r => r._id);
+
+    // Get all incidents - we'll filter by residents from this organization
+    let allIncidents = await ctx.db
+      .query("incidents")
+      .order("desc")
+      .collect();
+
+    // Filter incidents that belong to this organization's residents OR have organizationId set
+    const orgIncidents = allIncidents.filter(incident => {
+      // New incidents with organizationId
+      if (incident.organizationId === args.organizationId) return true;
+      // Old incidents - check if residentId belongs to this organization
+      if (incident.residentId && residentIds.includes(incident.residentId)) return true;
+      return false;
+    }).slice(0, limit);
+
+    // Fetch resident details and read status for each incident
+    const incidentsWithResidents = await Promise.all(
+      orgIncidents.map(async (incident) => {
+        let resident = null;
+        if (incident.residentId) {
+          resident = await ctx.db.get(incident.residentId);
+        }
+
+        // Check if current user has read this incident
+        let isRead = false;
+        if (currentUser) {
+          const readStatus = await ctx.db
+            .query("notificationReadStatus")
+            .withIndex("by_user_and_incident", (q) =>
+              q.eq("userId", currentUser._id).eq("incidentId", incident._id)
+            )
+            .first();
+          isRead = !!readStatus;
+        }
+
+        return {
+          ...incident,
+          isRead,
+          resident: resident ? {
+            _id: resident._id,
+            firstName: resident.firstName,
+            lastName: resident.lastName,
+            roomNumber: resident.roomNumber,
+            imageUrl: resident.imageUrl,
+            teamName: resident.teamName
+          } : null
+        };
+      })
+    );
+
+    return incidentsWithResidents;
   },
 });

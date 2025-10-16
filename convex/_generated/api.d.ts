@@ -51,6 +51,7 @@ import type * as multidisciplinaryCareTeam from "../multidisciplinaryCareTeam.js
 import type * as multidisciplinaryNotes from "../multidisciplinaryNotes.js";
 import type * as nightCheckConfigurations from "../nightCheckConfigurations.js";
 import type * as nightCheckRecordings from "../nightCheckRecordings.js";
+import type * as notifications from "../notifications.js";
 import type * as personalCare from "../personalCare.js";
 import type * as personalInterests from "../personalInterests.js";
 import type * as progressNotes from "../progressNotes.js";
@@ -125,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   multidisciplinaryNotes: typeof multidisciplinaryNotes;
   nightCheckConfigurations: typeof nightCheckConfigurations;
   nightCheckRecordings: typeof nightCheckRecordings;
+  notifications: typeof notifications;
   personalCare: typeof personalCare;
   personalInterests: typeof personalInterests;
   progressNotes: typeof progressNotes;
