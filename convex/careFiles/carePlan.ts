@@ -120,6 +120,25 @@ export const getCarePlanAssessmentsByResidentAndFolder = query({
   }
 });
 
+export const getLatestCarePlanByResidentAndFolder = query({
+  args: {
+    residentId: v.id("residents"),
+    folderKey: v.string()
+  },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    const latestAssessment = await ctx.db
+      .query("carePlanAssessments")
+      .withIndex("by_resident_and_folder", (q) =>
+        q.eq("residentId", args.residentId).eq("folderKey", args.folderKey)
+      )
+      .order("desc")
+      .first();
+
+    return latestAssessment;
+  }
+});
+
 export const getCarePlanAssessment = query({
   args: {
     assessmentId: v.id("carePlanAssessments")

@@ -121,7 +121,7 @@ export default function CareFileFolder({
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
-    allCarePlanForms,
+    latestCarePlanForm,
     getAllPdfFiles: folderPdfFiles
   } = useFolderForms({
     residentId,
@@ -649,55 +649,26 @@ export default function CareFileFolder({
                   </div>
                   {/* LIST OF CARE PLANS */}
                   <div className="space-y-2">
-                    {(() => {
-                      console.log("=== CARE PLANS RENDERING DEBUG ===");
-                      console.log("carePlan prop:", carePlan);
-                      console.log("allCarePlanForms:", allCarePlanForms);
-                      console.log(
-                        "allCarePlanForms?.length:",
-                        allCarePlanForms?.length
-                      );
-                      console.log(
-                        "condition check (allCarePlanForms && allCarePlanForms.length > 0):",
-                        allCarePlanForms && allCarePlanForms.length > 0
-                      );
-                      if (allCarePlanForms) {
-                        console.log(
-                          "Forms to render:",
-                          allCarePlanForms.map((f) => ({
-                            id: f._id,
-                            creationTime: f._creationTime
-                          }))
-                        );
-                      }
-                      console.log("=================================");
-                      return null;
-                    })()}
-                    {allCarePlanForms && allCarePlanForms.length > 0 ? (
-                      allCarePlanForms
-                        .sort((a, b) => b._creationTime - a._creationTime)
-                        .map((form, index) => (
-                          <PdfFileItem
-                            key={form._id}
-                            isCarePlan
-                            file={{
-                              formKey: "care-plan-form",
-                              formId: form._id,
-                              name:
-                                form.nameOfCarePlan || "Care Plan Assessment",
-                              completedAt: form._creationTime,
-                              isLatest: index === 0
-                            }}
-                          />
-                        ))
+                    {latestCarePlanForm ? (
+                      <PdfFileItem
+                        key={latestCarePlanForm._id}
+                        isCarePlan
+                        file={{
+                          formKey: "care-plan-form",
+                          formId: latestCarePlanForm._id,
+                          name:
+                            latestCarePlanForm.nameOfCarePlan ||
+                            "Care Plan Assessment",
+                          completedAt: latestCarePlanForm._creationTime,
+                          isLatest: true
+                        }}
+                      />
                     ) : (
                       <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
                         No care plans generated yet. Complete and submit care
                         plan.
-                        {allCarePlanForms === undefined && " (Loading...)"}
-                        {allCarePlanForms &&
-                          allCarePlanForms.length === 0 &&
-                          " (No forms found)"}
+                        {latestCarePlanForm === undefined && " (Loading...)"}
+                        {latestCarePlanForm === null && " (No forms found)"}
                       </div>
                     )}
                   </div>

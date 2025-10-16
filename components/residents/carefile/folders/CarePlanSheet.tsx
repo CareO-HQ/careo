@@ -57,13 +57,19 @@ export default function CarePlanSheetContent({
     }>
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasModified, setHasModified] = useState(false);
 
   // Initialize form data when care plan loads
   useEffect(() => {
     if (carePlanData) {
-      setAims(carePlanData.aims || "");
-      setIdentifiedNeeds(carePlanData.identifiedNeeds || "");
-      setPlannedCareEntries(carePlanData.plannedCareDate || []);
+      const initialAims = carePlanData.aims || "";
+      const initialNeeds = carePlanData.identifiedNeeds || "";
+      const initialEntries = carePlanData.plannedCareDate || [];
+
+      setAims(initialAims);
+      setIdentifiedNeeds(initialNeeds);
+      setPlannedCareEntries(initialEntries);
+      setHasModified(false);
     }
   }, [carePlanData]);
 
@@ -78,6 +84,8 @@ export default function CarePlanSheetContent({
         signature: ""
       }
     ]);
+    setHasModified(true);
+    toast.info("CHANGE");
   };
 
   // Update planned care entry
@@ -95,11 +103,14 @@ export default function CarePlanSheetContent({
       updated[index][field] = value as string;
     }
     setPlannedCareEntries(updated);
+    setHasModified(true);
   };
 
   // Delete planned care entry
   const handleDeleteEntry = (index: number) => {
     setPlannedCareEntries(plannedCareEntries.filter((_, i) => i !== index));
+    setHasModified(true);
+    toast.info("CHANGE");
   };
 
   // Handle updating care plan (creates new version)
@@ -143,7 +154,8 @@ export default function CarePlanSheetContent({
         "Care plan updated successfully! A new version has been created."
       );
 
-      // Close the sheet after successful update
+      // Reset modified state and close the sheet after successful update
+      setHasModified(false);
       onOpenChange(false);
     } catch (error) {
       console.error("Error updating care plan:", error);
@@ -250,7 +262,10 @@ export default function CarePlanSheetContent({
             <div className="flex flex-col justify-start items-start gap-1">
               <Textarea
                 value={aims}
-                onChange={(e) => setAims(e.target.value)}
+                onChange={(e) => {
+                  setAims(e.target.value);
+                  setHasModified(true);
+                }}
                 className="w-full"
                 placeholder="Enter care plan aims..."
               />
@@ -265,7 +280,10 @@ export default function CarePlanSheetContent({
             <div className="flex flex-col justify-start items-start gap-1">
               <Textarea
                 value={identifiedNeeds}
-                onChange={(e) => setIdentifiedNeeds(e.target.value)}
+                onChange={(e) => {
+                  setIdentifiedNeeds(e.target.value);
+                  setHasModified(true);
+                }}
                 className="w-full"
                 placeholder="Enter identified needs..."
               />
@@ -380,7 +398,7 @@ export default function CarePlanSheetContent({
             <Button
               className="mt-4"
               onClick={handleUpdateCarePlan}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !hasModified}
             >
               {isSubmitting ? "Updating..." : "Update Care Plan"}
             </Button>

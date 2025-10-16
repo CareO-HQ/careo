@@ -113,8 +113,8 @@ export function useFolderForms({
       : "skip"
   );
 
-  const allCarePlanForms = useQuery(
-    api.careFiles.carePlan.getCarePlanAssessmentsByResidentAndFolder,
+  const latestCarePlanForm = useQuery(
+    api.careFiles.carePlan.getLatestCarePlanByResidentAndFolder,
     includeCarePlans && residentId && folderKey
       ? { residentId, folderKey }
       : "skip"
@@ -393,7 +393,7 @@ export function useFolderForms({
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
-    allCarePlanForms,
+    latestCarePlanForm,
     // Computed data
     getAllPdfFiles
   };
