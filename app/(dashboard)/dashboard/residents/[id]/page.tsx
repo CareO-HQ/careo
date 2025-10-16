@@ -107,6 +107,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
+          <Button variant="outline" size="icon" onClick={() => router.push("/dashboard/residents")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
           <Avatar className="w-20 h-20">
             <AvatarImage
               src={resident.imageUrl}
