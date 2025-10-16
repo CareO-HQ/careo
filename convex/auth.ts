@@ -64,9 +64,15 @@ export const getCurrentUser = query({
       return null;
     }
 
+    // Get the session to access activeOrganizationId
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
     // Debug: Log the userMetadata to see what fields are available
     console.log("userMetadata from Better Auth:", userMetadata);
     console.log("twoFactorEnabled value:", userMetadata.twoFactorEnabled);
+    console.log("session activeOrganizationId:", session?.activeOrganizationId);
 
     // Get user data from your application's database for custom fields
     const customUserData = await ctx.db.get(userMetadata.userId as Id<"users">);
@@ -87,12 +93,15 @@ export const getCurrentUser = query({
       }
     }
 
+    // Get activeOrganizationId from session
+    const activeOrganizationId = session?.activeOrganizationId || null;
+
     // Get active organization details if activeOrganizationId exists
     let activeOrganization: { id: any; name: any } | null = null;
-    if (userMetadata.activeOrganizationId) {
+    if (activeOrganizationId) {
       const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "organization",
-        where: [{ field: "id", value: userMetadata.activeOrganizationId }]
+        where: [{ field: "id", value: activeOrganizationId }]
       });
       if (org) {
         activeOrganization = {
@@ -116,7 +125,7 @@ export const getCurrentUser = query({
       isOnboardingComplete: customUserData?.isOnboardingComplete || false,
       activeTeamId: customUserData?.activeTeamId || null, // Include active team ID
       activeTeam: activeTeam, // Include active team details
-      activeOrganizationId: userMetadata.activeOrganizationId || null, // Include active organization ID
+      activeOrganizationId: activeOrganizationId, // Include active organization ID from session
       activeOrganization: activeOrganization, // Include active organization details
       // Include any other custom fields that aren't in Better Auth
       ...(customUserData && {

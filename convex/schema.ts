@@ -2447,5 +2447,14 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_incident", ["incidentId"])
-    .index("by_user_and_incident", ["userId", "incidentId"])
+    .index("by_user_and_incident", ["userId", "incidentId"]),
+
+  appointmentReadStatus: defineTable({
+    userId: v.id("users"),
+    appointmentId: v.id("appointments"),
+    readAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_appointment", ["appointmentId"])
+    .index("by_user_and_appointment", ["userId", "appointmentId"])
 });

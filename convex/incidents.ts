@@ -330,7 +330,7 @@ export const getIncidentsWithResidents = query({
 
     // Get current user for read status
     const identity = await ctx.auth.getUserIdentity();
-    let currentUser = null;
+    let currentUser: any = null;
     if (identity) {
       currentUser = await ctx.db
         .query("users")
@@ -347,7 +347,7 @@ export const getIncidentsWithResidents = query({
     // Fetch resident details and read status for each incident
     const incidentsWithResidents = await Promise.all(
       incidents.map(async (incident) => {
-        let resident = null;
+        let resident: any = null;
         if (incident.residentId) {
           resident = await ctx.db.get(incident.residentId);
         }
@@ -393,7 +393,7 @@ export const getIncidentsByTeam = query({
 
     // Get current user for read status
     const identity = await ctx.auth.getUserIdentity();
-    let currentUser = null;
+    let currentUser: any = null;
     if (identity) {
       currentUser = await ctx.db
         .query("users")
@@ -427,9 +427,24 @@ export const getIncidentsByTeam = query({
     // Fetch resident details and read status for each incident
     const incidentsWithResidents = await Promise.all(
       teamIncidents.map(async (incident) => {
-        let resident = null;
+        let resident: any = null;
+        let imageUrl: string | null = null;
+
         if (incident.residentId) {
           resident = await ctx.db.get(incident.residentId);
+
+          // Get the resident's image URL from files table
+          if (resident) {
+            const residentImage = await ctx.db
+              .query("files")
+              .filter((q) => q.eq(q.field("type"), "resident"))
+              .filter((q) => q.eq(q.field("userId"), resident._id))
+              .first();
+
+            if (residentImage?.format === "image") {
+              imageUrl = await ctx.storage.getUrl(residentImage.body);
+            }
+          }
         }
 
         // Check if current user has read this incident
@@ -452,7 +467,7 @@ export const getIncidentsByTeam = query({
             firstName: resident.firstName,
             lastName: resident.lastName,
             roomNumber: resident.roomNumber,
-            imageUrl: resident.imageUrl
+            imageUrl: imageUrl
           } : null
         };
       })
@@ -473,7 +488,7 @@ export const getIncidentsByOrganization = query({
 
     // Get current user for read status
     const identity = await ctx.auth.getUserIdentity();
-    let currentUser = null;
+    let currentUser: any = null;
     if (identity) {
       currentUser = await ctx.db
         .query("users")
@@ -507,9 +522,24 @@ export const getIncidentsByOrganization = query({
     // Fetch resident details and read status for each incident
     const incidentsWithResidents = await Promise.all(
       orgIncidents.map(async (incident) => {
-        let resident = null;
+        let resident: any = null;
+        let imageUrl: string | null = null;
+
         if (incident.residentId) {
           resident = await ctx.db.get(incident.residentId);
+
+          // Get the resident's image URL from files table
+          if (resident) {
+            const residentImage = await ctx.db
+              .query("files")
+              .filter((q) => q.eq(q.field("type"), "resident"))
+              .filter((q) => q.eq(q.field("userId"), resident._id))
+              .first();
+
+            if (residentImage?.format === "image") {
+              imageUrl = await ctx.storage.getUrl(residentImage.body);
+            }
+          }
         }
 
         // Check if current user has read this incident
@@ -532,7 +562,7 @@ export const getIncidentsByOrganization = query({
             firstName: resident.firstName,
             lastName: resident.lastName,
             roomNumber: resident.roomNumber,
-            imageUrl: resident.imageUrl,
+            imageUrl: imageUrl,
             teamName: resident.teamName
           } : null
         };

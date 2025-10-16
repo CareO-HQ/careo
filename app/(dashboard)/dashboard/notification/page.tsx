@@ -27,10 +27,27 @@ export default function NotificationPage() {
   const { activeTeam, activeTeamId, activeOrganization, activeOrganizationId, isLoading: isTeamLoading } = useActiveTeam();
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  // Fetch incidents for the selected team
+  // Debug logging
+  console.log('Notification Page Debug:', {
+    activeTeamId,
+    activeOrganizationId,
+    activeTeam,
+    activeOrganization,
+    isTeamLoading
+  });
+
+  // Fetch incidents - either for specific team or entire organization
   const incidents = useQuery(
-    api.incidents.getIncidentsByTeam,
-    activeTeamId ? { teamId: activeTeamId, limit: 50 } : "skip"
+    activeTeamId
+      ? api.incidents.getIncidentsByTeam
+      : activeOrganizationId
+      ? api.incidents.getIncidentsByOrganization
+      : "skip",
+    activeTeamId
+      ? { teamId: activeTeamId, limit: 50 }
+      : activeOrganizationId
+      ? { organizationId: activeOrganizationId, limit: 50 }
+      : "skip"
   );
 
   // Mutations
@@ -149,8 +166,8 @@ export default function NotificationPage() {
     );
   }
 
-  // No active team selected state
-  if (!activeTeamId) {
+  // No active team or organization selected state
+  if (!activeTeamId && !activeOrganizationId) {
     return (
       <div className="w-full">
         <Button
@@ -164,7 +181,7 @@ export default function NotificationPage() {
         </Button>
         <div className="text-center py-12">
           <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Please select a team to see notifications</p>
+          <p className="text-muted-foreground">Please select a care home to see notifications</p>
         </div>
       </div>
     );
@@ -188,9 +205,9 @@ export default function NotificationPage() {
         <div className="flex items-center gap-3">
           <Bell className="w-6 h-6" />
           <div>
-            <h1 className="text-2xl font-semibold">Notifications</h1>
+            <h1 className="text-2xl font-semibold">Incidents</h1>
             <p className="text-sm text-muted-foreground">
-              Incident reports for {activeTeam?.name || 'selected unit'}
+              Incident reports for {activeTeamId ? activeTeam?.name || 'selected unit' : `All units in ${activeOrganization?.name || 'care home'}`}
             </p>
           </div>
         </div>
@@ -206,7 +223,7 @@ export default function NotificationPage() {
         <Select value={filter} onValueChange={(value: "all" | "unread") => setFilter(value)}>
           <SelectTrigger className="w-[180px]">
             <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="All Notifications" />
+            <SelectValue placeholder="All Incidents" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Incidents</SelectItem>
@@ -230,13 +247,13 @@ export default function NotificationPage() {
       {/* TODO: Add role-based filtering here in the future */}
       {/* For now, showing all incidents for the selected team/unit */}
 
-      {/* Notifications List */}
+      {/* Incidents List */}
       <div className="space-y-0">
         {filteredIncidents.length === 0 ? (
           <div className="text-center py-12">
             <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
             <p className="text-muted-foreground">
-              {filter === "unread" ? "No unread notifications" : "No notifications"}
+              {filter === "unread" ? "No unread incidents" : "No incidents"}
             </p>
           </div>
         ) : (
@@ -245,6 +262,11 @@ export default function NotificationPage() {
             const residentName = incident.resident
               ? `${incident.resident.firstName} ${incident.resident.lastName}`
               : `${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}`;
+            const initials = incident.resident
+              ? `${incident.resident.firstName[0]}${incident.resident.lastName[0]}`
+              : incident.injuredPersonFirstName && incident.injuredPersonSurname
+              ? `${incident.injuredPersonFirstName[0]}${incident.injuredPersonSurname[0]}`
+              : "U";
 
             return (
               <div
@@ -254,6 +276,12 @@ export default function NotificationPage() {
                 }`}
                 onClick={() => handleIncidentClick(incident)}
               >
+                {/* Resident Avatar */}
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={incident.resident?.imageUrl} alt={residentName} />
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">

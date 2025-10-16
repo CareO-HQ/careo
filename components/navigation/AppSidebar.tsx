@@ -23,7 +23,8 @@ import {
   MessageSquareIcon,
   HomeIcon,
   UsersIcon,
-  CalendarIcon
+  CalendarIcon,
+  FileWarning
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -44,6 +45,16 @@ export function AppSidebar() {
   // Get unread notification count - dynamic based on selection
   const unreadCount = useQuery(
     api.notifications.getUnreadCount,
+    activeTeamId
+      ? { teamId: activeTeamId, organizationId: undefined }
+      : activeOrganizationId
+      ? { teamId: undefined, organizationId: activeOrganizationId }
+      : "skip"
+  );
+
+  // Get unread appointments count - dynamic based on selection
+  const unreadAppointmentsCount = useQuery(
+    api.appointmentNotifications.getUnreadAppointmentCount,
     activeTeamId
       ? { teamId: activeTeamId, organizationId: undefined }
       : activeOrganizationId
@@ -137,33 +148,30 @@ export function AppSidebar() {
             {/* Appointment */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/appointment">
-                  <CalendarIcon />
-                  <span>Appointment</span>
+                <Link href="/dashboard/appointment" className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4" />
+                    <span>Appointment</span>
+                  </div>
+                  {unreadAppointmentsCount !== undefined && unreadAppointmentsCount > 0 && (
+                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                      {unreadAppointmentsCount}
+                    </Badge>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* General */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/general">
-                  <SettingsIcon />
-                  <span>General</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Notification */}
+            {/* Incidents */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
-                    <MessageSquareIcon className="w-4 h-4" />
-                    <span>Notification</span>
+                    <FileWarning className="w-4 h-4" />
+                    <span>Incidents</span>
                   </div>
                   {unreadCount !== undefined && unreadCount > 0 && (
-                    <Badge className="bg-red-500 text-white ml-auto h-5 px-1.5 text-xs">
+                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
                       {unreadCount}
                     </Badge>
                   )}

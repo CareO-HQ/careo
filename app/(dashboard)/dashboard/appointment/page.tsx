@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, Clock, User, MapPin, ArrowLeft, Filter } from "lucide-react";
+import { Calendar, Clock, User, MapPin, ArrowLeft, Filter, Check } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { format } from "date-fns";
 import {
@@ -17,11 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
+import { Id } from "@/convex/_generated/dataModel";
 
 export default function AppointmentPage() {
   const router = useRouter();
-  const { activeTeamId, activeTeam } = useActiveTeam();
-  const [filter, setFilter] = useState<"all" | "today" | "week">("all");
+  const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
+  const [filter, setFilter] = useState<"all" | "unread">("all");
 
   // Fetch appointments for the active team from Convex
   const appointmentsData = useQuery(
@@ -29,33 +31,106 @@ export default function AppointmentPage() {
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
 
-  // Filter appointments
+  const markAppointmentAsRead = useMutation(api.appointmentNotifications.markAppointmentAsRead);
+  const markMultipleAsRead = useMutation(api.appointmentNotifications.markMultipleAppointmentsAsRead);
+
+  const isLoading = isTeamLoading;
+
+  // Filter appointments by read/unread status
   const filteredAppointments = useMemo(() => {
     if (!appointmentsData) return [];
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-    if (filter === "today") {
-      return appointmentsData.filter((apt) => {
-        const aptDate = new Date(apt.startTime);
-        return aptDate.toDateString() === today.toDateString();
-      });
-    }
-
-    if (filter === "week") {
-      return appointmentsData.filter((apt) => {
-        const aptDate = new Date(apt.startTime);
-        aptDate.setHours(0, 0, 0, 0);
-        return aptDate >= today && aptDate <= nextWeek;
-      });
+    if (filter === "unread") {
+      return appointmentsData.filter((apt) => !apt.isRead);
     }
 
     return appointmentsData;
   }, [appointmentsData, filter]);
 
-  const upcomingCount = appointmentsData?.length || 0;
+  const unreadCount = useMemo(() => {
+    if (!appointmentsData) return 0;
+    return appointmentsData.filter((apt) => !apt.isRead).length;
+  }, [appointmentsData]);
+
+  const handleAppointmentClick = async (appointment: any) => {
+    // Mark as read
+    if (!appointment.isRead) {
+      try {
+        await markAppointmentAsRead({ appointmentId: appointment._id });
+      } catch (error) {
+        console.error("Error marking appointment as read:", error);
+      }
+    }
+
+    // Navigate to resident's appointment details (you can customize this)
+    router.push(`/dashboard/residents/${appointment.residentId}/appointments`);
+  };
+
+  const markAsRead = async (appointmentId: Id<"appointments">) => {
+    try {
+      await markAppointmentAsRead({ appointmentId });
+      toast.success("Appointment marked as read");
+    } catch (error) {
+      console.error("Error marking appointment as read:", error);
+      toast.error("Failed to mark appointment as read");
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const unreadAppointments = appointmentsData?.filter((apt) => !apt.isRead) || [];
+      const appointmentIds = unreadAppointments.map((apt) => apt._id);
+
+      if (appointmentIds.length === 0) return;
+
+      await markMultipleAsRead({ appointmentIds });
+      toast.success("All appointments marked as read");
+    } catch (error) {
+      console.error("Error marking all appointments as read:", error);
+      toast.error("Failed to mark all appointments as read");
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="w-full">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // No active team selected state
+  if (!activeTeamId) {
+    return (
+      <div className="w-full">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <div className="text-center py-12">
+          <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">Please select a care home to see appointments</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -77,30 +152,41 @@ export default function AppointmentPage() {
           <div>
             <h1 className="text-2xl font-semibold">Appointments</h1>
             <p className="text-sm text-muted-foreground">
-              {activeTeam?.name ? `Upcoming appointments for ${activeTeam.name}` : "Select a team to view appointments"}
+              Upcoming appointments for {activeTeamId ? activeTeam?.name || 'selected unit' : `All units in ${activeOrganization?.name || 'care home'}`}
             </p>
           </div>
         </div>
-        {upcomingCount > 0 && (
-          <Badge className="bg-blue-100 text-blue-700 border-blue-200 px-3 py-1">
-            {upcomingCount} Upcoming
+        {unreadCount > 0 && (
+          <Badge className="bg-red-100 text-red-700 border-red-200 px-3 py-1">
+            {unreadCount} Unread
           </Badge>
         )}
       </div>
 
-      {/* Filter */}
+      {/* Filter and Actions */}
       <div className="flex items-center justify-between mb-4">
-        <Select value={filter} onValueChange={(value: "all" | "today" | "week") => setFilter(value)}>
+        <Select value={filter} onValueChange={(value: "all" | "unread") => setFilter(value)}>
           <SelectTrigger className="w-[180px]">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="All Appointments" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Appointments</SelectItem>
-            <SelectItem value="today">Today</SelectItem>
-            <SelectItem value="week">This Week</SelectItem>
+            <SelectItem value="unread">Unread</SelectItem>
           </SelectContent>
         </Select>
+
+        {unreadCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={markAllAsRead}
+            className="text-sm"
+          >
+            <Check className="w-4 h-4 mr-2" />
+            Mark All as Read
+          </Button>
+        )}
       </div>
 
       {/* Appointments List */}
@@ -108,7 +194,9 @@ export default function AppointmentPage() {
         {filteredAppointments.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">No appointments</p>
+            <p className="text-muted-foreground">
+              {filter === "unread" ? "No unread appointments" : "No appointments"}
+            </p>
           </div>
         ) : (
           filteredAppointments.map((appointment) => {
@@ -122,7 +210,10 @@ export default function AppointmentPage() {
             return (
               <div
                 key={appointment._id}
-                className="flex items-start gap-3 py-4 hover:bg-muted/30 transition-colors"
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/30 transition-colors cursor-pointer ${
+                  !appointment.isRead ? "bg-muted/10" : ""
+                }`}
+                onClick={() => handleAppointmentClick(appointment)}
               >
                 {/* Resident Avatar */}
                 <Avatar className="w-10 h-10">
@@ -134,34 +225,36 @@ export default function AppointmentPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <p className="text-sm text-foreground">
-                        <span className="font-medium">{appointment.title}</span>
-                        {appointment.description && ` - ${appointment.description}`}
+                      <p className={`text-sm ${appointment.isRead ? "text-muted-foreground" : "text-foreground"}`}>
+                        <span className="font-medium">{appointment.title}</span> - {residentName}
+                        {appointment.description && ` • ${appointment.description}`}
                       </p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          {residentName}
-                          {appointment.resident?.roomNumber && ` • Room ${appointment.resident.roomNumber}`}
-                        </span>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">
                           {format(new Date(appointment.startTime), "PPP 'at' p")}
                         </span>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
+                        <Badge
+                          variant="outline"
+                          className="text-xs h-5"
+                        >
                           {appointment.location}
-                        </span>
+                        </Badge>
                       </div>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="text-xs h-5 text-green-600 bg-green-50 border-green-200 shrink-0"
-                    >
-                      Scheduled
-                    </Badge>
+                    {!appointment.isRead && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsRead(appointment._id);
+                        }}
+                        className="h-7 px-2 text-xs shrink-0"
+                      >
+                        <Check className="w-3 h-3 mr-1" />
+                        Mark as read
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
