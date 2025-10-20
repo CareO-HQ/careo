@@ -456,6 +456,46 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       teamId: "dummy",
       organizationId: "dummy",
       residentId: id
+    },
+    {
+      _id: "dummy5" as any,
+      name: "Hydrocortisone Cream",
+      strength: "1",
+      strengthUnit: "mg" as const,
+      totalCount: 2,
+      dosageForm: "Cream" as const,
+      frequency: "As Needed (PRN)" as const,
+      times: [],
+      status: "active" as const,
+      prescriberName: "Dr. Martinez",
+      startDate: Date.now() - 45 * 24 * 60 * 60 * 1000, // 45 days ago
+      instructions: "Apply thin layer to affected area, up to 3 times daily",
+      route: "Topical" as const,
+      scheduleType: "PRN (As Needed)" as const,
+      createdByUserId: "dummy",
+      teamId: "dummy",
+      organizationId: "dummy",
+      residentId: id
+    },
+    {
+      _id: "dummy6" as any,
+      name: "Emollient Cream",
+      strength: "500",
+      strengthUnit: "g" as const,
+      totalCount: 3,
+      dosageForm: "Cream" as const,
+      frequency: "As Needed (PRN)" as const,
+      times: [],
+      status: "active" as const,
+      prescriberName: "Dr. Wilson",
+      startDate: Date.now() - 20 * 24 * 60 * 60 * 1000, // 20 days ago
+      instructions: "Apply liberally to dry skin as needed",
+      route: "Topical" as const,
+      scheduleType: "PRN (As Needed)" as const,
+      createdByUserId: "dummy",
+      teamId: "dummy",
+      organizationId: "dummy",
+      residentId: id
     }
   ];
 

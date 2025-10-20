@@ -523,3 +523,21 @@ Creating turbopack project { dir: '/Users/abisgeorge/Code/careo', testMode: true
 [2m[ 3.18ms][22m  [2m ↳ [22mUpdate PostCSS AST
 
  GET / 200 in 86ms
+
+[2m[257.38ms][22m [@tailwindcss/postcss] app/globals.css
+[2m[  1.05ms][22m  [2m ↳ [22mQuick bail check
+[2m[  5.94ms][22m  [2m ↳ [22mRegister full rebuild paths
+[2m[103.46ms][22m  [2m ↳ [22mScan for candidates
+[2m[ 22.34ms][22m  [2m ↳ [22mRegister dependency messages
+[2m[ 90.88ms][22m  [2m ↳ [22mBuild utilities
+[2m[ 23.38ms][22m  [2m ↳ [22mUpdate PostCSS AST
+
+
+[2m[36.38ms][22m [@tailwindcss/postcss] app/globals.css
+[2m[ 0.00ms][22m  [2m ↳ [22mQuick bail check
+[2m[ 0.07ms][22m  [2m ↳ [22mRegister full rebuild paths
+[2m[19.60ms][22m  [2m ↳ [22mScan for candidates
+[2m[10.09ms][22m  [2m ↳ [22mRegister dependency messages
+[2m[ 2.11ms][22m  [2m ↳ [22mBuild utilities
+[2m[ 4.36ms][22m  [2m ↳ [22mUpdate PostCSS AST
+
