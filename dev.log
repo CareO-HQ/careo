@@ -522,3 +522,4 @@ Creating turbopack project { dir: '/Users/abisgeorge/Code/careo', testMode: true
 [2m[ 0.58ms][22m  [2m ↳ [22mBuild utilities
 [2m[ 3.18ms][22m  [2m ↳ [22mUpdate PostCSS AST
 
+ GET / 200 in 86ms
