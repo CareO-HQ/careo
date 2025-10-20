@@ -1825,6 +1825,34 @@ export default defineSchema({
 
     .index("by_resident_and_folder", ["residentId", "folderKey"]),
 
+  // Care plan reminders - 30-day review reminders
+  carePlanReminders: defineTable({
+    carePlanId: v.id("carePlanAssessments"),
+    reminderDate: v.number(),
+    reminderStatus: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number())
+  })
+    .index("by_care_plan", ["carePlanId"])
+    .index("by_reminder_status", ["reminderStatus"])
+    .index("by_reminder_date", ["reminderDate"])
+    .index("by_created_by", ["createdBy"]),
+
+  // Care plan evaluations
+  carePlanEvaluations: defineTable({
+    carePlanId: v.id("carePlanAssessments"),
+    evaluationDate: v.number(),
+    comments: v.string(),
+    createdAt: v.optional(v.number())
+  })
+    .index("by_care_plan", ["carePlanId"])
+    .index("by_evaluation_date", ["evaluationDate"]),
+
   // Hospital Passport records
   hospitalPassports: defineTable({
     residentId: v.id("residents"),

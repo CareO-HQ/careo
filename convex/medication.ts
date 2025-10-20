@@ -1418,3 +1418,128 @@ export const getNextMedicationIntakeByResidentId = query({
     };
   }
 });
+
+// Add stock to medication
+export const addMedicationStock = mutation({
+  args: {
+    medicationId: v.id("medication"),
+    quantityToAdd: v.number()
+  },
+  handler: async (ctx, args) => {
+    const medication = await ctx.db.get(args.medicationId);
+
+    if (!medication) {
+      throw new Error("Medication not found");
+    }
+
+    const newTotal = medication.totalCount + args.quantityToAdd;
+
+    await ctx.db.patch(args.medicationId, {
+      totalCount: newTotal
+    });
+
+    return { success: true, newTotal };
+  }
+});
+
+// Delete medication
+export const deleteMedication = mutation({
+  args: {
+    medicationId: v.id("medication")
+  },
+  handler: async (ctx, args) => {
+    const medication = await ctx.db.get(args.medicationId);
+
+    if (!medication) {
+      throw new Error("Medication not found");
+    }
+
+    // Delete the medication record
+    await ctx.db.delete(args.medicationId);
+
+    // Optionally: Also delete associated medication intake records
+    const intakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byMedicationId", (q) => q.eq("medicationId", args.medicationId))
+      .collect();
+
+    for (const intake of intakes) {
+      await ctx.db.delete(intake._id);
+    }
+
+    return { success: true };
+  }
+});
+
+// Update medication details
+export const updateMedication = mutation({
+  args: {
+    medicationId: v.id("medication"),
+    name: v.optional(v.string()),
+    strength: v.optional(v.string()),
+    strengthUnit: v.optional(v.union(v.literal("mg"), v.literal("g"))),
+    totalCount: v.optional(v.number()),
+    dosageForm: v.optional(
+      v.union(
+        v.literal("Tablet"),
+        v.literal("Capsule"),
+        v.literal("Liquid"),
+        v.literal("Injection"),
+        v.literal("Cream"),
+        v.literal("Ointment"),
+        v.literal("Patch"),
+        v.literal("Inhaler")
+      )
+    ),
+    route: v.optional(
+      v.union(
+        v.literal("Oral"),
+        v.literal("Topical"),
+        v.literal("Intramuscular (IM)"),
+        v.literal("Intravenous (IV)"),
+        v.literal("Subcutaneous"),
+        v.literal("Inhalation"),
+        v.literal("Rectal"),
+        v.literal("Sublingual")
+      )
+    ),
+    frequency: v.optional(
+      v.union(
+        v.literal("Once daily (OD)"),
+        v.literal("Twice daily (BD)"),
+        v.literal("Three times daily (TD)"),
+        v.literal("Four times daily (QDS)"),
+        v.literal("Four times daily (QIS)"),
+        v.literal("As Needed (PRN)"),
+        v.literal("One time (STAT)"),
+        v.literal("Weekly"),
+        v.literal("Monthly")
+      )
+    ),
+    scheduleType: v.optional(
+      v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)"))
+    ),
+    times: v.optional(v.array(v.string())),
+    instructions: v.optional(v.string()),
+    prescriberName: v.optional(v.string()),
+    endDate: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const { medicationId, ...updates } = args;
+
+    const medication = await ctx.db.get(medicationId);
+
+    if (!medication) {
+      throw new Error("Medication not found");
+    }
+
+    // Remove undefined values
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+
+    await ctx.db.patch(medicationId, cleanUpdates);
+
+    return { success: true };
+  }
+});
