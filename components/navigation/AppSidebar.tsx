@@ -24,7 +24,8 @@ import {
   HomeIcon,
   UsersIcon,
   CalendarIcon,
-  FileWarning
+  FileWarning,
+  BellIcon
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -175,6 +176,16 @@ export function AppSidebar() {
                       {unreadCount}
                     </Badge>
                   )}
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Notification */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/notification">
+                  <BellIcon />
+                  <span>Notification</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

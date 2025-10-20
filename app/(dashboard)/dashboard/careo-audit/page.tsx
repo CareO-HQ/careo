@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -183,6 +184,28 @@ function CareOAuditPageContent() {
   const handleCancelDelete = () => {
     setIsDeleteDialogOpen(false);
     setAuditToDelete(null);
+  };
+
+  const handleDownloadAudit = (audit: Audit) => {
+    setOpenDropdownId(null);
+
+    // Check if audit is completed
+    if (audit.status === "completed") {
+      // For completed audits, open the view page which has print/download functionality
+      const viewUrl = `/dashboard/careo-audit/${audit.category}/${audit.id}/view`;
+
+      // Open in new tab
+      window.open(viewUrl, '_blank');
+
+      toast.success("Audit opened in new tab", {
+        description: "Click 'Download PDF' to save the audit report",
+      });
+    } else {
+      // For incomplete audits, show a warning
+      toast.warning("Audit not completed yet", {
+        description: "Please complete the audit before downloading",
+      });
+    }
   };
 
   const filteredAudits = audits.filter(audit => audit.category === activeTab);
@@ -446,17 +469,29 @@ function CareOAuditPageContent() {
                         <DropdownMenuItem
                           onClick={() => {
                             setOpenDropdownId(null);
-                            router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
+                            if (audit.status === "completed") {
+                              router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}/view`);
+                            } else {
+                              router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
+                            }
                           }}
                         >
                           <Eye className="h-4 w-4 mr-2" />
-                          View
+                          {audit.status === "completed" ? "View Completed Audit" : "View"}
                         </DropdownMenuItem>
+                        {audit.status !== "completed" && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setOpenDropdownId(null);
+                              router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
+                            }}
+                          >
+                            <ClipboardCheck className="h-4 w-4 mr-2" />
+                            Continue Audit
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            console.log('Download audit:', audit.id);
-                          }}
+                          onClick={() => handleDownloadAudit(audit)}
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Download

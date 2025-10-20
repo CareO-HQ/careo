@@ -40,6 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface Question {
   id: string;
@@ -89,6 +90,14 @@ export default function ResidentAuditPage() {
     }
   }, [auditId]);
 
+  // Load questions from localStorage
+  useEffect(() => {
+    const savedQuestions = localStorage.getItem(`audit-questions-${auditId}`);
+    if (savedQuestions) {
+      setQuestions(JSON.parse(savedQuestions));
+    }
+  }, [auditId]);
+
   // Fetch real residents from database
   const dbResidents = useQuery(api.residents.getByTeamId, {
     teamId: activeTeamId ?? "skip"
@@ -122,25 +131,35 @@ export default function ResidentAuditPage() {
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
+  const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
 
   const handleAddQuestion = () => {
     if (!newQuestionText.trim()) return;
 
     const newQuestion: Question = {
-      id: `q${questions.length + 1}`,
+      id: `q${Date.now()}`, // Use timestamp for unique ID
       text: newQuestionText,
       type: newQuestionType,
     };
 
-    setQuestions([...questions, newQuestion]);
+    const updatedQuestions = [...questions, newQuestion];
+    setQuestions(updatedQuestions);
+
+    // Save to localStorage
+    localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+
     setNewQuestionText("");
     setNewQuestionType("compliance");
     setIsQuestionDialogOpen(false);
   };
 
   const handleRemoveQuestion = (questionId: string) => {
-    setQuestions(questions.filter(q => q.id !== questionId));
+    const updatedQuestions = questions.filter(q => q.id !== questionId);
+    setQuestions(updatedQuestions);
     setAnswers(answers.filter(a => a.questionId !== questionId));
+
+    // Update localStorage
+    localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
   };
 
   const handleAnswerChange = (residentId: string, questionId: string, value: string) => {
@@ -214,6 +233,59 @@ export default function ResidentAuditPage() {
 
   const getComment = (residentId: string) => {
     return comments.find(c => c.residentId === residentId)?.text || "";
+  };
+
+  const handleCompleteAudit = () => {
+    // Prepare the completed audit data
+    const completedAudit = {
+      id: auditId,
+      name: auditName,
+      category: "resident",
+      completedAt: Date.now(),
+      questions,
+      answers,
+      comments,
+      residentDates,
+      actionPlans: actionPlans.filter(plan => plan.auditId === auditId),
+      status: "completed"
+    };
+
+    // Get existing completed audits
+    const existingCompletedAudits = localStorage.getItem('completed-audits');
+    const completedAudits = existingCompletedAudits
+      ? JSON.parse(existingCompletedAudits)
+      : [];
+
+    // Add or update this audit
+    const existingIndex = completedAudits.findIndex((a: any) => a.id === auditId);
+    if (existingIndex !== -1) {
+      completedAudits[existingIndex] = completedAudit;
+    } else {
+      completedAudits.push(completedAudit);
+    }
+
+    // Save to localStorage
+    localStorage.setItem('completed-audits', JSON.stringify(completedAudits));
+
+    // Update the audit status in the main audits list
+    const savedAudits = localStorage.getItem('careo-audits');
+    if (savedAudits) {
+      const audits = JSON.parse(savedAudits);
+      const updatedAudits = audits.map((audit: any) =>
+        audit.id === auditId
+          ? { ...audit, status: "completed", lastAudited: "Just now" }
+          : audit
+      );
+      localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+    }
+
+    // Show success toast
+    toast.success(`${auditName} completed and saved!`);
+
+    // Navigate back to audit list after a short delay
+    setTimeout(() => {
+      router.push('/dashboard/careo-audit?tab=resident');
+    }, 1500);
   };
 
   const handleMouseDown = (columnId: string, e: React.MouseEvent) => {
@@ -485,7 +557,10 @@ export default function ResidentAuditPage() {
                   className="border-r"
                   style={{ width: `${columnWidths.date}px` }}
                 >
-                  <Popover>
+                  <Popover
+                    open={openDatePopover === resident._id}
+                    onOpenChange={(open) => setOpenDatePopover(open ? resident._id : null)}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
@@ -501,6 +576,7 @@ export default function ResidentAuditPage() {
                         onSelect={(date) => {
                           if (date) {
                             handleResidentDateChange(resident._id, format(date, "yyyy-MM-dd"));
+                            setOpenDatePopover(null); // Close the popover after selection
                           }
                         }}
                       />
@@ -529,9 +605,12 @@ export default function ResidentAuditPage() {
 
         {/* Action Plans Section */}
         <div className="py-4 space-y-4">
-          <div className="px-2 pb-4 border-b border-dashed flex gap-2">
+          <div className="px-2 pb-4 border-b border-dashed flex justify-between items-center">
             <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
               Action Plan
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
             </Button>
           </div>
           <div className="px-2">

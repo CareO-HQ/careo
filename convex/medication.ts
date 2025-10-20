@@ -308,6 +308,70 @@ export const getActiveByTeamId = query({
   }
 });
 
+export const getActiveByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    return medications;
+  }
+});
+
+export const getAllByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .collect();
+
+    return medications;
+  }
+});
+
+export const updateMedicationStatus = mutation({
+  args: {
+    medicationId: v.id("medication"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    )
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Check if the medication exists
+    const medication = await ctx.db.get(args.medicationId);
+    if (!medication) {
+      throw new Error(`Medication with ID ${args.medicationId} not found`);
+    }
+
+    // Update the medication status
+    await ctx.db.patch(args.medicationId, {
+      status: args.status
+    });
+
+    return null;
+  }
+});
+
 export const getMedicationIntakesByTeamId = query({
   args: {
     teamId: v.string(),
