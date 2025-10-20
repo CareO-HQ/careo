@@ -76,6 +76,16 @@ export const submitCarePlanAssessment = mutation({
       submittedAt: Date.now()
     });
 
+    // Create reminder 30 days after creation
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    await ctx.db.insert("carePlanReminders", {
+      carePlanId: carePlanId,
+      reminderDate: Date.now() + thirtyDaysInMs,
+      reminderStatus: "pending" as const,
+      createdBy: args.userId,
+      createdAt: Date.now()
+    });
+
     // Schedule PDF generation after successful save if not a draft
     await ctx.scheduler.runAfter(
       1000, // 1 second delay
@@ -117,6 +127,25 @@ export const getCarePlanAssessmentsByResidentAndFolder = query({
       .collect();
 
     return assessments;
+  }
+});
+
+export const getLatestCarePlanByResidentAndFolder = query({
+  args: {
+    residentId: v.id("residents"),
+    folderKey: v.string()
+  },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    const latestAssessment = await ctx.db
+      .query("carePlanAssessments")
+      .withIndex("by_resident_and_folder", (q) =>
+        q.eq("residentId", args.residentId).eq("folderKey", args.folderKey)
+      )
+      .order("desc")
+      .first();
+
+    return latestAssessment;
   }
 });
 
@@ -180,6 +209,153 @@ export const updateCarePlanAssessment = mutation({
     });
 
     return assessmentId;
+  }
+});
+
+/**
+ * Create a new version of a care plan, linking to the previous version
+ */
+export const createNewCarePlanVersion = mutation({
+  args: {
+    previousCarePlanId: v.id("carePlanAssessments"),
+
+    // Updated care plan details
+    identifiedNeeds: v.string(),
+    aims: v.string(),
+
+    // Planned care entries
+    plannedCareDate: v.array(
+      v.object({
+        date: v.number(),
+        time: v.optional(v.string()),
+        details: v.string(),
+        signature: v.string()
+      })
+    ),
+
+    // Metadata
+    userId: v.string(),
+    writtenBy: v.string()
+  },
+  returns: v.id("carePlanAssessments"),
+  handler: async (ctx, args) => {
+    const { previousCarePlanId, ...updateData } = args;
+
+    // Get the previous care plan
+    const previousCarePlan = await ctx.db.get(previousCarePlanId);
+    if (!previousCarePlan) {
+      throw new Error("Previous care plan not found");
+    }
+
+    // Cancel the reminder for the previous care plan
+    const previousReminders = await ctx.db
+      .query("carePlanReminders")
+      .withIndex("by_care_plan", (q) => q.eq("carePlanId", previousCarePlanId))
+      .collect();
+
+    for (const reminder of previousReminders) {
+      if (reminder.reminderStatus === "pending") {
+        await ctx.db.patch(reminder._id, {
+          reminderStatus: "cancelled" as const
+        });
+      }
+    }
+
+    // Create new care plan with updated data
+    const newCarePlanId = await ctx.db.insert("carePlanAssessments", {
+      // Copy basic info from previous care plan
+      residentId: previousCarePlan.residentId,
+      residentName: previousCarePlan.residentName,
+      dob: previousCarePlan.dob,
+      bedroomNumber: previousCarePlan.bedroomNumber,
+      nameOfCarePlan: previousCarePlan.nameOfCarePlan,
+      carePlanNumber: previousCarePlan.carePlanNumber,
+      folderKey: previousCarePlan.folderKey,
+
+      // Updated info
+      userId: updateData.userId,
+      writtenBy: updateData.writtenBy,
+      dateWritten: Date.now(),
+      date: Date.now(),
+
+      // Updated care plan content
+      identifiedNeeds: updateData.identifiedNeeds,
+      aims: updateData.aims,
+      plannedCareDate: updateData.plannedCareDate,
+
+      // Link to previous version
+      previousCarePlanId: previousCarePlanId,
+
+      // Metadata
+      status: "submitted" as const,
+      submittedAt: Date.now()
+    });
+
+    // Create reminder 30 days after creation
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    await ctx.db.insert("carePlanReminders", {
+      carePlanId: newCarePlanId,
+      reminderDate: Date.now() + thirtyDaysInMs,
+      reminderStatus: "pending" as const,
+      createdBy: updateData.userId,
+      createdAt: Date.now()
+    });
+
+    // Schedule PDF generation
+    await ctx.scheduler.runAfter(
+      1000,
+      internal.careFiles.carePlan.generatePDFAndUpdateRecord,
+      { assessmentId: newCarePlanId }
+    );
+
+    return newCarePlanId;
+  }
+});
+
+/**
+ * Create a care plan evaluation
+ */
+export const createCarePlanEvaluation = mutation({
+  args: {
+    carePlanId: v.id("carePlanAssessments"),
+    evaluationDate: v.number(),
+    comments: v.string()
+  },
+  returns: v.id("carePlanEvaluations"),
+  handler: async (ctx, args) => {
+    // Verify care plan exists
+    const carePlan = await ctx.db.get(args.carePlanId);
+    if (!carePlan) {
+      throw new Error("Care plan not found");
+    }
+
+    // Insert the evaluation
+    const evaluationId = await ctx.db.insert("carePlanEvaluations", {
+      carePlanId: args.carePlanId,
+      evaluationDate: args.evaluationDate,
+      comments: args.comments
+    });
+
+    return evaluationId;
+  }
+});
+
+/**
+ * Get evaluations for a care plan
+ */
+export const getCarePlanEvaluations = query({
+  args: {
+    carePlanId: v.id("carePlanAssessments")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const evaluations = await ctx.db
+      .query("carePlanEvaluations")
+      .withIndex("by_care_plan", (q) => q.eq("carePlanId", args.carePlanId))
+      .order("desc")
+      .collect();
+
+    return evaluations;
   }
 });
 
@@ -292,5 +468,59 @@ export const getPDFUrl = query({
     // Fallback to direct PDF generation via API route
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     return `${baseUrl}/api/pdf/care-plan?assessmentId=${args.assessmentId}`;
+  }
+});
+
+/**
+ * Cron job to check for care plan reminders
+ * Compares dates only (ignoring time)
+ */
+export const checkCarePlanReminders = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    // Get current date at midnight (start of day)
+    const now = new Date();
+    const todayMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ).getTime();
+
+    // Get all pending reminders
+    const allReminders = await ctx.db.query("carePlanReminders").collect();
+
+    let checkedCount = 0;
+    let dueCount = 0;
+
+    for (const reminder of allReminders) {
+      if (reminder.reminderStatus === "pending") {
+        checkedCount++;
+
+        // Get reminder date at midnight (start of day)
+        const reminderDateObj = new Date(reminder.reminderDate);
+        const reminderMidnight = new Date(
+          reminderDateObj.getFullYear(),
+          reminderDateObj.getMonth(),
+          reminderDateObj.getDate()
+        ).getTime();
+
+        // Check if reminder date (date only) is today or in the past
+        if (reminderMidnight <= todayMidnight) {
+          dueCount++;
+          // TODO: Add notification logic here
+          // For example: send email, create notification, etc.
+          console.log(
+            `Care plan reminder due: ${reminder._id} for care plan ${reminder.carePlanId}`
+          );
+        }
+      }
+    }
+
+    console.log(
+      `Care plan reminder check complete: ${checkedCount} pending reminders checked, ${dueCount} due today or overdue`
+    );
+
+    return null;
   }
 });
