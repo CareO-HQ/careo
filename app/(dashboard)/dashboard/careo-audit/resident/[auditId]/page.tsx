@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { useQuery } from "convex/react";
@@ -35,12 +35,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, X, CalendarIcon, MoreHorizontal, ArrowUpDown, SlidersHorizontal } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, Plus, X, CalendarIcon, ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { AuditHistory } from "@/components/audit/audit-history";
 
 interface Question {
   id: string;
@@ -148,6 +148,9 @@ export default function ResidentAuditPage() {
     // Save to localStorage
     localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
 
+    // Update audit status to in-progress
+    updateAuditStatusToInProgress();
+
     setNewQuestionText("");
     setNewQuestionType("compliance");
     setIsQuestionDialogOpen(false);
@@ -166,6 +169,9 @@ export default function ResidentAuditPage() {
     const existingAnswer = answers.find(
       a => a.residentId === residentId && a.questionId === questionId
     );
+
+    // Update audit status to in-progress on first answer
+    updateAuditStatusToInProgress();
 
     if (existingAnswer) {
       setAnswers(
@@ -235,10 +241,101 @@ export default function ResidentAuditPage() {
     return comments.find(c => c.residentId === residentId)?.text || "";
   };
 
+  // Function to update audit status to "in-progress" on first interaction
+  const updateAuditStatusToInProgress = () => {
+    const savedAudits = localStorage.getItem('careo-audits');
+    if (savedAudits) {
+      const audits = JSON.parse(savedAudits);
+      const audit = audits.find((a: any) => a.id === auditId);
+
+      // Only update if status is "new"
+      if (audit && audit.status === "new") {
+        const updatedAudits = audits.map((a: any) =>
+          a.id === auditId
+            ? { ...a, status: "in-progress", lastAudited: "Just now" }
+            : a
+        );
+        localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+        console.log('Updated audit status to in-progress');
+      }
+    }
+  };
+
+  // Function to check and update "due" status for previous audits
+  const checkAndUpdateDueAudits = (auditName: string, category: string, frequency: string) => {
+    const completedAudits = localStorage.getItem('completed-audits');
+    if (!completedAudits) return;
+
+    const audits = JSON.parse(completedAudits);
+
+    // Find all completed audits with the same name and category
+    const matchingAudits = audits
+      .filter((a: any) => a.name === auditName && a.category === category && a.status === "completed")
+      .sort((a: any, b: any) => b.completedAt - a.completedAt);
+
+    if (matchingAudits.length < 2) return; // Need at least 2 to check frequency
+
+    // Get the latest completed audit
+    const latestAudit = matchingAudits[0];
+    const latestCompletedDate = new Date(latestAudit.completedAt);
+    const now = new Date();
+
+    // Calculate days passed since last completion
+    const daysPassed = Math.floor((now.getTime() - latestCompletedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Determine if audit is due based on frequency
+    const frequencyDays: { [key: string]: number } = {
+      daily: 1,
+      weekly: 7,
+      monthly: 30,
+      quarterly: 90,
+      yearly: 365,
+    };
+
+    const daysUntilDue = frequencyDays[frequency.toLowerCase()] || 30;
+
+    // If past due date, update previous audit status to "due"
+    if (daysPassed >= daysUntilDue && matchingAudits.length > 1) {
+      const savedAudits = localStorage.getItem('careo-audits');
+      if (savedAudits) {
+        const allAudits = JSON.parse(savedAudits);
+        const updated = allAudits.map((audit: any) => {
+          // Find audits with same name that are completed but not the latest
+          const isOlderCompletedAudit =
+            audit.name === auditName &&
+            audit.category === category &&
+            audit.status === "completed" &&
+            audit.id !== latestAudit.id;
+
+          if (isOlderCompletedAudit) {
+            return { ...audit, status: "due" };
+          }
+          return audit;
+        });
+        localStorage.setItem('careo-audits', JSON.stringify(updated));
+        console.log('Updated previous audits to "due" status');
+      }
+    }
+  };
+
+
   const handleCompleteAudit = () => {
+    // Get the current audit to retrieve its frequency
+    const savedAudits = localStorage.getItem('careo-audits');
+    let currentAudit: any = null;
+    if (savedAudits) {
+      const audits = JSON.parse(savedAudits);
+      currentAudit = audits.find((a: any) => a.id === auditId);
+    }
+
+    // Generate a unique ID for this completion using timestamp
+    // This ensures each completion is saved as a separate history entry
+    const completionId = `${auditId}-completion-${Date.now()}`;
+
     // Prepare the completed audit data
     const completedAudit = {
-      id: auditId,
+      id: completionId,  // Use unique completion ID
+      originalAuditId: auditId,  // Keep reference to original audit
       name: auditName,
       category: "resident",
       completedAt: Date.now(),
@@ -247,7 +344,8 @@ export default function ResidentAuditPage() {
       comments,
       residentDates,
       actionPlans: actionPlans.filter(plan => plan.auditId === auditId),
-      status: "completed"
+      status: "completed",
+      frequency: currentAudit?.frequency  // Include frequency from the audit
     };
 
     // Get existing completed audits
@@ -256,36 +354,52 @@ export default function ResidentAuditPage() {
       ? JSON.parse(existingCompletedAudits)
       : [];
 
-    // Add or update this audit
-    const existingIndex = completedAudits.findIndex((a: any) => a.id === auditId);
-    if (existingIndex !== -1) {
-      completedAudits[existingIndex] = completedAudit;
-    } else {
-      completedAudits.push(completedAudit);
-    }
+    // ALWAYS add as new entry (never update)
+    // This creates a history of all completions
+    completedAudits.push(completedAudit);
 
     // Save to localStorage
     localStorage.setItem('completed-audits', JSON.stringify(completedAudits));
 
-    // Update the audit status in the main audits list
-    const savedAudits = localStorage.getItem('careo-audits');
+    // Update the audit status in the main audits list to "completed"
     if (savedAudits) {
       const audits = JSON.parse(savedAudits);
+
       const updatedAudits = audits.map((audit: any) =>
         audit.id === auditId
-          ? { ...audit, status: "completed", lastAudited: "Just now" }
+          ? {
+              ...audit,
+              status: "completed",
+              lastAudited: new Date().toLocaleDateString(),
+            }
           : audit
       );
       localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+
+      // Check if any previous audits with same name should be marked as "due"
+      if (currentAudit && currentAudit.frequency) {
+        checkAndUpdateDueAudits(currentAudit.name, currentAudit.category, currentAudit.frequency);
+      }
     }
 
     // Show success toast
-    toast.success(`${auditName} completed and saved!`);
+    const totalCompletions = completedAudits.length;
+    toast.success(`${auditName} completed! Total completions: ${totalCompletions}. Scroll down to see Audit History.`, {
+      duration: 5000,
+    });
 
-    // Navigate back to audit list after a short delay
+    // Scroll to audit history section
+    setTimeout(() => {
+      const auditHistorySection = document.querySelector('[data-audit-history]');
+      if (auditHistorySection) {
+        auditHistorySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 500);
+
+    // Navigate back to audit list after user has time to see the history
     setTimeout(() => {
       router.push('/dashboard/careo-audit?tab=resident');
-    }, 1500);
+    }, 5000);
   };
 
   const handleMouseDown = (columnId: string, e: React.MouseEvent) => {
@@ -340,11 +454,7 @@ export default function ResidentAuditPage() {
             <p className="text-sm text-muted-foreground">Resident Audit</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* Removed 3-dot menu - history now accessible via Actions > Archived on listing page */}
       </div>
 
       {/* Filters & Actions */}
@@ -653,6 +763,16 @@ export default function ResidentAuditPage() {
               </div>
             )}
           </div>
+
+          {/* Audit History Section - Temporarily disabled to prevent conflicts with sheet */}
+          {/* <div className="px-2">
+            <AuditHistory
+              auditName={auditName}
+              auditCategory="resident"
+              currentAuditId={auditId}
+              maxItems={10}
+            />
+          </div> */}
         </div>
       </div>
 
@@ -804,6 +924,9 @@ export default function ResidentAuditPage() {
                       priority: priority,
                     };
                     setActionPlans([...actionPlans, newActionPlan]);
+
+                    // Update audit status to in-progress
+                    updateAuditStatusToInProgress();
                   }
                   setActionPlanText("");
                   setAssignedTo("");
@@ -869,6 +992,7 @@ export default function ResidentAuditPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

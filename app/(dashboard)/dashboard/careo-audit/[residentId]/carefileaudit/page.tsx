@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -34,6 +34,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useEffect } from "react";
+import { useActiveTeam } from "@/hooks/use-active-team";
+
 interface AuditItem {
   id: string;
   name: string;
@@ -41,12 +44,18 @@ interface AuditItem {
   auditor: string | null;
   lastAudited: string | null;
   dueDate: string;
+  completionPercentage?: number;
+  comment?: string;
+  nextAudit?: string;
 }
 
 export default function CareFileAuditPage() {
   const params = useParams();
   const router = useRouter();
   const residentId = params.residentId as Id<"residents">;
+
+  // Get active team
+  const { activeTeamId } = useActiveTeam();
 
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId: residentId });
@@ -119,6 +128,134 @@ export default function CareFileAuditPage() {
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
     }
   };
+
+  // Load completion data from localStorage and persist audit list
+  useEffect(() => {
+    const updateAuditItemsWithCompletions = () => {
+      const completedAudits = localStorage.getItem('completed-audits');
+      // Load team-specific frequency
+      const savedFrequency = activeTeamId
+        ? localStorage.getItem(`carefile-audit-frequency-${activeTeamId}`) || '3months'
+        : '3months';
+
+      // Map frequency to days
+      const frequencyDays: { [key: string]: number } = {
+        '3months': 90,
+        '6months': 180,
+        'yearly': 365,
+      };
+
+      const daysToAdd = frequencyDays[savedFrequency] || 90;
+
+      if (!completedAudits) {
+        // No completed audits, set next audit based on frequency from today
+        const updatedAuditItems = auditItems.map(auditItem => {
+          const nextAuditDate = new Date();
+          nextAuditDate.setDate(nextAuditDate.getDate() + daysToAdd);
+          const formattedNextAudit = nextAuditDate.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+
+          return {
+            ...auditItem,
+            nextAudit: formattedNextAudit,
+          };
+        });
+        setAuditItems(updatedAuditItems);
+        return;
+      }
+
+      const allCompletedAudits = JSON.parse(completedAudits);
+
+      // Filter completed audits for this resident
+      const residentCompletedAudits = allCompletedAudits.filter(
+        (audit: any) => audit.residentId === residentId && audit.category === 'carefile'
+      );
+
+      // Update audit items with completion data
+      const updatedAuditItems = auditItems.map(auditItem => {
+        const matchingCompletedAudits = residentCompletedAudits.filter(
+          (ca: any) => ca.name === auditItem.name
+        );
+
+        if (matchingCompletedAudits.length > 0) {
+          // Get the latest completion
+          const latestCompletion = matchingCompletedAudits.sort(
+            (a: any, b: any) => b.completedAt - a.completedAt
+          )[0];
+
+          const completionDate = new Date(latestCompletion.completedAt);
+          const formattedDate = completionDate.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+
+          // Calculate completion percentage based on compliant items
+          const totalItems = latestCompletion.auditDetailItems?.length || 0;
+          const compliantItems = latestCompletion.auditDetailItems?.filter(
+            (item: any) => item.status === 'compliant'
+          ).length || 0;
+          const percentage = totalItems > 0 ? Math.round((compliantItems / totalItems) * 100) : 0;
+
+          // Calculate next audit date based on last completion + frequency
+          const nextAuditDate = new Date(completionDate);
+          nextAuditDate.setDate(nextAuditDate.getDate() + daysToAdd);
+          const formattedNextAudit = nextAuditDate.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+
+          // Get auditor name from completed audit
+          const auditorName = latestCompletion.auditor || null;
+
+          return {
+            ...auditItem,
+            status: 'completed',
+            lastAudited: formattedDate,
+            completionPercentage: percentage,
+            nextAudit: formattedNextAudit,
+            auditor: auditorName,
+          };
+        }
+
+        // Audit not completed yet, calculate next audit from today
+        const nextAuditDate = new Date();
+        nextAuditDate.setDate(nextAuditDate.getDate() + daysToAdd);
+        const formattedNextAudit = nextAuditDate.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+
+        return {
+          ...auditItem,
+          nextAudit: formattedNextAudit,
+        };
+      });
+
+      setAuditItems(updatedAuditItems);
+    };
+
+    updateAuditItemsWithCompletions();
+  }, [residentId, activeTeamId]);
+
+  // Persist audit list to localStorage whenever it changes
+  useEffect(() => {
+    if (auditItems.length > 0 && residentId) {
+      const auditListToSave = auditItems.map(item => ({
+        id: item.id,
+        name: item.name,
+      }));
+      localStorage.setItem(
+        `carefile-audits-${residentId}`,
+        JSON.stringify(auditListToSave)
+      );
+    }
+  }, [auditItems, residentId]);
 
   const handleAddAudit = () => {
     if (!newAuditForm.name || !newAuditForm.dueDate) {
@@ -204,14 +341,7 @@ export default function CareFileAuditPage() {
       {/* Filters & Actions */}
       <div className="flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-8">
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            Sort
-          </Button>
-          <Button variant="ghost" size="sm" className="h-8">
-            <SlidersHorizontal className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
+          {/* Sort and Filter buttons removed */}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -238,34 +368,22 @@ export default function CareFileAuditPage() {
                 <input type="checkbox" className="rounded border-gray-300" />
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Audit Name</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Audit Name
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Status</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Status
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Auditor</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Auditor
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Last Audited</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Last Audited
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Due Date</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Next Audit
+              </TableHead>
+              <TableHead className="font-medium border-r last:border-r-0 w-20">
+                Actions
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -284,16 +402,40 @@ export default function CareFileAuditPage() {
                   </button>
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">
-                  <Badge variant="secondary" className={`text-xs h-6 ${getStatusColor(audit.status)}`}>
-                    {audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
-                  </Badge>
+                  {audit.status === 'completed' && audit.completionPercentage !== undefined ? (
+                    <div className="flex items-center gap-2 min-w-[120px]">
+                      <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full transition-all"
+                          style={{ width: `${audit.completionPercentage}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {audit.completionPercentage}%
+                      </span>
+                    </div>
+                  ) : (
+                    <Badge variant="secondary" className={`text-xs h-6 ${getStatusColor(audit.status)}`}>
+                      {audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">{audit.auditor || "-"}</TableCell>
                 <TableCell className="text-muted-foreground border-r last:border-r-0">
                   {audit.lastAudited || "-"}
                 </TableCell>
                 <TableCell className="text-muted-foreground border-r last:border-r-0">
-                  {audit.dueDate}
+                  {audit.nextAudit || audit.dueDate || "-"}
+                </TableCell>
+                <TableCell className="border-r last:border-r-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${audit.id}/view`)}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

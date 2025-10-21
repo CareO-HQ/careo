@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Download, Printer, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -69,6 +69,32 @@ export default function ViewCompletedAuditPage() {
   const { activeTeamId } = useActiveTeam();
 
   const [auditData, setAuditData] = useState<CompletedAudit | null>(null);
+  const [cameFromArchived, setCameFromArchived] = useState(false);
+
+  useEffect(() => {
+    // Check if user came from archived page
+    if (typeof window !== 'undefined') {
+      const referrer = document.referrer;
+      const fromArchived = referrer.includes('/careo-audit/archived');
+      setCameFromArchived(fromArchived);
+    }
+  }, []);
+
+  const handleBack = () => {
+    console.log('Back button clicked');
+    console.log('Audit data:', auditData);
+
+    // Always go back to archived page if we have audit data
+    if (auditData) {
+      const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}`;
+      console.log('Navigating to:', backUrl);
+      router.push(backUrl);
+    } else {
+      console.log('No audit data, going to main listing');
+      // Fallback to main listing
+      router.push("/dashboard/careo-audit?tab=resident");
+    }
+  };
 
   // Fetch residents
   const dbResidents = useQuery(
@@ -166,10 +192,10 @@ export default function ViewCompletedAuditPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/dashboard/careo-audit?tab=resident")}
+            onClick={handleBack}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            Back to Archived
           </Button>
         </div>
         <div className="flex items-center gap-2">
@@ -212,24 +238,6 @@ export default function ViewCompletedAuditPage() {
                     {format(new Date(auditData.completedAt), "p")}
                   </p>
                 </div>
-              </div>
-            </div>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4 px-8 py-6 border-b">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-primary">{auditData.questions.length}</p>
-                <p className="text-sm text-muted-foreground mt-1">Questions</p>
-              </div>
-              <div className="text-center border-l border-r">
-                <p className="text-3xl font-bold text-primary">
-                  {new Set(auditData.answers.map(a => a.residentId)).size}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">Residents Audited</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-primary">{auditData.actionPlans?.length || 0}</p>
-                <p className="text-sm text-muted-foreground mt-1">Action Plans</p>
               </div>
             </div>
 

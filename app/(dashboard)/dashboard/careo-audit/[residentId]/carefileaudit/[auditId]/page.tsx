@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, CalendarIcon } from "lucide-react";
+import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, CalendarIcon, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,6 +47,7 @@ interface AuditDetailItem {
   reviewer: string | null;
   lastReviewed: string | null;
   notes: string | null;
+  dateReviewed?: string;
 }
 
 interface ActionPlan {
@@ -61,6 +64,9 @@ export default function IndividualAuditPage() {
   const router = useRouter();
   const residentId = params.residentId as Id<"residents">;
   const auditId = params.auditId as string;
+
+  // Get current user session
+  const { data: session } = authClient.useSession();
 
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId: residentId });
@@ -139,6 +145,7 @@ export default function IndividualAuditPage() {
   const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
+  const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
 
   const handleCommentChange = (itemId: string, newComment: string) => {
     setAuditDetailItems(items =>
@@ -152,6 +159,14 @@ export default function IndividualAuditPage() {
     setAuditDetailItems(items =>
       items.map(item =>
         item.id === itemId ? { ...item, status: newStatus } : item
+      )
+    );
+  };
+
+  const handleDateChange = (itemId: string, date: string) => {
+    setAuditDetailItems(items =>
+      items.map(item =>
+        item.id === itemId ? { ...item, dateReviewed: date } : item
       )
     );
   };
@@ -178,6 +193,50 @@ export default function IndividualAuditPage() {
       date: "",
       comment: "",
     });
+  };
+
+  const handleCompleteAudit = () => {
+    // Generate a unique ID for this completion
+    const completionId = `${auditId}-completion-${Date.now()}`;
+
+    // Get auditor name from session
+    const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+
+    // Prepare the completed audit data
+    const completedAudit = {
+      id: completionId,
+      originalAuditId: auditId,
+      residentId: residentId,
+      name: audit?.name || "Care File Audit",
+      category: "carefile",
+      completedAt: Date.now(),
+      auditDetailItems,
+      actionPlans: actionPlans.filter(plan => plan.auditId === auditId),
+      status: "completed",
+      auditor: auditorName,
+    };
+
+    // Get existing completed audits
+    const existingCompletedAudits = localStorage.getItem('completed-audits');
+    const completedAudits = existingCompletedAudits
+      ? JSON.parse(existingCompletedAudits)
+      : [];
+
+    // Add as new entry
+    completedAudits.push(completedAudit);
+
+    // Save to localStorage
+    localStorage.setItem('completed-audits', JSON.stringify(completedAudits));
+
+    // Show success toast
+    toast.success(`${audit?.name} completed!`, {
+      duration: 3000,
+    });
+
+    // Navigate back to care file audit list
+    setTimeout(() => {
+      router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`);
+    }, 1500);
   };
 
   const getStatusColor = (status: string) => {
@@ -301,28 +360,16 @@ export default function IndividualAuditPage() {
                 <input type="checkbox" className="rounded border-gray-300" />
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Question</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Question
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Status</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Status
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Date</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Date
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Comment</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Comment
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -352,8 +399,32 @@ export default function IndividualAuditPage() {
                     </SelectContent>
                   </Select>
                 </TableCell>
-                <TableCell className="text-muted-foreground border-r last:border-r-0">
-                  {item.lastReviewed || "-"}
+                <TableCell className="border-r last:border-r-0">
+                  <Popover
+                    open={openDatePopover === item.id}
+                    onOpenChange={(open) => setOpenDatePopover(open ? item.id : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-7 w-full justify-start text-xs font-normal border-0 shadow-none px-2 hover:bg-transparent"
+                      >
+                        {item.dateReviewed ? format(new Date(item.dateReviewed), "MMM dd, yyyy") : item.lastReviewed || "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={item.dateReviewed ? new Date(item.dateReviewed) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            handleDateChange(item.id, format(date, "yyyy-MM-dd"));
+                            setOpenDatePopover(null);
+                          }
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">
                   <Input
@@ -374,9 +445,12 @@ export default function IndividualAuditPage() {
 
         {/* Action Plans Section */}
         <div className="py-4 space-y-4">
-          <div className="px-2 pb-4 border-b border-dashed">
+          <div className="px-2 pb-4 border-b border-dashed flex justify-between items-center">
             <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
               Action Plan
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
             </Button>
           </div>
           <div className="px-2">

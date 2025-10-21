@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, ClipboardCheck, Eye, Download, Trash2 } from "lucide-react";
+import { Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, ClipboardCheck, Eye, Download, Trash2, Archive } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,11 +48,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 interface Audit {
   id: string;
   name: string;
-  status: "active" | "inactive" | "pending";
+  status: "new" | "in-progress" | "completed" | "due";
   auditor: string;
   lastAudited: string;
   dueDate: string;
   category: string;
+  frequency?: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 }
 
 interface Resident {
@@ -94,24 +95,128 @@ function CareOAuditPageContent() {
   useEffect(() => {
     const savedAudits = localStorage.getItem('careo-audits');
     if (savedAudits) {
-      setAudits(JSON.parse(savedAudits));
+      let audits = JSON.parse(savedAudits);
+
+      // Migration: Add default frequency to audits that don't have it
+      let hasUpdates = false;
+      audits = audits.map((audit: any) => {
+        if (!audit.frequency) {
+          hasUpdates = true;
+          return { ...audit, frequency: "monthly" };
+        }
+        return audit;
+      });
+
+      // Save back if we added frequencies
+      if (hasUpdates) {
+        localStorage.setItem('careo-audits', JSON.stringify(audits));
+      }
+
+      setAudits(audits);
     } else {
       // Set default audit if none exist
       const defaultAudits = [
         {
           id: "1",
           name: "Risk Assessment Audit",
-          status: "active",
+          status: "new" as const,
           auditor: "John Smith",
-          lastAudited: "2 months ago",
-          dueDate: "1 month",
+          lastAudited: "--",
+          dueDate: "--",
           category: "resident",
+          frequency: "monthly" as const,
         },
       ];
       setAudits(defaultAudits);
       localStorage.setItem('careo-audits', JSON.stringify(defaultAudits));
     }
   }, []);
+
+  // Check and update due status for audits based on frequency
+  useEffect(() => {
+    if (audits.length === 0) return;
+
+    const frequencyDays: { [key: string]: number } = {
+      daily: 1,
+      weekly: 7,
+      monthly: 30,
+      quarterly: 90,
+      yearly: 365,
+    };
+
+    const completedAudits = localStorage.getItem('completed-audits');
+    if (!completedAudits) return;
+
+    let allCompletedAudits = JSON.parse(completedAudits);
+
+    // Migration: Add default frequency to completed audits that don't have it
+    let hasCompletedUpdates = false;
+    allCompletedAudits = allCompletedAudits.map((completedAudit: any) => {
+      if (!completedAudit.frequency) {
+        hasCompletedUpdates = true;
+        // Try to find the matching audit to get its frequency
+        const matchingAudit = audits.find(
+          (a) => a.name === completedAudit.name && a.category === completedAudit.category
+        );
+        return { ...completedAudit, frequency: matchingAudit?.frequency || "monthly" };
+      }
+      return completedAudit;
+    });
+
+    // Save back if we added frequencies to completed audits
+    if (hasCompletedUpdates) {
+      localStorage.setItem('completed-audits', JSON.stringify(allCompletedAudits));
+    }
+    let hasUpdates = false;
+    const updatedAudits = audits.map((audit) => {
+      // Skip if no frequency set
+      if (!audit.frequency) return audit;
+
+      // Find all completed audits for this audit name and category
+      const matchingCompletedAudits = allCompletedAudits.filter(
+        (a: any) =>
+          a.name === audit.name &&
+          a.category === audit.category &&
+          a.status === "completed"
+      );
+
+      if (matchingCompletedAudits.length === 0) return audit;
+
+      // Find the most recent completion
+      const latestCompleted = matchingCompletedAudits.sort(
+        (a: any, b: any) => b.completedAt - a.completedAt
+      )[0];
+
+      // Calculate days since last completion
+      const daysSinceCompletion = Math.floor(
+        (Date.now() - latestCompleted.completedAt) / (1000 * 60 * 60 * 24)
+      );
+
+      const daysUntilDue = frequencyDays[audit.frequency.toLowerCase()] || 30;
+
+      // If days passed exceeds the frequency, mark as due
+      if (daysSinceCompletion >= daysUntilDue && audit.status !== "due") {
+        hasUpdates = true;
+        return {
+          ...audit,
+          status: "due" as const,
+        };
+      }
+
+      // If still completed and not due yet, keep status as completed
+      if (audit.status === "completed" && daysSinceCompletion < daysUntilDue) {
+        return audit;
+      }
+
+      return audit;
+    });
+
+    // Only update state and localStorage if there were changes
+    if (hasUpdates) {
+      setAudits(updatedAudits);
+      localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+    }
+  }, [audits]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -122,6 +227,28 @@ function CareOAuditPageContent() {
     auditorName: "",
     frequency: "",
   });
+
+  const [careFileFrequency, setCareFileFrequency] = useState<string>("3months");
+
+  // Load frequency from localStorage on mount (team-specific)
+  useEffect(() => {
+    if (activeTeamId) {
+      const savedFrequency = localStorage.getItem(`carefile-audit-frequency-${activeTeamId}`);
+      if (savedFrequency) {
+        setCareFileFrequency(savedFrequency);
+      } else {
+        // Default to 3 months if no saved frequency for this team
+        setCareFileFrequency("3months");
+      }
+    }
+  }, [activeTeamId]);
+
+  // Save frequency to localStorage when it changes (team-specific)
+  useEffect(() => {
+    if (activeTeamId && careFileFrequency) {
+      localStorage.setItem(`carefile-audit-frequency-${activeTeamId}`, careFileFrequency);
+    }
+  }, [careFileFrequency, activeTeamId]);
 
   const handleNewAudit = () => {
     setIsDialogOpen(true);
@@ -135,11 +262,12 @@ function CareOAuditPageContent() {
     const newAudit: Audit = {
       id: Date.now().toString(),
       name: formData.auditName,
-      status: "active",
+      status: "new",
       auditor: formData.auditorName,
-      lastAudited: "Just now",
-      dueDate: formData.frequency,
+      lastAudited: "--",
+      dueDate: "--",
       category: activeTab,
+      frequency: formData.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly",
     };
 
     const updatedAudits = [...audits, newAudit];
@@ -210,17 +338,217 @@ function CareOAuditPageContent() {
 
   const filteredAudits = audits.filter(audit => audit.category === activeTab);
 
+  // State to store resident completion percentages for care file audits
+  const [residentCompletions, setResidentCompletions] = useState<{[residentId: string]: number}>({});
+
+  // Calculate overall completion percentage for a resident's care file audits
+  const calculateResidentCareFileCompletion = (residentId: string): number => {
+    // Define default audit list (same as in carefileaudit page)
+    const defaultAudits = [
+      { id: "1", name: "Pre-Admission Assessment" },
+      { id: "2", name: "Admission Assessment" },
+      { id: "3", name: "Risk Assessment" },
+      { id: "4", name: "Care Plan" },
+      { id: "5", name: "Medication Review" },
+    ];
+
+    // Try to load custom audit list from localStorage, fallback to defaults
+    let auditList = defaultAudits;
+    const savedAudits = localStorage.getItem(`carefile-audits-${residentId}`);
+    if (savedAudits) {
+      try {
+        auditList = JSON.parse(savedAudits);
+      } catch (e) {
+        console.error('Error parsing saved audits:', e);
+      }
+    }
+
+    if (auditList.length === 0) {
+      return 0;
+    }
+
+    // Get all completed audits from localStorage
+    const completedAuditsStr = localStorage.getItem('completed-audits');
+    if (!completedAuditsStr) {
+      return 0;
+    }
+
+    let allCompletedAudits = [];
+    try {
+      allCompletedAudits = JSON.parse(completedAuditsStr);
+    } catch (e) {
+      console.error('Error parsing completed audits:', e);
+      return 0;
+    }
+
+    // Calculate percentage for each audit
+    let totalPercentage = 0;
+
+    auditList.forEach((audit: any) => {
+      // Find completed audits for this specific audit and resident
+      const matchingCompletedAudits = allCompletedAudits.filter(
+        (ca: any) =>
+          ca.residentId === residentId &&
+          ca.name === audit.name &&
+          ca.category === 'carefile'
+      );
+
+      if (matchingCompletedAudits.length > 0) {
+        // Get the latest completion
+        const latestCompletion = matchingCompletedAudits.sort(
+          (a: any, b: any) => b.completedAt - a.completedAt
+        )[0];
+
+        // Calculate percentage based on compliant items
+        const totalItems = latestCompletion.auditDetailItems?.length || 0;
+        if (totalItems === 0) {
+          totalPercentage += 0;
+        } else {
+          const compliantItems = latestCompletion.auditDetailItems?.filter(
+            (item: any) => item.status === 'compliant'
+          ).length || 0;
+          const percentage = Math.round((compliantItems / totalItems) * 100);
+          totalPercentage += percentage;
+        }
+      } else {
+        // Audit not completed, counts as 0%
+        totalPercentage += 0;
+      }
+    });
+
+    // Return average percentage
+    return Math.round(totalPercentage / auditList.length);
+  };
+
+  // Calculate completion percentages for all residents when they load or tab changes
+  useEffect(() => {
+    if (activeTab === 'carefile' && residents && residents.length > 0) {
+      const completions: {[residentId: string]: number} = {};
+
+      residents.forEach(resident => {
+        completions[resident._id] = calculateResidentCareFileCompletion(resident._id);
+      });
+
+      setResidentCompletions(completions);
+    }
+  }, [residents, activeTab]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "inactive":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
-      case "pending":
+      case "new":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+      case "in-progress":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+      case "completed":
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      case "due":
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "new":
+        return "New";
+      case "in-progress":
+        return "In Progress";
+      case "completed":
+        return "Completed";
+      case "due":
+        return "Due";
+      default:
+        return status;
+    }
+  };
+
+  const getFrequencyLabel = (frequency?: string) => {
+    if (!frequency) return "Not set";
+    switch (frequency.toLowerCase()) {
+      case "daily":
+        return "Daily";
+      case "weekly":
+        return "Weekly";
+      case "monthly":
+        return "Monthly";
+      case "quarterly":
+        return "Quarterly";
+      case "yearly":
+        return "Yearly";
+      default:
+        return frequency;
+    }
+  };
+
+  const getLastAuditedDate = (audit: Audit) => {
+    const completedAudits = localStorage.getItem('completed-audits');
+    if (!completedAudits) return "--";
+
+    const allCompletedAudits = JSON.parse(completedAudits);
+    const matchingCompletedAudits = allCompletedAudits.filter(
+      (a: any) =>
+        a.name === audit.name &&
+        a.category === audit.category &&
+        a.status === "completed"
+    );
+
+    if (matchingCompletedAudits.length === 0) return "--";
+
+    // Find the most recent completion
+    const latestCompleted = matchingCompletedAudits.sort(
+      (a: any, b: any) => b.completedAt - a.completedAt
+    )[0];
+
+    // Format the date
+    const date = new Date(latestCompleted.completedAt);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const getDueDate = (audit: Audit) => {
+    const completedAudits = localStorage.getItem('completed-audits');
+    if (!completedAudits) return "--";
+
+    const allCompletedAudits = JSON.parse(completedAudits);
+    const matchingCompletedAudits = allCompletedAudits.filter(
+      (a: any) =>
+        a.name === audit.name &&
+        a.category === audit.category &&
+        a.status === "completed"
+    );
+
+    if (matchingCompletedAudits.length === 0) return "--";
+
+    // Find the most recent completion
+    const latestCompleted = matchingCompletedAudits.sort(
+      (a: any, b: any) => b.completedAt - a.completedAt
+    )[0];
+
+    // Get frequency from audit or from completed audit
+    const frequency = audit.frequency || latestCompleted.frequency;
+    if (!frequency) return "--";
+
+    const frequencyDays: { [key: string]: number } = {
+      daily: 1,
+      weekly: 7,
+      monthly: 30,
+      quarterly: 90,
+      yearly: 365,
+    };
+
+    const daysToAdd = frequencyDays[frequency.toLowerCase()] || 30;
+    const dueDate = new Date(latestCompleted.completedAt);
+    dueDate.setDate(dueDate.getDate() + daysToAdd);
+
+    return dueDate.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
   return (
@@ -257,14 +585,32 @@ function CareOAuditPageContent() {
       {/* Filters */}
       <div className="flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-8">
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            Sort
-          </Button>
-          <Button variant="ghost" size="sm" className="h-8">
-            <SlidersHorizontal className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
+          {activeTab === "carefile" ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Frequency:</span>
+              <Select value={careFileFrequency} onValueChange={setCareFileFrequency}>
+                <SelectTrigger className="h-8 w-[140px]">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3months">3 Months</SelectItem>
+                  <SelectItem value="6months">6 Months</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" className="h-8">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                Sort
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8">
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Filter
+              </Button>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {activeTab !== "carefile" && (
@@ -293,28 +639,13 @@ function CareOAuditPageContent() {
                   </div>
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Status</span>
-                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Status
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Auditor</span>
-                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Last Audited
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Last Audited</span>
-                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                </TableHead>
-                <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Due</span>
-                    <Plus className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Next Audit
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0 w-20">
                   Actions
@@ -343,19 +674,23 @@ function CareOAuditPageContent() {
                       </button>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
-                      <div className="flex items-center gap-2 min-w-[120px]">
-                        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-green-500 rounded-full transition-all"
-                            style={{ width: `${Math.floor(Math.random() * 41) + 30}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {Math.floor(Math.random() * 41) + 30}%
-                        </span>
-                      </div>
+                      {(() => {
+                        const completionPercentage = residentCompletions[resident._id] ?? 0;
+                        return (
+                          <div className="flex items-center gap-2 min-w-[120px]">
+                            <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-green-500 rounded-full transition-all"
+                                style={{ width: `${completionPercentage}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {completionPercentage}%
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
-                    <TableCell className="border-r last:border-r-0">-</TableCell>
                     <TableCell className="text-muted-foreground border-r last:border-r-0">-</TableCell>
                     <TableCell className="text-muted-foreground border-r last:border-r-0">-</TableCell>
                     <TableCell className="border-r last:border-r-0">
@@ -397,34 +732,19 @@ function CareOAuditPageContent() {
                   <input type="checkbox" className="rounded border-gray-300" />
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Audit</span>
-                    <Plus className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Audit
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Status</span>
-                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Status
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Auditor</span>
-                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Auditor
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Last Audited</span>
-                    <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Last Audited
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
-                  <div className="flex items-center gap-1">
-                    <span>Due</span>
-                    <Plus className="h-3 w-3 text-muted-foreground" />
-                  </div>
+                  Next Audit
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0 w-20">
                   Actions
@@ -447,12 +767,12 @@ function CareOAuditPageContent() {
                   </TableCell>
                   <TableCell className="border-r last:border-r-0">
                     <Badge variant="secondary" className={getStatusColor(audit.status)}>
-                      {audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
+                      {getStatusLabel(audit.status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="border-r last:border-r-0">{audit.auditor}</TableCell>
-                  <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.lastAudited}</TableCell>
-                  <TableCell className="text-muted-foreground border-r last:border-r-0">{audit.dueDate}</TableCell>
+                  <TableCell className="text-muted-foreground border-r last:border-r-0">{getLastAuditedDate(audit)}</TableCell>
+                  <TableCell className="text-muted-foreground border-r last:border-r-0">{getDueDate(audit)}</TableCell>
                   <TableCell className="border-r last:border-r-0">
                     <DropdownMenu
                       open={openDropdownId === audit.id}
@@ -469,15 +789,28 @@ function CareOAuditPageContent() {
                         <DropdownMenuItem
                           onClick={() => {
                             setOpenDropdownId(null);
-                            if (audit.status === "completed") {
-                              router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}/view`);
-                            } else {
-                              router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
+
+                            // ALWAYS try to find the latest completed audit with the same name
+                            const completedAudits = localStorage.getItem('completed-audits');
+                            if (completedAudits) {
+                              const audits = JSON.parse(completedAudits);
+                              const latestCompleted = audits
+                                .filter((a: any) => a.name === audit.name && a.category === audit.category && a.status === "completed")
+                                .sort((a: any, b: any) => b.completedAt - a.completedAt)[0];
+
+                              if (latestCompleted) {
+                                // Found a completed audit - open it in view mode
+                                router.push(`/dashboard/careo-audit/${latestCompleted.category}/${latestCompleted.id}/view`);
+                                return;
+                              }
                             }
+
+                            // Fallback: No completed audits found, open the audit in edit mode
+                            router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
                           }}
                         >
                           <Eye className="h-4 w-4 mr-2" />
-                          {audit.status === "completed" ? "View Completed Audit" : "View"}
+                          View Latest Completed
                         </DropdownMenuItem>
                         {audit.status !== "completed" && (
                           <DropdownMenuItem
@@ -495,6 +828,15 @@ function CareOAuditPageContent() {
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            router.push(`/dashboard/careo-audit/archived?name=${encodeURIComponent(audit.name)}&category=${audit.category}`);
+                          }}
+                        >
+                          <Archive className="h-4 w-4 mr-2" />
+                          Archived
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -565,12 +907,11 @@ function CareOAuditPageContent() {
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1 week">Weekly</SelectItem>
-                  <SelectItem value="2 weeks">Bi-weekly</SelectItem>
-                  <SelectItem value="1 month">Monthly</SelectItem>
-                  <SelectItem value="3 months">Quarterly</SelectItem>
-                  <SelectItem value="6 months">Semi-annually</SelectItem>
-                  <SelectItem value="1 year">Annually</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
