@@ -1355,6 +1355,103 @@ export const getNextMedicationIntakeByResidentId = query({
   }
 });
 
+export const getPrnOrTopicalMedicationsByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all active medications for this resident
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    // Filter for PRN or Topical medications
+    const prnOrTopical = medications.filter(
+      (medication) =>
+        medication.scheduleType === "PRN (As Needed)" ||
+        medication.route === "Topical"
+    );
+
+    return prnOrTopical;
+  }
+});
+
+export const getActiveMedicationsByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all active medications for this resident
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    return medications;
+  }
+});
+
+export const getAllMedicationIntakesByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.string(),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any()),
+      resident: v.optional(v.any())
+    })
+  ),
+  handler: async (ctx, args): Promise<any[]> => {
+    // Query all medication intakes for this resident
+    const intakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .order("desc") // Most recent first
+      .collect();
+
+    // Include medication and resident details
+    const intakesWithDetails = await Promise.all(
+      intakes.map(async (intake) => {
+        const medication = await ctx.db.get(intake.medicationId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
+
+        return { ...intake, medication, resident };
+      })
+    );
+
+    return intakesWithDetails;
+  }
+});
+
 export const getMedicationIntakesByResidentAndDate = query({
   args: {
     residentId: v.string(),

@@ -1,6 +1,7 @@
 "use client";
 
 import { createColumns } from "@/components/medication/daily/columns";
+import { medicationColumns } from "@/components/medication/daily/medication-columns";
 import { DataTable } from "@/components/medication/daily/data-table";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
@@ -9,9 +10,10 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ClockIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 
 type MedicationPageProps = {
   params: Promise<{ id: string }>;
@@ -39,6 +41,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           date: selectedDate.getTime()
         }
       : "skip"
+  );
+
+  const prnOrTopicalMedications = useQuery(
+    api.medication.getPrnOrTopicalMedicationsByResidentId,
+    id ? { residentId: id } : "skip"
+  );
+
+  const allActiveMedications = useQuery(
+    api.medication.getActiveMedicationsByResidentId,
+    id ? { residentId: id } : "skip"
   );
 
   const teamWithMembers = useQuery(
@@ -133,10 +145,18 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             {resident.lastName}.
           </p>
         </div>
-        <CreateResidentMedication
-          residentId={id as Id<"residents">}
-          residentName={`${resident.firstName} ${resident.lastName}`}
-        />
+        <div className="flex flex-row gap-2">
+          <Link href={`/dashboard/residents/${id}/medication/history`}>
+            <Button variant="outline">
+              <ClockIcon className="w-4 h-4 mr-2" />
+              View History
+            </Button>
+          </Link>
+          <CreateResidentMedication
+            residentId={id as Id<"residents">}
+            residentName={`${resident.firstName} ${resident.lastName}`}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -159,6 +179,37 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
           data={filteredIntakes}
         />
+      </div>
+
+      <div className="flex flex-col gap-4 mt-8">
+        <div className="flex flex-col">
+          <p className="font-semibold text-xl">PRN & Topical Medications</p>
+          <p className="text-sm text-muted-foreground">
+            As Needed (PRN) or topical medications for {resident.firstName}{" "}
+            {resident.lastName}.
+          </p>
+        </div>
+        <div className="w-full">
+          <DataTable
+            columns={medicationColumns}
+            data={prnOrTopicalMedications || []}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 mt-8">
+        <div className="flex flex-col">
+          <p className="font-semibold text-xl">All Active Medications</p>
+          <p className="text-sm text-muted-foreground">
+            All active medications for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="w-full">
+          <DataTable
+            columns={medicationColumns}
+            data={allActiveMedications || []}
+          />
+        </div>
       </div>
     </div>
   );
