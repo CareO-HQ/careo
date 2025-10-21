@@ -1592,6 +1592,13 @@ export const createAndAdministerMedicationIntake = mutation({
       throw new Error("Medication must be associated with a resident");
     }
 
+    // Check if there's enough medication stock
+    if (medication.totalCount < args.units) {
+      throw new Error(
+        `Insufficient medication stock. Available: ${medication.totalCount}, Required: ${args.units}`
+      );
+    }
+
     // Create multiple medication intake records based on units
     const intakeIds: Id<"medicationIntake">[] = [];
     const now = Date.now();
@@ -1616,6 +1623,11 @@ export const createAndAdministerMedicationIntake = mutation({
       });
       intakeIds.push(intakeId);
     }
+
+    // Decrement the medication total count by the number of units administered
+    await ctx.db.patch(args.medicationId, {
+      totalCount: medication.totalCount - args.units
+    });
 
     console.log(
       `Created and administered ${args.units} medication intake(s) for medication ${medication.name}: ${intakeIds.join(", ")}`

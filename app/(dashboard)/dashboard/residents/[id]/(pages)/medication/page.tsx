@@ -15,6 +15,7 @@ import { ArrowLeft, ClockIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { config } from "@/config";
 
 type MedicationPageProps = {
   params: Promise<{ id: string }>;
@@ -25,7 +26,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const router = useRouter();
   const { activeTeamId } = useActiveTeam();
   const { data: currentUser } = authClient.useSession();
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(
+    config.times[0]?.values[0] || null
+  );
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filteredIntakes, setFilteredIntakes] = useState<
     NonNullable<typeof selectedDateIntakes>
@@ -164,7 +167,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+      <div className="flex flex-col items-start">
+        <p className="font-semibold mb-1">Today&apos;s Medications</p>
         <div className="flex-1">
           <ShiftTimes
             selectedTime={selectedTime}
@@ -194,11 +198,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       <div className="flex flex-col gap-4 mt-8">
         <div className="flex flex-col">
-          <p className="font-semibold text-xl">PRN & Topical Medications</p>
-          <p className="text-sm text-muted-foreground">
-            As Needed (PRN) or topical medications for {resident.firstName}{" "}
-            {resident.lastName}.
-          </p>
+          <p className="font-semibold">PRN & Topical Medications</p>
         </div>
         <div className="w-full">
           <DataTable
@@ -220,10 +220,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       <div className="flex flex-col gap-4 mt-8">
         <div className="flex flex-col">
-          <p className="font-semibold text-xl">All Active Medications</p>
-          <p className="text-sm text-muted-foreground">
-            All active medications for {resident.firstName} {resident.lastName}.
-          </p>
+          <p className="font-semibold">All Active Medications</p>
         </div>
         <div className="w-full">
           <DataTable
