@@ -1,25 +1,17 @@
 "use client";
 
+import { createColumns } from "@/components/medication/daily/columns";
+import { DataTable } from "@/components/medication/daily/data-table";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
+import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
 import { Button } from "@/components/ui/button";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useQuery, useMutation } from "convex/react";
-import { ArrowLeft, CalendarIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
-import React, { useState, useEffect } from "react";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from "@/components/ui/popover";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { createColumns } from "@/components/medication/daily/columns";
-import { DataTable } from "@/components/medication/daily/data-table";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
+import { useMutation, useQuery } from "convex/react";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
 type MedicationPageProps = {
   params: Promise<{ id: string }>;
@@ -148,34 +140,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium">Select Date</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-[280px] justify-start text-left font-normal",
-                  !selectedDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? (
-                  format(selectedDate, "PPP")
-                ) : (
-                  <span>Pick a date</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
         <div className="flex-1">
           <ShiftTimes
             selectedTime={selectedTime}

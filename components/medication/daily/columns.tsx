@@ -95,53 +95,6 @@ export const createColumns = (
   }) => Promise<null>
 ): ColumnDef<MedicationIntake>[] => [
   {
-    id: "resident",
-    header: "Resident",
-    cell: ({ row }) => {
-      const resident = row.original.resident;
-
-      if (!resident) {
-        return (
-          <div className="flex flex-col">
-            <p className="font-medium text-muted-foreground">No resident</p>
-          </div>
-        );
-      }
-
-      return (
-        <div className="flex flex-row justify-start items-center gap-2">
-          <Avatar>
-            <AvatarImage src={resident.imageUrl} />
-            <AvatarFallback>
-              {resident.firstName?.charAt(0) || ''}
-              {resident.lastName?.charAt(0) || ''}
-            </AvatarFallback>
-          </Avatar>
-          <p className="font-medium">
-            {resident.firstName || ''} {resident.lastName || ''}
-          </p>
-          {/* <p className="text-xs text-muted-foreground">Room: {resident.roomNumber}</p> */}
-        </div>
-      );
-    }
-  },
-  {
-    accessorKey: "resident.roomNumber",
-    header: "Room",
-    cell: ({ row }) => {
-      const resident = row.original.resident;
-      return <p>{resident?.roomNumber || "N/A"}</p>;
-    }
-  },
-  {
-    accessorKey: "scheduledTime",
-    header: "Time",
-    cell: ({ row }) => {
-      const date = new Date(row.original.scheduledTime);
-      return <p>{formatInTimeZone(date, "UTC", "HH:mm")}</p>;
-    }
-  },
-  {
     id: "medication",
     header: "Medication",
     cell: ({ row }) => {
