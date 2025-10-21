@@ -1,7 +1,7 @@
 "use client";
 
 import { createColumns } from "@/components/medication/daily/columns";
-import { medicationColumns } from "@/components/medication/daily/medication-columns";
+import { createMedicationColumns } from "@/components/medication/daily/medication-columns";
 import { DataTable } from "@/components/medication/daily/data-table";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { authClient } from "@/lib/auth-client";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, ClockIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -23,6 +24,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const { activeTeamId } = useActiveTeam();
+  const { data: currentUser } = authClient.useSession();
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filteredIntakes, setFilteredIntakes] = useState<
@@ -69,6 +71,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   );
   const saveMedicationIntakeComment = useMutation(
     api.medication.saveMedicationIntakeComment
+  );
+  const createAndAdministerMedicationIntake = useMutation(
+    api.medication.createAndAdministerMedicationIntake
   );
 
   // Filter intakes by selected time (date filtering is handled by the query)
@@ -175,7 +180,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             markMedicationIntakeAsPoppedOut,
             setWithnessForMedicationIntake,
             updateMedicationIntakeStatus,
-            saveMedicationIntakeComment
+            saveMedicationIntakeComment,
+            currentUser?.user
+              ? {
+                  name: currentUser.user.name,
+                  userId: currentUser.user.id
+                }
+              : undefined
           )}
           data={filteredIntakes}
         />
@@ -191,7 +202,17 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         </div>
         <div className="w-full">
           <DataTable
-            columns={medicationColumns}
+            columns={createMedicationColumns(
+              createAndAdministerMedicationIntake,
+              true,
+              teamWithMembers?.members || [],
+              currentUser?.user
+                ? {
+                    name: currentUser.user.name,
+                    userId: currentUser.user.id
+                  }
+                : undefined
+            )}
             data={prnOrTopicalMedications || []}
           />
         </div>
@@ -206,7 +227,17 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         </div>
         <div className="w-full">
           <DataTable
-            columns={medicationColumns}
+            columns={createMedicationColumns(
+              createAndAdministerMedicationIntake,
+              false,
+              teamWithMembers?.members || [],
+              currentUser?.user
+                ? {
+                    name: currentUser.user.name,
+                    userId: currentUser.user.id
+                  }
+                : undefined
+            )}
             data={allActiveMedications || []}
           />
         </div>

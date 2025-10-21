@@ -1556,3 +1556,71 @@ export const getMedicationIntakesByResidentAndDate = query({
     return intakesWithDetails;
   }
 });
+
+export const createAndAdministerMedicationIntake = mutation({
+  args: {
+    medicationId: v.id("medication"),
+    notes: v.optional(v.string()),
+    witnessedBy: v.string(),
+    time: v.number(),
+    units: v.number()
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get current user information
+    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
+    if (!userMetadata) {
+      throw new Error("User not found");
+    }
+
+    // Get the medication details
+    const medication = await ctx.db.get(args.medicationId);
+    if (!medication) {
+      throw new Error("Medication not found");
+    }
+
+    if (!medication.residentId) {
+      throw new Error("Medication must be associated with a resident");
+    }
+
+    // Create multiple medication intake records based on units
+    const intakeIds: Id<"medicationIntake">[] = [];
+    const now = Date.now();
+
+    for (let i = 0; i < args.units; i++) {
+      const intakeId = await ctx.db.insert("medicationIntake", {
+        medicationId: args.medicationId,
+        residentId: medication.residentId,
+        scheduledTime: args.time,
+        state: "administered",
+        stateModifiedByUserId: userMetadata.userId,
+        stateModifiedAt: now,
+        poppedOutAt: args.time,
+        poppedOutByUserId: userMetadata.userId,
+        witnessByUserId: args.witnessedBy,
+        witnessAt: args.time,
+        notes: args.notes,
+        teamId: medication.teamId,
+        organizationId: medication.organizationId,
+        createdAt: now,
+        updatedAt: now
+      });
+      intakeIds.push(intakeId);
+    }
+
+    console.log(
+      `Created and administered ${args.units} medication intake(s) for medication ${medication.name}: ${intakeIds.join(", ")}`
+    );
+
+    return null;
+  }
+});
