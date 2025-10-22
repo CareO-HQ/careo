@@ -1,0 +1,17 @@
+npm warn Unknown cli config "--turbopack". This will stop working in the next major version of npm.
+
+> nextjs-starter@0.1.0 dev
+> next dev --turbopack
+
+ ⚠ Port 3000 is in use by process 2077, using available port 3001 instead.
+   ▲ Next.js 15.5.2 (Turbopack)
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.1.89:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project { dir: '/Users/abisgeorge/Code/careo', testMode: true }
+ ✓ Compiled middleware in 111ms
+ ✓ Ready in 993ms
+ ✓ Compiled middleware in 7ms
+[?25h

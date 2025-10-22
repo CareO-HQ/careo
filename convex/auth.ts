@@ -64,16 +64,21 @@ export const getCurrentUser = query({
       return null;
     }
 
+    // Get the session to access activeOrganizationId
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
     // Debug: Log the userMetadata to see what fields are available
     console.log("userMetadata from Better Auth:", userMetadata);
     console.log("twoFactorEnabled value:", userMetadata.twoFactorEnabled);
+    console.log("session activeOrganizationId:", session?.activeOrganizationId);
 
     // Get user data from your application's database for custom fields
     const customUserData = await ctx.db.get(userMetadata.userId as Id<"users">);
 
     // Get active team details if activeTeamId exists
-
-    let activeTeam: { id: any; name: any } | null = null;
+    let activeTeam: { id: any; name: any; organizationId?: any } | null = null;
     if (customUserData?.activeTeamId) {
       const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "team",
@@ -82,7 +87,26 @@ export const getCurrentUser = query({
       if (team) {
         activeTeam = {
           id: team.id,
-          name: team.name
+          name: team.name,
+          organizationId: team.organizationId
+        };
+      }
+    }
+
+    // Get activeOrganizationId from session
+    const activeOrganizationId = session?.activeOrganizationId || null;
+
+    // Get active organization details if activeOrganizationId exists
+    let activeOrganization: { id: any; name: any } | null = null;
+    if (activeOrganizationId) {
+      const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "organization",
+        where: [{ field: "id", value: activeOrganizationId }]
+      });
+      if (org) {
+        activeOrganization = {
+          id: org.id,
+          name: org.name
         };
       }
     }
@@ -101,6 +125,8 @@ export const getCurrentUser = query({
       isOnboardingComplete: customUserData?.isOnboardingComplete || false,
       activeTeamId: customUserData?.activeTeamId || null, // Include active team ID
       activeTeam: activeTeam, // Include active team details
+      activeOrganizationId: activeOrganizationId, // Include active organization ID from session
+      activeOrganization: activeOrganization, // Include active organization details
       // Include any other custom fields that aren't in Better Auth
       ...(customUserData && {
         customField1: customUserData.name, // Keep custom fields if needed

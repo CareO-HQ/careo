@@ -407,6 +407,29 @@ export const createPersonalCareActivities = mutation({
       throw new Error("Could not create or retrieve daily record");
     }
 
+    // ✅ CRITICAL FIX: Check for duplicate entries
+    const existingTasks = await ctx.db
+      .query("personalCareTaskEvents")
+      .withIndex("by_daily", (q) => q.eq("dailyId", daily._id))
+      .collect();
+
+    // Check if identical entry exists (same activities, time, staff within last hour)
+    const currentTime = Date.now();
+    const oneHourAgo = currentTime - (60 * 60 * 1000);
+
+    for (const activity of args.activities) {
+      const duplicateTask = existingTasks.find(task =>
+        task.taskType === activity &&
+        task.createdAt > oneHourAgo &&
+        (task.payload as any)?.time === args.time &&
+        (task.payload as any)?.staff === args.staff
+      );
+
+      if (duplicateTask) {
+        throw new Error(`This activity "${activity}" was already recorded at ${args.time} within the last hour. Please check existing entries.`);
+      }
+    }
+
     // Create task events for each activity
     const taskEventIds: any[] = [];
     for (const activity of args.activities) {
@@ -452,6 +475,103 @@ export const getAvailableReportDates = query({
     // Extract unique dates and sort them
     const dates = [...new Set(dailyRecords.map(record => record.date))];
     return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); // Most recent first
+  }
+});
+
+// ✅ OPTIMIZED: Server-side paginated query for documents page
+export const getPaginatedDailyCareReports = query({
+  args: {
+    residentId: v.id("residents"),
+    page: v.number(),
+    pageSize: v.number(),
+    dateRangeFilter: v.optional(v.union(
+      v.literal("last_7"),
+      v.literal("last_30"),
+      v.literal("last_90"),
+      v.literal("all")
+    )),
+    month: v.optional(v.number()),
+    year: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Get all daily records with data
+    const dailyRecords = await ctx.db
+      .query("personalCareDaily")
+      .withIndex("by_resident_date", (q) => q.eq("residentId", args.residentId))
+      .collect();
+
+    const datesWithData = [...new Set(dailyRecords.map(record => record.date))];
+
+    if (datesWithData.length === 0) {
+      return {
+        dates: [],
+        totalCount: 0,
+        hasMore: false,
+        earliestDate: null
+      };
+    }
+
+    // ✅ UK TIMEZONE: Get current date in UK timezone (Europe/London)
+    // UK timezone offset: GMT (UTC+0) or BST (UTC+1) depending on daylight saving
+    // Convert current UTC time to UK local time
+    const nowUTC = new Date();
+    const ukOffset = 0; // UTC+0 for GMT, UTC+1 is handled by BST which JavaScript Date handles
+    const today = new Date(nowUTC.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    today.setHours(0, 0, 0, 0);
+
+    const earliestDataDate = new Date(Math.min(...datesWithData.map(d => new Date(d + 'T00:00:00Z').getTime())));
+    earliestDataDate.setHours(0, 0, 0, 0);
+
+    let startDate = earliestDataDate;
+    if (args.dateRangeFilter === "last_7") {
+      startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (args.dateRangeFilter === "last_30") {
+      startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else if (args.dateRangeFilter === "last_90") {
+      startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+    }
+
+    // Generate all dates in range
+    const allDates: Array<{ date: string; hasData: boolean }> = [];
+    const currentDate = new Date(Math.max(startDate.getTime(), earliestDataDate.getTime()));
+    currentDate.setHours(0, 0, 0, 0);
+
+    while (currentDate <= today) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+
+      // Apply month/year filters
+      let includeDate = true;
+      if (args.month !== undefined) {
+        includeDate = currentDate.getMonth() + 1 === args.month;
+      }
+      if (args.year !== undefined && includeDate) {
+        includeDate = currentDate.getFullYear() === args.year;
+      }
+
+      if (includeDate) {
+        allDates.push({
+          date: dateStr,
+          hasData: datesWithData.includes(dateStr)
+        });
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Sort newest first
+    allDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Paginate
+    const startIndex = (args.page - 1) * args.pageSize;
+    const endIndex = startIndex + args.pageSize;
+    const paginatedDates = allDates.slice(startIndex, endIndex);
+
+    return {
+      dates: paginatedDates,
+      totalCount: allDates.length,
+      hasMore: endIndex < allDates.length,
+      earliestDate: earliestDataDate.toISOString().split('T')[0]
+    };
   }
 });
 

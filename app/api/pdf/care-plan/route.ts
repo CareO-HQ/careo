@@ -25,16 +25,6 @@ function generatePDFFilename(assessment: any): string {
   return `${carePlanName}-${residentName}-${date}.pdf`;
 }
 
-function formatDateTime(timestamp: number): string {
-  return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
-    " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  );
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -82,7 +72,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Generate PDF
-      const pdfBuffer = await page.pdf({
+      const pdfData = await page.pdf({
         format: "A4",
         printBackground: true,
         margin: {
@@ -96,18 +86,18 @@ export async function GET(request: NextRequest) {
       });
 
       await browser.close();
+
+      return new NextResponse(pdfData, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${generatePDFFilename(assessment)}"`
+        }
+      });
     } catch (error) {
       await browser.close();
       throw error;
     }
-
-    return new NextResponse(pdfBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${generatePDFFilename(assessment)}"`
-      }
-    });
   } catch (error) {
     console.error("Error generating Care Plan PDF:", error);
     return NextResponse.json(

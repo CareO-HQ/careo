@@ -14,7 +14,7 @@ import { cn, getAge, getColorForBadge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
-import { Clock } from "lucide-react";
+import { Bell, Clock } from "lucide-react";
 
 // Component for displaying allergies
 const AllergiesCell = ({ residentId }: { residentId: string }) => {
@@ -101,7 +101,7 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
 
   if (!nextIntake) {
     // No upcoming medication
-    return <Badge variant="outline">No upcoming medication</Badge>;
+    return <Badge variant="outline">None</Badge>;
   }
 
   const scheduledDate = new Date(nextIntake.scheduledTime);
@@ -145,6 +145,97 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
               minute: "2-digit"
             })}
           </p>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+// Component for displaying alerts (with dummy data for demonstration)
+const NotificationsCell = ({ residentId }: { residentId: string }) => {
+  // Generate dummy alert based on residentId for demonstration
+  const hash = residentId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const dummyMinutesUntil = hash % 35; // Random value between 0-34
+
+  // Check if there are alerts (within 30 minutes)
+  const hasNotifications = dummyMinutesUntil <= 30;
+
+  const dummyMedications = [
+    "Paracetamol 500mg",
+    "Metformin 850mg",
+    "Aspirin 75mg",
+    "Omeprazole 20mg",
+    "Atorvastatin 40mg"
+  ];
+
+  const medicationName = dummyMedications[hash % dummyMedications.length];
+  const scheduledTime = new Date();
+  scheduledTime.setMinutes(scheduledTime.getMinutes() + dummyMinutesUntil);
+
+  // Dummy alert count (1-3 alerts)
+  const notificationCount = (hash % 3) + 1;
+
+  if (!hasNotifications) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+      >
+        <Bell className="h-4 w-4 text-black" />
+      </Button>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 relative"
+        >
+          <Bell className="h-4 w-4 text-black" />
+          <Badge
+            variant="destructive"
+            className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]"
+          >
+            {notificationCount}
+          </Badge>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="bg-white border p-3 max-w-xs">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium text-sm text-primary">
+              {medicationName}
+            </p>
+            <Badge
+              variant="table"
+              className={cn(
+                "flex-shrink-0",
+                dummyMinutesUntil <= 5
+                  ? "bg-red-50 text-red-700 border-red-300"
+                  : "bg-orange-50 text-orange-700 border-orange-300"
+              )}
+            >
+              {dummyMinutesUntil <= 5
+                ? `${dummyMinutesUntil}m`
+                : scheduledTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {dummyMinutesUntil <= 5
+              ? `Due in ${dummyMinutesUntil} minute${dummyMinutesUntil !== 1 ? 's' : ''}`
+              : `Scheduled for ${scheduledTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+          </p>
+          {notificationCount > 1 && (
+            <div className="pt-2 border-t">
+              <p className="text-xs text-muted-foreground">
+                +{notificationCount - 1} more alert{notificationCount > 2 ? 's' : ''}
+              </p>
+            </div>
+          )}
         </div>
       </TooltipContent>
     </Tooltip>
@@ -475,7 +566,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm">
-          Next Scheduled Medication
+          Next Medication
         </div>
       );
     },
@@ -483,6 +574,21 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     cell: ({ row }) => {
       const resident = row.original;
       return <NextMedicationCell residentId={resident._id} />;
+    }
+  },
+  {
+    accessorKey: "alerts",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Alerts
+        </div>
+      );
+    },
+    enableSorting: false,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <NotificationsCell residentId={resident._id} />;
     }
   }
 ];

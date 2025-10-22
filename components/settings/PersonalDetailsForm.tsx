@@ -99,7 +99,7 @@ export default function PersonalDetailsForm({
     form.setValue("name", name);
     form.setValue("email", email);
     form.setValue("imageUrl", imageUrl);
-  }, [name, email, imageUrl]);
+  }, [name, email, imageUrl, form]);
 
   return (
     <Form {...form}>

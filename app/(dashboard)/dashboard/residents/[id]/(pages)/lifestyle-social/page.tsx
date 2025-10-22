@@ -58,11 +58,14 @@ import {
   MessageCircle,
   Activity,
   Star,
-  MapPin
+  MapPin,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { PersonalInterestsDialog } from "@/components/residents/PersonalInterestsDialog";
 
 type LifestyleSocialPageProps = {
   params: Promise<{ id: string }>;
@@ -96,12 +99,23 @@ const SocialActivitySchema = z.object({
   moodAfter: z.enum(["excellent", "good", "neutral", "poor", "very_poor"]).optional(),
   socialInteraction: z.enum(["active", "responsive", "minimal", "withdrawn"]).optional(),
   enjoyment: z.enum(["loved_it", "enjoyed", "neutral", "disliked", "refused"]).optional(),
-  notes: z.string().optional(),
-  followUpNeeded: z.string().optional(),
   recordedBy: z.string().min(1, "Recorded by is required"),
 });
 
 type SocialActivityFormData = z.infer<typeof SocialActivitySchema>;
+
+// Social Connection Schema
+const SocialConnectionSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  relationship: z.string().min(1, "Relationship is required"),
+  type: z.enum(["family", "friend", "staff", "other"]),
+  contactFrequency: z.string().min(1, "Contact frequency is required"),
+  phone: z.string().optional(),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  notes: z.string().optional(),
+});
+
+type SocialConnectionFormData = z.infer<typeof SocialConnectionSchema>;
 
 export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps) {
   const { id } = React.use(params);
@@ -109,6 +123,35 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
+  // State declarations (must come before computed values that use them)
+  const [isActivityDialogOpen, setIsActivityDialogOpen] = React.useState(false);
+  const [isPersonalInterestsDialogOpen, setIsPersonalInterestsDialogOpen] = React.useState(false);
+  const [isSocialConnectionDialogOpen, setIsSocialConnectionDialogOpen] = React.useState(false);
+  const [currentActivityStep, setCurrentActivityStep] = React.useState(1);
+  const [activitiesPage, setActivitiesPage] = React.useState(1);
+  const activitiesPerPage = 10;
+
+  // Fetch personal interests data
+  const personalInterests = useQuery(api.personalInterests.getPersonalInterestsByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
+  // Fetch paginated social activities (server-side pagination)
+  const activitiesData = useQuery(api.socialActivities.getPaginatedSocialActivities, {
+    residentId: id as Id<"residents">,
+    page: activitiesPage,
+    pageSize: activitiesPerPage,
+  });
+
+  // Fetch social connections
+  const socialConnections = useQuery(api.socialConnections.getSocialConnectionsByResidentId, {
+    residentId: id as Id<"residents">,
+  });
+
+  // Mutations
+  const createSocialActivityMutation = useMutation(api.socialActivities.createSocialActivity);
+  const createSocialConnectionMutation = useMutation(api.socialConnections.createSocialConnection);
 
   // Get today's date
   const today = new Date().toISOString().split('T')[0];
@@ -130,14 +173,23 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
       moodAfter: "good",
       socialInteraction: "active",
       enjoyment: "enjoyed",
-      notes: "",
-      followUpNeeded: "",
       recordedBy: "",
     },
   });
 
-  // Dialog states
-  const [isActivityDialogOpen, setIsActivityDialogOpen] = React.useState(false);
+  // Social connection form setup
+  const connectionForm = useForm<SocialConnectionFormData>({
+    resolver: zodResolver(SocialConnectionSchema),
+    defaultValues: {
+      name: "",
+      relationship: "",
+      type: "family",
+      contactFrequency: "",
+      phone: "",
+      email: "",
+      notes: "",
+    },
+  });
 
   // Auth data
   const { data: user } = authClient.useSession();
@@ -151,14 +203,105 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
   }, [user, form]);
 
   const handleSubmit = async (data: SocialActivityFormData) => {
+    // Prevent submission if not on the final step
+    if (currentActivityStep !== 3) {
+      return;
+    }
+
     try {
-      // Implement social activity record creation
+      if (!user?.user?.id) {
+        toast.error("Missing user information");
+        return;
+      }
+
+      const organizationId = user.user.activeTeamId || resident?.organizationId;
+
+      if (!organizationId) {
+        toast.error("Missing organization information");
+        return;
+      }
+
+      await createSocialActivityMutation({
+        residentId: id as Id<"residents">,
+        activityDate: data.activityDate,
+        activityTime: data.activityTime,
+        activityType: data.activityType,
+        activityName: data.activityName,
+        participants: data.participants,
+        location: data.location,
+        duration: data.duration,
+        engagementLevel: data.engagementLevel,
+        moodBefore: data.moodBefore,
+        moodAfter: data.moodAfter,
+        socialInteraction: data.socialInteraction,
+        enjoyment: data.enjoyment,
+        recordedBy: data.recordedBy,
+        organizationId: organizationId,
+        createdBy: user.user.id,
+      });
+
       toast.success("Social activity recorded successfully");
-      form.reset();
+
+      // Reset form with current date/time for next entry
+      form.reset({
+        activityDate: new Date().toISOString().split('T')[0],
+        activityTime: new Date().toTimeString().slice(0, 5),
+        activityType: "group_activity",
+        activityName: "",
+        participants: "",
+        location: "",
+        duration: "",
+        engagementLevel: "engaged",
+        moodBefore: "good",
+        moodAfter: "good",
+        socialInteraction: "active",
+        enjoyment: "enjoyed",
+        recordedBy: user.user.name || user.user.email?.split('@')[0] || "",
+      });
+
+      setCurrentActivityStep(1);
       setIsActivityDialogOpen(false);
     } catch (error) {
       console.error("Error recording social activity:", error);
       toast.error("Failed to record social activity");
+    }
+  };
+
+  const handleConnectionSubmit = async (data: SocialConnectionFormData) => {
+    try {
+      if (!user?.user?.id) {
+        toast.error("Missing user information");
+        return;
+      }
+
+      const organizationId = user.user.activeTeamId || resident?.organizationId;
+
+      if (!organizationId) {
+        toast.error("Missing organization information");
+        return;
+      }
+
+      await createSocialConnectionMutation({
+        residentId: id as Id<"residents">,
+        name: data.name,
+        relationship: data.relationship,
+        type: data.type,
+        contactFrequency: data.contactFrequency,
+        phone: data.phone,
+        email: data.email,
+        notes: data.notes,
+        organizationId,
+        createdBy: user.user.id,
+      });
+
+      toast.success("Social connection added successfully");
+
+      // Reset form
+      connectionForm.reset();
+      setIsSocialConnectionDialogOpen(false);
+    } catch (error) {
+      console.error("Error adding social connection:", error);
+      toast.error("Failed to add social connection");
     }
   };
 
@@ -183,65 +326,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
     favoriteActivities: ["Bingo", "Music Therapy", "Tea Time", "Art & Crafts"]
   };
 
-  const mockRecentActivities = [
-    {
-      id: 1,
-      date: "2024-01-15",
-      time: "14:30",
-      activity: "Music Therapy Session",
-      type: "group_activity",
-      participants: "6 residents",
-      location: "Activity Room",
-      engagement: "very_engaged",
-      mood: "excellent",
-      duration: "60 minutes"
-    },
-    {
-      id: 2,
-      date: "2024-01-14",
-      time: "10:00",
-      activity: "Garden Walking",
-      type: "exercise",
-      participants: "2 residents + staff",
-      location: "Garden",
-      engagement: "engaged",
-      mood: "good",
-      duration: "45 minutes"
-    },
-    {
-      id: 3,
-      date: "2024-01-13",
-      time: "15:00",
-      activity: "Family Visit",
-      type: "family_visit",
-      participants: "Daughter and grandson",
-      location: "Resident Room",
-      engagement: "very_engaged",
-      mood: "excellent",
-      duration: "90 minutes"
-    }
-  ];
 
-  const mockSocialConnections = [
-    {
-      name: "Margaret Thompson",
-      relationship: "Roommate",
-      frequency: "Daily",
-      type: "friendship"
-    },
-    {
-      name: "Sarah Wilson",
-      relationship: "Daughter",
-      frequency: "Weekly",
-      type: "family"
-    },
-    {
-      name: "Tom Richards",
-      relationship: "Activity Partner",
-      frequency: "3x/week",
-      type: "friendship"
-    }
-  ];
 
   const getEngagementColor = (level: string) => {
     switch (level) {
@@ -368,7 +453,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                   </Badge>
                   <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
                     <Users className="w-3 h-3 mr-1" />
-                    {mockRecentActivities.length} Activities
+                    {activitiesData?.totalCount || 0} Activities
                   </Badge>
                 </div>
               </div>
@@ -385,6 +470,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
               <Button
                 variant="outline"
                 className="w-full"
+                onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
               >
                 <Eye className="w-4 h-4 mr-2" />
                 View History
@@ -434,6 +520,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
               <Button
                 variant="outline"
                 className="flex items-center space-x-2"
+                onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
               >
                 <Eye className="w-4 h-4 mr-2" />
                 View History
@@ -444,69 +531,79 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
       </Card>
 
       {/* Personal Interests & Preferences */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center space-x-3">
               <Star className="w-5 h-5 text-yellow-600" />
-              <span>Personal Interests</span>
-            </div>
-            <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
-              {mockPreferences.interests.length + mockPreferences.hobbies.length} interests
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Star className="w-5 h-5 text-yellow-600" />
-              <span>Personal Interests & Preferences</span>
-            </div>
-            <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
-              {mockPreferences.interests.length + mockPreferences.hobbies.length} interests
-            </Badge>
-          </CardTitle>
+              <span className="text-gray-900">Personal Interests & Preferences</span>
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPersonalInterestsDialogOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {personalInterests ? "Edit" : "Add"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold text-purple-800 mb-3">Main Interests</h4>
               <div className="flex flex-wrap gap-2">
-                {mockPreferences.interests.map((interest, index) => (
-                  <Badge key={index} variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">
-                    {interest}
-                  </Badge>
-                ))}
+                {personalInterests?.mainInterests && personalInterests.mainInterests.length > 0 ? (
+                  personalInterests.mainInterests.map((interest, index) => (
+                    <Badge key={index} variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">
+                      {interest}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No interests added yet</p>
+                )}
               </div>
             </div>
             <div>
               <h4 className="font-semibold text-blue-800 mb-3">Hobbies</h4>
               <div className="flex flex-wrap gap-2">
-                {mockPreferences.hobbies.map((hobby, index) => (
-                  <Badge key={index} variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-                    {hobby}
-                  </Badge>
-                ))}
+                {personalInterests?.hobbies && personalInterests.hobbies.length > 0 ? (
+                  personalInterests.hobbies.map((hobby, index) => (
+                    <Badge key={index} variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                      {hobby}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No hobbies added yet</p>
+                )}
               </div>
             </div>
             <div>
               <h4 className="font-semibold text-green-800 mb-3">Social Preferences</h4>
               <div className="flex flex-wrap gap-2">
-                {mockPreferences.socialPreferences.map((pref, index) => (
-                  <Badge key={index} variant="outline" className="bg-green-50 border-green-200 text-green-700">
-                    {pref}
-                  </Badge>
-                ))}
+                {personalInterests?.socialPreferences && personalInterests.socialPreferences.length > 0 ? (
+                  personalInterests.socialPreferences.map((pref, index) => (
+                    <Badge key={index} variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                      {pref}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No preferences added yet</p>
+                )}
               </div>
             </div>
             <div>
               <h4 className="font-semibold text-orange-800 mb-3">Favorite Activities</h4>
               <div className="flex flex-wrap gap-2">
-                {mockPreferences.favoriteActivities.map((activity, index) => (
-                  <Badge key={index} variant="outline" className="bg-orange-50 border-orange-200 text-orange-700">
-                    {activity}
-                  </Badge>
-                ))}
+                {personalInterests?.favoriteActivities && personalInterests.favoriteActivities.length > 0 ? (
+                  personalInterests.favoriteActivities.map((activity, index) => (
+                    <Badge key={index} variant="outline" className="bg-orange-50 border-orange-200 text-orange-700">
+                      {activity}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No activities added yet</p>
+                )}
               </div>
             </div>
           </div>
@@ -514,172 +611,225 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
       </Card>
 
       {/* Recent Social Activities */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <Activity className="w-5 h-5 text-green-600" />
-              <span>Recent Activities</span>
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Activity className="w-5 h-5 text-gray-600" />
+              </div>
+              <span className="text-gray-900">Recent Social Activities</span>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-gray-100 text-gray-700">{activitiesData?.totalCount || 0} Total</Badge>
             </div>
-            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
-              {mockRecentActivities.length} recent activities
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-5 h-5 text-green-600" />
-              <span>Recent Social Activities</span>
-            </div>
-            <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
-              {mockRecentActivities.length} recent activities
-            </Badge>
-          </CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockRecentActivities.map((activity) => (
-              <Card key={activity.id} className="border border-gray-200">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        {getActivityTypeIcon(activity.type)}
+        <CardContent className="p-6">
+          {activitiesData === undefined ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2 text-muted-foreground">Loading activities...</p>
+            </div>
+          ) : activitiesData.totalCount === 0 ? (
+            <div className="text-center py-8">
+              <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No activities recorded</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Click the Record New Activity button to add the first activity
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {activitiesData.activities.map((activity) => (
+                <div
+                  key={activity._id}
+                  className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
+                >
+                  <div className="flex items-start space-x-3 flex-1">
+                    <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                      {getActivityTypeIcon(activity.activityType)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-semibold text-gray-900">{activity.activityName}</h4>
+                        <Badge
+                          className={`text-xs border-0 ${
+                            activity.activityType === "group_activity" ? "bg-purple-100 text-purple-800" :
+                            activity.activityType === "one_on_one" ? "bg-blue-100 text-blue-800" :
+                            activity.activityType === "family_visit" ? "bg-pink-100 text-pink-800" :
+                            activity.activityType === "outing" ? "bg-green-100 text-green-800" :
+                            activity.activityType === "exercise" ? "bg-orange-100 text-orange-800" :
+                            "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {activity.activityType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </Badge>
                       </div>
-                      <div>
-                        <h4 className="font-semibold">{activity.activity}</h4>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>{activity.date}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{activity.time}</span>
-                          </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{new Date(activity.activityDate).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{activity.activityTime}</span>
+                        </div>
+                        {activity.location && (
                           <div className="flex items-center space-x-1">
                             <MapPin className="w-3 h-3" />
                             <span>{activity.location}</span>
                           </div>
-                        </div>
+                        )}
+                        {activity.engagementLevel && (
+                          <div className="flex items-center space-x-1">
+                            <Smile className="w-3 h-3" />
+                            <span>{activity.engagementLevel.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge 
-                        variant="outline"
-                        className={getEngagementColor(activity.engagement).bg + ' ' + 
-                                   getEngagementColor(activity.engagement).border + ' ' +
-                                   getEngagementColor(activity.engagement).text}
-                      >
-                        {activity.engagement.replace('_', ' ')}
-                      </Badge>
-                    </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium">Participants:</span>
-                      <p className="text-gray-700">{activity.participants}</p>
-                    </div>
-                    <div>
-                      <span className="font-medium">Duration:</span>
-                      <p className="text-gray-700">{activity.duration}</p>
-                    </div>
-                    <div>
-                      <span className="font-medium">Mood:</span>
-                      <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 ml-1">
-                        {activity.mood}
-                      </Badge>
-                    </div>
+                </div>
+              ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {activitiesData.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <p className="text-sm text-gray-500">
+                    Showing {((activitiesPage - 1) * activitiesPerPage) + 1} to {Math.min(activitiesPage * activitiesPerPage, activitiesData.totalCount)} of {activitiesData.totalCount} activities
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActivitiesPage(prev => Math.max(1, prev - 1))}
+                      disabled={activitiesPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      Page {activitiesPage} of {activitiesData.totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActivitiesPage(prev => Math.min(activitiesData.totalPages, prev + 1))}
+                      disabled={activitiesPage === activitiesData.totalPages}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
       {/* Social Connections */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <Heart className="w-5 h-5 text-pink-600" />
-              <span>Social Connections</span>
-            </div>
-            <Badge variant="outline" className="bg-pink-50 border-pink-200 text-pink-700">
-              {mockSocialConnections.length} connections
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Heart className="w-5 h-5 text-pink-600" />
-              <span>Social Connections</span>
-            </div>
-            <Badge variant="outline" className="bg-pink-50 border-pink-200 text-pink-700">
-              {mockSocialConnections.length} connections
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {mockSocialConnections.map((connection, index) => (
-              <div key={index} className="p-4 border rounded-lg">
-                <div className="flex items-center space-x-3 mb-2">
-                  <div className="p-2 bg-pink-100 rounded-lg">
-                    {connection.type === 'family' ? <Heart className="w-4 h-4 text-pink-600" /> : <Users className="w-4 h-4 text-pink-600" />}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">{connection.name}</h4>
-                    <p className="text-sm text-gray-600">{connection.relationship}</p>
-                  </div>
-                </div>
-                <div className="text-sm">
-                  <span className="font-medium">Contact Frequency:</span>
-                  <Badge variant="outline" className="bg-pink-50 border-pink-200 text-pink-700 ml-2">
-                    {connection.frequency}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center space-x-3">
+              <Users className="w-5 h-5 text-blue-600" />
+              <span className="text-gray-900">Social Connections</span>
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSocialConnectionDialogOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Member
+            </Button>
           </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {!socialConnections || socialConnections.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No social connections added</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Click Add Member to add the first connection
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {socialConnections.map((connection) => (
+                <div key={connection._id} className="p-4 border rounded-lg">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div className={`p-2 rounded-lg ${
+                      connection.type === 'family' ? 'bg-blue-100' :
+                      connection.type === 'friend' ? 'bg-green-100' :
+                      connection.type === 'staff' ? 'bg-purple-100' :
+                      'bg-gray-100'
+                    }`}>
+                      <User className={`w-4 h-4 ${
+                        connection.type === 'family' ? 'text-blue-600' :
+                        connection.type === 'friend' ? 'text-green-600' :
+                        connection.type === 'staff' ? 'text-purple-600' :
+                        'text-gray-600'
+                      }`} />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sm">{connection.name}</h4>
+                      <p className="text-xs text-gray-600">{connection.relationship}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700 text-xs">
+                      {connection.type.charAt(0).toUpperCase() + connection.type.slice(1)}
+                    </Badge>
+                    {connection.phone && (
+                      <p className="text-xs text-gray-600 break-words">
+                        {connection.phone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Lifestyle Summary */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+          <CardTitle className="flex items-center space-x-3">
             <Users className="w-5 h-5 text-purple-600" />
-            <span>Lifestyle Summary</span>
+            <span className="text-gray-900">Lifestyle Summary</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
               <div className="text-2xl font-bold text-purple-600">
-                {mockRecentActivities.length}
+                {activitiesData?.totalCount || 0}
               </div>
-              <p className="text-sm text-purple-700">Recent Activities</p>
+              <p className="text-sm text-purple-700">Total Activities</p>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="text-2xl font-bold text-green-600">
-                {mockPreferences.favoriteActivities.length}
+                {personalInterests?.favoriteActivities?.length || 0}
               </div>
               <p className="text-sm text-green-700">Favorite Activities</p>
             </div>
             <div className="text-center p-4 bg-pink-50 rounded-lg border border-pink-200">
               <div className="text-2xl font-bold text-pink-600">
-                {mockSocialConnections.length}
+                {socialConnections?.length || 0}
               </div>
               <p className="text-sm text-pink-700">Social Connections</p>
             </div>
             <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="text-2xl font-bold text-yellow-600">
-                {mockPreferences.interests.length}
+                {(personalInterests?.mainInterests?.length || 0) + (personalInterests?.hobbies?.length || 0)}
               </div>
               <p className="text-sm text-yellow-700">Personal Interests</p>
             </div>
@@ -687,48 +837,35 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         </CardContent>
       </Card>
 
-      {/* Social Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Users className="w-5 h-5 text-purple-600" />
-            <span>Social Management</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              className="h-16 text-lg bg-purple-600 hover:bg-purple-700 text-white"
-              onClick={() => setIsActivityDialogOpen(true)}
-            >
-              <Plus className="w-6 h-6 mr-3" />
-              Record New Activity
-            </Button>
-            <Button
-             className="h-16 text-lg bg-pink-600 hover:bg-pink-700 text-white"
-            >
-              <Eye className="w-6 h-6 mr-3" />
-              View Activity History
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Record Social Activity Dialog */}
-      <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+      <Dialog
+        open={isActivityDialogOpen}
+        onOpenChange={(open) => {
+          setIsActivityDialogOpen(open);
+          if (!open) {
+            setCurrentActivityStep(1);
+            form.reset();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Record Social Activity for {fullName}</DialogTitle>
             <DialogDescription>
-              Record social activities, engagement levels, and observations.
+              Step {currentActivityStep} of 3: {currentActivityStep === 1 ? 'Activity Details' : currentActivityStep === 2 ? 'Assessment & Mood' : 'Review & Confirm'}
             </DialogDescription>
           </DialogHeader>
           
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              
-              {/* Date and Time */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* Step 1: Activity Details */}
+              {currentActivityStep === 1 && (
+                <div className="space-y-6">
+                  {/* Date and Time */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="activityDate"
@@ -758,11 +895,11 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                 />
               </div>
 
-              {/* Activity Details */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-purple-900">Activity Details</h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Activity Details */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-purple-900">Activity Details</h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="activityType"
@@ -838,196 +975,384 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="duration"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Duration</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 60 minutes" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={form.control}
+                        name="duration"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Duration</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., 60 minutes" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Assessment & Mood */}
+              {currentActivityStep === 2 && (
+                <div className="space-y-6">
+                  {/* Engagement & Mood Assessment */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-green-900">Assessment</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="engagementLevel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Engagement Level</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select engagement..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="very_engaged">Very Engaged</SelectItem>
+                                <SelectItem value="engaged">Engaged</SelectItem>
+                                <SelectItem value="somewhat_engaged">Somewhat Engaged</SelectItem>
+                                <SelectItem value="minimal">Minimal</SelectItem>
+                                <SelectItem value="disengaged">Disengaged</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="socialInteraction"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Social Interaction</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select interaction..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="responsive">Responsive</SelectItem>
+                                <SelectItem value="minimal">Minimal</SelectItem>
+                                <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="moodBefore"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mood Before</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select mood..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="excellent">Excellent</SelectItem>
+                                <SelectItem value="good">Good</SelectItem>
+                                <SelectItem value="neutral">Neutral</SelectItem>
+                                <SelectItem value="poor">Poor</SelectItem>
+                                <SelectItem value="very_poor">Very Poor</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="moodAfter"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mood After</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select mood..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="excellent">Excellent</SelectItem>
+                                <SelectItem value="good">Good</SelectItem>
+                                <SelectItem value="neutral">Neutral</SelectItem>
+                                <SelectItem value="poor">Poor</SelectItem>
+                                <SelectItem value="very_poor">Very Poor</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="enjoyment"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Enjoyment Level</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select enjoyment..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="loved_it">Loved It</SelectItem>
+                              <SelectItem value="enjoyed">Enjoyed</SelectItem>
+                              <SelectItem value="neutral">Neutral</SelectItem>
+                              <SelectItem value="disliked">Disliked</SelectItem>
+                              <SelectItem value="refused">Refused</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Summary */}
+              {currentActivityStep === 3 && (
+                <div className="space-y-6">
+                  {/* Summary */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Summary</h4>
+                    <div className="space-y-1 text-sm text-gray-600">
+                      {(() => {
+                        const formValues = form.watch();
+                        const hasActivity = formValues.activityName?.trim();
+                        const hasAssessment = formValues.engagementLevel || formValues.moodBefore || formValues.moodAfter;
+
+                        return (
+                          <>
+                            {hasActivity && <p><span className="font-medium">Activity:</span> {formValues.activityName}</p>}
+                            {formValues.activityType && <p><span className="font-medium">Type:</span> {formValues.activityType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>}
+                            {formValues.activityDate && <p><span className="font-medium">Date:</span> {new Date(formValues.activityDate).toLocaleDateString()}</p>}
+                            {formValues.activityTime && <p><span className="font-medium">Time:</span> {formValues.activityTime}</p>}
+                            {formValues.participants && <p><span className="font-medium">Participants:</span> {formValues.participants}</p>}
+                            {formValues.location && <p><span className="font-medium">Location:</span> {formValues.location}</p>}
+                            {formValues.duration && <p><span className="font-medium">Duration:</span> {formValues.duration}</p>}
+                            {formValues.engagementLevel && <p><span className="font-medium">Engagement:</span> {formValues.engagementLevel.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>}
+                            {formValues.moodBefore && <p><span className="font-medium">Mood Before:</span> {formValues.moodBefore.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>}
+                            {formValues.moodAfter && <p><span className="font-medium">Mood After:</span> {formValues.moodAfter.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>}
+                            {formValues.enjoyment && <p><span className="font-medium">Enjoyment:</span> {formValues.enjoyment.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>}
+                            {!hasActivity && !hasAssessment && (
+                              <p className="text-muted-foreground italic">Fill in the previous steps to see summary</p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between pt-4">
+                <div>
+                  {currentActivityStep > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCurrentActivityStep(currentActivityStep - 1)}
+                    >
+                      Previous
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsActivityDialogOpen(false);
+                      setCurrentActivityStep(1);
+                      form.reset();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+
+                  {currentActivityStep < 3 ? (
+                    <Button
+                      type="button"
+                      onClick={() => setCurrentActivityStep(currentActivityStep + 1)}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      Next
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="bg-purple-600 hover:bg-purple-700"
+                      onClick={() => {
+                        form.handleSubmit(handleSubmit)();
+                      }}
+                    >
+                      Record Activity
+                    </Button>
+                  )}
                 </div>
               </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
-              {/* Engagement & Mood Assessment */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-green-900">Assessment</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="engagementLevel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Engagement Level</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select engagement..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="very_engaged">Very Engaged</SelectItem>
-                            <SelectItem value="engaged">Engaged</SelectItem>
-                            <SelectItem value="somewhat_engaged">Somewhat Engaged</SelectItem>
-                            <SelectItem value="minimal">Minimal</SelectItem>
-                            <SelectItem value="disengaged">Disengaged</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
+      {/* Personal Interests Dialog */}
+      <PersonalInterestsDialog
+        isOpen={isPersonalInterestsDialogOpen}
+        onOpenChange={setIsPersonalInterestsDialogOpen}
+        residentId={id}
+        residentName={fullName}
+        organizationId={user?.user?.activeTeamId || ""}
+        createdBy={user?.user?.id || ""}
+        existingData={personalInterests ? {
+          mainInterests: personalInterests.mainInterests,
+          hobbies: personalInterests.hobbies,
+          socialPreferences: personalInterests.socialPreferences,
+          favoriteActivities: personalInterests.favoriteActivities,
+        } : undefined}
+      />
 
-                  <FormField
-                    control={form.control}
-                    name="socialInteraction"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Social Interaction</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select interaction..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="responsive">Responsive</SelectItem>
-                            <SelectItem value="minimal">Minimal</SelectItem>
-                            <SelectItem value="withdrawn">Withdrawn</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
+      {/* Add Social Connection Dialog */}
+      <Dialog open={isSocialConnectionDialogOpen} onOpenChange={setIsSocialConnectionDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Social Connection for {fullName}</DialogTitle>
+            <DialogDescription>
+              Add a new social connection or contact person
+            </DialogDescription>
+          </DialogHeader>
 
-                  <FormField
-                    control={form.control}
-                    name="moodBefore"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mood Before</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select mood..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="excellent">Excellent</SelectItem>
-                            <SelectItem value="good">Good</SelectItem>
-                            <SelectItem value="neutral">Neutral</SelectItem>
-                            <SelectItem value="poor">Poor</SelectItem>
-                            <SelectItem value="very_poor">Very Poor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
+          <Form {...connectionForm}>
+            <form onSubmit={connectionForm.handleSubmit(handleConnectionSubmit)} className="space-y-4">
+              {/* Name */}
+              <FormField
+                control={connectionForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Sarah Wilson" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                  <FormField
-                    control={form.control}
-                    name="moodAfter"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mood After</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select mood..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="excellent">Excellent</SelectItem>
-                            <SelectItem value="good">Good</SelectItem>
-                            <SelectItem value="neutral">Neutral</SelectItem>
-                            <SelectItem value="poor">Poor</SelectItem>
-                            <SelectItem value="very_poor">Very Poor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
+              {/* Relationship & Type */}
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
-                  control={form.control}
-                  name="enjoyment"
+                  control={connectionForm.control}
+                  name="relationship"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Enjoyment Level</FormLabel>
+                      <FormLabel required>Relationship</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Daughter" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={connectionForm.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Type</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select enjoyment..." />
+                            <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="loved_it">Loved It</SelectItem>
-                          <SelectItem value="enjoyed">Enjoyed</SelectItem>
-                          <SelectItem value="neutral">Neutral</SelectItem>
-                          <SelectItem value="disliked">Disliked</SelectItem>
-                          <SelectItem value="refused">Refused</SelectItem>
+                          <SelectItem value="family">Family</SelectItem>
+                          <SelectItem value="friend">Friend</SelectItem>
+                          <SelectItem value="staff">Staff</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Contact Frequency */}
+              <FormField
+                control={connectionForm.control}
+                name="contactFrequency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Contact Frequency</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Daily, Weekly, 3x/week" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Phone & Email */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={connectionForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Optional" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={connectionForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Optional" {...field} />
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
 
               {/* Notes */}
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Activity Notes</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe the activity, resident's participation, and any notable observations..."
-                          className="min-h-[60px]"
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="followUpNeeded"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Follow-up Needed</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Any follow-up actions or recommendations..."
-                          className="min-h-[60px]"
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Staff Information */}
               <FormField
-                control={form.control}
-                name="recordedBy"
+                control={connectionForm.control}
+                name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Recorded By</FormLabel>
+                    <FormLabel>Notes</FormLabel>
                     <FormControl>
-                      <Input
+                      <Textarea
+                        placeholder="Any additional information..."
+                        className="min-h-[60px]"
                         {...field}
-                        disabled
-                        className="bg-gray-50 text-gray-600"
-                        placeholder="Current user"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1036,19 +1361,19 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
               />
 
               {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4 border-t">
+              <div className="flex justify-end space-x-2 pt-4">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setIsActivityDialogOpen(false);
-                    form.reset();
+                    setIsSocialConnectionDialogOpen(false);
+                    connectionForm.reset();
                   }}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
-                  Record Activity
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                  Add Connection
                 </Button>
               </div>
             </form>
@@ -1056,20 +1381,6 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         </DialogContent>
       </Dialog>
 
-      {/* Development Notice */}
-      <Card className="bg-purple-50 border-purple-200">
-        <CardContent className="p-6 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Users className="w-8 h-8 text-purple-600" />
-            </div>
-          </div>
-          <h3 className="text-lg font-semibold text-purple-800 mb-2">Enhanced Features Coming Soon</h3>
-          <p className="text-purple-600 text-sm">
-            Advanced social analytics, activity recommendations, mood tracking trends, and personalized engagement plans are in development.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }

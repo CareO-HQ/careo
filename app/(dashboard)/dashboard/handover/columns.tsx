@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -37,7 +38,7 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
 
   if (report.foodIntakeCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
         0 meals
       </Badge>
     );
@@ -46,7 +47,7 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 cursor-pointer">
+        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer">
           {report.foodIntakeCount} meals
         </Badge>
       </TooltipTrigger>
@@ -101,7 +102,7 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
 
   if (report.totalFluid === 0 || !report.fluidLogs || report.fluidLogs.length === 0) {
     return (
-      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300">
+      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm">
         0 ml
       </Badge>
     );
@@ -110,7 +111,7 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 cursor-pointer">
+        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer">
           {report.totalFluid} ml
         </Badge>
       </TooltipTrigger>
@@ -169,7 +170,7 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
 
   if (report.incidentCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
         0
       </Badge>
     );
@@ -178,7 +179,7 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 cursor-pointer">
+        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer">
           {report.incidentCount}
         </Badge>
       </TooltipTrigger>
@@ -230,7 +231,7 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
 
   if (report.hospitalTransferCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
         0
       </Badge>
     );
@@ -239,7 +240,7 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 cursor-pointer">
+        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer">
           {report.hospitalTransferCount}
         </Badge>
       </TooltipTrigger>
@@ -370,16 +371,16 @@ const CommentsCell = ({
   };
 
   return (
-    <div className="relative">
-      <Textarea
+    <div className="relative w-full h-full">
+      <Input
         placeholder="Add handover comments..."
-        className="h-[60px] resize-none w-full max-w-md pb-6"
+        className="h-8 w-full text-sm border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-2"
         data-resident-id={residentId}
         value={comment}
         onChange={handleCommentChange}
       />
       {(isSaving || lastSavedAt) && (
-        <div className="absolute bottom-1 right-2 text-xs text-muted-foreground italic">
+        <div className="absolute bottom-0 right-2 text-[10px] text-muted-foreground italic">
           {isSaving ? "Saving..." : getLastSavedText()}
         </div>
       )}
@@ -401,6 +402,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
+    size: 180,
     filterFn: (row, columnId, value) => {
       const resident = row.original;
       if (!value || typeof value !== 'string') return true;
@@ -421,19 +423,15 @@ export const getColumns = (
       const name = `${resident.firstName} ${resident.lastName}`;
       const initials =
         `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
-      const age = getAge(resident.dateOfBirth);
 
       return (
         <div className="flex items-center gap-2">
-          <Avatar className="h-10 w-10">
+          <Avatar className="h-8 w-8">
             <AvatarImage src={resident.imageUrl} alt={name} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
-          <div className="font-medium">
-            <p>
-              {resident.firstName} {resident.lastName}
-            </p>
-            <span className="text-muted-foreground">{age} years old</span>
+          <div className="font-medium text-sm">
+            {resident.firstName} {resident.lastName}
           </div>
         </div>
       );
@@ -447,6 +445,7 @@ export const getColumns = (
       );
     },
     enableSorting: true,
+    size: 80,
     sortingFn: (rowA, rowB) => {
       const a = rowA.original.roomNumber;
       const b = rowB.original.roomNumber;
@@ -482,6 +481,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
+    size: 100,
     cell: ({ row }) => {
       const resident = row.original;
       return <HandoverReportCell residentId={resident._id} teamId={teamId} />;
@@ -497,6 +497,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
+    size: 90,
     cell: ({ row }) => {
       const resident = row.original;
       return <FluidTotalCell residentId={resident._id} teamId={teamId} />;
@@ -510,6 +511,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
+    size: 80,
     cell: ({ row }) => {
       const resident = row.original;
       return <IncidentsCell residentId={resident._id} teamId={teamId} />;
@@ -525,6 +527,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
+    size: 130,
     cell: ({ row }) => {
       const resident = row.original;
       return <HospitalTransferCell residentId={resident._id} teamId={teamId} />;
@@ -538,6 +541,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
+    size: 100,
     cell: ({ row }) => {
       return (
         <div className="text-sm text-muted-foreground">—</div>
@@ -552,7 +556,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
-    size: 400,
+    size: 300,
     cell: ({ row }) => {
       const resident = row.original;
       return (

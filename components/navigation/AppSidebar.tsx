@@ -23,11 +23,16 @@ import {
   MessageSquareIcon,
   HomeIcon,
   UsersIcon,
-  CalendarIcon
+  CalendarIcon,
+  FileWarning,
+  BellIcon
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
 import HelpSupportDialog from "./HelpSupportDialog";
@@ -36,6 +41,27 @@ export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+
+  // Get unread notification count - dynamic based on selection
+  const unreadCount = useQuery(
+    api.notifications.getUnreadCount,
+    activeTeamId
+      ? { teamId: activeTeamId, organizationId: undefined }
+      : activeOrganizationId
+      ? { teamId: undefined, organizationId: activeOrganizationId }
+      : "skip"
+  );
+
+  // Get unread appointments count - dynamic based on selection
+  const unreadAppointmentsCount = useQuery(
+    api.appointmentNotifications.getUnreadAppointmentCount,
+    activeTeamId
+      ? { teamId: activeTeamId, organizationId: undefined }
+      : activeOrganizationId
+      ? { teamId: undefined, organizationId: activeOrganizationId }
+      : "skip"
+  );
 
   return (
     <Sidebar>
@@ -123,19 +149,33 @@ export function AppSidebar() {
             {/* Appointment */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/appointment">
-                  <CalendarIcon />
-                  <span>Appointment</span>
+                <Link href="/dashboard/appointment" className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4" />
+                    <span>Appointment</span>
+                  </div>
+                  {unreadAppointmentsCount !== undefined && unreadAppointmentsCount > 0 && (
+                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                      {unreadAppointmentsCount}
+                    </Badge>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* General */}
+            {/* Incidents */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/general">
-                  <SettingsIcon />
-                  <span>General</span>
+                <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <FileWarning className="w-4 h-4" />
+                    <span>Incidents</span>
+                  </div>
+                  {unreadCount !== undefined && unreadCount > 0 && (
+                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                      {unreadCount}
+                    </Badge>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -143,12 +183,9 @@ export function AppSidebar() {
             {/* Notification */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <MessageSquareIcon className="w-4 h-4" />
-                    <span>Notification</span>
-                  </div>
-                  <Badge className="bg-red-500 text-white ml-auto h-5 px-1.5 text-xs">3</Badge>
+                <Link href="/dashboard/notification">
+                  <BellIcon />
+                  <span>Notification</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -159,16 +196,15 @@ export function AppSidebar() {
         <SidebarGroup className="mt-0">
           <SidebarGroupLabel>Audit</SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* Manager Audit */}
+            {/* CareO Audit */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/managers-audit">
-                  <FileTextIcon />
-                  <span>Manager Audit</span>
+                <Link href="/dashboard/careo-audit">
+                  <ClipboardListIcon />
+                  <span>CareO Audit</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

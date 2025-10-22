@@ -3,7 +3,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
@@ -14,13 +13,11 @@ import {
   Bell,
   Calendar,
   ChevronRight,
-  ClipboardList,
   FileText,
   Folder,
   Heart,
   Moon,
   Pill,
-  Puzzle,
   PuzzleIcon,
   Stethoscope,
   TrendingDown,
@@ -110,6 +107,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
+          <Button variant="outline" size="icon" onClick={() => router.push("/dashboard/residents")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
           <Avatar className="w-20 h-20">
             <AvatarImage
               src={resident.imageUrl}

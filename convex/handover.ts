@@ -28,15 +28,27 @@ export const getHandoverReport = query({
 
     const foodFluidLogs = await foodFluidLogsQuery.collect();
 
+    // Common fluid types list (matching foodFluidLogs.ts logic)
+    const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
+
     // Calculate total fluid intake and get details
-    const fluidLogs = foodFluidLogs.filter(log => log.fluidConsumedMl && log.fluidConsumedMl > 0);
+    // A log is fluid if it's one of the common fluid types OR has fluidConsumedMl
+    const fluidLogs = foodFluidLogs.filter(log =>
+      fluidTypes.includes(log.typeOfFoodDrink) || (log.fluidConsumedMl && log.fluidConsumedMl > 0)
+    );
     const totalFluid = fluidLogs.reduce((sum, log) => {
       return sum + (log.fluidConsumedMl || 0);
     }, 0);
 
     // Count food intake entries and get details
+    // A log is food if it's NOT one of the common fluid types AND does NOT have fluidConsumedMl
     const foodIntakeLogs = foodFluidLogs.filter(log =>
-      log.typeOfFoodDrink && log.amountEaten
+      log.typeOfFoodDrink &&
+      !fluidTypes.includes(log.typeOfFoodDrink) &&
+      !log.fluidConsumedMl &&
+      log.amountEaten &&
+      log.amountEaten !== "None" &&
+      log.amountEaten.trim() !== ""
     );
     const foodIntakeCount = foodIntakeLogs.length;
 

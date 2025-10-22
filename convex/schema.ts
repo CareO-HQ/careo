@@ -137,6 +137,7 @@ export default defineSchema({
 
   folders: defineTable({
     name: v.string(),
+    residentId: v.optional(v.id("residents")),
     organizationId: v.string(),
     teamId: v.optional(v.string()),
     parentFolderId: v.optional(v.id("folders")),
@@ -150,7 +151,8 @@ export default defineSchema({
     .index("byTeamId", ["teamId"])
     .index("byParentFolderId", ["parentFolderId"])
     .index("byCreatedBy", ["createdBy"])
-    .index("byName", ["name"]),
+    .index("byName", ["name"])
+    .index("byResidentId", ["residentId"]),
 
   teamMembers: defineTable({
     userId: v.string(),
@@ -174,6 +176,17 @@ export default defineSchema({
     roomNumber: v.optional(v.string()),
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
+    // Status tracking
+    status: v.optional(v.union(
+      v.literal("active"),
+      v.literal("discharged"),
+      v.literal("deceased"),
+      v.literal("transferred"),
+      v.literal("hospital")
+    )),
+    dischargeDate: v.optional(v.number()),
+    dischargeReason: v.optional(v.string()),
+    dataRetentionUntil: v.optional(v.number()),
     // GP Details
     gpName: v.optional(v.string()),
     gpAddress: v.optional(v.string()),
@@ -249,7 +262,9 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byRoomNumber", ["roomNumber"])
     .index("byFullName", ["firstName", "lastName"])
-    .index("byActiveStatus", ["isActive"]),
+    .index("byActiveStatus", ["isActive"])
+    .index("byStatus", ["status"])
+    .index("byTeamAndStatus", ["teamId", "status"]),
 
   // Emergency contacts for residents
   emergencyContacts: defineTable({
@@ -266,6 +281,33 @@ export default defineSchema({
     .index("byResidentId", ["residentId"])
     .index("byOrganizationId", ["organizationId"])
     .index("byPrimary", ["isPrimary"]),
+
+  // Audit trail for resident data changes
+  residentAuditLog: defineTable({
+    residentId: v.id("residents"),
+    action: v.union(
+      v.literal("created"),
+      v.literal("updated"),
+      v.literal("viewed"),
+      v.literal("discharged"),
+      v.literal("status_changed"),
+      v.literal("deleted")
+    ),
+    userId: v.string(),
+    userName: v.optional(v.string()),
+    changes: v.optional(v.any()), // JSON object with before/after values
+    fieldChanged: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    organizationId: v.string(),
+    timestamp: v.number()
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byUserId", ["userId"])
+    .index("byOrganization", ["organizationId"])
+    .index("byTimestamp", ["timestamp"])
+    .index("byResidentAndTimestamp", ["residentId", "timestamp"])
+    .index("byAction", ["action"]),
 
   medication: defineTable({
     residentId: v.optional(v.string()),
@@ -385,8 +427,12 @@ export default defineSchema({
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.optional(v.number())
   })
+    // ✅ OPTIMIZED: Composite indexes for scalability
     .index("by_resident_date", ["residentId", "date"])
-    .index("by_date", ["date"]),
+    .index("by_date", ["date"])
+    .index("by_resident_createdAt", ["residentId", "createdAt"])
+    .index("by_status", ["status"])
+    .index("by_created_by", ["createdBy"]),
 
   // Append-only task "events" (recommended for concurrency & audit)
   personalCareTaskEvents: defineTable({
@@ -419,7 +465,13 @@ export default defineSchema({
     payload: v.optional(v.any()),
 
     createdAt: v.number() // Date.now()
-  }).index("by_daily", ["dailyId"]),
+  })
+    // ✅ OPTIMIZED: Composite indexes for scalability
+    .index("by_daily", ["dailyId"])
+    .index("by_daily_taskType", ["dailyId", "taskType"])
+    .index("by_daily_createdAt", ["dailyId", "createdAt"])
+    .index("by_performedBy", ["performedBy"])
+    .index("by_status", ["status"]),
 
   // Diet information for residents
   dietInformation: defineTable({
@@ -464,6 +516,124 @@ export default defineSchema({
   })
     .index("byResidentId", ["residentId"])
     .index("byOrganizationId", ["organizationId"]),
+
+  // Personal interests and preferences for residents
+  personalInterests: defineTable({
+    residentId: v.id("residents"),
+    mainInterests: v.optional(v.array(v.string())),
+    hobbies: v.optional(v.array(v.string())),
+    socialPreferences: v.optional(v.array(v.string())),
+    favoriteActivities: v.optional(v.array(v.string())),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"]),
+
+  // Social activities for residents
+  socialActivities: defineTable({
+    residentId: v.id("residents"),
+    activityDate: v.string(), // Date in ISO format (YYYY-MM-DD)
+    activityTime: v.string(), // Time in HH:mm format
+    activityType: v.union(
+      v.literal("group_activity"),
+      v.literal("one_on_one"),
+      v.literal("family_visit"),
+      v.literal("outing"),
+      v.literal("entertainment"),
+      v.literal("exercise"),
+      v.literal("crafts"),
+      v.literal("music"),
+      v.literal("reading"),
+      v.literal("games"),
+      v.literal("therapy"),
+      v.literal("religious"),
+      v.literal("other")
+    ),
+    activityName: v.string(),
+    participants: v.optional(v.string()),
+    location: v.optional(v.string()),
+    duration: v.optional(v.string()),
+    engagementLevel: v.optional(
+      v.union(
+        v.literal("very_engaged"),
+        v.literal("engaged"),
+        v.literal("somewhat_engaged"),
+        v.literal("minimal"),
+        v.literal("disengaged")
+      )
+    ),
+    moodBefore: v.optional(
+      v.union(
+        v.literal("excellent"),
+        v.literal("good"),
+        v.literal("neutral"),
+        v.literal("poor"),
+        v.literal("very_poor")
+      )
+    ),
+    moodAfter: v.optional(
+      v.union(
+        v.literal("excellent"),
+        v.literal("good"),
+        v.literal("neutral"),
+        v.literal("poor"),
+        v.literal("very_poor")
+      )
+    ),
+    socialInteraction: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("responsive"),
+        v.literal("minimal"),
+        v.literal("withdrawn")
+      )
+    ),
+    enjoyment: v.optional(
+      v.union(
+        v.literal("loved_it"),
+        v.literal("enjoyed"),
+        v.literal("neutral"),
+        v.literal("disliked"),
+        v.literal("refused")
+      )
+    ),
+    recordedBy: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number()
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byActivityDate", ["residentId", "activityDate"]),
+
+  // Social connections for residents
+  socialConnections: defineTable({
+    residentId: v.id("residents"),
+    name: v.string(),
+    relationship: v.string(), // "Roommate", "Daughter", "Friend", "Activity Partner"
+    type: v.union(
+      v.literal("family"),
+      v.literal("friend"),
+      v.literal("staff"),
+      v.literal("other")
+    ),
+    contactFrequency: v.string(), // "Daily", "Weekly", "3x/week", "Monthly"
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number())
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byType", ["residentId", "type"]),
 
   // Food and fluid logs for residents
   foodFluidLogs: defineTable({
@@ -1356,12 +1526,16 @@ export default defineSchema({
     createdAt: v.number(),
     createdBy: v.optional(v.id("users")),
     updatedAt: v.optional(v.number()),
-    updatedBy: v.optional(v.id("users"))
+    updatedBy: v.optional(v.id("users")),
+    teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string())
   })
     .index("by_resident", ["residentId"])
     .index("by_date", ["date"])
     .index("by_incident_level", ["incidentLevel"])
-    .index("by_home", ["homeName"]),
+    .index("by_home", ["homeName"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
 
   longTermFallsRiskAssessments: defineTable({
     // Metadata
@@ -1650,6 +1824,34 @@ export default defineSchema({
     .index("by_date", ["date"])
 
     .index("by_resident_and_folder", ["residentId", "folderKey"]),
+
+  // Care plan reminders - 30-day review reminders
+  carePlanReminders: defineTable({
+    carePlanId: v.id("carePlanAssessments"),
+    reminderDate: v.number(),
+    reminderStatus: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number())
+  })
+    .index("by_care_plan", ["carePlanId"])
+    .index("by_reminder_status", ["reminderStatus"])
+    .index("by_reminder_date", ["reminderDate"])
+    .index("by_created_by", ["createdBy"]),
+
+  // Care plan evaluations
+  carePlanEvaluations: defineTable({
+    carePlanId: v.id("carePlanAssessments"),
+    evaluationDate: v.number(),
+    comments: v.string(),
+    createdAt: v.optional(v.number())
+  })
+    .index("by_care_plan", ["carePlanId"])
+    .index("by_evaluation_date", ["evaluationDate"]),
 
   // Hospital Passport records
   hospitalPassports: defineTable({
@@ -1991,7 +2193,22 @@ export default defineSchema({
   })
     .index("by_residentId", ["residentId"])
     .index("by_createdAt", ["createdAt"])
-    .index("by_type", ["type"]),
+    .index("by_type", ["type"])
+    .index("by_resident_and_createdAt", ["residentId", "createdAt"])
+    .index("by_resident_and_type", ["residentId", "type", "createdAt"]),
+
+  // Progress Notes Statistics (cached counts for performance)
+  progressNoteStats: defineTable({
+    residentId: v.id("residents"),
+    totalCount: v.number(),
+    dailyCount: v.number(),
+    medicalCount: v.number(),
+    incidentCount: v.number(),
+    behavioralCount: v.number(),
+    otherCount: v.number(),
+    lastUpdated: v.string(), // ISO timestamp
+  })
+    .index("by_residentId", ["residentId"]),
 
   // Trust Incident Reports table
   trustIncidentReports: defineTable({
@@ -2194,23 +2411,273 @@ export default defineSchema({
     .index("byCreatedBy", ["createdBy"])
     .index("byNoteDate", ["noteDate"]),
 
-  // Care plan Evaluations
-  carePlanEvaluations: defineTable({
-    carePlanId: v.id("carePlanAssessments"),
-    evaluationDate: v.number(),
-    comments: v.string()
-  }).index("by_care_plan", ["carePlanId"]),
+  // Night Check Configurations
+  nightCheckConfigurations: defineTable({
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
 
-  // Care plan reminders
-  carePlanReminders: defineTable({
-    carePlanId: v.id("carePlanAssessments"),
-    reminderDate: v.number(),
-    reminderStatus: v.union(
-      v.literal("pending"),
-      v.literal("completed"),
-      v.literal("cancelled")
+    checkType: v.union(
+      v.literal("night_check"),
+      v.literal("positioning"),
+      v.literal("pad_change"),
+      v.literal("bed_rails"),
+      v.literal("environmental"),
+      v.literal("night_note"),
+      v.literal("cleaning")
     ),
+
+    frequencyMinutes: v.optional(v.number()),
+    selectedItems: v.optional(v.array(v.string())),
+
+    isActive: v.boolean(),
     createdBy: v.string(),
-    createdAt: v.number()
-  }).index("by_care_plan", ["carePlanId"])
+    createdAt: v.number(),
+    updatedBy: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_resident_active", ["residentId", "isActive"])
+    .index("by_check_type", ["checkType"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  // Night Check Recordings
+  nightCheckRecordings: defineTable({
+    configurationId: v.id("nightCheckConfigurations"),
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    checkType: v.union(
+      v.literal("night_check"),
+      v.literal("positioning"),
+      v.literal("pad_change"),
+      v.literal("bed_rails"),
+      v.literal("environmental"),
+      v.literal("night_note"),
+      v.literal("cleaning")
+    ),
+
+    recordDate: v.string(),
+    recordTime: v.string(),
+    recordDateTime: v.number(),
+
+    checkData: v.any(),
+
+    notes: v.optional(v.string()),
+    recordedBy: v.string(),
+    recordedByName: v.string(),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_resident_date", ["residentId", "recordDate"])
+    .index("by_configuration", ["configurationId"])
+    .index("by_check_type", ["checkType"])
+    .index("by_date_time", ["recordDateTime"])
+    .index("by_recorded_by", ["recordedBy"])
+    .index("by_team_date", ["teamId", "recordDate"])
+    .index("by_organization_date", ["organizationId", "recordDate"]),
+
+  // Notification Read Status - track which users have read which incidents
+  notificationReadStatus: defineTable({
+    userId: v.id("users"),
+    incidentId: v.id("incidents"),
+    readAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_incident", ["incidentId"])
+    .index("by_user_and_incident", ["userId", "incidentId"]),
+
+  appointmentReadStatus: defineTable({
+    userId: v.id("users"),
+    appointmentId: v.id("appointments"),
+    readAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_appointment", ["appointmentId"])
+    .index("by_user_and_appointment", ["userId", "appointmentId"]),
+
+  // Resident Audit System (Production)
+  // Reusable audit templates that define question sets
+  residentAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.union(
+      v.literal("resident"),
+      v.literal("carefile"),
+      v.literal("governance"),
+      v.literal("clinical"),
+      v.literal("environment")
+    ),
+    questions: v.array(v.object({
+      id: v.string(),
+      text: v.string(),
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("yesno")        // Yes/No/N/A
+      ),
+    })),
+    frequency: v.union(
+      v.literal("daily"),
+      v.literal("weekly"),
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("yearly"),
+      v.literal("adhoc")
+    ),
+    isActive: v.boolean(),
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_category", ["category"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_team_and_category", ["teamId", "category"]),
+
+  // Completed audit instances with responses
+  residentAuditCompletions: defineTable({
+    templateId: v.id("residentAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+    category: v.string(), // Denormalized
+
+    // Team context
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    // Question responses for residents
+    responses: v.array(v.object({
+      residentId: v.string(), // Resident ID
+      residentName: v.string(), // Denormalized for display
+      roomNumber: v.optional(v.string()),
+      answers: v.array(v.object({
+        questionId: v.string(),
+        value: v.optional(v.string()), // "compliant", "non-compliant", "not-applicable", "yes", "no"
+        notes: v.optional(v.string()),
+      })),
+      date: v.optional(v.string()), // Date reviewed for this resident
+      comment: v.optional(v.string()), // Comment for this resident
+    })),
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User name or email
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template or overridden
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_team", ["templateId", "teamId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans linked to audit findings
+  residentAuditActionPlans: defineTable({
+    auditResponseId: v.id("residentAuditCompletions"),
+    templateId: v.id("residentAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  // Centralized Notifications System (reusable across all modules)
+  notifications: defineTable({
+    // Recipient (optional for backwards compatibility with incident notifications)
+    userId: v.optional(v.string()), // User email or ID who receives the notification
+
+    // Sender/Source
+    senderId: v.optional(v.string()), // Who triggered it (e.g., manager email)
+    senderName: v.optional(v.string()), // Display name of sender
+    createdBy: v.optional(v.string()), // Legacy: for incident notifications
+
+    // Notification type - using string for maximum flexibility across all modules
+    // Common types: action_plan, incident_created, appointment_created, test_notification, etc.
+    type: v.string(),
+    title: v.string(),
+    message: v.string(),
+    category: v.optional(v.string()), // Legacy: for incident notifications
+
+    // Navigation
+    link: v.optional(v.string()), // Frontend URL to navigate to
+    actionUrl: v.optional(v.string()), // Legacy: for incident notifications
+
+    // Metadata (flexible for different notification types - using v.any() for backwards compatibility)
+    metadata: v.optional(v.any()),
+
+    // Entity references (legacy for incidents)
+    entityId: v.optional(v.string()),
+    entityType: v.optional(v.string()),
+    idempotencyKey: v.optional(v.string()),
+    targetRoles: v.optional(v.array(v.string())),
+    targetUserIds: v.optional(v.array(v.string())),
+    priority: v.optional(v.string()),
+
+    // Status (optional for backwards compatibility)
+    isRead: v.optional(v.boolean()),
+    readAt: v.optional(v.number()),
+
+    // Organization context
+    organizationId: v.string(),
+    teamId: v.optional(v.string()),
+
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_read", ["userId", "isRead"])
+    .index("by_organization", ["organizationId"])
+    .index("by_type", ["type"])
+    .index("by_created_at", ["createdAt"])
+    .index("by_idempotency_key", ["idempotencyKey"]) // For preventing duplicate incident notifications
 });

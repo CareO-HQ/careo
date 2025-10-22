@@ -50,11 +50,6 @@ import {
   Eye,
   UserCheck,
   FileText,
-  Stethoscope,
-  Brain,
-  Heart,
-  Activity,
-  Pill,
   Users,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";

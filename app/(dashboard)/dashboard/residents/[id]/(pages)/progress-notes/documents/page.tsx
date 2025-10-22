@@ -49,11 +49,9 @@ import {
   NotebookPen,
   ChevronLeft,
   ChevronRight,
-  Clock,
   AlertTriangle,
   Stethoscope,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 type ProgressNotesDocumentsPageProps = {
@@ -560,82 +558,67 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         </CardContent>
       </Card>
 
-      {/* View Note Dialog */}
+      {/* View Note Dialog - Matching Food & Fluid style */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Progress Note Details</DialogTitle>
+            <DialogTitle>Progress Note - {selectedNote && format(new Date(selectedNote.date), "PPP")}</DialogTitle>
             <DialogDescription>
-              Complete progress note details for {fullName}
+              Detailed view of this progress note entry
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
-            {selectedNote && (
-              <div className="space-y-6">
-                {/* Note Overview */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Note Overview</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Date</p>
-                      <p className="font-medium">{format(new Date(selectedNote.date), "PPP")}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Time</p>
-                      <p className="font-medium">{selectedNote.time}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Type</p>
+          <div className="space-y-4">
+            {selectedNote ? (
+              <div className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-semibold text-sm">
+                        {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)} Note
+                      </h4>
                       <Badge
-                        className={`${
+                        variant="outline"
+                        className={`text-xs border-0 ${
                           selectedNote.type === "incident" ? "bg-red-100 text-red-800" :
                           selectedNote.type === "medical" ? "bg-blue-100 text-blue-800" :
                           selectedNote.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
                           selectedNote.type === "daily" ? "bg-green-100 text-green-800" :
                           "bg-gray-100 text-gray-800"
-                        } border-0`}
+                        }`}
                       >
                         {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)}
                       </Badge>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Author</p>
-                      <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedNote.authorName}</p>
-                      </div>
-                    </div>
                   </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {selectedNote.time}
+                  </span>
                 </div>
 
-                {/* Note Content */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Note Content</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                    {selectedNote.note}
-                  </p>
+                <div className="mb-3 p-3 bg-gray-50 rounded-md">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNote.note}</p>
                 </div>
 
-                {/* Record Information */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Created By</p>
-                      <p className="font-medium">{selectedNote.authorName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Date Created</p>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedNote.createdAt), "PPP")}</p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    <span className="font-medium">Date:</span> {format(new Date(selectedNote.date), "MMM d, yyyy")}
+                  </span>
+                  <span>
+                    <span className="font-medium">Time:</span> {selectedNote.time}
+                  </span>
+                  <span>
+                    <span className="font-medium">Author:</span> {selectedNote.authorName}
+                  </span>
+                </div>
+
+                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                  Recorded by: {selectedNote.authorName} on {format(new Date(selectedNote.createdAt), "PPP")}
                 </div>
               </div>
+            ) : (
+              <p className="text-gray-500 py-8 text-center">No note selected</p>
             )}
-          </ScrollArea>
+          </div>
           <div className="flex justify-end space-x-2 pt-4 border-t">
             <Button
               variant="outline"

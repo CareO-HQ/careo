@@ -1,6 +1,41 @@
 /**
  * Date utility functions for consistent timezone handling
+ *
+ * ✅ UK TIMEZONE: All care home operations use Europe/London timezone
+ * This ensures consistent date handling across daylight saving time changes
+ * (GMT in winter, BST in summer)
  */
+
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+
+/**
+ * UK timezone identifier
+ */
+export const UK_TIMEZONE = 'Europe/London';
+
+/**
+ * Get current date in UK timezone as YYYY-MM-DD string
+ * Use this for all date-based queries and new record creation
+ */
+export function getUKTodayDate(): string {
+  const now = new Date();
+  return formatInTimeZone(now, UK_TIMEZONE, 'yyyy-MM-dd');
+}
+
+/**
+ * Get current time in UK timezone
+ */
+export function getUKNow(): Date {
+  return toZonedTime(new Date(), UK_TIMEZONE);
+}
+
+/**
+ * Convert a date string to UK timezone
+ * @param dateStr - Date string in YYYY-MM-DD format
+ */
+export function parseUKDate(dateStr: string): Date {
+  return toZonedTime(new Date(dateStr + 'T00:00:00'), UK_TIMEZONE);
+}
 
 /**
  * Format a date to YYYY-MM-DD string in local timezone

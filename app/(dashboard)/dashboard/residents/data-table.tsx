@@ -55,7 +55,6 @@ export function DataTable<TData, TValue>({
       desc: false
     }
   ]);
-  const [unitFilter] = React.useState<string>("all");
   const [searchValue, setSearchValue] = React.useState<string>("");
 
 
@@ -84,13 +83,14 @@ export function DataTable<TData, TValue>({
     return () => clearTimeout(timeoutId);
   }, [searchValue, table]);
 
-  React.useEffect(() => {
-    if (unitFilter === "all") {
-      table.getColumn("unit")?.setFilterValue("");
-    } else {
-      table.getColumn("unit")?.setFilterValue(unitFilter);
-    }
-  }, [unitFilter, table]);
+  // Unit filter removed - column doesn't exist in current table definition
+  // React.useEffect(() => {
+  //   if (unitFilter === "all") {
+  //     table.getColumn("unit")?.setFilterValue("");
+  //   } else {
+  //     table.getColumn("unit")?.setFilterValue(unitFilter);
+  //   }
+  // }, [unitFilter, table]);
 
   return (
     <div className="w-full">

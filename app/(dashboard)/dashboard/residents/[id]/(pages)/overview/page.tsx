@@ -22,11 +22,9 @@ import {
   MapPin,
   Clock,
   User,
-  Mail,
   FileText,
   Users,
   Edit3,
-  PhoneCall
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -39,11 +37,70 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
+  // Use optimized query that fetches all related data in one go
+  const residentData = useQuery(api.residents.getResidentOverview, {
+    residentId: id as Id<"residents">,
+    includeAuditLog: false, // Set to true if you want to show recent activity
   });
 
+  const resident = residentData;
 
+  // Use backend-calculated values if available, with memoized fallback
+  // IMPORTANT: These hooks must be called before any early returns to comply with Rules of Hooks
+  const age = React.useMemo(() => {
+    if (!resident || resident.age === undefined) {
+      if (!resident?.dateOfBirth) return 0;
+
+      // Fallback calculation
+      const today = new Date();
+      const birthDate = new Date(resident.dateOfBirth);
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+      }
+
+      return calculatedAge;
+    }
+
+    return resident.age;
+  }, [resident]);
+
+  const lengthOfStayDisplay = React.useMemo(() => {
+    if (!resident?.admissionDate) return "";
+
+    if (resident.lengthOfStay) {
+      const { days, months, years } = resident.lengthOfStay;
+
+      if (days < 30) {
+        return `${days} days`;
+      } else if (days < 365) {
+        return `${months} month${months > 1 ? 's' : ''}`;
+      } else {
+        return `${years} year${years > 1 ? 's' : ''} ${months > 0 ? `${months} month${months > 1 ? 's' : ''}` : ''}`;
+      }
+    }
+
+    // Fallback calculation
+    const today = new Date();
+    const admission = new Date(resident.admissionDate);
+    const diffTime = Math.abs(today.getTime() - admission.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 30) {
+      return `${diffDays} days`;
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      return `${months} month${months > 1 ? 's' : ''}`;
+    } else {
+      const years = Math.floor(diffDays / 365);
+      const remainingMonths = Math.floor((diffDays % 365) / 30);
+      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
+    }
+  }, [resident?.lengthOfStay, resident?.admissionDate]);
+
+  // Now safe to do early returns after all hooks have been called
   if (resident === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -79,37 +136,6 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials =
     `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
-
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    
-    return age;
-  };
-
-  const calculateLengthOfStay = (admissionDate: string) => {
-    const today = new Date();
-    const admission = new Date(admissionDate);
-    const diffTime = Math.abs(today.getTime() - admission.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 30) {
-      return `${diffDays} days`;
-    } else if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30);
-      return `${months} month${months > 1 ? 's' : ''}`;
-    } else {
-      const years = Math.floor(diffDays / 365);
-      const remainingMonths = Math.floor((diffDays % 365) / 30);
-      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
-    }
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -167,7 +193,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
                     <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
+                    {age} years old
                   </Badge>
                 </div>
               </div>
@@ -203,11 +229,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
                     <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
+                    {age} years old
                   </Badge>
                   <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
                     <Clock className="w-3 h-3 mr-1" />
-                    {calculateLengthOfStay(resident.admissionDate)} stay
+                    {lengthOfStayDisplay} stay
                   </Badge>
                 </div>
               </div>
@@ -244,17 +270,17 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="text-2xl font-bold text-blue-600">
-                {calculateAge(resident.dateOfBirth)}
+                {age}
               </div>
               <p className="text-sm text-blue-700">Years Old</p>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="text-2xl font-bold text-green-600">
-                {calculateLengthOfStay(resident.admissionDate).split(' ')[0]}
+                {lengthOfStayDisplay.split(' ')[0]}
               </div>
               <p className="text-sm text-green-700">
-                {calculateLengthOfStay(resident.admissionDate).includes('day') ? 'Days' : 
-                 calculateLengthOfStay(resident.admissionDate).includes('month') ? 'Months' : 'Years'} Here
+                {lengthOfStayDisplay.includes('day') ? 'Days' :
+                 lengthOfStayDisplay.includes('month') ? 'Months' : 'Years'} Here
               </p>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">

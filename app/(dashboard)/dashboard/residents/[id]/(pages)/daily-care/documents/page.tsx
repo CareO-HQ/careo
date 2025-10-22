@@ -41,28 +41,15 @@ import {
   ArrowLeft,
   Search,
   Calendar,
-  User,
   FileText,
   Filter,
   Download,
   Eye,
-  Sun,
-  Moon,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Activity,
-  CheckCircle,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import {
-  formatDateToLocal,
-  isNightShift,
-  isDayShift,
-  getYesterdayDate,
-  formatDateForDisplay
-} from "@/lib/date-utils";
 
 type DailyCareDocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -79,7 +66,8 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   const [selectedYear, setSelectedYear] = useState("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [dateRangeFilter, setDateRangeFilter] = useState<"last_7" | "last_30" | "last_90" | "all">("all");
+  const itemsPerPage = 30;
 
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<any>(null);
@@ -88,8 +76,15 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId });
 
-  // Get all available report dates for this resident
-  const availableDates = useQuery(api.personalCare.getAvailableReportDates, { residentId });
+  // Use server-side pagination query
+  const paginatedData = useQuery(api.personalCare.getPaginatedDailyCareReports, {
+    residentId,
+    page: currentPage,
+    pageSize: itemsPerPage,
+    dateRangeFilter,
+    month: selectedMonth !== "all" ? parseInt(selectedMonth) : undefined,
+    year: selectedYear !== "all" ? parseInt(selectedYear) : undefined,
+  });
 
   // Get the selected report data when viewing
   const selectedReportData = useQuery(
@@ -100,14 +95,6 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     } : "skip"
   );
 
-  // For night reports, we also need yesterday's data (for 8pm+ activities)
-  const yesterdayReportData = useQuery(
-    api.personalCare.getDailyPersonalCare,
-    selectedReport?.type === 'night' ? {
-      residentId: id as Id<"residents">,
-      date: getYesterdayDate(selectedReport.date),
-    } : "skip"
-  );
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -115,74 +102,48 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     return `${resident.firstName} ${resident.lastName}`;
   }, [resident]);
 
-  // Get unique years from dates for filter
-  const availableYears = useMemo(() => {
-    if (!availableDates || availableDates.length === 0) return [];
-    const years = [...new Set(availableDates.map(date =>
-      new Date(date).getFullYear()
-    ))];
-    return years.sort((a, b) => b - a);
-  }, [availableDates]);
-
-  // Convert dates to report objects for filtering
+  // Transform server-side paginated data
   const reportObjects = useMemo(() => {
-    if (!availableDates) return [];
-    return availableDates.map(date => ({
-      date,
-      formattedDate: format(new Date(date), "PPP"),
-      _id: date // Use date as ID for consistency
+    if (!paginatedData?.dates) return [];
+    return paginatedData.dates.map(dateInfo => ({
+      date: dateInfo.date,
+      formattedDate: format(new Date(dateInfo.date), "PPP"),
+      _id: dateInfo.date,
+      hasData: dateInfo.hasData
     }));
-  }, [availableDates]);
+  }, [paginatedData]);
 
-  // Filter and sort reports
+  // Get unique years from earliest date for filter
+  const availableYears = useMemo(() => {
+    if (!paginatedData?.earliestDate) return [];
+    const earliestYear = new Date(paginatedData.earliestDate).getFullYear();
+    const currentYear = new Date().getFullYear();
+    const years: number[] = [];
+    for (let year = currentYear; year >= earliestYear; year--) {
+      years.push(year);
+    }
+    return years;
+  }, [paginatedData?.earliestDate]);
+
+  // Client-side search filtering (apply to current page only)
   const filteredReports = useMemo(() => {
     if (!reportObjects) return [];
 
-    let filtered = [...reportObjects];
+    if (!searchQuery) return reportObjects;
 
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(report =>
-        report.formattedDate.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        report.date.includes(searchQuery)
-      );
-    }
+    return reportObjects.filter(report =>
+      report.formattedDate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      report.date.includes(searchQuery)
+    );
+  }, [reportObjects, searchQuery]);
 
-    // Apply month filter
-    if (selectedMonth !== "all") {
-      filtered = filtered.filter(report => {
-        const reportMonth = new Date(report.date).getMonth() + 1;
-        return reportMonth === parseInt(selectedMonth);
-      });
-    }
-
-    // Apply year filter
-    if (selectedYear !== "all") {
-      filtered = filtered.filter(report => {
-        const reportYear = new Date(report.date).getFullYear();
-        return reportYear === parseInt(selectedYear);
-      });
-    }
-
-    // Sort by date
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-    });
-
-    return filtered;
-  }, [reportObjects, searchQuery, selectedMonth, selectedYear, sortOrder]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedReports = filteredReports.slice(startIndex, endIndex);
+  // Pagination state from server
+  const totalPages = Math.ceil((paginatedData?.totalCount || 0) / itemsPerPage);
+  const paginatedReports = sortOrder === "desc" ? filteredReports : [...filteredReports].reverse();
 
   // Handlers
-  const handleViewReport = (report: any, type: 'day' | 'night') => {
-    setSelectedReport({ ...report, type });
+  const handleViewReport = (report: any) => {
+    setSelectedReport(report);
     setIsViewDialogOpen(true);
   };
 
@@ -190,11 +151,10 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     if (!filteredReports || filteredReports.length === 0) return;
 
     // Create CSV content
-    const headers = ["Date", "Day Shift", "Night Shift", "Status"];
+    const headers = ["Date", "Report Type", "Status"];
     const rows = filteredReports.map(report => [
       report.date,
-      "8:00 AM - 8:00 PM",
-      "8:00 PM - 8:00 AM",
+      "Daily Care Report",
       "Archived"
     ]);
 
@@ -215,32 +175,29 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     window.URL.revokeObjectURL(url);
   };
 
-  const handleDownloadReport = (report: any, type: 'day' | 'night') => {
+  const handleDownloadReport = (report: any) => {
     if (!resident) {
       toast.error('Resident data not available');
       return;
     }
 
-    const reportToDownload = selectedReportData && selectedReport?.date === report.date && selectedReport?.type === type
+    const reportToDownload = selectedReportData && selectedReport?.date === report.date
       ? selectedReportData
       : { activities: [], reportGenerated: false };
 
     const htmlContent = generatePDFContent({
       resident,
       report: reportToDownload,
-      type,
       date: report.date
     });
 
     generatePDFFromHTML(htmlContent);
-    toast.success(`${type === 'day' ? 'Day' : 'Night'} report will open for printing`);
+    toast.success('Daily care report will open for printing');
   };
 
-  const generatePDFContent = ({ resident, report, type, date }: { resident: any; report: any; type: 'day' | 'night'; date: string; }) => {
-    const timeRange = type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM';
-    const shiftName = type === 'day' ? 'Day' : 'Night';
-    const completedCount = report.activities?.filter((a: any) => a.status === 'completed').length || 0;
-    const totalActivities = report.activities?.length || 0;
+  const generatePDFContent = ({ resident, report, date }: { resident: any; report: any; date: string; }) => {
+    const completedCount = report.tasks?.filter((a: any) => a.status === 'completed').length || 0;
+    const totalActivities = report.tasks?.length || 0;
     const completionRate = totalActivities > 0 ? Math.round((completedCount / totalActivities) * 100) : 0;
 
     const formattedDate = new Date(date).toLocaleDateString('en-US', {
@@ -252,7 +209,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
     return `
       <div class="header">
-        <h1>Daily Care Report - ${shiftName} Shift</h1>
+        <h1>Daily Care Report</h1>
         <p style="color: #64748B; margin: 0;">${resident.firstName} ${resident.lastName}</p>
       </div>
 
@@ -260,10 +217,6 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
         <div class="info-box">
           <h3>Report Date</h3>
           <p>${formattedDate}</p>
-        </div>
-        <div class="info-box">
-          <h3>Shift Period</h3>
-          <p>${timeRange}</p>
         </div>
         <div class="info-box">
           <h3>Total Activities</h3>
@@ -277,15 +230,15 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
       <div class="activities">
         <h2>Activities Log</h2>
-        ${report.activities && report.activities.length > 0
-          ? report.activities.map((activity: any) => `
+        ${report.tasks && report.tasks.length > 0
+          ? report.tasks.map((activity: any) => `
               <div class="activity-item">
                 <strong>${activity.taskType}</strong><br>
                 ${activity.completedAt ? `Completed: ${new Date(activity.completedAt).toLocaleTimeString()}` : 'Status: Pending'}<br>
                 ${activity.notes ? `Notes: ${activity.notes}` : ''}
               </div>
             `).join('')
-          : '<p>No activities logged for this shift.</p>'
+          : '<p>No activities logged for this day.</p>'
         }
       </div>
     `;
@@ -321,7 +274,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   };
 
   // Loading state
-  if (!resident || !availableDates) {
+  if (!resident || !paginatedData) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -332,16 +285,14 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     );
   }
 
-  // Calculate stats
+  // Calculate stats from paginated data
   const reportStats = {
-    total: availableDates.length,
-    thisMonth: availableDates.filter(date => {
-      const reportDate = new Date(date);
+    total: paginatedData.totalCount || 0,
+    thisMonth: reportObjects.filter(report => {
+      const reportDate = new Date(report.date);
       const now = new Date();
       return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
     }).length,
-    dayShifts: availableDates.length, // Each date has both day and night
-    nightShifts: availableDates.length,
   };
 
   return (
@@ -392,7 +343,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -421,29 +372,15 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-amber-50 to-amber-100">
+        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-amber-700">Day Shifts</p>
-                <p className="text-2xl font-bold text-amber-900">{reportStats.dayShifts}</p>
+                <p className="text-sm font-medium text-purple-700">Daily Reports</p>
+                <p className="text-2xl font-bold text-purple-900">{reportStats.total}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
-                <Sun className="w-5 h-5 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 bg-gradient-to-br from-indigo-50 to-indigo-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-indigo-700">Night Shifts</p>
-                <p className="text-2xl font-bold text-indigo-900">{reportStats.nightShifts}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <Moon className="w-5 h-5 text-indigo-600" />
+                <Activity className="w-5 h-5 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -470,76 +407,99 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search by date..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="pl-10"
-                />
-              </div>
+          <div className="flex flex-col gap-4">
+            {/* Date Range Filter */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Select
+                value={dateRangeFilter}
+                onValueChange={(value: "last_7" | "last_30" | "last_90" | "all") => {
+                  setDateRangeFilter(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Date Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last_7">Last 7 Days</SelectItem>
+                  <SelectItem value="last_30">Last 30 Days</SelectItem>
+                  <SelectItem value="last_90">Last 90 Days</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={selectedMonth}
-              onValueChange={(value) => {
-                setSelectedMonth(value);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Months</SelectItem>
-                <SelectItem value="1">January</SelectItem>
-                <SelectItem value="2">February</SelectItem>
-                <SelectItem value="3">March</SelectItem>
-                <SelectItem value="4">April</SelectItem>
-                <SelectItem value="5">May</SelectItem>
-                <SelectItem value="6">June</SelectItem>
-                <SelectItem value="7">July</SelectItem>
-                <SelectItem value="8">August</SelectItem>
-                <SelectItem value="9">September</SelectItem>
-                <SelectItem value="10">October</SelectItem>
-                <SelectItem value="11">November</SelectItem>
-                <SelectItem value="12">December</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={selectedYear}
-              onValueChange={(value) => {
-                setSelectedYear(value);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Year" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Years</SelectItem>
-                {availableYears.map(year => (
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={sortOrder}
-              onValueChange={(value: "asc" | "desc") => setSortOrder(value)}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="desc">Newest First</SelectItem>
-                <SelectItem value="asc">Oldest First</SelectItem>
-              </SelectContent>
-            </Select>
+
+            {/* Search and Other Filters */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search by date..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                    }}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <Select
+                value={selectedMonth}
+                onValueChange={(value) => {
+                  setSelectedMonth(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Months</SelectItem>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedYear}
+                onValueChange={(value) => {
+                  setSelectedYear(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={sortOrder}
+                onValueChange={(value: "asc" | "desc") => setSortOrder(value)}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Newest First</SelectItem>
+                  <SelectItem value="asc">Oldest First</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -567,9 +527,9 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
-                      <TableHead>Day Shift (8AM - 8PM)</TableHead>
-                      <TableHead>Night Shift (8PM - 8AM)</TableHead>
+                      <TableHead>Report</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -582,61 +542,49 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-3">
+                          {report.hasData ? (
                             <div className="flex items-center space-x-2">
-                              <Sun className="w-4 h-4 text-amber-600" />
-                              <span className="text-sm">Day Report</span>
+                              <Activity className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm">Daily Care Report</span>
                             </div>
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewReport(report, 'day')}
-                                className="h-7 px-2"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadReport(report, 'day')}
-                                className="h-7 px-2"
-                              >
-                                <Download className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <div className="flex items-center space-x-2">
-                              <Moon className="w-4 h-4 text-indigo-600" />
-                              <span className="text-sm">Night Report</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewReport(report, 'night')}
-                                className="h-7 px-2"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadReport(report, 'night')}
-                                className="h-7 px-2"
-                              >
-                                <Download className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
+                          {report.hasData ? (
+                            <Badge className="bg-green-100 text-green-800 border-0">
+                              Archived
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200">
+                              No Data
+                            </Badge>
+                          )}
                         </TableCell>
-                        <TableCell>
-                          <Badge className="bg-green-100 text-green-800 border-0">
-                            Archived
-                          </Badge>
+                        <TableCell className="text-right">
+                          {report.hasData ? (
+                            <div className="flex items-center justify-end space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleViewReport(report)}
+                                className="h-8 w-8"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDownloadReport(report)}
+                                className="h-8 w-8"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -648,7 +596,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} of {filteredReports.length} reports
+                    Page {currentPage} of {totalPages} ({paginatedData?.totalCount || 0} total reports)
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -689,7 +637,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                       variant="outline"
                       size="sm"
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
+                      disabled={currentPage === totalPages || !paginatedData?.hasMore}
                       className="h-8 w-8 p-0"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -704,167 +652,62 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
       {/* View Report Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              {selectedReport?.type === 'day' ? (
-                <Sun className="w-5 h-5 text-amber-600" />
-              ) : (
-                <Moon className="w-5 h-5 text-indigo-600" />
-              )}
-              <span>
-                {selectedReport?.type === 'day' ? 'Day' : 'Night'} Shift Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
-              </span>
+            <DialogTitle>
+              Daily Care Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
             </DialogTitle>
             <DialogDescription>
-              All activities logged for {selectedReport?.type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM'}
+              All activities logged for this day
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
-            {selectedReport && (
-              <div className="space-y-6">
-                {selectedReportData === undefined ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-2 text-muted-foreground">Loading report...</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Report Overview */}
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Shift Overview</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Shift Period</p>
-                          <p className="font-medium">
-                            {selectedReport.type === 'day' ? '8:00 AM - 8:00 PM' : '8:00 PM - 8:00 AM'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Total Activities</p>
-                          <p className="font-medium">
-                            {(() => {
-                              if (selectedReport.type === 'day') {
-                                const dayActivities = (selectedReportData?.tasks || []).filter((task: any) =>
-                                  isDayShift(task.createdAt)
-                                );
-                                return dayActivities.length;
-                              } else {
-                                const allNightActivities = [
-                                  ...(selectedReportData?.tasks || []),
-                                  ...(yesterdayReportData?.tasks || [])
-                                ];
-                                const nightShiftActivities = allNightActivities.filter(activity =>
-                                  isNightShift(activity.createdAt)
-                                );
-                                return nightShiftActivities.length;
-                              }
-                            })()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Activities Log */}
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Activities Log</h3>
-                      {(() => {
-                        let activities = [];
-                        if (selectedReport.type === 'day') {
-                          activities = (selectedReportData?.tasks || []).filter((task: any) =>
-                            isDayShift(task.createdAt)
-                          );
-                        } else {
-                          const allNightActivities = [
-                            ...(selectedReportData?.tasks || []),
-                            ...(yesterdayReportData?.tasks || [])
-                          ];
-                          activities = allNightActivities.filter(activity =>
-                            isNightShift(activity.createdAt)
-                          );
-                        }
-
-                        return activities.length > 0 ? (
-                          <div className="space-y-3 max-h-60 overflow-y-auto">
-                            {activities.map((activity: any, index: number) => (
-                              <div key={index} className={`p-3 border rounded-lg ${
-                                selectedReport.type === 'day' ? 'border-amber-200 bg-amber-50' : 'border-indigo-200 bg-indigo-50'
-                              }`}>
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <div className="flex items-center space-x-2 mb-1">
-                                      {selectedReport.type === 'day' ? (
-                                        <Sun className="w-4 h-4 text-amber-600" />
-                                      ) : (
-                                        <Moon className="w-4 h-4 text-indigo-600" />
-                                      )}
-                                      <p className="font-medium">{activity.taskType}</p>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">
-                                      {activity.completedAt ? new Date(activity.completedAt).toLocaleTimeString() : 'Pending'}
-                                    </p>
-                                    {activity.notes && (
-                                      <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
-                                    )}
-                                  </div>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    activity.status === 'completed'
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {activity.status}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-gray-500 py-8 text-center">
-                            No activities logged for {selectedReport.type} shift
-                          </p>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Record Information */}
-                    <div>
-                      <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Report Type</p>
-                          <p className="font-medium">
-                            {selectedReport.type === 'day' ? 'Day' : 'Night'} Shift Report
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Generated</p>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4 text-gray-400" />
-                            <p className="font-medium">{format(new Date(), "PPP")}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+          <div className={`space-y-2 ${(() => {
+            if (!selectedReport) return '';
+            const activityCount = (selectedReportData?.tasks || []).length;
+            return activityCount > 2 ? 'overflow-y-auto max-h-[60vh]' : '';
+          })()}`}>
+            {selectedReportData === undefined ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading report...</p>
               </div>
-            )}
-          </ScrollArea>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
-            >
-              Close
-            </Button>
-            {selectedReport && (
-              <Button
-                onClick={() => handleDownloadReport(selectedReport, selectedReport.type)}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download PDF
-              </Button>
-            )}
+            ) : (() => {
+              const activities = selectedReportData?.tasks || [];
+
+              return activities.length > 0 ? (
+                activities.map((activity: any, index: number) => (
+                  <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-sm">{activity.taskType}</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {activity.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {activity.createdAt ? new Date(activity.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+                      </span>
+                    </div>
+
+                    {activity.notes && (
+                      <div className="text-xs text-muted-foreground mt-2">
+                        <span className="font-medium">Notes:</span> {activity.notes}
+                      </div>
+                    )}
+
+                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                      Recorded by: {activity.payload?.primaryStaff || activity.payload?.staff || 'Unknown'}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 py-8 text-center">
+                  No activities logged for this day
+                </p>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>

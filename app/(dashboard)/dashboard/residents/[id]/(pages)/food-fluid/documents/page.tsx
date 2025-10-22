@@ -669,129 +669,55 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
 
       {/* View Report Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Food & Fluid Report Details</DialogTitle>
+            <DialogTitle>Food & Fluid Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}</DialogTitle>
             <DialogDescription>
-              Complete daily food & fluid report for {fullName}
+              Detailed view of all entries for this date
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
-            {selectedReport && (
-              <div className="space-y-6">
-                {selectedReportData === undefined ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-2 text-muted-foreground">Loading report...</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Report Overview */}
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Report Overview</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Report Date</p>
-                          <p className="font-medium">{format(new Date(selectedReport.date), "PPP")}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Total Entries</p>
-                          <p className="font-medium">{selectedReportData?.totalEntries || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Food Entries</p>
-                          <p className="font-medium">{selectedReportData?.foodEntries || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Fluid Entries</p>
-                          <p className="font-medium">{selectedReportData?.fluidEntries || 0}</p>
+          <div className={`space-y-2 ${(selectedReportData?.logs?.length || 0) > 2 ? 'overflow-y-auto max-h-[60vh]' : ''}`}>
+            {selectedReportData === undefined ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading report...</p>
+              </div>
+            ) : selectedReportData?.logs && selectedReportData.logs.length > 0 ? (
+              selectedReportData.logs.map((log: any, index: number) => {
+                const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
+                return (
+                  <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-sm">{log.typeOfFoodDrink}</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {isFluid ? 'Fluid' : 'Food'}
+                          </Badge>
                         </div>
                       </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
 
-                    {/* Log Entries */}
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Food & Fluid Log</h3>
-                      {selectedReportData?.logs && selectedReportData.logs.length > 0 ? (
-                        <div className="space-y-3 max-h-60 overflow-y-auto">
-                          {selectedReportData.logs.map((log: any, index: number) => {
-                            const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
-                            return (
-                              <div key={index} className={`p-3 border rounded-lg ${isFluid ? 'border-blue-200 bg-blue-50' : 'border-orange-200 bg-orange-50'}`}>
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <div className="flex items-center space-x-2 mb-1">
-                                      {isFluid ? (
-                                        <Droplets className="w-4 h-4 text-blue-600" />
-                                      ) : (
-                                        <Utensils className="w-4 h-4 text-orange-600" />
-                                      )}
-                                      <p className="font-medium">{log.typeOfFoodDrink}</p>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">
-                                      {new Date(log.timestamp).toLocaleTimeString()} • {log.section?.replace('-', ' - ')}
-                                    </p>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                      Portion: {log.portionServed}
-                                      {log.fluidConsumedMl && ` • Volume: ${log.fluidConsumedMl}ml`}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">Staff: {log.signature}</p>
-                                  </div>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    log.amountEaten === 'All'
-                                      ? 'bg-green-100 text-green-800'
-                                      : log.amountEaten === 'None'
-                                      ? 'bg-red-100 text-red-800'
-                                      : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {log.amountEaten}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 py-8 text-center">No entries logged for this date</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-2">
+                      <span><span className="font-medium">Section:</span> {log.section?.replace('-', ' - ')}</span>
+                      <span><span className="font-medium">Portion:</span> {log.portionServed}</span>
+                      <span><span className="font-medium">Amount Eaten:</span> {log.amountEaten}</span>
+                      {log.fluidConsumedMl && (
+                        <span><span className="font-medium">Volume:</span> {log.fluidConsumedMl}ml</span>
                       )}
                     </div>
 
-                    {/* Record Information */}
-                    <div>
-                      <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Report Type</p>
-                          <p className="font-medium">Daily Food & Fluid Report</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Generated</p>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4 text-gray-400" />
-                            <p className="font-medium">{format(new Date(), "PPP")}</p>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                      Recorded by: {log.signature}
                     </div>
-                  </>
-                )}
-              </div>
-            )}
-          </ScrollArea>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
-            >
-              Close
-            </Button>
-            {selectedReport && (
-              <Button
-                onClick={() => handleDownloadReport(selectedReport)}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download PDF
-              </Button>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-gray-500 py-8 text-center">No entries logged for this date</p>
             )}
           </div>
         </DialogContent>
