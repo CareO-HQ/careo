@@ -39,11 +39,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { authClient } from "@/lib/auth-client";
 
 interface Audit {
   id: string;
@@ -71,7 +72,8 @@ function CareOAuditPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [audits, setAudits] = useState<Audit[]>([]);
-  const { activeTeamId } = useActiveTeam();
+  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const { data: session } = authClient.useSession();
 
   // Get tab from URL query params, default to "resident"
   const tabFromUrl = searchParams.get("tab") || "resident";
@@ -85,17 +87,99 @@ function CareOAuditPageContent() {
     }
   }, [searchParams]);
 
+  // Database queries for resident audit templates (organization-wide, shared across all teams)
+  // Templates are shared across all teams in the organization so any team can use them
+  const residentTemplates = useQuery(
+    api.auditTemplates.getTemplatesByOrganizationAndCategory,
+    activeOrganizationId ? { organizationId: activeOrganizationId, category: "resident" } : "skip"
+  );
+
+  // Query latest completions for all templates (team-specific)
+  // Each team tracks their own completion instances of the shared templates
+  const latestCompletions = useQuery(
+    api.auditResponses.getAllLatestResponsesByTeam,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
+
+  // Mutations
+  const createTemplate = useMutation(api.auditTemplates.createTemplate);
+  const deleteTemplate = useMutation(api.auditTemplates.deleteTemplate);
+
   // Fetch residents for the active team
   const residents = useQuery(
     api.residents.getByTeamId,
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
 
-  // Load audits from localStorage on mount
+  // Load audits from database templates (priority) or localStorage (fallback)
   useEffect(() => {
+    console.log("Loading audits - activeTab:", activeTab, "residentTemplates:", residentTemplates?.length);
+
+    // If we have templates from database, use those for resident tab
+    if (activeTab === "resident" && residentTemplates && residentTemplates.length > 0) {
+      // Convert database templates to audit format for display
+      const templatesAsAudits: Audit[] = residentTemplates.map((template) => {
+        // Find latest completion for this template
+        const latestCompletion = latestCompletions?.find(
+          (completion) => completion.templateId === template._id
+        );
+
+        // Debug logging
+        if (template.name === "Wound") {
+          console.log("Wound audit debug:", {
+            template,
+            latestCompletion,
+            hasCompletion: !!latestCompletion,
+            completionStatus: latestCompletion?.status,
+          });
+        }
+
+        // Only show dates if audit has been completed
+        // Check both that completion exists AND status is "completed"
+        const isCompleted = latestCompletion && latestCompletion.status === "completed";
+
+        // Format dates - only show if completed
+        const lastAudited = isCompleted && latestCompletion.completedAt
+          ? new Date(latestCompletion.completedAt).toLocaleDateString('en-GB')
+          : "-";
+
+        const nextAudit = isCompleted && latestCompletion.nextAuditDue
+          ? new Date(latestCompletion.nextAuditDue).toLocaleDateString('en-GB')
+          : "-";
+
+        return {
+          id: template._id,
+          name: template.name,
+          status: isCompleted ? "completed" : "new",
+          auditor: latestCompletion?.auditedBy || template.createdBy,
+          lastAudited,
+          dueDate: nextAudit,
+          category: "resident",
+          frequency: template.frequency,
+        };
+      });
+      setAudits(templatesAsAudits);
+      return; // Skip localStorage loading
+    }
+
+    // Fallback to localStorage for other tabs or if no templates
     const savedAudits = localStorage.getItem('careo-audits');
     if (savedAudits) {
       let audits = JSON.parse(savedAudits);
+
+      // For resident tab, completely ignore localStorage
+      // All resident audits should come from database only
+      if (activeTab === "resident") {
+        console.log("Resident tab: Ignoring all localStorage audits");
+        setAudits([]);
+        return;
+      }
+
+      // Filter out resident audits from localStorage for other tabs
+      audits = audits.filter((audit: Audit) => audit.category !== "resident");
+
+      // Save filtered audits back to localStorage to clean up
+      localStorage.setItem('careo-audits', JSON.stringify(audits));
 
       // Migration: Add default frequency to audits that don't have it
       let hasUpdates = false;
@@ -130,11 +214,18 @@ function CareOAuditPageContent() {
       setAudits(defaultAudits);
       localStorage.setItem('careo-audits', JSON.stringify(defaultAudits));
     }
-  }, []);
+  }, [activeTab, residentTemplates, latestCompletions]);
 
   // Check and update due status for audits based on frequency
+  // NOTE: This only applies to localStorage-based audits, not database audits
   useEffect(() => {
     if (audits.length === 0) return;
+
+    // Skip this effect for resident tab - database audits handle their own status
+    if (activeTab === "resident") {
+      console.log("Skipping localStorage status check for database audits");
+      return;
+    }
 
     const frequencyDays: { [key: string]: number } = {
       daily: 1,
@@ -254,33 +345,57 @@ function CareOAuditPageContent() {
     setIsDialogOpen(true);
   };
 
-  const handleCreateAudit = () => {
-    if (!formData.auditName || !formData.auditorName || !formData.frequency) {
+  const handleCreateAudit = async () => {
+    if (!formData.auditName || !formData.frequency) {
+      toast.error("Please fill in all required fields");
       return;
     }
 
-    const newAudit: Audit = {
-      id: Date.now().toString(),
-      name: formData.auditName,
-      status: "new",
-      auditor: formData.auditorName,
-      lastAudited: "--",
-      dueDate: "--",
-      category: activeTab,
-      frequency: formData.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly",
-    };
+    // For resident tab, create template in database
+    if (activeTab === "resident" && activeTeamId && activeOrganizationId && session?.user) {
+      try {
+        const templateId = await createTemplate({
+          name: formData.auditName,
+          category: "resident",
+          questions: [], // Start with empty questions, user will add them
+          frequency: formData.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly",
+          teamId: activeTeamId, // Team where it was created (for tracking purposes)
+          organizationId: activeOrganizationId, // Organization-wide template
+          createdBy: session.user.name || session.user.email || "Unknown",
+        });
 
-    const updatedAudits = [...audits, newAudit];
-    setAudits(updatedAudits);
+        setIsDialogOpen(false);
+        setFormData({ auditName: "", auditorName: "", frequency: "" });
 
-    // Save to localStorage
-    localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+        toast.success(`Template "${formData.auditName}" created successfully!`);
 
-    setIsDialogOpen(false);
-    setFormData({ auditName: "", auditorName: "", frequency: "" });
+        // Navigate to the new template to add questions
+        router.push(`/dashboard/careo-audit/${activeTab}/${templateId}`);
+      } catch (error) {
+        console.error("Failed to create template:", error);
+        toast.error("Failed to create audit template");
+      }
+    } else {
+      // Fallback to localStorage for other tabs
+      const newAudit: Audit = {
+        id: Date.now().toString(),
+        name: formData.auditName,
+        status: "new",
+        auditor: session?.user?.name || session?.user?.email || "Unknown User",
+        lastAudited: "--",
+        dueDate: "--",
+        category: activeTab,
+        frequency: formData.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly",
+      };
 
-    // Navigate to the new audit page
-    router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}`);
+      const updatedAudits = [...audits, newAudit];
+      setAudits(updatedAudits);
+      localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+
+      setIsDialogOpen(false);
+      setFormData({ auditName: "", auditorName: "", frequency: "" });
+      router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}`);
+    }
   };
 
   const handleDeleteClick = (audit: Audit) => {
@@ -289,7 +404,7 @@ function CareOAuditPageContent() {
     setIsDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!auditToDelete) return;
 
     const auditId = auditToDelete.id;
@@ -298,15 +413,35 @@ function CareOAuditPageContent() {
     setIsDeleteDialogOpen(false);
     setAuditToDelete(null);
 
-    // Use setTimeout to ensure dialog is fully closed before state update
-    setTimeout(() => {
-      // Update audits state
-      const updatedAudits = audits.filter(audit => audit.id !== auditId);
-      setAudits(updatedAudits);
+    try {
+      // Check if it's a database audit (Convex ID starts with lowercase letter)
+      const isConvexId = /^[a-z]/.test(auditId);
 
-      // Update localStorage
-      localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
-    }, 0);
+      if (auditToDelete.category === "resident" && isConvexId) {
+        // Delete from database
+        console.log("Deleting template from database:", auditId);
+        await deleteTemplate({
+          templateId: auditId as Id<"residentAuditTemplates">,
+        });
+        toast.success("Audit deleted successfully");
+      } else {
+        // Delete from localStorage
+        console.log("Deleting from localStorage:", auditId);
+        const savedAudits = localStorage.getItem('careo-audits');
+        if (savedAudits) {
+          const audits = JSON.parse(savedAudits);
+          const updatedAudits = audits.filter((audit: Audit) => audit.id !== auditId);
+          localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
+
+          // Also update state
+          setAudits(prev => prev.filter(audit => audit.id !== auditId));
+        }
+        toast.success("Audit deleted successfully");
+      }
+    } catch (error) {
+      console.error("Failed to delete audit:", error);
+      toast.error("Failed to delete audit. Please try again.");
+    }
   };
 
   const handleCancelDelete = () => {
@@ -420,18 +555,131 @@ function CareOAuditPageContent() {
     return Math.round(totalPercentage / auditList.length);
   };
 
+  // State to store last audited and next audit dates for residents
+  const [residentDates, setResidentDates] = useState<{[residentId: string]: {lastAudited: string, nextAudit: string}}>({});
+
+  // Calculate last audited and next audit dates for a resident
+  const calculateResidentDates = (residentId: string): {lastAudited: string, nextAudit: string} => {
+    // Define default audit list
+    const defaultAudits = [
+      { id: "1", name: "Pre-Admission Assessment" },
+      { id: "2", name: "Admission Assessment" },
+      { id: "3", name: "Risk Assessment" },
+      { id: "4", name: "Care Plan" },
+      { id: "5", name: "Medication Review" },
+    ];
+
+    // Try to load custom audit list from localStorage, fallback to defaults
+    let auditList = defaultAudits;
+    const savedAudits = localStorage.getItem(`carefile-audits-${residentId}`);
+    if (savedAudits) {
+      try {
+        auditList = JSON.parse(savedAudits);
+      } catch (e) {
+        console.error('Error parsing saved audits:', e);
+      }
+    }
+
+    // Get all completed audits from localStorage
+    const completedAuditsStr = localStorage.getItem('completed-audits');
+    if (!completedAuditsStr) {
+      return { lastAudited: '-', nextAudit: '-' };
+    }
+
+    let allCompletedAudits = [];
+    try {
+      allCompletedAudits = JSON.parse(completedAuditsStr);
+    } catch (e) {
+      console.error('Error parsing completed audits:', e);
+      return { lastAudited: '-', nextAudit: '-' };
+    }
+
+    // Check if ALL audits are 100% complete
+    let allAuditsComplete = true;
+    let latestCompletionDate: number | null = null;
+
+    auditList.forEach((audit: any) => {
+      const matchingCompletedAudits = allCompletedAudits.filter(
+        (ca: any) =>
+          ca.residentId === residentId &&
+          ca.name === audit.name &&
+          ca.category === 'carefile'
+      );
+
+      if (matchingCompletedAudits.length > 0) {
+        // Get the latest completion
+        const latestCompletion = matchingCompletedAudits.sort(
+          (a: any, b: any) => b.completedAt - a.completedAt
+        )[0];
+
+        // Check if this audit is 100% complete
+        const totalItems = latestCompletion.auditDetailItems?.length || 0;
+        const compliantItems = latestCompletion.auditDetailItems?.filter(
+          (item: any) => item.status === 'compliant'
+        ).length || 0;
+        const percentage = totalItems > 0 ? Math.round((compliantItems / totalItems) * 100) : 0;
+
+        if (percentage !== 100) {
+          allAuditsComplete = false;
+        }
+
+        // Track the latest completion date across all audits
+        if (!latestCompletionDate || latestCompletion.completedAt > latestCompletionDate) {
+          latestCompletionDate = latestCompletion.completedAt;
+        }
+      } else {
+        // Audit not completed
+        allAuditsComplete = false;
+      }
+    });
+
+    // Only show last audited if ALL audits are 100% complete
+    if (!allAuditsComplete || !latestCompletionDate) {
+      return { lastAudited: '-', nextAudit: '-' };
+    }
+
+    // Format last audited date
+    const completionDate = new Date(latestCompletionDate);
+    const formattedLastAudited = completionDate.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+
+    // Calculate next audit based on frequency
+    const frequencyDays: { [key: string]: number } = {
+      '3months': 90,
+      '6months': 180,
+      'yearly': 365,
+    };
+
+    const daysToAdd = frequencyDays[careFileFrequency] || 90;
+    const nextAuditDate = new Date(completionDate);
+    nextAuditDate.setDate(nextAuditDate.getDate() + daysToAdd);
+    const formattedNextAudit = nextAuditDate.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+
+    return { lastAudited: formattedLastAudited, nextAudit: formattedNextAudit };
+  };
+
   // Calculate completion percentages for all residents when they load or tab changes
   useEffect(() => {
     if (activeTab === 'carefile' && residents && residents.length > 0) {
       const completions: {[residentId: string]: number} = {};
+      const dates: {[residentId: string]: {lastAudited: string, nextAudit: string}} = {};
 
       residents.forEach(resident => {
         completions[resident._id] = calculateResidentCareFileCompletion(resident._id);
+        dates[resident._id] = calculateResidentDates(resident._id);
       });
 
       setResidentCompletions(completions);
+      setResidentDates(dates);
     }
-  }, [residents, activeTab]);
+  }, [residents, activeTab, careFileFrequency]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -482,6 +730,13 @@ function CareOAuditPageContent() {
   };
 
   const getLastAuditedDate = (audit: Audit) => {
+    // For database audits (Convex IDs), use the audit's lastAudited property directly
+    const isConvexId = /^[a-z]/.test(audit.id);
+    if (isConvexId) {
+      return audit.lastAudited || "-";
+    }
+
+    // For localStorage audits, check completed-audits
     const completedAudits = localStorage.getItem('completed-audits');
     if (!completedAudits) return "--";
 
@@ -510,6 +765,13 @@ function CareOAuditPageContent() {
   };
 
   const getDueDate = (audit: Audit) => {
+    // For database audits (Convex IDs), use the audit's dueDate property directly
+    const isConvexId = /^[a-z]/.test(audit.id);
+    if (isConvexId) {
+      return audit.dueDate || "-";
+    }
+
+    // For localStorage audits, check completed-audits
     const completedAudits = localStorage.getItem('completed-audits');
     if (!completedAudits) return "--";
 
@@ -599,6 +861,8 @@ function CareOAuditPageContent() {
                 </SelectContent>
               </Select>
             </div>
+          ) : activeTab === "resident" ? (
+            <>{/* No filters for resident tab */}</>
           ) : (
             <>
               <Button variant="ghost" size="sm" className="h-8">
@@ -691,8 +955,12 @@ function CareOAuditPageContent() {
                         );
                       })()}
                     </TableCell>
-                    <TableCell className="text-muted-foreground border-r last:border-r-0">-</TableCell>
-                    <TableCell className="text-muted-foreground border-r last:border-r-0">-</TableCell>
+                    <TableCell className="text-muted-foreground border-r last:border-r-0">
+                      {residentDates[resident._id]?.lastAudited || '-'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground border-r last:border-r-0">
+                      {residentDates[resident._id]?.nextAudit || '-'}
+                    </TableCell>
                     <TableCell className="border-r last:border-r-0">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -789,50 +1057,7 @@ function CareOAuditPageContent() {
                         <DropdownMenuItem
                           onClick={() => {
                             setOpenDropdownId(null);
-
-                            // ALWAYS try to find the latest completed audit with the same name
-                            const completedAudits = localStorage.getItem('completed-audits');
-                            if (completedAudits) {
-                              const audits = JSON.parse(completedAudits);
-                              const latestCompleted = audits
-                                .filter((a: any) => a.name === audit.name && a.category === audit.category && a.status === "completed")
-                                .sort((a: any, b: any) => b.completedAt - a.completedAt)[0];
-
-                              if (latestCompleted) {
-                                // Found a completed audit - open it in view mode
-                                router.push(`/dashboard/careo-audit/${latestCompleted.category}/${latestCompleted.id}/view`);
-                                return;
-                              }
-                            }
-
-                            // Fallback: No completed audits found, open the audit in edit mode
-                            router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Latest Completed
-                        </DropdownMenuItem>
-                        {audit.status !== "completed" && (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setOpenDropdownId(null);
-                              router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`);
-                            }}
-                          >
-                            <ClipboardCheck className="h-4 w-4 mr-2" />
-                            Continue Audit
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem
-                          onClick={() => handleDownloadAudit(audit)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            router.push(`/dashboard/careo-audit/archived?name=${encodeURIComponent(audit.name)}&category=${audit.category}`);
+                            router.push(`/dashboard/careo-audit/archived?name=${encodeURIComponent(audit.name)}&category=${audit.category}&templateId=${audit.id}`);
                           }}
                         >
                           <Archive className="h-4 w-4 mr-2" />
@@ -888,11 +1113,10 @@ function CareOAuditPageContent() {
               <Label htmlFor="auditorName">Auditor Name</Label>
               <Input
                 id="auditorName"
-                placeholder="e.g., John Smith"
-                value={formData.auditorName}
-                onChange={(e) =>
-                  setFormData({ ...formData, auditorName: e.target.value })
-                }
+                value={session?.user?.name || session?.user?.email || "Unknown User"}
+                readOnly
+                disabled
+                className="bg-muted cursor-not-allowed"
               />
             </div>
             <div className="grid gap-2">

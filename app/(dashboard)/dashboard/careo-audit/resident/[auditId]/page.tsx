@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Resident as ResidentType } from "@/types";
 import { Button } from "@/components/ui/button";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +42,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { AuditHistory } from "@/components/audit/audit-history";
+import { authClient } from "@/lib/auth-client";
 
 interface Question {
   id: string;
@@ -65,7 +67,8 @@ interface ActionPlan {
   id: string;
   auditId: string;
   text: string;
-  assignedTo: string;
+  assignedTo: string;  // Display name
+  assignedToEmail: string;  // Email for backend
   dueDate: Date | undefined;
   priority: string;
 }
@@ -75,28 +78,66 @@ export default function ResidentAuditPage() {
   const router = useRouter();
   const auditId = params.auditId as string;
 
-  const { activeTeamId } = useActiveTeam();
-  const [auditName, setAuditName] = useState("Risk Assessment Audit");
+  // Get current user session
+  const { data: session } = authClient.useSession();
 
-  // Load audit name from localStorage
+  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const [auditName, setAuditName] = useState("");
+
+  // Load organization members for action plan assignment
+  const organizationMembers = useQuery(
+    api.teams.getOrganizationMembers,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Database hooks - Template management
+  const createTemplate = useMutation(api.auditTemplates.createTemplate);
+  const updateTemplate = useMutation(api.auditTemplates.updateTemplate);
+
+  // Check if auditId is a Convex ID (starts with lowercase letter, not a timestamp)
+  const isConvexId = auditId && /^[a-z]/.test(auditId);
+
+  const getTemplate = useQuery(
+    api.auditTemplates.getTemplateById,
+    isConvexId
+      ? { templateId: auditId as Id<"residentAuditTemplates"> }
+      : "skip"
+  );
+
+  // Database hooks - Audit response management
+  const createResponse = useMutation(api.auditResponses.createResponse);
+  const updateResponse = useMutation(api.auditResponses.updateResponse);
+  const completeResponse = useMutation(api.auditResponses.completeResponse);
+
+  // Database hooks - Action plan management
+  const createActionPlan = useMutation(api.auditActionPlans.createActionPlan);
+
+  // State for tracking current audit response ID
+  const [responseId, setResponseId] = useState<Id<"residentAuditCompletions"> | null>(null);
+  const [isLoadingFromDB, setIsLoadingFromDB] = useState(true);
+
+  // Load audit name from localStorage (fallback) or template
   useEffect(() => {
-    const savedAudits = localStorage.getItem('careo-audits');
-    if (savedAudits) {
-      const audits = JSON.parse(savedAudits);
-      const currentAudit = audits.find((audit: any) => audit.id === auditId);
-      if (currentAudit) {
-        setAuditName(currentAudit.name);
+    console.log("Loading audit - auditId:", auditId, "isConvexId:", isConvexId, "getTemplate:", getTemplate);
+
+    if (getTemplate) {
+      console.log("✅ Loading from database template:", getTemplate.name);
+      setAuditName(getTemplate.name);
+      setIsLoadingFromDB(false);
+    } else if (!isConvexId) {
+      // Fallback to localStorage for non-database audits
+      console.log("Loading from localStorage for ID:", auditId);
+      const savedAudits = localStorage.getItem('careo-audits');
+      if (savedAudits) {
+        const audits = JSON.parse(savedAudits);
+        const currentAudit = audits.find((audit: any) => audit.id === auditId);
+        if (currentAudit) {
+          setAuditName(currentAudit.name);
+        }
       }
+      setIsLoadingFromDB(false);
     }
-  }, [auditId]);
-
-  // Load questions from localStorage
-  useEffect(() => {
-    const savedQuestions = localStorage.getItem(`audit-questions-${auditId}`);
-    if (savedQuestions) {
-      setQuestions(JSON.parse(savedQuestions));
-    }
-  }, [auditId]);
+  }, [auditId, getTemplate, isConvexId]);
 
   // Fetch real residents from database
   const dbResidents = useQuery(api.residents.getByTeamId, {
@@ -104,6 +145,20 @@ export default function ResidentAuditPage() {
   }) as ResidentType[] | undefined;
 
   const [questions, setQuestions] = useState<Question[]>([]);
+
+  // Load questions from template or localStorage
+  useEffect(() => {
+    if (getTemplate) {
+      // Load from database template
+      setQuestions(getTemplate.questions);
+    } else {
+      // Fallback to localStorage
+      const savedQuestions = localStorage.getItem(`audit-questions-${auditId}`);
+      if (savedQuestions) {
+        setQuestions(JSON.parse(savedQuestions));
+      }
+    }
+  }, [auditId, getTemplate]);
 
   const [answers, setAnswers] = useState<Answer[]>([]);
 
@@ -116,7 +171,8 @@ export default function ResidentAuditPage() {
   const [newQuestionType, setNewQuestionType] = useState<"compliance" | "yesno">("compliance");
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string>("");
+  const [assignedTo, setAssignedTo] = useState<string>("");  // Display name
+  const [assignedToEmail, setAssignedToEmail] = useState<string>("");  // Email for backend
   const [dueDate, setDueDate] = useState<Date>();
   const [priority, setPriority] = useState<string>("");
   const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
@@ -133,7 +189,7 @@ export default function ResidentAuditPage() {
   const [startWidth, setStartWidth] = useState(0);
   const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
 
-  const handleAddQuestion = () => {
+  const handleAddQuestion = async () => {
     if (!newQuestionText.trim()) return;
 
     const newQuestion: Question = {
@@ -145,8 +201,21 @@ export default function ResidentAuditPage() {
     const updatedQuestions = [...questions, newQuestion];
     setQuestions(updatedQuestions);
 
-    // Save to localStorage
-    localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+    // Save to database if template exists
+    if (getTemplate) {
+      try {
+        await updateTemplate({
+          templateId: getTemplate._id,
+          questions: updatedQuestions,
+        });
+      } catch (error) {
+        console.error("Failed to update template:", error);
+        toast.error("Failed to save question");
+      }
+    } else {
+      // Fallback to localStorage
+      localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+    }
 
     // Update audit status to in-progress
     updateAuditStatusToInProgress();
@@ -156,13 +225,26 @@ export default function ResidentAuditPage() {
     setIsQuestionDialogOpen(false);
   };
 
-  const handleRemoveQuestion = (questionId: string) => {
+  const handleRemoveQuestion = async (questionId: string) => {
     const updatedQuestions = questions.filter(q => q.id !== questionId);
     setQuestions(updatedQuestions);
     setAnswers(answers.filter(a => a.questionId !== questionId));
 
-    // Update localStorage
-    localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+    // Save to database if template exists
+    if (getTemplate) {
+      try {
+        await updateTemplate({
+          templateId: getTemplate._id,
+          questions: updatedQuestions,
+        });
+      } catch (error) {
+        console.error("Failed to update template:", error);
+        toast.error("Failed to remove question");
+      }
+    } else {
+      // Fallback to localStorage
+      localStorage.setItem(`audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+    }
   };
 
   const handleAnswerChange = (residentId: string, questionId: string, value: string) => {
@@ -319,8 +401,163 @@ export default function ResidentAuditPage() {
   };
 
 
-  const handleCompleteAudit = () => {
-    // Get the current audit to retrieve its frequency
+  const handleCompleteAudit = async () => {
+    if (!activeTeamId || !dbResidents) {
+      toast.error("Missing required data. Please try again.");
+      return;
+    }
+
+    try {
+      // Get auditor name from session
+      const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+
+      // Prepare responses array with resident data
+      const responses = (dbResidents || []).map((resident) => ({
+        residentId: resident._id,
+        residentName: `${resident.firstName} ${resident.lastName}`,
+        roomNumber: resident.roomNumber,
+        answers: questions.map((q) => {
+          const answer = answers.find(
+            (a) => a.residentId === resident._id && a.questionId === q.id
+          );
+          return {
+            questionId: q.id,
+            value: answer?.value,
+            notes: answer?.notes,
+          };
+        }),
+        date: residentDates[resident._id],
+        comment: comments.find((c) => c.residentId === resident._id)?.text,
+      }));
+
+      // Check if we need to create a draft response first or complete existing one
+      let completionId = responseId;
+
+      if (!responseId && getTemplate) {
+        // Create a new response first
+        completionId = await createResponse({
+          templateId: getTemplate._id,
+          templateName: getTemplate.name,
+          category: "resident",
+          teamId: activeTeamId,
+          organizationId: activeTeamId, // Using teamId as orgId for now
+          auditedBy: auditorName,
+          frequency: getTemplate.frequency,
+        });
+        setResponseId(completionId);
+      }
+
+      if (completionId) {
+        // Complete the audit in database
+        await completeResponse({
+          responseId: completionId,
+          responses,
+        });
+
+        // Save action plans to database
+        for (const plan of actionPlans.filter((p) => p.auditId === auditId)) {
+          if (getTemplate && activeOrganizationId) {
+            await createActionPlan({
+              auditResponseId: completionId,
+              templateId: getTemplate._id,
+              description: plan.text,
+              assignedTo: plan.assignedToEmail || plan.assignedTo,  // Use email for backend
+              assignedToName: plan.assignedTo,  // Display name
+              priority: plan.priority as "Low" | "Medium" | "High",
+              dueDate: plan.dueDate?.getTime(),
+              teamId: activeTeamId,
+              organizationId: activeOrganizationId,
+              createdBy: session?.user?.email || auditorName,  // Use email
+              createdByName: session?.user?.name || auditorName,  // Display name
+            });
+          }
+        }
+
+        toast.success(`${auditName} completed successfully!`, {
+          duration: 3000,
+        });
+
+        // Navigate back to audit list
+        setTimeout(() => {
+          router.push('/dashboard/careo-audit?tab=resident');
+        }, 1500);
+      } else {
+        // Fallback to localStorage if no database connection
+        handleCompleteAuditLocalStorage();
+      }
+    } catch (error) {
+      console.error("Failed to complete audit:", error);
+      toast.error("Failed to complete audit. Please try again.");
+    }
+  };
+
+  // Auto-save audit progress to database (debounced)
+  useEffect(() => {
+    if (!responseId || !getTemplate || !activeTeamId || !dbResidents) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        // Prepare responses array
+        const responses = (dbResidents || []).map((resident) => ({
+          residentId: resident._id,
+          residentName: `${resident.firstName} ${resident.lastName}`,
+          roomNumber: resident.roomNumber,
+          answers: questions.map((q) => {
+            const answer = answers.find(
+              (a) => a.residentId === resident._id && a.questionId === q.id
+            );
+            return {
+              questionId: q.id,
+              value: answer?.value,
+              notes: answer?.notes,
+            };
+          }),
+          date: residentDates[resident._id],
+          comment: comments.find((c) => c.residentId === resident._id)?.text,
+        }));
+
+        // Auto-save to database
+        await updateResponse({
+          responseId,
+          responses,
+          status: "in-progress",
+        });
+      } catch (error) {
+        console.error("Auto-save failed:", error);
+        // Silent fail for auto-save
+      }
+    }, 3000); // Save every 3 seconds after changes stop
+
+    return () => clearTimeout(timer);
+  }, [answers, comments, residentDates, questions, responseId, getTemplate, activeTeamId, dbResidents, updateResponse]);
+
+  // Create draft response when page loads with template
+  useEffect(() => {
+    if (!getTemplate || responseId || !activeTeamId || !session) return;
+
+    const createDraft = async () => {
+      try {
+        const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+        const draftId = await createResponse({
+          templateId: getTemplate._id,
+          templateName: getTemplate.name,
+          category: "resident",
+          teamId: activeTeamId,
+          organizationId: activeTeamId,
+          auditedBy: auditorName,
+          frequency: getTemplate.frequency,
+        });
+        setResponseId(draftId);
+      } catch (error) {
+        console.error("Failed to create draft:", error);
+      }
+    };
+
+    createDraft();
+  }, [getTemplate, responseId, activeTeamId, session, createResponse]);
+
+  // Fallback localStorage version
+  const handleCompleteAuditLocalStorage = () => {
     const savedAudits = localStorage.getItem('careo-audits');
     let currentAudit: any = null;
     if (savedAudits) {
@@ -328,14 +565,12 @@ export default function ResidentAuditPage() {
       currentAudit = audits.find((a: any) => a.id === auditId);
     }
 
-    // Generate a unique ID for this completion using timestamp
-    // This ensures each completion is saved as a separate history entry
     const completionId = `${auditId}-completion-${Date.now()}`;
+    const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
 
-    // Prepare the completed audit data
     const completedAudit = {
-      id: completionId,  // Use unique completion ID
-      originalAuditId: auditId,  // Keep reference to original audit
+      id: completionId,
+      originalAuditId: auditId,
       name: auditName,
       category: "resident",
       completedAt: Date.now(),
@@ -345,61 +580,41 @@ export default function ResidentAuditPage() {
       residentDates,
       actionPlans: actionPlans.filter(plan => plan.auditId === auditId),
       status: "completed",
-      frequency: currentAudit?.frequency  // Include frequency from the audit
+      frequency: currentAudit?.frequency,
+      auditor: auditorName
     };
 
-    // Get existing completed audits
     const existingCompletedAudits = localStorage.getItem('completed-audits');
     const completedAudits = existingCompletedAudits
       ? JSON.parse(existingCompletedAudits)
       : [];
 
-    // ALWAYS add as new entry (never update)
-    // This creates a history of all completions
     completedAudits.push(completedAudit);
-
-    // Save to localStorage
     localStorage.setItem('completed-audits', JSON.stringify(completedAudits));
 
-    // Update the audit status in the main audits list to "completed"
     if (savedAudits) {
       const audits = JSON.parse(savedAudits);
-
       const updatedAudits = audits.map((audit: any) =>
         audit.id === auditId
           ? {
               ...audit,
               status: "completed",
               lastAudited: new Date().toLocaleDateString(),
+              auditor: auditorName,
             }
           : audit
       );
       localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
 
-      // Check if any previous audits with same name should be marked as "due"
       if (currentAudit && currentAudit.frequency) {
         checkAndUpdateDueAudits(currentAudit.name, currentAudit.category, currentAudit.frequency);
       }
     }
 
-    // Show success toast
-    const totalCompletions = completedAudits.length;
-    toast.success(`${auditName} completed! Total completions: ${totalCompletions}. Scroll down to see Audit History.`, {
-      duration: 5000,
-    });
-
-    // Scroll to audit history section
-    setTimeout(() => {
-      const auditHistorySection = document.querySelector('[data-audit-history]');
-      if (auditHistorySection) {
-        auditHistorySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 500);
-
-    // Navigate back to audit list after user has time to see the history
+    toast.success(`${auditName} completed!`, { duration: 3000 });
     setTimeout(() => {
       router.push('/dashboard/careo-audit?tab=resident');
-    }, 5000);
+    }, 1500);
   };
 
   const handleMouseDown = (columnId: string, e: React.MouseEvent) => {
@@ -778,16 +993,16 @@ export default function ResidentAuditPage() {
 
       {/* Action Plan Dialog */}
       <Dialog open={isActionPlanDialogOpen} onOpenChange={setIsActionPlanDialogOpen} modal={false}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Create Action Plan</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-2 py-2">
             <textarea
               placeholder="Enter action plan details..."
               value={actionPlanText}
               onChange={(e) => setActionPlanText(e.target.value)}
-              className="w-full min-h-[80px] px-3 py-2 text-base rounded-md focus:outline-none resize-none"
+              className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md focus:outline-none resize-none"
               autoFocus
             />
           </div>
@@ -800,35 +1015,44 @@ export default function ResidentAuditPage() {
                     {assignedTo || "Assign to"}
                   </Badge>
                 </PopoverTrigger>
-                <PopoverContent className="w-48 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
-                  <div className="space-y-1">
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-                      onClick={() => {
-                        setAssignedTo("John Doe");
-                        setAssignPopoverOpen(false);
-                      }}
-                    >
-                      John Doe
-                    </div>
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-                      onClick={() => {
-                        setAssignedTo("Jane Smith");
-                        setAssignPopoverOpen(false);
-                      }}
-                    >
-                      Jane Smith
-                    </div>
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-                      onClick={() => {
-                        setAssignedTo("Bob Johnson");
-                        setAssignPopoverOpen(false);
-                      }}
-                    >
-                      Bob Johnson
-                    </div>
+                <PopoverContent className="w-64 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {organizationMembers && organizationMembers.length > 0 ? (
+                      organizationMembers.map((member: any) => (
+                        <div
+                          key={member.id}
+                          className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                          onClick={() => {
+                            setAssignedTo(member.name || member.email);
+                            setAssignedToEmail(member.email);
+                            setAssignPopoverOpen(false);
+                          }}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {member.image && (
+                              <img
+                                src={member.image}
+                                alt={member.name || member.email}
+                                className="w-6 h-6 rounded-full"
+                              />
+                            )}
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-medium truncate">{member.name || member.email}</span>
+                              {member.name && (
+                                <span className="text-xs text-muted-foreground truncate">{member.email}</span>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {member.role}
+                          </Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-2 py-4 text-sm text-center text-muted-foreground">
+                        No staff members found
+                      </div>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -920,6 +1144,7 @@ export default function ResidentAuditPage() {
                       auditId: auditId,
                       text: actionPlanText,
                       assignedTo: assignedTo,
+                      assignedToEmail: assignedToEmail,
                       dueDate: dueDate,
                       priority: priority,
                     };
@@ -930,6 +1155,7 @@ export default function ResidentAuditPage() {
                   }
                   setActionPlanText("");
                   setAssignedTo("");
+                  setAssignedToEmail("");
                   setDueDate(undefined);
                   setPriority("");
                   setIsActionPlanDialogOpen(false);

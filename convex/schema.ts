@@ -2498,5 +2498,186 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_appointment", ["appointmentId"])
-    .index("by_user_and_appointment", ["userId", "appointmentId"])
+    .index("by_user_and_appointment", ["userId", "appointmentId"]),
+
+  // Resident Audit System (Production)
+  // Reusable audit templates that define question sets
+  residentAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.union(
+      v.literal("resident"),
+      v.literal("carefile"),
+      v.literal("governance"),
+      v.literal("clinical"),
+      v.literal("environment")
+    ),
+    questions: v.array(v.object({
+      id: v.string(),
+      text: v.string(),
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("yesno")        // Yes/No/N/A
+      ),
+    })),
+    frequency: v.union(
+      v.literal("daily"),
+      v.literal("weekly"),
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("yearly"),
+      v.literal("adhoc")
+    ),
+    isActive: v.boolean(),
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_category", ["category"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_team_and_category", ["teamId", "category"]),
+
+  // Completed audit instances with responses
+  residentAuditCompletions: defineTable({
+    templateId: v.id("residentAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+    category: v.string(), // Denormalized
+
+    // Team context
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    // Question responses for residents
+    responses: v.array(v.object({
+      residentId: v.string(), // Resident ID
+      residentName: v.string(), // Denormalized for display
+      roomNumber: v.optional(v.string()),
+      answers: v.array(v.object({
+        questionId: v.string(),
+        value: v.optional(v.string()), // "compliant", "non-compliant", "not-applicable", "yes", "no"
+        notes: v.optional(v.string()),
+      })),
+      date: v.optional(v.string()), // Date reviewed for this resident
+      comment: v.optional(v.string()), // Comment for this resident
+    })),
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User name or email
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template or overridden
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_team", ["templateId", "teamId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans linked to audit findings
+  residentAuditActionPlans: defineTable({
+    auditResponseId: v.id("residentAuditCompletions"),
+    templateId: v.id("residentAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  // Centralized Notifications System (reusable across all modules)
+  notifications: defineTable({
+    // Recipient (optional for backwards compatibility with incident notifications)
+    userId: v.optional(v.string()), // User email or ID who receives the notification
+
+    // Sender/Source
+    senderId: v.optional(v.string()), // Who triggered it (e.g., manager email)
+    senderName: v.optional(v.string()), // Display name of sender
+    createdBy: v.optional(v.string()), // Legacy: for incident notifications
+
+    // Notification type - using string for maximum flexibility across all modules
+    // Common types: action_plan, incident_created, appointment_created, test_notification, etc.
+    type: v.string(),
+    title: v.string(),
+    message: v.string(),
+    category: v.optional(v.string()), // Legacy: for incident notifications
+
+    // Navigation
+    link: v.optional(v.string()), // Frontend URL to navigate to
+    actionUrl: v.optional(v.string()), // Legacy: for incident notifications
+
+    // Metadata (flexible for different notification types - using v.any() for backwards compatibility)
+    metadata: v.optional(v.any()),
+
+    // Entity references (legacy for incidents)
+    entityId: v.optional(v.string()),
+    entityType: v.optional(v.string()),
+    idempotencyKey: v.optional(v.string()),
+    targetRoles: v.optional(v.array(v.string())),
+    targetUserIds: v.optional(v.array(v.string())),
+    priority: v.optional(v.string()),
+
+    // Status (optional for backwards compatibility)
+    isRead: v.optional(v.boolean()),
+    readAt: v.optional(v.number()),
+
+    // Organization context
+    organizationId: v.string(),
+    teamId: v.optional(v.string()),
+
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_read", ["userId", "isRead"])
+    .index("by_organization", ["organizationId"])
+    .index("by_type", ["type"])
+    .index("by_created_at", ["createdAt"])
+    .index("by_idempotency_key", ["idempotencyKey"]) // For preventing duplicate incident notifications
 });

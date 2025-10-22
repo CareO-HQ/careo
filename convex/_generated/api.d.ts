@@ -11,6 +11,9 @@
 import type * as appointmentNotes from "../appointmentNotes.js";
 import type * as appointmentNotifications from "../appointmentNotifications.js";
 import type * as appointments from "../appointments.js";
+import type * as auditActionPlans from "../auditActionPlans.js";
+import type * as auditResponses from "../auditResponses.js";
+import type * as auditTemplates from "../auditTemplates.js";
 import type * as auth from "../auth.js";
 import type * as careFilePdfs from "../careFilePdfs.js";
 import type * as careFiles_admission from "../careFiles/admission.js";
@@ -87,6 +90,9 @@ declare const fullApi: ApiFromModules<{
   appointmentNotes: typeof appointmentNotes;
   appointmentNotifications: typeof appointmentNotifications;
   appointments: typeof appointments;
+  auditActionPlans: typeof auditActionPlans;
+  auditResponses: typeof auditResponses;
+  auditTemplates: typeof auditTemplates;
   auth: typeof auth;
   careFilePdfs: typeof careFilePdfs;
   "careFiles/admission": typeof careFiles_admission;

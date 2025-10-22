@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, Eye } from "lucide-react";
+import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, Eye, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -25,6 +25,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -106,6 +112,8 @@ export default function CareFileAuditPage() {
 
   // Dialog states
   const [isAddAuditDialogOpen, setIsAddAuditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [auditToDelete, setAuditToDelete] = useState<AuditItem | null>(null);
 
   // Form states
   const [newAuditForm, setNewAuditForm] = useState({
@@ -282,6 +290,18 @@ export default function CareFileAuditPage() {
     });
   };
 
+  const handleDeleteAudit = () => {
+    if (!auditToDelete) return;
+
+    // Remove audit from list
+    const updatedAudits = auditItems.filter(item => item.id !== auditToDelete.id);
+    setAuditItems(updatedAudits);
+
+    // Close dialog
+    setIsDeleteDialogOpen(false);
+    setAuditToDelete(null);
+  };
+
   if (resident === undefined) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -428,14 +448,29 @@ export default function CareFileAuditPage() {
                   {audit.nextAudit || audit.dueDate || "-"}
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${audit.id}/view`)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${audit.id}/view`)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        View
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setAuditToDelete(audit);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
@@ -529,6 +564,37 @@ export default function CareFileAuditPage() {
             </Button>
             <Button type="submit" onClick={handleAddAudit}>
               Add Audit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Audit Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Audit</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{auditToDelete?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setAuditToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteAudit}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

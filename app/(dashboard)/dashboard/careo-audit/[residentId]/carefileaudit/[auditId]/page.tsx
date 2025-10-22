@@ -146,6 +146,8 @@ export default function IndividualAuditPage() {
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
+  const [isDeleteItemDialogOpen, setIsDeleteItemDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<AuditDetailItem | null>(null);
 
   const handleCommentChange = (itemId: string, newComment: string) => {
     setAuditDetailItems(items =>
@@ -169,6 +171,17 @@ export default function IndividualAuditPage() {
         item.id === itemId ? { ...item, dateReviewed: date } : item
       )
     );
+  };
+
+  const handleDeleteItem = () => {
+    if (!itemToDelete) return;
+
+    // Remove item from audit detail items
+    setAuditDetailItems(items => items.filter(item => item.id !== itemToDelete.id));
+
+    // Close dialog
+    setIsDeleteItemDialogOpen(false);
+    setItemToDelete(null);
   };
 
   const handleAddItem = () => {
@@ -228,15 +241,24 @@ export default function IndividualAuditPage() {
     // Save to localStorage
     localStorage.setItem('completed-audits', JSON.stringify(completedAudits));
 
+    // Reset audit items for next audit (keep questions, reset data)
+    const resetItems = auditDetailItems.map(item => ({
+      ...item,
+      status: "",
+      reviewer: null,
+      lastReviewed: null,
+      notes: null,
+      dateReviewed: undefined,
+    }));
+    setAuditDetailItems(resetItems);
+
+    // Clear action plans for this audit
+    setActionPlans(plans => plans.filter(plan => plan.auditId !== auditId));
+
     // Show success toast
-    toast.success(`${audit?.name} completed!`, {
+    toast.success(`${audit?.name} completed! Ready for next audit.`, {
       duration: 3000,
     });
-
-    // Navigate back to care file audit list
-    setTimeout(() => {
-      router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`);
-    }, 1500);
   };
 
   const getStatusColor = (status: string) => {
@@ -371,6 +393,7 @@ export default function IndividualAuditPage() {
               <TableHead className="font-medium border-r last:border-r-0">
                 Comment
               </TableHead>
+              <TableHead className="w-12 border-r last:border-r-0"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -383,21 +406,37 @@ export default function IndividualAuditPage() {
                   <span className="font-medium">{item.itemName}</span>
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">
-                  <Select
-                    value={item.status}
-                    onValueChange={(value) => handleStatusChange(item.id, value)}
-                  >
-                    <SelectTrigger className="h-6 border-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 bg-transparent hover:bg-transparent shadow-none">
-                      <Badge variant="secondary" className={`text-xs h-6 ${getStatusColor(item.status)}`}>
-                        {getStatusLabel(item.status)}
-                      </Badge>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="compliant">Compliant</SelectItem>
-                      <SelectItem value="non-compliant">Non-Compliant</SelectItem>
-                      <SelectItem value="n/a">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {item.status ? (
+                    <Select
+                      value={item.status}
+                      onValueChange={(value) => handleStatusChange(item.id, value)}
+                    >
+                      <SelectTrigger className="h-6 border-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 bg-transparent hover:bg-transparent shadow-none">
+                        <Badge variant="secondary" className={`text-xs h-6 ${getStatusColor(item.status)}`}>
+                          {getStatusLabel(item.status)}
+                        </Badge>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compliant">Compliant</SelectItem>
+                        <SelectItem value="non-compliant">Non-Compliant</SelectItem>
+                        <SelectItem value="n/a">N/A</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Select
+                      value={item.status}
+                      onValueChange={(value) => handleStatusChange(item.id, value)}
+                    >
+                      <SelectTrigger className="h-6 border-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 bg-transparent hover:bg-transparent shadow-none">
+                        <span className="text-muted-foreground">-</span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compliant">Compliant</SelectItem>
+                        <SelectItem value="non-compliant">Non-Compliant</SelectItem>
+                        <SelectItem value="n/a">N/A</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">
                   <Popover
@@ -434,6 +473,19 @@ export default function IndividualAuditPage() {
                     onChange={(e) => handleCommentChange(item.id, e.target.value)}
                     className="h-8 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                   />
+                </TableCell>
+                <TableCell className="border-r last:border-r-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                    onClick={() => {
+                      setItemToDelete(item);
+                      setIsDeleteItemDialogOpen(true);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -731,6 +783,37 @@ export default function IndividualAuditPage() {
                 Create
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Item Confirmation Dialog */}
+      <Dialog open={isDeleteItemDialogOpen} onOpenChange={setIsDeleteItemDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Question</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{itemToDelete?.itemName}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsDeleteItemDialogOpen(false);
+                setItemToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteItem}
+            >
+              Delete
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

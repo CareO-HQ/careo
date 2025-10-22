@@ -14,6 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface ArchivedAudit {
   id: string;
@@ -31,14 +35,40 @@ export default function ArchivedAuditsPage() {
   const searchParams = useSearchParams();
   const auditName = searchParams.get("name") || "";
   const auditCategory = searchParams.get("category") || "resident";
+  const templateId = searchParams.get("templateId") || "";
 
+  const { activeTeamId } = useActiveTeam();
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
 
-  useEffect(() => {
-    loadArchivedAudits();
-  }, [auditName, auditCategory]);
+  // Load completed audits from database for resident category
+  const dbArchivedAudits = useQuery(
+    api.auditResponses.getResponsesByTemplate,
+    templateId && activeTeamId && auditCategory === "resident"
+      ? {
+          templateId: templateId as Id<"residentAuditTemplates">,
+          teamId: activeTeamId
+        }
+      : "skip"
+  );
 
-  const loadArchivedAudits = () => {
+  useEffect(() => {
+    if (auditCategory === "resident" && dbArchivedAudits) {
+      const formatted = dbArchivedAudits.map((audit) => ({
+        id: audit._id,
+        name: audit.templateName,
+        category: audit.category,
+        completedAt: audit.completedAt || audit.createdAt,
+        status: audit.status,
+        responses: audit.responses,
+      }));
+      setArchivedAudits(formatted as any);
+    } else if (auditCategory !== "resident") {
+      // Fallback to localStorage for other categories
+      loadArchivedAuditsFromLocalStorage();
+    }
+  }, [auditName, auditCategory, dbArchivedAudits]);
+
+  const loadArchivedAuditsFromLocalStorage = () => {
     const completedAudits = localStorage.getItem("completed-audits");
     if (completedAudits) {
       const audits = JSON.parse(completedAudits);

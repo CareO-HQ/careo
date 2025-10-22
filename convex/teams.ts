@@ -161,3 +161,57 @@ export const getAllTeamMembersByTeamId = query({
     return teamMembers;
   }
 });
+
+// Get all organization members (for action plan assignment, etc.)
+export const getOrganizationMembers = query({
+  args: {
+    organizationId: v.string()
+  },
+  handler: async (ctx, { organizationId }) => {
+    try {
+      // Get all members in the organization from Better Auth
+      const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "member",
+        where: [{ field: "organizationId", value: organizationId }],
+        paginationOpts: { numItems: 100, cursor: null }
+      });
+
+      if (!members || !members.page || members.page.length === 0) {
+        return [];
+      }
+
+      // Get user details for each member
+      const memberDetails = await Promise.all(
+        members.page.map(async (member: any) => {
+          try {
+            const user = await ctx.runQuery(components.betterAuth.lib.findOne, {
+              model: "user",
+              where: [{ field: "id", value: member.userId }]
+            });
+
+            if (!user) return null;
+
+            return {
+              id: member.id,
+              userId: member.userId,
+              email: user.email || "",
+              name: user.name || "",
+              image: user.image || null,
+              role: member.role || "member",
+              createdAt: member.createdAt,
+            };
+          } catch (error) {
+            console.error(`Error getting user details for member ${member.id}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Filter out nulls and return
+      return memberDetails.filter((member) => member !== null);
+    } catch (error) {
+      console.error("Error getting organization members:", error);
+      return [];
+    }
+  }
+});

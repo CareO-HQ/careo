@@ -128,6 +128,146 @@ export const getReadIncidents = query({
   },
 });
 
+// ==========================================
+// CENTRALIZED NOTIFICATION SYSTEM
+// ==========================================
+
+// Create a new notification
+export const createNotification = mutation({
+  args: {
+    userId: v.string(),
+    senderId: v.optional(v.string()),
+    senderName: v.optional(v.string()),
+    type: v.string(), // Flexible to support all notification types
+    title: v.string(),
+    message: v.string(),
+    link: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    organizationId: v.string(),
+    teamId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const notificationId = await ctx.db.insert("notifications", {
+      userId: args.userId,
+      senderId: args.senderId,
+      senderName: args.senderName,
+      type: args.type,
+      title: args.title,
+      message: args.message,
+      link: args.link,
+      metadata: args.metadata,
+      isRead: false,
+      organizationId: args.organizationId,
+      teamId: args.teamId,
+      createdAt: Date.now(),
+    });
+
+    return notificationId;
+  },
+});
+
+// Get all notifications for a user
+export const getUserNotifications = query({
+  args: {
+    userId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 50;
+
+    const notifications = await ctx.db
+      .query("notifications")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .order("desc")
+      .take(limit);
+
+    return notifications;
+  },
+});
+
+// Get notification count for a user
+export const getNotificationCount = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const allNotifications = await ctx.db
+      .query("notifications")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("userId"), args.userId),
+          q.or(
+            q.eq(q.field("isRead"), false),
+            q.eq(q.field("isRead"), undefined)
+          )
+        )
+      )
+      .collect();
+
+    return allNotifications.length;
+  },
+});
+
+// Mark a notification as read
+export const markNotificationAsRead = mutation({
+  args: {
+    notificationId: v.id("notifications"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.notificationId, {
+      isRead: true,
+      readAt: Date.now(),
+    });
+
+    return args.notificationId;
+  },
+});
+
+// Mark all notifications as read for a user
+export const markAllNotificationsAsRead = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const unreadNotifications = await ctx.db
+      .query("notifications")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("userId"), args.userId),
+          q.or(
+            q.eq(q.field("isRead"), false),
+            q.eq(q.field("isRead"), undefined)
+          )
+        )
+      )
+      .collect();
+
+    for (const notification of unreadNotifications) {
+      await ctx.db.patch(notification._id, {
+        isRead: true,
+        readAt: Date.now(),
+      });
+    }
+
+    return unreadNotifications.length;
+  },
+});
+
+// Delete a notification
+export const deleteNotification = mutation({
+  args: {
+    notificationId: v.id("notifications"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.notificationId);
+    return args.notificationId;
+  },
+});
+
+// ==========================================
+// INCIDENT NOTIFICATIONS (Legacy)
+// ==========================================
+
 // Get unread notification count - supports both team and organization-wide
 export const getUnreadCount = query({
   args: {

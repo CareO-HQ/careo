@@ -71,6 +71,25 @@ export default function ViewCompletedAuditPage() {
   const [auditData, setAuditData] = useState<CompletedAudit | null>(null);
   const [cameFromArchived, setCameFromArchived] = useState(false);
 
+  // Check if it's a database audit (Convex ID)
+  const isConvexId = /^[a-z]/.test(auditId);
+
+  // Load from database if it's a Convex ID
+  const dbAudit = useQuery(
+    api.auditResponses.getResponseById,
+    isConvexId && auditId
+      ? { responseId: auditId as any }
+      : "skip"
+  );
+
+  // Load template to get questions (only if we have a database audit)
+  const dbTemplate = useQuery(
+    api.auditTemplates.getTemplateById,
+    isConvexId && dbAudit?.templateId
+      ? { templateId: dbAudit.templateId }
+      : "skip"
+  );
+
   useEffect(() => {
     // Check if user came from archived page
     if (typeof window !== 'undefined') {
@@ -81,16 +100,16 @@ export default function ViewCompletedAuditPage() {
   }, []);
 
   const handleBack = () => {
-    console.log('Back button clicked');
-    console.log('Audit data:', auditData);
-
     // Always go back to archived page if we have audit data
-    if (auditData) {
+    if (auditData && dbAudit) {
+      // Include templateId for database audits
+      const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}&templateId=${dbAudit.templateId}`;
+      router.push(backUrl);
+    } else if (auditData) {
+      // Fallback without templateId for localStorage audits
       const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}`;
-      console.log('Navigating to:', backUrl);
       router.push(backUrl);
     } else {
-      console.log('No audit data, going to main listing');
       // Fallback to main listing
       router.push("/dashboard/careo-audit?tab=resident");
     }
@@ -102,17 +121,61 @@ export default function ViewCompletedAuditPage() {
     activeTeamId ? { teamId: activeTeamId } : "skip"
   ) as ResidentType[] | undefined;
 
-  // Load completed audit data
+  // Load completed audit data from database or localStorage
   useEffect(() => {
-    const completedAudits = localStorage.getItem('completed-audits');
-    if (completedAudits) {
-      const audits = JSON.parse(completedAudits);
-      const foundAudit = audits.find((a: CompletedAudit) => a.id === auditId);
-      if (foundAudit) {
-        setAuditData(foundAudit);
+    if (isConvexId && dbAudit && dbTemplate) {
+      // Transform database format to component format
+      const transformed: CompletedAudit = {
+        id: dbAudit._id,
+        name: dbAudit.templateName,
+        category: dbAudit.category,
+        completedAt: dbAudit.completedAt || dbAudit.createdAt,
+        questions: dbTemplate.questions || [], // Load questions from template
+        answers: [],
+        comments: [],
+        residentDates: {},
+        actionPlans: [],
+        status: dbAudit.status,
+      };
+
+      // Transform responses to answers format
+      dbAudit.responses.forEach((response: any) => {
+        response.answers.forEach((answer: any) => {
+          if (answer.value) {
+            transformed.answers.push({
+              residentId: response.residentId,
+              questionId: answer.questionId,
+              value: answer.value,
+              notes: answer.notes,
+            });
+          }
+        });
+
+        if (response.comment) {
+          transformed.comments.push({
+            residentId: response.residentId,
+            text: response.comment,
+          });
+        }
+
+        if (response.date) {
+          transformed.residentDates[response.residentId] = response.date;
+        }
+      });
+
+      setAuditData(transformed);
+    } else if (!isConvexId) {
+      // Load from localStorage
+      const completedAudits = localStorage.getItem('completed-audits');
+      if (completedAudits) {
+        const audits = JSON.parse(completedAudits);
+        const foundAudit = audits.find((a: CompletedAudit) => a.id === auditId);
+        if (foundAudit) {
+          setAuditData(foundAudit);
+        }
       }
     }
-  }, [auditId]);
+  }, [auditId, isConvexId, dbAudit, dbTemplate]);
 
   const getAnswer = (residentId: string, questionId: string) => {
     if (!auditData) return null;
@@ -149,17 +212,7 @@ export default function ViewCompletedAuditPage() {
   };
 
   if (!auditData) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Audit not found or not completed yet.</p>
-          <Button onClick={() => router.push("/dashboard/careo-audit")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Audits
-          </Button>
-        </div>
-      </div>
-    );
+    return null; // Don't show anything while loading
   }
 
   return (
