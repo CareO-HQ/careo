@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, Clock, User, MapPin, ArrowLeft, Filter, Check } from "lucide-react";
+import { Calendar, ArrowLeft, Filter, Check } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";

@@ -6,7 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { useConvex } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 function AcceptInvitationContent() {
@@ -55,7 +55,7 @@ function AcceptInvitationContent() {
     );
   };
 
-  const getInvitation = async () => {
+  const getInvitation = useCallback(async () => {
     if (!token) return;
     const { data } = await authClient.organization.getInvitation({
       query: {
@@ -65,7 +65,7 @@ function AcceptInvitationContent() {
     if (data) {
       setInvitation(data);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (sessionPending) return;
@@ -82,7 +82,7 @@ function AcceptInvitationContent() {
       }
       router.push(`/signup?${params.toString()}`);
     }
-  }, [session, sessionPending, router, token, email]);
+  }, [session, sessionPending, router, token, email, getInvitation]);
 
   if (sessionPending) {
     return (

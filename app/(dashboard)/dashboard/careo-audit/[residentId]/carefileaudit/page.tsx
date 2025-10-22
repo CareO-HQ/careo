@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, Eye, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, MoreHorizontal, Eye, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -249,6 +249,7 @@ export default function CareFileAuditPage() {
     };
 
     updateAuditItemsWithCompletions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [residentId, activeTeamId]);
 
   // Persist audit list to localStorage whenever it changes
@@ -575,7 +576,7 @@ export default function CareFileAuditPage() {
           <DialogHeader>
             <DialogTitle>Delete Audit</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{auditToDelete?.name}"? This action cannot be undone.
+              Are you sure you want to delete &ldquo;{auditToDelete?.name}&rdquo;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

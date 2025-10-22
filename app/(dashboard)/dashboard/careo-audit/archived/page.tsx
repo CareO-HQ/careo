@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ interface ArchivedAudit {
   actionPlans?: any[];
 }
 
-export default function ArchivedAuditsPage() {
+function ArchivedAuditsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const auditName = searchParams.get("name") || "";
@@ -213,5 +213,17 @@ export default function ArchivedAuditsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ArchivedAuditsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    }>
+      <ArchivedAuditsContent />
+    </Suspense>
   );
 }
