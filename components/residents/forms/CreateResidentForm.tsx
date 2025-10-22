@@ -537,7 +537,7 @@ export function CreateResidentForm({
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-48 justify-between font-normal",
+                          "w-full justify-between font-normal",
                           !field.value && "text-muted-foreground"
                         )}
                         disabled={isLoading}

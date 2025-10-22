@@ -15,7 +15,7 @@ export default function ShiftTimes({
       {config.times.map(({ name, values }) => (
         <div
           key={name}
-          className="flex flex-col justify-start items-start gap-1"
+          className="flex flex-row justify-start items-center gap-2"
         >
           <p className="text-sm text-muted-foreground">{name}</p>
           <div className="flex flex-row justify-start items-start gap-2">

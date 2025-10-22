@@ -1419,127 +1419,284 @@ export const getNextMedicationIntakeByResidentId = query({
   }
 });
 
-// Add stock to medication
-export const addMedicationStock = mutation({
+export const getPrnOrTopicalMedicationsByResidentId = query({
   args: {
-    medicationId: v.id("medication"),
-    quantityToAdd: v.number()
+    residentId: v.string()
   },
+  returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const medication = await ctx.db.get(args.medicationId);
-
-    if (!medication) {
-      throw new Error("Medication not found");
-    }
-
-    const newTotal = medication.totalCount + args.quantityToAdd;
-
-    await ctx.db.patch(args.medicationId, {
-      totalCount: newTotal
-    });
-
-    return { success: true, newTotal };
-  }
-});
-
-// Delete medication
-export const deleteMedication = mutation({
-  args: {
-    medicationId: v.id("medication")
-  },
-  handler: async (ctx, args) => {
-    const medication = await ctx.db.get(args.medicationId);
-
-    if (!medication) {
-      throw new Error("Medication not found");
-    }
-
-    // Delete the medication record
-    await ctx.db.delete(args.medicationId);
-
-    // Optionally: Also delete associated medication intake records
-    const intakes = await ctx.db
-      .query("medicationIntake")
-      .withIndex("byMedicationId", (q) => q.eq("medicationId", args.medicationId))
+    // Get all active medications for this resident
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    for (const intake of intakes) {
-      await ctx.db.delete(intake._id);
-    }
+    // Filter for PRN or Topical medications
+    const prnOrTopical = medications.filter(
+      (medication) =>
+        medication.scheduleType === "PRN (As Needed)" ||
+        medication.route === "Topical"
+    );
 
-    return { success: true };
+    return prnOrTopical;
   }
 });
 
-// Update medication details
-export const updateMedication = mutation({
+export const getActiveMedicationsByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all active medications for this resident
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    return medications;
+  }
+});
+
+export const getAllMedicationIntakesByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.string(),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any()),
+      resident: v.optional(v.any())
+    })
+  ),
+  handler: async (ctx, args): Promise<any[]> => {
+    // Query all medication intakes for this resident
+    const intakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .order("desc") // Most recent first
+      .collect();
+
+    // Include medication and resident details
+    const intakesWithDetails = await Promise.all(
+      intakes.map(async (intake) => {
+        const medication = await ctx.db.get(intake.medicationId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
+
+        return { ...intake, medication, resident };
+      })
+    );
+
+    return intakesWithDetails;
+  }
+});
+
+export const getMedicationIntakesByResidentAndDate = query({
+  args: {
+    residentId: v.string(),
+    date: v.number() // Timestamp for the selected date
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("medicationIntake"),
+      _creationTime: v.number(),
+      medicationId: v.id("medication"),
+      residentId: v.string(),
+      scheduledTime: v.number(),
+      poppedOutAt: v.optional(v.number()),
+      poppedOutByUserId: v.optional(v.string()),
+      state: v.union(
+        v.literal("scheduled"),
+        v.literal("dispensed"),
+        v.literal("administered"),
+        v.literal("missed"),
+        v.literal("refused"),
+        v.literal("skipped")
+      ),
+      stateModifiedByUserId: v.optional(v.string()),
+      stateModifiedAt: v.optional(v.number()),
+      witnessByUserId: v.optional(v.string()),
+      witnessAt: v.optional(v.number()),
+      notes: v.optional(v.string()),
+      teamId: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      medication: v.optional(v.any()),
+      resident: v.optional(v.any())
+    })
+  ),
+  handler: async (ctx, args): Promise<any[]> => {
+    // Convert the date timestamp to start and end of that day
+    const selectedDate = new Date(args.date);
+    const startOfDay = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
+      0, // Start at midnight
+      0,
+      0,
+      0
+    );
+    const endOfDay = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
+      23, // End at 11:59:59 PM
+      59,
+      59,
+      999
+    );
+
+    console.log(
+      `Getting intakes for resident ${args.residentId} on ${selectedDate.toDateString()} from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`
+    );
+
+    // Query medication intakes for the selected date and resident
+    const dateIntakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("scheduledTime"), startOfDay.getTime()),
+          q.lte(q.field("scheduledTime"), endOfDay.getTime())
+        )
+      )
+      .order("asc")
+      .collect();
+
+    // Include medication and resident details with image
+    const intakesWithDetails = await Promise.all(
+      dateIntakes.map(async (intake) => {
+        const medication = await ctx.db.get(intake.medicationId);
+        const resident = await ctx.db.get(intake.residentId as Id<"residents">);
+
+        // Get resident image and add imageUrl to resident object
+        const residentImage = await ctx.runQuery(
+          api.files.image.getResidentImageByResidentId,
+          {
+            residentId: intake.residentId as string
+          }
+        );
+
+        const residentWithImage = {
+          ...resident,
+          imageUrl: residentImage?.url || "No image"
+        };
+
+        return { ...intake, medication, resident: residentWithImage };
+      })
+    );
+
+    console.log(
+      `Found ${intakesWithDetails.length} medication intakes for resident ${args.residentId} on ${selectedDate.toDateString()}`
+    );
+
+    return intakesWithDetails;
+  }
+});
+
+export const createAndAdministerMedicationIntake = mutation({
   args: {
     medicationId: v.id("medication"),
-    name: v.optional(v.string()),
-    strength: v.optional(v.string()),
-    strengthUnit: v.optional(v.union(v.literal("mg"), v.literal("g"))),
-    totalCount: v.optional(v.number()),
-    dosageForm: v.optional(
-      v.union(
-        v.literal("Tablet"),
-        v.literal("Capsule"),
-        v.literal("Liquid"),
-        v.literal("Injection"),
-        v.literal("Cream"),
-        v.literal("Ointment"),
-        v.literal("Patch"),
-        v.literal("Inhaler")
-      )
-    ),
-    route: v.optional(
-      v.union(
-        v.literal("Oral"),
-        v.literal("Topical"),
-        v.literal("Intramuscular (IM)"),
-        v.literal("Intravenous (IV)"),
-        v.literal("Subcutaneous"),
-        v.literal("Inhalation"),
-        v.literal("Rectal"),
-        v.literal("Sublingual")
-      )
-    ),
-    frequency: v.optional(
-      v.union(
-        v.literal("Once daily (OD)"),
-        v.literal("Twice daily (BD)"),
-        v.literal("Three times daily (TD)"),
-        v.literal("Four times daily (QDS)"),
-        v.literal("Four times daily (QIS)"),
-        v.literal("As Needed (PRN)"),
-        v.literal("One time (STAT)"),
-        v.literal("Weekly"),
-        v.literal("Monthly")
-      )
-    ),
-    scheduleType: v.optional(
-      v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)"))
-    ),
-    times: v.optional(v.array(v.string())),
-    instructions: v.optional(v.string()),
-    prescriberName: v.optional(v.string()),
-    endDate: v.optional(v.number())
+    notes: v.optional(v.string()),
+    witnessedBy: v.string(),
+    time: v.number(),
+    units: v.number()
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const { medicationId, ...updates } = args;
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
 
-    const medication = await ctx.db.get(medicationId);
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
 
+    // Get current user information
+    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
+    if (!userMetadata) {
+      throw new Error("User not found");
+    }
+
+    // Get the medication details
+    const medication = await ctx.db.get(args.medicationId);
     if (!medication) {
       throw new Error("Medication not found");
     }
 
-    // Remove undefined values
-    const cleanUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    if (!medication.residentId) {
+      throw new Error("Medication must be associated with a resident");
+    }
+
+    // Check if there's enough medication stock
+    if (medication.totalCount < args.units) {
+      throw new Error(
+        `Insufficient medication stock. Available: ${medication.totalCount}, Required: ${args.units}`
+      );
+    }
+
+    // Create multiple medication intake records based on units
+    const intakeIds: Id<"medicationIntake">[] = [];
+    const now = Date.now();
+
+    for (let i = 0; i < args.units; i++) {
+      const intakeId = await ctx.db.insert("medicationIntake", {
+        medicationId: args.medicationId,
+        residentId: medication.residentId,
+        scheduledTime: args.time,
+        state: "administered",
+        stateModifiedByUserId: userMetadata.userId,
+        stateModifiedAt: now,
+        poppedOutAt: args.time,
+        poppedOutByUserId: userMetadata.userId,
+        witnessByUserId: args.witnessedBy,
+        witnessAt: args.time,
+        notes: args.notes,
+        teamId: medication.teamId,
+        organizationId: medication.organizationId,
+        createdAt: now,
+        updatedAt: now
+      });
+      intakeIds.push(intakeId);
+    }
+
+    // Decrement the medication total count by the number of units administered
+    await ctx.db.patch(args.medicationId, {
+      totalCount: medication.totalCount - args.units
+    });
+
+    console.log(
+      `Created and administered ${args.units} medication intake(s) for medication ${medication.name}: ${intakeIds.join(", ")}`
     );
 
-    await ctx.db.patch(medicationId, cleanUpdates);
-
-    return { success: true };
+    return null;
   }
 });
