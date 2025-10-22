@@ -6,12 +6,13 @@ import { DataTable } from "@/components/medication/daily/data-table";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { authClient } from "@/lib/auth-client";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, ClockIcon } from "lucide-react";
+import { ArrowLeft, ClockIcon, Pill } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -146,12 +147,30 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     );
   }
 
+  const fullName = `${resident.firstName} ${resident.lastName}`;
+  const initials =
+    `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-col">
-          <p className="font-semibold text-xl">Medication</p>
-          <p className="text-sm text-muted-foreground">
+      {/* Header with Back Button */}
+      <div className="flex items-center space-x-4 mb-6">
+        <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <Avatar className="w-10 h-10">
+          <AvatarImage
+            src={resident.imageUrl}
+            alt={fullName}
+            className="border"
+          />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Medication</h1>
+          <p className="text-muted-foreground text-sm">
             View and manage medication schedule for {resident.firstName}{" "}
             {resident.lastName}.
           </p>

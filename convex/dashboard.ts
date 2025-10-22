@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import { components } from "./_generated/api";
 
 /**
  * Get dashboard statistics for a specific team
@@ -142,8 +143,29 @@ export const getDashboardStatsByOrganization = query({
       .withIndex("byOrganization", (q) => q.eq("organizationId", args.organizationId))
       .collect();
 
-    // Get unique teams (units) count
-    const uniqueTeams = new Set(teamMembers.map((member) => member.teamId));
+    // Get all teams in the organization directly from BetterAuth
+    let totalUnits = 0;
+
+    try {
+      const teamsResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "team",
+        where: [{ field: "organizationId", value: args.organizationId }],
+        paginationOpts: {
+          cursor: null,
+          numItems: 100 // Get up to 100 teams
+        }
+      });
+
+      const teams = teamsResult?.page || [];
+      console.log("Teams found for organization:", args.organizationId, "Count:", teams.length);
+      totalUnits = teams.length;
+    } catch (error) {
+      console.error("Error fetching teams:", error);
+      // Fallback to counting unique teams from teamMembers
+      const uniqueTeams = new Set(teamMembers.map((member) => member.teamId));
+      totalUnits = uniqueTeams.size;
+      console.log("Fallback to teamMembers count:", totalUnits);
+    }
 
     // Get latest 5 incidents for this organization
     const allIncidents = await ctx.db
@@ -240,7 +262,7 @@ export const getDashboardStatsByOrganization = query({
     return {
       totalResidents: residents.length,
       totalStaff: teamMembers.length,
-      totalUnits: uniqueTeams.size,
+      totalUnits: totalUnits,
       latestIncidents: incidentsWithResident,
       upcomingAppointments: appointmentsWithResident,
       recentHospitalTransfers: transfersWithResident,

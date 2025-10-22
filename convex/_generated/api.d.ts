@@ -32,6 +32,7 @@ import type * as careFiles_residentValuables from "../careFiles/residentValuable
 import type * as careFiles_skinIntegrity from "../careFiles/skinIntegrity.js";
 import type * as careFiles_timl from "../careFiles/timl.js";
 import type * as crons from "../crons.js";
+import type * as dashboard from "../dashboard.js";
 import type * as diet from "../diet.js";
 import type * as emailHelpers from "../emailHelpers.js";
 import type * as emails from "../emails.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "careFiles/skinIntegrity": typeof careFiles_skinIntegrity;
   "careFiles/timl": typeof careFiles_timl;
   crons: typeof crons;
+  dashboard: typeof dashboard;
   diet: typeof diet;
   emailHelpers: typeof emailHelpers;
   emails: typeof emails;

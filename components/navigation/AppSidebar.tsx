@@ -13,9 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth-client";
 import {
-  FolderIcon,
   MessageCircleQuestionMarkIcon,
-  PillIcon,
   User2Icon,
   FileTextIcon,
   ClipboardListIcon,
@@ -106,26 +104,6 @@ export function AppSidebar() {
                 <Link href="/dashboard/staff">
                   <UsersIcon />
                   <span>Staff</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Medication */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/medication">
-                  <PillIcon />
-                  <span>Medication</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* Files */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/files">
-                  <FolderIcon />
-                  <span>Files</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

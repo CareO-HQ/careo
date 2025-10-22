@@ -563,15 +563,15 @@ export default function CareFileFolder({
     <div>
       <Sheet>
         <SheetTrigger asChild>
-          <div className="w-full flex flex-row justify-between items-center gap-2 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-1 group">
-            <div className="flex flex-row items-center gap-2">
-              <FolderIcon className="size-4 text-muted-foreground/70 group-hover:text-primary" />
+          <div className="w-full flex flex-row justify-between items-center gap-3 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-2 py-2 group">
+            <div className="flex flex-row items-center gap-3">
+              <FolderIcon className="size-6 text-muted-foreground/70 group-hover:text-primary" />
 
-              <p className="text-primary">
+              <p className="text-primary text-base font-medium">
                 {index + 1}. {folderName}
               </p>
               {forms && forms.length >= 1 && (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-sm">
                   {forms?.length} {forms?.length === 1 ? "form" : "forms"}
                 </p>
               )}
@@ -589,6 +589,11 @@ export default function CareFileFolder({
           <SheetHeader>
             <div className="flex items-center justify-between">
               <SheetTitle>{folderName}</SheetTitle>
+              <UploadFileModal
+                folderName={folderName}
+                residentId={residentId}
+                variant="button"
+              />
             </div>
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>

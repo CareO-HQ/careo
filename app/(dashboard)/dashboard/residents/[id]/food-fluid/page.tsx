@@ -87,8 +87,8 @@ const FoodFluidLogSchema = z.object({
   path: ["portionServed"]
 });
 
-export default function FoodFluidPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function FoodFluidPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params);
   const router = useRouter();
   // Use optimized batched query (reduces 4 queries to 3!)
   const today = new Date().toISOString().split('T')[0];

@@ -71,7 +71,7 @@ export function CreateResidentForm({
   type FormType = z.infer<typeof CreateResidentSchema>;
 
   // Function to get default values based on edit mode
-  const getDefaultValues = () => {
+  const getDefaultValues = useCallback(() => {
     if (editMode && residentData) {
       return {
         firstName: residentData.firstName || "",
@@ -147,7 +147,7 @@ export function CreateResidentForm({
         phoneNumber: "",
       },
     };
-  };
+  }, [editMode, residentData]);
 
   const form = useForm<FormType>({
     resolver: zodResolver(CreateResidentSchema),
