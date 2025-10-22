@@ -111,6 +111,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   }, [selectedTime, selectedDate, selectedDateIntakes]);
 
   console.log("All intakes", selectedDateIntakes);
+  console.log("Active Team ID:", activeTeamId);
+  console.log("Team with members:", teamWithMembers);
+  console.log("Organization ID:", teamWithMembers?.organizationId);
 
   if (resident === undefined) {
     return (
@@ -163,6 +166,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <CreateResidentMedication
             residentId={id as Id<"residents">}
             residentName={`${resident.firstName} ${resident.lastName}`}
+            teamId={activeTeamId || resident.teamId || undefined}
+            organizationId={teamWithMembers?.organizationId || resident.organizationId || undefined}
           />
         </div>
       </div>

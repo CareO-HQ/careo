@@ -16,10 +16,14 @@ import { useState } from "react";
 
 export default function CreateResidentMedication({
   residentId,
-  residentName
+  residentName,
+  teamId,
+  organizationId
 }: {
   residentId: Id<"residents">;
   residentName?: string;
+  teamId?: string;
+  organizationId?: string;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   return (
@@ -41,6 +45,8 @@ export default function CreateResidentMedication({
         </DialogHeader>
         <CreateMedicationForm
           residentId={residentId}
+          teamId={teamId}
+          organizationId={organizationId}
           onSuccess={() => setDialogOpen(false)}
         />
       </DialogContent>
