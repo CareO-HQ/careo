@@ -2,14 +2,13 @@
 
 import CareFileFolder from "@/components/residents/carefile/folders/CareFileFolder";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { config } from "@/config";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
-import { DownloadIcon, ArrowLeft, FileText, Calendar } from "lucide-react";
+import { ArrowLeft, FolderIcon } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { usePathname, useRouter } from "next/navigation";
 
 export default function CareFilePage() {
@@ -82,101 +81,25 @@ export default function CareFilePage() {
   const age = calculateAge(resident.dateOfBirth);
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${residentId}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Care File</span>
-      </div>
-
+    <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <FileText className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
-            <p className="text-muted-foreground text-sm">Create and manage the care files for the resident</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
+          <p className="text-muted-foreground text-sm">
+            View and manage care files for {resident.firstName} {resident.lastName}.
+          </p>
         </div>
       </div>
-
-      {/* Resident Info Card */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {age} years old
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {age} years old
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <Button variant="ghost" disabled>
-              <DownloadIcon className="w-4 h-4 mr-2" />
-              Download all files
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Care Files Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -196,6 +119,45 @@ export default function CareFilePage() {
               />
             )
         )}
+      </div>
+
+      {/* Additional Folders Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* All Care Plans */}
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <FolderIcon className="w-5 h-5 text-blue-600" />
+              <div>
+                <h3 className="text-sm font-medium">All Care Plans</h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* All Risk Assessments */}
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <FolderIcon className="w-5 h-5 text-yellow-600" />
+              <div>
+                <h3 className="text-sm font-medium">All Risk Assessments</h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Archived Care Plans */}
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <FolderIcon className="w-5 h-5 text-red-600" />
+              <div>
+                <h3 className="text-sm font-medium">Archived Care Plans</h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

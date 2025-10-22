@@ -22,7 +22,7 @@ import {
   HomeIcon,
   UsersIcon,
   CalendarIcon,
-  FileWarning,
+  Shield,
   BellIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -146,7 +146,7 @@ export function AppSidebar() {
               <SidebarMenuButton asChild>
                 <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
-                    <FileWarning className="w-4 h-4" />
+                    <Shield className="w-4 h-4" />
                     <span>Incidents</span>
                   </div>
                   {unreadCount !== undefined && unreadCount > 0 && (
