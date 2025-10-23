@@ -2698,5 +2698,31 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_type", ["type"])
     .index("by_created_at", ["createdAt"])
-    .index("by_idempotency_key", ["idempotencyKey"]) // For preventing duplicate incident notifications
+    .index("by_idempotency_key", ["idempotencyKey"]), // For preventing duplicate incident notifications
+
+  // Clinical Notes
+  clinicalNotes: defineTable({
+    residentId: v.id("residents"),
+    staffName: v.string(),
+    staffEmail: v.string(),
+    noteContent: v.string(),
+    category: v.optional(v.string()), // e.g., "general", "medical", "behavioral"
+    noteDate: v.string(), // Date of the note (YYYY-MM-DD format)
+    noteTime: v.optional(v.string()), // Time of the note (HH:MM format)
+
+    // Organization context
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.string(), // User ID who created the note
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.string()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_resident_and_date", ["residentId", "noteDate"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_created_at", ["createdAt"])
 });
