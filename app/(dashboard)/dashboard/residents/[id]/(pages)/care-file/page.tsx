@@ -84,7 +84,7 @@ export default function CareFilePage() {
     <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${residentId}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <Avatar className="w-10 h-10">

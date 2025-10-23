@@ -419,18 +419,18 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
           </div>
           <div className="flex flex-row gap-2">
             <Button
+              onClick={() => setIsNoteDialogOpen(true)}
+              className="bg-black text-white hover:bg-gray-800"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Note
+            </Button>
+            <Button
               variant="outline"
               onClick={() => router.push(`/dashboard/residents/${id}/multidisciplinary-note/documents`)}
             >
               <Eye className="w-4 h-4 mr-2" />
               View All Notes
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsNoteDialogOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Note
             </Button>
           </div>
         </div>

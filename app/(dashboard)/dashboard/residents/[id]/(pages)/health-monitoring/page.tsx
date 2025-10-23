@@ -390,17 +390,17 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
         </div>
         <div className="flex flex-row gap-2">
           <Button
+            onClick={() => setIsVitalsDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Record Vital
+          </Button>
+          <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring/documents`)}
           >
             <Eye className="w-4 h-4 mr-2" />
             View History
-          </Button>
-          <Button
-            onClick={() => setIsVitalsDialogOpen(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Record Vital
           </Button>
         </div>
       </div>

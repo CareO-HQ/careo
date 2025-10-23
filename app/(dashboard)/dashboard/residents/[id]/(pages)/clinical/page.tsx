@@ -152,16 +152,16 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Record
+          </Button>
           <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
           >
             <Eye className="w-4 h-4 mr-2" />
             View Records
-          </Button>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Record
           </Button>
         </div>
       </div>

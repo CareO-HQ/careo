@@ -1614,25 +1614,25 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           </div>
           <div className="flex flex-row gap-2">
             <Button
+              onClick={() => setIsTransferLogDialogOpen(true)}
+              disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+              className="bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
+            >
+              <Ambulance className="w-4 h-4 mr-2" />
+              Hospital Transfer Entry
+            </Button>
+            <Button
               variant="outline"
               onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
             >
               <Eye className="w-4 h-4 mr-2" />
               Transfer History
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsTransferLogDialogOpen(true)}
-              disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-            >
-              <Ambulance className="w-4 h-4 mr-2" />
-              Hospital Transfer Entry
-            </Button>
           </div>
         </div>
 
       {/* Emergency Information */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <AlertTriangle className="w-5 h-5 text-orange-600" />
@@ -1715,7 +1715,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       </Card>
 
       {/* Hospital Passport Card */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="w-5 h-5 text-indigo-600" />

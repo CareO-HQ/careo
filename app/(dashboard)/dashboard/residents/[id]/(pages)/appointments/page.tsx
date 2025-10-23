@@ -668,11 +668,10 @@ function DailyCarePage({ params }: DailyCarePageProps) {
         </div>
         <div className="flex flex-row gap-2">
           <Button
-            variant="outline"
-            onClick={() => setIsAppointmentNotesDialogOpen(true)}
+            onClick={() => setIsCreateAppointmentDialogOpen(true)}
           >
-            <StickyNote className="w-4 h-4 mr-2" />
-            Add Note
+            <Plus className="w-4 h-4 mr-2" />
+            Create Appointment
           </Button>
           <Button
             variant="outline"
@@ -681,12 +680,6 @@ function DailyCarePage({ params }: DailyCarePageProps) {
             <Eye className="w-4 h-4 mr-2" />
             History
           </Button>
-          <Button
-            onClick={() => setIsCreateAppointmentDialogOpen(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Appointment
-          </Button>
         </div>
       </div>
 
@@ -694,9 +687,19 @@ function DailyCarePage({ params }: DailyCarePageProps) {
       {appointmentNotes && appointmentNotes.length > 0 && (
         <Card className="border-0">
           <CardContent className="p-4">
-            <div className="flex items-center space-x-2 mb-3">
-              <StickyNote className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium">Appointment Notes</span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <StickyNote className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium">Appointment Notes</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAppointmentNotesDialogOpen(true)}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add Note
+              </Button>
             </div>
 
             {/* Display appointment notes */}

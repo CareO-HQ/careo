@@ -419,17 +419,17 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         </div>
         <div className="flex flex-row gap-2">
           <Button
+            onClick={() => setIsActivityDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Record Activity
+          </Button>
+          <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
           >
             <Eye className="w-4 h-4 mr-2" />
             View History
-          </Button>
-          <Button
-            onClick={() => setIsActivityDialogOpen(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Record Activity
           </Button>
         </div>
       </div>

@@ -944,17 +944,17 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </div>
         <div className="flex flex-row gap-2">
           <Button
+            onClick={() => setShowReportForm(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Report Incident
+          </Button>
+          <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
           >
             <Eye className="w-4 h-4 mr-2" />
             See All Records
-          </Button>
-          <Button
-            onClick={() => setShowReportForm(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Report Incident
           </Button>
         </div>
       </div>

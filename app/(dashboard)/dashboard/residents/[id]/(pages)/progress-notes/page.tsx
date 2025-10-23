@@ -385,13 +385,6 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         </div>
         <div className="flex flex-row gap-2">
           <Button
-            variant="outline"
-            onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            All Notes
-          </Button>
-          <Button
             onClick={() => {
               setEditingNote(null);
               form.reset({
@@ -405,6 +398,13 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Note
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            All Notes
           </Button>
         </div>
       </div>

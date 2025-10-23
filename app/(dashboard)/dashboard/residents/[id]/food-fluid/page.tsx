@@ -202,10 +202,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
   if (resident === undefined) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Loading resident...</p>
+          </div>
         </div>
       </div>
     );
@@ -213,20 +215,22 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
   if (resident === null) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Resident not found</p>
-          <p className="text-muted-foreground">
-            The resident you&apos;re looking for doesn&apos;t exist.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-lg font-semibold">Resident not found</p>
+            <p className="text-muted-foreground">
+              The resident you&apos;re looking for doesn&apos;t exist.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => router.back()}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Go Back
+            </Button>
+          </div>
         </div>
       </div>
     );

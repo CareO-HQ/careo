@@ -743,8 +743,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </div>
         <div className="flex flex-row gap-2">
           <Button
-            variant="outline"
             onClick={() => setIsCareNotesDialogOpen(true)}
+            className="bg-black text-white hover:bg-gray-800"
           >
             <Plus className="w-4 h-4 mr-2" />
             Quick Care Notes

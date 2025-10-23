@@ -890,13 +890,6 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            See All Records
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button>
@@ -989,6 +982,13 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            See All Records
+          </Button>
         </div>
       </div>
 
