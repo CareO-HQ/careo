@@ -384,150 +384,62 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center space-x-4 mb-6">
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
+          <ArrowLeft className="w-4 h-4" />
         </Button>
-        <span>/</span>
-        <span className="text-foreground">Food & Fluid</span>
-      </div>
-
-      {/* Header with resident info and action buttons */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="w-4 h-4" />
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Food & Fluid</h1>
+          <p className="text-muted-foreground text-sm">
+            View nutrition and hydration tracking for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button
+            onClick={() => setIsDialogOpen(true)}
+            className="bg-black text-white hover:bg-gray-800"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Diet
           </Button>
-          <div className="flex items-center space-x-4">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Utensils className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Food & Fluid</h1>
-              <p className="text-muted-foreground">Nutrition & hydration tracking for {fullName}</p>
-            </div>
-          </div>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            See All Records
+          </Button>
         </div>
       </div>
 
-      {/* Compact Resident Information Card with Action Buttons */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </div>
+      {/* Diet Information Section */}
+      {existingDiet && (
+        <Card className="border-0">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <Utensils className="w-4 h-4 text-amber-600" />
+                <span className="text-sm font-medium">Diet Information</span>
               </div>
-            </div>
-            <div className="flex flex-col space-y-3">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setIsDialogOpen(true)}
-                className="w-full"
+                className="text-xs"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Diet
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                See All Records
+                <Plus className="w-3 h-3 mr-1" />
+                Edit Diet
               </Button>
             </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsDialogOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Diet
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                See All Records
-              </Button>
-            </div>
-          </div>
-
-          {/* Diet Information Section */}
-          {existingDiet && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-2">
-                  <Utensils className="w-4 h-4 text-amber-600" />
-                  <span className="text-sm font-medium">Diet Information</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDialogOpen(true)}
-                  className="text-xs"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Edit Diet
-                </Button>
-              </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Diet Types */}
@@ -648,10 +560,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   </div>
                 )}
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Food & Fluid Entry Buttons */}
       <Card className="border-0">
@@ -1486,7 +1397,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           </Form>
         </DialogContent>
       </Dialog>
-
+      </div>
     </div>
   );
 }

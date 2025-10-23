@@ -138,10 +138,10 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <Avatar className="w-10 h-10">
@@ -169,7 +169,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       </div>
 
       {/* Quick Stats Summary */}
-      <Card>
+      <Card className="shadow-none">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -218,8 +218,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       </Card>
 
       {/* Personal Information */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <Card className="shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <User className="w-5 h-5 text-blue-600" />
@@ -282,7 +282,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         </Card>
 
         {/* Emergency Contacts */}
-        <Card>
+        <Card className="shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Phone className="w-5 h-5 text-blue-600" />
@@ -412,6 +412,6 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         editMode={true}
         residentData={resident}
       />
-    </div>
+    </>
   );
 }

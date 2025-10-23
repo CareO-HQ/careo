@@ -364,181 +364,59 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   };
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Progress Notes</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-purple-100 rounded-lg">
-            <NotebookPen className="w-6 h-6 text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Progress Notes</h1>
-            <p className="text-muted-foreground text-sm">Daily nursing notes & observations</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Progress Notes</h1>
+          <p className="text-muted-foreground text-sm">
+            View daily nursing notes and observations for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            All Notes
+          </Button>
+          <Button
+            onClick={() => {
+              setEditingNote(null);
+              form.reset({
+                type: "daily",
+                date: new Date(),
+                time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                note: "",
+              });
+              setIsDialogOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Note
+          </Button>
         </div>
       </div>
 
-      {/* Search and Filter Bar */}
+      {/* Progress Notes List */}
       <Card className="border-0">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <Input
-                placeholder="Search notes by content, author, or type..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <Select
-              value={filterType}
-              onValueChange={(value: any) => setFilterType(value)}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="incident">Incident</SelectItem>
-                <SelectItem value="medical">Medical</SelectItem>
-                <SelectItem value="behavioral">Behavioral</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Resident Info Card - Matching incidents pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
-                    <NotebookPen className="w-3 h-3 mr-1" />
-                    Progress Notes
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                className="bg-black hover:bg-gray-800 text-white"
-                onClick={() => {
-                  setEditingNote(null);
-                  form.reset();
-                  setIsDialogOpen(true);
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Progress Note
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <CalendarIcon2 className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </Badge>
-                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
-                    <NotebookPen className="w-3 h-3 mr-1" />
-                    Progress Notes
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                className="bg-black hover:bg-gray-800 text-white"
-                onClick={() => {
-                  setEditingNote(null);
-                  form.reset();
-                  setIsDialogOpen(true);
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Progress Note
-              </Button>
-
-              <Button
-             onClick={() => router.push(`/dashboard/residents/${id}/progress-notes/documents`)}
-              >
-                All Notes
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-
-      {/* Recent Progress Notes - Matching incidents pattern */}
-      <Card className="border-0">
-        <CardHeader className="">
+        <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <FileText className="w-5 h-5 text-gray-600" />
-              </div>
-              <span className="text-gray-900">Recent Progress Notes</span>
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="w-5 h-5 text-gray-600" />
+              <span>Progress Notes</span>
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-gray-100 text-gray-700">{noteStats.total} Total</Badge>
-
-            </div>
           </div>
         </CardHeader>
         <CardContent className="p-6">
@@ -1044,7 +922,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           </div>
         </DialogContent>
       </Dialog>
-
+      </div>
     </div>
   );
 }

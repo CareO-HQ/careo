@@ -647,142 +647,53 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Appointments</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <ClipboardCheck className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
-            <p className="text-muted-foreground text-sm">Care activities & dependencies</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
+          <p className="text-muted-foreground text-sm">
+            View and manage appointments for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsAppointmentNotesDialogOpen(true)}
+          >
+            <StickyNote className="w-4 h-4 mr-2" />
+            Add Note
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            History
+          </Button>
+          <Button
+            onClick={() => setIsCreateAppointmentDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Appointment
+          </Button>
         </div>
       </div>
 
-      {/* Resident Info Card - Matching food-fluid pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                onClick={() => setIsCreateAppointmentDialogOpen(true)}
-                className="bg-black hover:bg-gray-800 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Appointment
-              </Button>
-              <Button
-                onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
-                className="bg-black hover:bg-gray-800 text-white w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Appointment History
-              </Button>
-              <Button
-                onClick={() => setIsAppointmentNotesDialogOpen(true)}
-                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
-              >
-                <StickyNote className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setIsCreateAppointmentDialogOpen(true)}
-                className="bg-black hover:bg-gray-800 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Appointment
-              </Button>
-              <Button
-                onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
-                className="bg-black hover:bg-gray-800 text-white flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Appointment History
-              </Button>
-              <Button
-                onClick={() => setIsAppointmentNotesDialogOpen(true)}
-                className="bg-black hover:bg-gray-800 text-white w-10 p-0"
-              >
-                <StickyNote className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Appointment Notes Section - Badges with close buttons */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
+      {/* Appointment Notes Section */}
+      {appointmentNotes && appointmentNotes.length > 0 && (
+        <Card className="border-0">
+          <CardContent className="p-4">
             <div className="flex items-center space-x-2 mb-3">
               <StickyNote className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-medium">Appointment Notes</span>
@@ -790,41 +701,35 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
             {/* Display appointment notes */}
             <div className="flex flex-wrap gap-2">
-              {appointmentNotes && appointmentNotes.length > 0 ? (
-                appointmentNotes.map((note) => (
-                  <div
-                    key={note._id}
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs border ${getCategoryColor(note.category)}`}
-                  >
-                    <span className="font-medium mr-1">
-                      {getNoteDisplayText(note)}
+              {appointmentNotes.map((note) => (
+                <div
+                  key={note._id}
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs border ${getCategoryColor(note.category)}`}
+                >
+                  <span className="font-medium mr-1">
+                    {getNoteDisplayText(note)}
+                  </span>
+                  {note.priority && note.priority !== 'medium' && (
+                    <span className="text-xs opacity-75 mr-2">
+                      ({note.priority})
                     </span>
-                    {note.priority && note.priority !== 'medium' && (
-                      <span className="text-xs opacity-75 mr-2">
-                        ({note.priority})
-                      </span>
-                    )}
-                    <button
-                      onClick={() => {
-                        setNoteToDelete(note._id);
-                        setDeleteConfirmOpen(true);
-                      }}
-                      className="ml-1 hover:bg-black hover:bg-opacity-10 rounded-full p-0.5 transition-colors"
-                      aria-label="Delete note"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <span className="text-xs text-gray-500 italic">
-                  No appointment notes yet. Add one using the button above.
-                </span>
-              )}
+                  )}
+                  <button
+                    onClick={() => {
+                      setNoteToDelete(note._id);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    className="ml-1 hover:bg-black hover:bg-opacity-10 rounded-full p-0.5 transition-colors"
+                    aria-label="Delete note"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Appointment List Card */}
       <Card className="border-0">
@@ -1529,6 +1434,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

@@ -132,135 +132,39 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
   ];
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Clinical</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-red-100 rounded-lg">
-            <Heart className="w-6 h-6 text-red-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Clinical</h1>
-            <p className="text-muted-foreground text-sm">Health conditions & medical information</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Clinical</h1>
+          <p className="text-muted-foreground text-sm">
+            View health conditions and medical information for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View Records
+          </Button>
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Record
+          </Button>
         </div>
       </div>
-
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
-                    <Heart className="w-3 h-3 mr-1" />
-                    {Array.isArray(resident.healthConditions) ? resident.healthConditions.length : 0} Conditions
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Clinical Record
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Records
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
-                    <Heart className="w-3 h-3 mr-1" />
-                    Clinical Information
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Record</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
-                className="flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Records
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Health Conditions */}
       {resident.healthConditions && resident.healthConditions.length > 0 && (
@@ -633,6 +537,7 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
           </p>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

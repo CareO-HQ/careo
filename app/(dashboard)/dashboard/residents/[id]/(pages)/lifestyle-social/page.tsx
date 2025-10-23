@@ -398,137 +398,41 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Lifestyle & Social</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-purple-100 rounded-lg">
-            <Users className="w-6 h-6 text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Lifestyle & Social</h1>
-            <p className="text-muted-foreground text-sm">Social activities & personal interests</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Lifestyle & Social</h1>
+          <p className="text-muted-foreground text-sm">
+            View social activities and personal interests for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View History
+          </Button>
+          <Button
+            onClick={() => setIsActivityDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Record Activity
+          </Button>
         </div>
       </div>
-
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
-                    <Users className="w-3 h-3 mr-1" />
-                    {activitiesData?.totalCount || 0} Activities
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                onClick={() => setIsActivityDialogOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Record Activity
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </Badge>
-                  <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
-                    <Users className="w-3 h-3 mr-1" />
-                    Social & Lifestyle
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsActivityDialogOpen(true)}
-                className="bg-purple-600 text-white hover:bg-purple-700 hover:text-white"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Record Activity</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="flex items-center space-x-2"
-                onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Personal Interests & Preferences */}
       <Card className="border-0">
@@ -1380,7 +1284,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
           </Form>
         </DialogContent>
       </Dialog>
-
+      </div>
     </div>
   );
 }

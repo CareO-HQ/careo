@@ -398,137 +398,42 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground bg-gray-50 hover:bg-gray-100"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Multidisciplinary Note</span>
-      </div>
-
-      {/* Header with Back Button */}
-      <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()} className="bg-gray-50 hover:bg-gray-100">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-indigo-100 rounded-lg">
-            <ClipboardList className="w-6 h-6 text-indigo-600" />
-          </div>
-          <div>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
+        {/* Header with Back Button */}
+        <div className="flex items-center space-x-4 mb-6">
+          <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <Avatar className="w-10 h-10">
+            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Multidisciplinary Note</h1>
-            <p className="text-muted-foreground text-sm">Team collaboration & care coordination</p>
+            <p className="text-muted-foreground text-sm">
+              Team collaboration and care coordination for {resident.firstName} {resident.lastName}.
+            </p>
+          </div>
+          <div className="flex flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/dashboard/residents/${id}/multidisciplinary-note/documents`)}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              View All Notes
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsNoteDialogOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Note
+            </Button>
           </div>
         </div>
-      </div>
-
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700 text-xs">
-                    <ClipboardList className="w-3 h-3 mr-1" />
-                    {recentNotes.length} Notes
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                onClick={() => setIsNoteDialogOpen(true)}
-                className="bg-gray-50 hover:bg-gray-100 text-gray-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Note
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full bg-gray-50 hover:bg-gray-100"
-                onClick={() => router.push(`/dashboard/residents/${id}/multidisciplinary-note/documents`)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View All Notes
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </Badge>
-                  <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700 text-xs">
-                    <ClipboardList className="w-3 h-3 mr-1" />
-                    Multidisciplinary Care
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsNoteDialogOpen(true)}
-                className="bg-gray-50 hover:bg-gray-100 text-gray-700"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create Note</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100"
-                onClick={() => router.push(`/dashboard/residents/${id}/multidisciplinary-note/documents`)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View All Notes
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Care Team Overview */}
       <Card className="border-0">
@@ -1222,7 +1127,7 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
           </div>
         </DialogContent>
       </Dialog>
-
+      </div>
     </div>
   );
 }
