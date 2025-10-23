@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 // Validation schemas
@@ -165,6 +165,31 @@ export const getResponsesByTemplate = query({
   },
 });
 
+// Get draft/in-progress responses for a template (for action plan persistence)
+export const getDraftResponsesByTemplate = query({
+  args: {
+    templateId: v.id("residentAuditTemplates"),
+    teamId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const responses = await ctx.db
+      .query("residentAuditCompletions")
+      .withIndex("by_template_and_team", (q) =>
+        q.eq("templateId", args.templateId).eq("teamId", args.teamId)
+      )
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "draft"),
+          q.eq(q.field("status"), "in-progress")
+        )
+      )
+      .collect();
+
+    // Sort by creation date descending (most recent first)
+    return responses.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  },
+});
+
 // Get the latest response for a template
 export const getLatestResponse = query({
   args: {
@@ -296,7 +321,60 @@ export const deleteResponse = mutation({
     responseId: v.id("residentAuditCompletions"),
   },
   handler: async (ctx, args) => {
+    // Cascade delete: Remove all associated action plans first
+    const actionPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .withIndex("by_audit_response", (q) => q.eq("auditResponseId", args.responseId))
+      .collect();
+
+    for (const plan of actionPlans) {
+      await ctx.db.delete(plan._id);
+    }
+
     await ctx.db.delete(args.responseId);
     return args.responseId;
+  },
+});
+
+// Clean up old draft responses (called by cron job)
+export const cleanupOldDrafts = internalMutation({
+  handler: async (ctx) => {
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+
+    // Find old drafts with no responses or minimal activity
+    const oldDrafts = await ctx.db
+      .query("residentAuditCompletions")
+      .filter((q) =>
+        q.and(
+          q.or(
+            q.eq(q.field("status"), "draft"),
+            q.eq(q.field("status"), "in-progress")
+          ),
+          q.lt(q.field("createdAt"), thirtyDaysAgo)
+        )
+      )
+      .collect();
+
+    let deleted = 0;
+    for (const draft of oldDrafts) {
+      // Only delete if it has no responses (empty audit)
+      if (!draft.responses || draft.responses.length === 0) {
+        // Delete associated action plans first (cascade delete)
+        const actionPlans = await ctx.db
+          .query("residentAuditActionPlans")
+          .withIndex("by_audit_response", (q) => q.eq("auditResponseId", draft._id))
+          .collect();
+
+        for (const plan of actionPlans) {
+          await ctx.db.delete(plan._id);
+        }
+
+        await ctx.db.delete(draft._id);
+        deleted++;
+      }
+    }
+
+    console.log(`Cleaned up ${deleted} old draft responses`);
+    return { deleted };
   },
 });

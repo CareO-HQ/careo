@@ -2617,6 +2617,24 @@ export default defineSchema({
       v.literal("overdue")
     ),
 
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Link to specific care file or resident (for care file audits)
+    residentId: v.optional(v.id("residents")),
+    careFileReference: v.optional(v.string()), // Reference to specific care file section
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
     teamId: v.string(),
     organizationId: v.string(),
     createdBy: v.string(),
@@ -2630,7 +2648,8 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_due_date", ["dueDate"])
     .index("by_team", ["teamId"])
-    .index("by_organization", ["organizationId"]),
+    .index("by_organization", ["organizationId"])
+    .index("by_resident", ["residentId"]),
 
   // Centralized Notifications System (reusable across all modules)
   notifications: defineTable({

@@ -11,10 +11,10 @@ import { Card } from "@/components/ui/card";
 import {
   Users,
   Building2,
-  UserPlus,
   AlertTriangle,
   Calendar,
   TrendingUp,
+  LogOut,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { format } from "date-fns";
@@ -59,6 +59,12 @@ export default function DashboardPage() {
 
   // Format today's date
   const today = format(new Date(), "EEEE, MMMM dd, yyyy");
+
+  // Handle sign out
+  const handleSignOut = async () => {
+    await authClient.signOut();
+    router.push("/login");
+  };
 
   // Helper function to get severity badge color
   const getSeverityBadge = (level: string) => {
@@ -111,9 +117,13 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-medium">Welcome, {userName}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
         </div>
-        <Button onClick={() => router.push("/dashboard/residents?action=create")}>
-          <UserPlus className="h-3.5 w-3.5 mr-2" />
-          Add New Resident
+        <Button
+          variant="outline"
+          onClick={handleSignOut}
+          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+        >
+          <LogOut className="h-3.5 w-3.5 mr-2" />
+          Sign Out
         </Button>
       </div>
 

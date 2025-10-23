@@ -75,4 +75,70 @@ crons.daily(
   internal.careFiles.carePlan.checkCarePlanReminders
 );
 
+/**
+ * UPDATE OVERDUE ACTION PLANS
+ * Updates action plan status to "overdue" and sends notifications
+ * Runs at 1 AM daily to mark overdue plans before staff start work
+ */
+crons.daily(
+  "Update overdue action plans",
+  {
+    // London time: 01:00 - update overdue action plans
+    hourUTC: 1,
+    minuteUTC: 0
+  },
+  internal.auditActionPlans.updateOverdueActionPlans
+);
+
+/**
+ * CLEAN UP OLD DRAFT RESPONSES
+ * Deletes draft audit responses older than 30 days with no data
+ * Prevents database bloat from abandoned audits
+ * Runs weekly on Sunday at 3 AM
+ */
+crons.weekly(
+  "Clean up old draft responses",
+  {
+    // Sunday at 3 AM London time
+    dayOfWeek: "sunday",
+    hourUTC: 3,
+    minuteUTC: 0
+  },
+  internal.auditResponses.cleanupOldDrafts
+);
+
+/**
+ * ARCHIVE OLD COMPLETED ACTION PLANS
+ * Deletes completed action plans older than 90 days
+ * Keeps database size manageable for long-term use
+ * Runs weekly on Sunday at 4 AM
+ */
+crons.weekly(
+  "Archive old completed action plans",
+  {
+    // Sunday at 4 AM London time
+    dayOfWeek: "sunday",
+    hourUTC: 4,
+    minuteUTC: 0
+  },
+  internal.auditActionPlans.archiveOldActionPlans
+);
+
+/**
+ * ARCHIVE OLD READ NOTIFICATIONS
+ * Deletes read notifications older than 90 days
+ * Keeps notification queries fast and database clean
+ * Runs weekly on Sunday at 5 AM
+ */
+crons.weekly(
+  "Archive old read notifications",
+  {
+    // Sunday at 5 AM London time
+    dayOfWeek: "sunday",
+    hourUTC: 5,
+    minuteUTC: 0
+  },
+  internal.notifications.archiveOldNotifications
+);
+
 export default crons;

@@ -23,7 +23,8 @@ import {
   UsersIcon,
   CalendarIcon,
   Shield,
-  BellIcon
+  BellIcon,
+  ListTodo
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -59,6 +60,18 @@ export function AppSidebar() {
       : activeOrganizationId
       ? { teamId: undefined, organizationId: activeOrganizationId }
       : "skip"
+  );
+
+  // Get unread notification count for current user
+  const unreadNotificationCount = useQuery(
+    api.notifications.getNotificationCount,
+    user?.user?.email ? { userId: user.user.email } : "skip"
+  );
+
+  // Get new action plans count for current user
+  const newActionPlansCount = useQuery(
+    api.auditActionPlans.getNewActionPlansCount,
+    user?.user?.email ? { assignedTo: user.user.email } : "skip"
   );
 
   return (
@@ -158,12 +171,36 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
+            {/* Action Plans */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/action-plans" className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <ListTodo className="w-4 h-4" />
+                    <span>Action Plans</span>
+                  </div>
+                  {newActionPlansCount !== undefined && newActionPlansCount > 0 && (
+                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                      {newActionPlansCount}
+                    </Badge>
+                  )}
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* Notification */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/notification">
-                  <BellIcon />
-                  <span>Notification</span>
+                <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <BellIcon className="w-4 h-4" />
+                    <span>Notification</span>
+                  </div>
+                  {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                      {unreadNotificationCount}
+                    </Badge>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

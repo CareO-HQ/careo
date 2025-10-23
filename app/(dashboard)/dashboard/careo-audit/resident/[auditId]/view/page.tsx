@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Resident as ResidentType } from "@/types";
@@ -17,9 +17,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Download, Printer } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface Question {
   id: string;
@@ -70,6 +81,8 @@ export default function ViewCompletedAuditPage() {
 
   const [auditData, setAuditData] = useState<CompletedAudit | null>(null);
   const [cameFromArchived, setCameFromArchived] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<Id<"residentAuditActionPlans"> | null>(null);
 
   // Check if it's a database audit (Convex ID)
   const isConvexId = /^[a-z]/.test(auditId);
@@ -89,6 +102,17 @@ export default function ViewCompletedAuditPage() {
       ? { templateId: dbAudit.templateId }
       : "skip"
   );
+
+  // Load action plans from database
+  const dbActionPlans = useQuery(
+    api.auditActionPlans.getActionPlansByAudit,
+    isConvexId && auditId
+      ? { auditResponseId: auditId as Id<"residentAuditCompletions"> }
+      : "skip"
+  );
+
+  // Delete action plan mutation
+  const deleteActionPlan = useMutation(api.auditActionPlans.deleteActionPlan);
 
   useEffect(() => {
     // Check if user came from archived page
@@ -163,6 +187,20 @@ export default function ViewCompletedAuditPage() {
         }
       });
 
+      // Transform database action plans to component format
+      if (dbActionPlans) {
+        transformed.actionPlans = dbActionPlans.map((plan: any) => ({
+          id: plan._id,
+          auditId: plan.auditResponseId,
+          text: plan.description,
+          assignedTo: plan.assignedToName || plan.assignedTo,
+          dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
+          priority: plan.priority,
+          status: plan.status,
+          latestComment: plan.latestComment,
+        }));
+      }
+
       setAuditData(transformed);
     } else if (!isConvexId) {
       // Load from localStorage
@@ -175,7 +213,7 @@ export default function ViewCompletedAuditPage() {
         }
       }
     }
-  }, [auditId, isConvexId, dbAudit, dbTemplate]);
+  }, [auditId, isConvexId, dbAudit, dbTemplate, dbActionPlans]);
 
   const getAnswer = (residentId: string, questionId: string) => {
     if (!auditData) return null;
@@ -209,6 +247,25 @@ export default function ViewCompletedAuditPage() {
     setTimeout(() => {
       window.print();
     }, 500);
+  };
+
+  const handleDeleteActionPlan = async () => {
+    if (!actionPlanToDelete) return;
+
+    try {
+      await deleteActionPlan({ actionPlanId: actionPlanToDelete });
+      toast.success("Action plan deleted successfully");
+      setDeleteDialogOpen(false);
+      setActionPlanToDelete(null);
+    } catch (error) {
+      console.error("Failed to delete action plan:", error);
+      toast.error("Failed to delete action plan. Please try again.");
+    }
+  };
+
+  const openDeleteDialog = (planId: string) => {
+    setActionPlanToDelete(planId as Id<"residentAuditActionPlans">);
+    setDeleteDialogOpen(true);
   };
 
   if (!auditData) {
@@ -391,13 +448,61 @@ export default function ViewCompletedAuditPage() {
               <div className="px-8 pb-8 space-y-4">
                 <h2 className="text-lg font-semibold">Action Plans</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {auditData.actionPlans.map((plan) => (
+                  {auditData.actionPlans.map((plan: any) => {
+                    // Get status badge color
+                    const getStatusColor = (status: string) => {
+                      switch (status) {
+                        case "pending":
+                          return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+                        case "in_progress":
+                          return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+                        case "completed":
+                          return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+                        case "overdue":
+                          return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+                        default:
+                          return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+                      }
+                    };
+
+                    const getStatusLabel = (status: string) => {
+                      switch (status) {
+                        case "pending":
+                          return "Pending";
+                        case "in_progress":
+                          return "In Progress";
+                        case "completed":
+                          return "Completed";
+                        default:
+                          return status;
+                      }
+                    };
+
+                    return (
                     <div
                       key={plan.id}
-                      className="border rounded-lg p-4 space-y-3 bg-muted/30"
+                      className="border rounded-lg p-4 space-y-3 bg-muted/30 relative group"
                     >
-                      <p className="text-sm font-medium">{plan.text}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium flex-1">{plan.text}</p>
+                        {isConvexId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity print:hidden shrink-0"
+                            onClick={() => openDeleteDialog(plan.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-2">
+                        {/* Status Badge (if from database) */}
+                        {plan.status && (
+                          <Badge className={getStatusColor(plan.status)}>
+                            {getStatusLabel(plan.status)}
+                          </Badge>
+                        )}
                         {plan.assignedTo && (
                           <Badge variant="secondary" className="text-xs">
                             👤 {plan.assignedTo}
@@ -421,8 +526,15 @@ export default function ViewCompletedAuditPage() {
                           </Badge>
                         )}
                       </div>
+                      {/* Latest Comment */}
+                      {plan.latestComment && (
+                        <div className="text-xs text-muted-foreground italic border-l-2 pl-2 mt-2">
+                          "{plan.latestComment}"
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )}
+                  )}
                 </div>
               </div>
             )}
@@ -437,6 +549,27 @@ export default function ViewCompletedAuditPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Action Plan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this action plan? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteActionPlan}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </>
   );

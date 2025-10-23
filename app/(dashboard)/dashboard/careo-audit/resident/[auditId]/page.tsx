@@ -34,9 +34,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, X, CalendarIcon, ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Plus, X, CalendarIcon, ArrowUpDown, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -71,6 +81,8 @@ interface ActionPlan {
   assignedToEmail: string;  // Email for backend
   dueDate: Date | undefined;
   priority: string;
+  status?: string;
+  latestComment?: string;
 }
 
 export default function ResidentAuditPage() {
@@ -97,9 +109,13 @@ export default function ResidentAuditPage() {
   // Check if auditId is a Convex ID (starts with lowercase letter, not a timestamp)
   const isConvexId = auditId && /^[a-z]/.test(auditId);
 
+  // Determine if it's a template ID (starts with 't') or response ID (starts with other letters)
+  const isTemplateId = isConvexId && auditId.startsWith('t');
+  const isResponseId = isConvexId && !auditId.startsWith('t');
+
   const getTemplate = useQuery(
     api.auditTemplates.getTemplateById,
-    isConvexId
+    isTemplateId
       ? { templateId: auditId as Id<"residentAuditTemplates"> }
       : "skip"
   );
@@ -109,12 +125,89 @@ export default function ResidentAuditPage() {
   const updateResponse = useMutation(api.auditResponses.updateResponse);
   const completeResponse = useMutation(api.auditResponses.completeResponse);
 
-  // Database hooks - Action plan management
-  const createActionPlan = useMutation(api.auditActionPlans.createActionPlan);
-
   // State for tracking current audit response ID
   const [responseId, setResponseId] = useState<Id<"residentAuditCompletions"> | null>(null);
   const [isLoadingFromDB, setIsLoadingFromDB] = useState(true);
+
+  // Ref to prevent duplicate draft creation (multiple tabs/rapid re-renders)
+  const isCreatingDraft = React.useRef(false);
+
+  // Try to load existing audit response if auditId is actually a response ID
+  const existingResponse = useQuery(
+    api.auditResponses.getResponseById,
+    isResponseId
+      ? { responseId: auditId as Id<"residentAuditCompletions"> }
+      : "skip"
+  );
+
+  // For template pages, try to find existing draft response
+  const existingDrafts = useQuery(
+    api.auditResponses.getDraftResponsesByTemplate,
+    isTemplateId && activeTeamId
+      ? {
+          templateId: auditId as Id<"residentAuditTemplates">,
+          teamId: activeTeamId
+        }
+      : "skip"
+  );
+
+  // Database hooks - Action plan management
+  const createActionPlan = useMutation(api.auditActionPlans.createActionPlan);
+  const deleteActionPlanMutation = useMutation(api.auditActionPlans.deleteActionPlan);
+
+  // Load existing action plans from database
+  // Use responseId if available, otherwise use auditId if it's a response ID
+  const actionPlanQueryArg = responseId
+    ? { auditResponseId: responseId }
+    : isResponseId
+    ? { auditResponseId: auditId as Id<"residentAuditCompletions"> }
+    : "skip";
+
+  console.log("🔍 Action plan query arg:", actionPlanQueryArg, "responseId:", responseId, "isResponseId:", isResponseId);
+
+  const dbActionPlans = useQuery(
+    api.auditActionPlans.getActionPlansByAudit,
+    actionPlanQueryArg
+  );
+
+  // Set responseId from existing response if it exists (for completed audits)
+  useEffect(() => {
+    if (existingResponse && !responseId) {
+      console.log("📄 Loading existing completed audit response:", existingResponse._id);
+      setResponseId(existingResponse._id);
+    }
+  }, [existingResponse, responseId]);
+
+  // Clear all data when team changes (important for team switching)
+  useEffect(() => {
+    if (isTemplateId && activeTeamId) {
+      console.log("🔄 Team changed, clearing all audit data to load new team's data");
+      setResponseId(null);
+      setActionPlans([]);
+      setAnswers([]);  // Array, not object
+      setComments([]);
+      setResidentDates({});
+      // Reset draft creation flag to allow new draft for new team
+      isCreatingDraft.current = false;
+    }
+  }, [activeTeamId, isTemplateId]);
+
+  // Set responseId from existing draft if it exists (for template pages)
+  useEffect(() => {
+    console.log("🔍 Checking for existing drafts:", {
+      existingDrafts: existingDrafts?.length,
+      responseId,
+      isTemplateId,
+      activeTeamId
+    });
+
+    if (existingDrafts && existingDrafts.length > 0 && !responseId) {
+      // Use the most recent draft (in-progress or draft status)
+      const recentDraft = existingDrafts.find(d => d.status === "in-progress" || d.status === "draft") || existingDrafts[0];
+      console.log("📝 Loading existing draft response:", recentDraft._id, "status:", recentDraft.status, "teamId:", recentDraft.teamId);
+      setResponseId(recentDraft._id);
+    }
+  }, [existingDrafts, responseId, isTemplateId, activeTeamId]);
 
   // Load audit name from localStorage (fallback) or template
   useEffect(() => {
@@ -188,6 +281,8 @@ export default function ResidentAuditPage() {
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
   const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
 
   const handleAddQuestion = async () => {
     if (!newQuestionText.trim()) return;
@@ -526,16 +621,34 @@ export default function ResidentAuditPage() {
         console.error("Auto-save failed:", error);
         // Silent fail for auto-save
       }
-    }, 3000); // Save every 3 seconds after changes stop
+    }, 5000); // Save every 5 seconds after changes stop (optimized for scale)
 
     return () => clearTimeout(timer);
   }, [answers, comments, residentDates, questions, responseId, getTemplate, activeTeamId, dbResidents, updateResponse]);
 
-  // Create draft response when page loads with template
+  // Create draft response when page loads with template (if one doesn't exist)
   useEffect(() => {
-    if (!getTemplate || responseId || !activeTeamId || !session) return;
+    // Don't create if we already have a responseId or if we're loading existing drafts
+    if (!getTemplate || responseId || !activeTeamId || !activeOrganizationId || !session) return;
+
+    // Wait for existingDrafts query to complete
+    if (existingDrafts === undefined) return;
+
+    // If drafts exist, we'll use one of them (handled by another useEffect)
+    if (existingDrafts && existingDrafts.length > 0) return;
+
+    // DUPLICATE PREVENTION: Check if already creating
+    if (isCreatingDraft.current) {
+      console.log("⏳ Draft creation already in progress, skipping...");
+      return;
+    }
+
+    console.log("📝 No existing draft found, creating new draft response...");
 
     const createDraft = async () => {
+      // Set flag to prevent duplicate calls
+      isCreatingDraft.current = true;
+
       try {
         const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
         const draftId = await createResponse({
@@ -543,18 +656,59 @@ export default function ResidentAuditPage() {
           templateName: getTemplate.name,
           category: "resident",
           teamId: activeTeamId,
-          organizationId: activeTeamId,
+          organizationId: activeOrganizationId,
           auditedBy: auditorName,
           frequency: getTemplate.frequency,
         });
+        console.log("✅ Draft response created:", draftId);
         setResponseId(draftId);
       } catch (error) {
         console.error("Failed to create draft:", error);
+      } finally {
+        // Reset flag after creation completes or fails
+        setTimeout(() => {
+          isCreatingDraft.current = false;
+        }, 2000); // Wait 2 seconds before allowing another attempt
       }
     };
 
     createDraft();
-  }, [getTemplate, responseId, activeTeamId, session, createResponse]);
+  }, [getTemplate, responseId, activeTeamId, activeOrganizationId, session, existingDrafts, createResponse]);
+
+  // Load existing action plans from database
+  useEffect(() => {
+    console.log("🔄 Action plan loading effect triggered:", {
+      dbActionPlans: dbActionPlans?.length,
+      responseId,
+      isResponseId,
+      currentActionPlans: actionPlans.length
+    });
+
+    if (dbActionPlans !== undefined) {
+      if (dbActionPlans.length > 0) {
+        // Transform database action plans to local format
+        const transformedPlans: ActionPlan[] = dbActionPlans.map((plan: any) => ({
+          id: plan._id,
+          auditId: plan.auditResponseId,
+          text: plan.description,
+          assignedTo: plan.assignedToName || plan.assignedTo,
+          assignedToEmail: plan.assignedTo,
+          dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
+          priority: plan.priority,
+          status: plan.status,
+          latestComment: plan.latestComment,
+        }));
+
+        console.log("✅ Loaded action plans from database:", transformedPlans);
+        // Replace local action plans with database action plans (database is source of truth)
+        setActionPlans(transformedPlans);
+      } else {
+        console.log("📋 No action plans found in database, responseId:", responseId, "isResponseId:", isResponseId);
+        // Don't clear action plans immediately - they might still be loading
+        // Only clear if we have a stable responseId/isResponseId and confirmed no plans exist
+      }
+    }
+  }, [dbActionPlans]);
 
   // Fallback localStorage version
   const handleCompleteAuditLocalStorage = () => {
@@ -651,6 +805,37 @@ export default function ResidentAuditPage() {
       };
     }
   }, [resizingColumn, startX, startWidth]);
+
+  const handleDeleteActionPlan = async () => {
+    if (!actionPlanToDelete) return;
+
+    try {
+      // Check if this is a database action plan (Convex ID)
+      const isDbPlan = /^[a-z]/.test(actionPlanToDelete);
+
+      if (isDbPlan) {
+        // Delete from database
+        await deleteActionPlanMutation({
+          actionPlanId: actionPlanToDelete as Id<"residentAuditActionPlans">
+        });
+      }
+
+      // Remove from local state
+      setActionPlans(actionPlans.filter(plan => plan.id !== actionPlanToDelete));
+
+      toast.success("Action plan deleted successfully");
+      setDeleteDialogOpen(false);
+      setActionPlanToDelete(null);
+    } catch (error) {
+      console.error("Failed to delete action plan:", error);
+      toast.error("Failed to delete action plan. Please try again.");
+    }
+  };
+
+  const openDeleteDialog = (planId: string) => {
+    setActionPlanToDelete(planId);
+    setDeleteDialogOpen(true);
+  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
@@ -940,15 +1125,61 @@ export default function ResidentAuditPage() {
           </div>
           <div className="px-2">
             {/* Action Plan Cards */}
-            {actionPlans.filter(plan => plan.auditId === auditId).length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {actionPlans.filter(plan => plan.auditId === auditId).map((plan) => (
+            {actionPlans.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {actionPlans.map((plan) => {
+                  // Get status badge color
+                  const getStatusColor = (status?: string) => {
+                    switch (status) {
+                      case "pending":
+                        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+                      case "in_progress":
+                        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+                      case "completed":
+                        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+                      case "overdue":
+                        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+                      default:
+                        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+                    }
+                  };
+
+                  const getStatusLabel = (status?: string) => {
+                    switch (status) {
+                      case "pending":
+                        return "Pending";
+                      case "in_progress":
+                        return "In Progress";
+                      case "completed":
+                        return "Completed";
+                      default:
+                        return status;
+                    }
+                  };
+
+                  return (
                   <div
                     key={plan.id}
-                    className="border rounded-lg p-4 space-y-3 bg-card"
+                    className="border rounded-lg p-4 space-y-3 bg-card relative group"
                   >
-                    <p className="text-sm">{plan.text}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm flex-1">{plan.text}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        onClick={() => openDeleteDialog(plan.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
+                      {/* Status Badge */}
+                      {plan.status && (
+                        <Badge className={getStatusColor(plan.status) + " text-xs"}>
+                          {getStatusLabel(plan.status)}
+                        </Badge>
+                      )}
                       {plan.assignedTo && (
                         <Badge variant="secondary" className="text-xs">
                           {plan.assignedTo}
@@ -973,8 +1204,14 @@ export default function ResidentAuditPage() {
                         </Badge>
                       )}
                     </div>
+                    {/* Latest Comment */}
+                    {plan.latestComment && (
+                      <div className="text-xs text-muted-foreground italic border-l-2 pl-2 mt-2">
+                        "{plan.latestComment}"
+                      </div>
+                    )}
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
@@ -1136,23 +1373,69 @@ export default function ResidentAuditPage() {
               </Button>
               <Button
                 type="submit"
-                onClick={() => {
+                onClick={async () => {
                   // Handle action plan creation
-                  if (actionPlanText.trim()) {
-                    const newActionPlan: ActionPlan = {
-                      id: `ap${actionPlans.length + 1}`,
-                      auditId: auditId,
-                      text: actionPlanText,
-                      assignedTo: assignedTo,
-                      assignedToEmail: assignedToEmail,
-                      dueDate: dueDate,
-                      priority: priority,
-                    };
-                    setActionPlans([...actionPlans, newActionPlan]);
+                  if (!actionPlanText.trim()) {
+                    toast.error("Please enter action plan details");
+                    return;
+                  }
+
+                  if (!assignedToEmail) {
+                    toast.error("Please assign to a staff member");
+                    return;
+                  }
+
+                  if (!priority) {
+                    toast.error("Please select a priority");
+                    return;
+                  }
+
+                  try {
+                    // Ensure we have a responseId (should be created by page load useEffect)
+                    if (!responseId) {
+                      toast.error("Please wait for the audit to load before creating action plans");
+                      return;
+                    }
+
+                    // Save action plan to database
+                    if (responseId && getTemplate && activeOrganizationId) {
+                      console.log("💾 Saving action plan to database with responseId:", responseId);
+                      const actionPlanId = await createActionPlan({
+                        auditResponseId: responseId,
+                        templateId: getTemplate._id,
+                        description: actionPlanText,
+                        assignedTo: assignedToEmail,
+                        assignedToName: assignedTo,
+                        priority: priority as "Low" | "Medium" | "High",
+                        dueDate: dueDate?.getTime(),
+                        teamId: activeTeamId || "",
+                        organizationId: activeOrganizationId,
+                        createdBy: session?.user?.email || "",
+                        createdByName: session?.user?.name || session?.user?.email || "",
+                      });
+
+                      console.log("✅ Action plan created with ID:", actionPlanId);
+                      toast.success("Action plan created and assignee notified");
+
+                      // Don't add to local state - let the database query update it
+                      // This ensures consistency with the database
+                    } else {
+                      console.error("❌ Cannot create action plan - missing required data", {
+                        responseId,
+                        getTemplate: !!getTemplate,
+                        activeOrganizationId
+                      });
+                      toast.error("Failed to create action plan - missing required data");
+                    }
 
                     // Update audit status to in-progress
                     updateAuditStatusToInProgress();
+                  } catch (error) {
+                    console.error("Failed to create action plan:", error);
+                    toast.error("Failed to create action plan");
+                    return;
                   }
+
                   setActionPlanText("");
                   setAssignedTo("");
                   setAssignedToEmail("");
@@ -1218,6 +1501,27 @@ export default function ResidentAuditPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Action Plan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this action plan? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteActionPlan}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );
