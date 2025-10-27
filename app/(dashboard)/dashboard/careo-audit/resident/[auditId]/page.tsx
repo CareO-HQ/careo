@@ -1346,12 +1346,12 @@ export default function ResidentAuditPage() {
               autoFocus
             />
           </div>
-          <DialogFooter className="flex items-center justify-between sm:justify-between">
-            <div className="flex items-center gap-2">
+          <DialogFooter className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap flex-1">
               {/* Assign to */}
               <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                  <Badge variant="outline" className="cursor-pointer hover:bg-accent max-w-[200px] truncate">
                     {assignedTo || "Assign to"}
                   </Badge>
                 </PopoverTrigger>
@@ -1466,7 +1466,7 @@ export default function ResidentAuditPage() {
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <Button
                 type="button"
                 variant="outline"
