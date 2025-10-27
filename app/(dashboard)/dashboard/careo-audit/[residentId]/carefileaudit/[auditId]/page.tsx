@@ -37,7 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowLeft, Plus, X, Trash2, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Plus, X, Trash2, MoreHorizontal, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
@@ -606,14 +606,27 @@ function CareFileAuditEditorPageContent() {
                       )}
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
-                      <Input
-                        type="date"
-                        value={response?.date || ""}
-                        onChange={(e) =>
-                          handleItemResponseChange(item.id, item.name, "date", e.target.value)
-                        }
-                        className="h-8 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-full justify-start text-left font-normal border-0 shadow-none px-2 hover:bg-transparent"
+                          >
+                            {response?.date ? format(new Date(response.date), "MMM dd, yyyy") : "Select date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={response?.date ? new Date(response.date) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                handleItemResponseChange(item.id, item.name, "date", format(date, "yyyy-MM-dd"));
+                              }
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
                       <Input
