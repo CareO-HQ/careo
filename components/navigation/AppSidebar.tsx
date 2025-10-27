@@ -68,11 +68,20 @@ export function AppSidebar() {
     user?.user?.email ? { userId: user.user.email } : "skip"
   );
 
-  // Get new action plans count for current user
-  const newActionPlansCount = useQuery(
+  // Get new action plans count for current user (Resident Audits)
+  const newResidentActionPlansCount = useQuery(
     api.auditActionPlans.getNewActionPlansCount,
     user?.user?.email ? { assignedTo: user.user.email } : "skip"
   );
+
+  // Get new action plans count for current user (Care File Audits)
+  const newCareFileActionPlansCount = useQuery(
+    api.careFileAuditActionPlans.getNewActionPlansCount,
+    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+  );
+
+  // Combine both action plan counts
+  const totalNewActionPlansCount = (newResidentActionPlansCount || 0) + (newCareFileActionPlansCount || 0);
 
   return (
     <Sidebar>
@@ -179,9 +188,9 @@ export function AppSidebar() {
                     <ListTodo className="w-4 h-4" />
                     <span>Action Plans</span>
                   </div>
-                  {newActionPlansCount !== undefined && newActionPlansCount > 0 && (
+                  {totalNewActionPlansCount > 0 && (
                     <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
-                      {newActionPlansCount}
+                      {totalNewActionPlansCount}
                     </Badge>
                   )}
                 </Link>

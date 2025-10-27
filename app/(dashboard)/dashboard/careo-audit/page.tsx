@@ -111,6 +111,38 @@ function CareOAuditPageContent() {
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
 
+  // Fetch care file audit templates
+  const careFileTemplates = useQuery(
+    api.careFileAuditTemplates.getTemplatesByOrganization,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Fetch all latest care file audit responses for the team
+  const careFileResponses = useQuery(
+    api.careFileAuditResponses.getAllLatestResponsesByTeam,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
+
+  // Fetch governance audit templates (organization-wide)
+  const governanceTemplates = useQuery(
+    api.governanceAuditTemplates.getActiveTemplates,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Fetch latest governance audit completions for the organization
+  const governanceCompletions = governanceTemplates?.map((template) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useQuery(
+      api.governanceAuditResponses.getLatestCompletionByTemplate,
+      activeOrganizationId
+        ? {
+            templateId: template._id,
+            organizationId: activeOrganizationId,
+          }
+        : "skip"
+    );
+  });
+
   // Load audits from database templates (priority) or localStorage (fallback)
   useEffect(() => {
     console.log("Loading audits - activeTab:", activeTab, "residentTemplates:", residentTemplates?.length);
@@ -319,28 +351,6 @@ function CareOAuditPageContent() {
     frequency: "",
   });
 
-  const [careFileFrequency, setCareFileFrequency] = useState<string>("3months");
-
-  // Load frequency from localStorage on mount (team-specific)
-  useEffect(() => {
-    if (activeTeamId) {
-      const savedFrequency = localStorage.getItem(`carefile-audit-frequency-${activeTeamId}`);
-      if (savedFrequency) {
-        setCareFileFrequency(savedFrequency);
-      } else {
-        // Default to 3 months if no saved frequency for this team
-        setCareFileFrequency("3months");
-      }
-    }
-  }, [activeTeamId]);
-
-  // Save frequency to localStorage when it changes (team-specific)
-  useEffect(() => {
-    if (activeTeamId && careFileFrequency) {
-      localStorage.setItem(`carefile-audit-frequency-${activeTeamId}`, careFileFrequency);
-    }
-  }, [careFileFrequency, activeTeamId]);
-
   const handleNewAudit = () => {
     setIsDialogOpen(true);
   };
@@ -478,81 +488,57 @@ function CareOAuditPageContent() {
 
   // Calculate overall completion percentage for a resident's care file audits
   const calculateResidentCareFileCompletion = (residentId: string): number => {
-    // Define default audit list (same as in carefileaudit page)
-    const defaultAudits = [
-      { id: "1", name: "Pre-Admission Assessment" },
-      { id: "2", name: "Admission Assessment" },
-      { id: "3", name: "Risk Assessment" },
-      { id: "4", name: "Care Plan" },
-      { id: "5", name: "Medication Review" },
-    ];
-
-    // Try to load custom audit list from localStorage, fallback to defaults
-    let auditList = defaultAudits;
-    const savedAudits = localStorage.getItem(`carefile-audits-${residentId}`);
-    if (savedAudits) {
-      try {
-        auditList = JSON.parse(savedAudits);
-      } catch (e) {
-        console.error('Error parsing saved audits:', e);
-      }
-    }
-
-    if (auditList.length === 0) {
+    if (!careFileTemplates || !careFileResponses) {
       return 0;
     }
 
-    // Get all completed audits from localStorage
-    const completedAuditsStr = localStorage.getItem('completed-audits');
-    if (!completedAuditsStr) {
+    if (careFileTemplates.length === 0) {
       return 0;
     }
 
-    let allCompletedAudits = [];
-    try {
-      allCompletedAudits = JSON.parse(completedAuditsStr);
-    } catch (e) {
-      console.error('Error parsing completed audits:', e);
+    // Get all responses for this resident
+    const residentResponses = careFileResponses.filter(
+      (response: any) => response.residentId === residentId && response.status === "completed"
+    );
+
+    if (residentResponses.length === 0) {
       return 0;
     }
 
-    // Calculate percentage for each audit
+    // Calculate percentage for each template
     let totalPercentage = 0;
 
-    auditList.forEach((audit: any) => {
-      // Find completed audits for this specific audit and resident
-      const matchingCompletedAudits = allCompletedAudits.filter(
-        (ca: any) =>
-          ca.residentId === residentId &&
-          ca.name === audit.name &&
-          ca.category === 'carefile'
+    careFileTemplates.forEach((template: any) => {
+      // Find the latest response for this template and resident
+      const templateResponses = residentResponses.filter(
+        (response: any) => response.templateId === template._id
       );
 
-      if (matchingCompletedAudits.length > 0) {
+      if (templateResponses.length > 0) {
         // Get the latest completion
-        const latestCompletion = matchingCompletedAudits.sort(
-          (a: any, b: any) => b.completedAt - a.completedAt
+        const latestCompletion = templateResponses.sort(
+          (a: any, b: any) => (b.completedAt || 0) - (a.completedAt || 0)
         )[0];
 
-        // Calculate percentage based on compliant items
-        const totalItems = latestCompletion.auditDetailItems?.length || 0;
+        // Calculate percentage based on compliant/checked items
+        const totalItems = latestCompletion.items?.length || 0;
         if (totalItems === 0) {
           totalPercentage += 0;
         } else {
-          const compliantItems = latestCompletion.auditDetailItems?.filter(
-            (item: any) => item.status === 'compliant'
+          const compliantItems = latestCompletion.items?.filter(
+            (item: any) => item.status === 'compliant' || item.status === 'checked'
           ).length || 0;
           const percentage = Math.round((compliantItems / totalItems) * 100);
           totalPercentage += percentage;
         }
       } else {
-        // Audit not completed, counts as 0%
+        // Template not completed, counts as 0%
         totalPercentage += 0;
       }
     });
 
     // Return average percentage
-    return Math.round(totalPercentage / auditList.length);
+    return Math.round(totalPercentage / careFileTemplates.length);
   };
 
   // State to store last audited and next audit dates for residents
@@ -560,114 +546,92 @@ function CareOAuditPageContent() {
 
   // Calculate last audited and next audit dates for a resident
   const calculateResidentDates = (residentId: string): {lastAudited: string, nextAudit: string} => {
-    // Define default audit list
-    const defaultAudits = [
-      { id: "1", name: "Pre-Admission Assessment" },
-      { id: "2", name: "Admission Assessment" },
-      { id: "3", name: "Risk Assessment" },
-      { id: "4", name: "Care Plan" },
-      { id: "5", name: "Medication Review" },
-    ];
-
-    // Try to load custom audit list from localStorage, fallback to defaults
-    let auditList = defaultAudits;
-    const savedAudits = localStorage.getItem(`carefile-audits-${residentId}`);
-    if (savedAudits) {
-      try {
-        auditList = JSON.parse(savedAudits);
-      } catch (e) {
-        console.error('Error parsing saved audits:', e);
-      }
-    }
-
-    // Get all completed audits from localStorage
-    const completedAuditsStr = localStorage.getItem('completed-audits');
-    if (!completedAuditsStr) {
+    if (!careFileTemplates || !careFileResponses) {
       return { lastAudited: '-', nextAudit: '-' };
     }
 
-    let allCompletedAudits = [];
-    try {
-      allCompletedAudits = JSON.parse(completedAuditsStr);
-    } catch (e) {
-      console.error('Error parsing completed audits:', e);
+    if (careFileTemplates.length === 0) {
       return { lastAudited: '-', nextAudit: '-' };
     }
 
-    // Check if ALL audits are 100% complete
-    let allAuditsComplete = true;
+    // Get all responses for this resident
+    const residentResponses = careFileResponses.filter(
+      (response: any) => response.residentId === residentId && response.status === "completed"
+    );
+
+    if (residentResponses.length === 0) {
+      return { lastAudited: '-', nextAudit: '-' };
+    }
+
+    // Check if ALL templates have been completed
+    let allTemplatesComplete = true;
     let latestCompletionDate: number | null = null;
+    let earliestNextDue: number | null = null;
 
-    auditList.forEach((audit: any) => {
-      const matchingCompletedAudits = allCompletedAudits.filter(
-        (ca: any) =>
-          ca.residentId === residentId &&
-          ca.name === audit.name &&
-          ca.category === 'carefile'
+    careFileTemplates.forEach((template: any) => {
+      // Find the latest response for this template and resident
+      const templateResponses = residentResponses.filter(
+        (response: any) => response.templateId === template._id
       );
 
-      if (matchingCompletedAudits.length > 0) {
+      if (templateResponses.length > 0) {
         // Get the latest completion
-        const latestCompletion = matchingCompletedAudits.sort(
-          (a: any, b: any) => b.completedAt - a.completedAt
+        const latestCompletion = templateResponses.sort(
+          (a: any, b: any) => (b.completedAt || 0) - (a.completedAt || 0)
         )[0];
 
-        // Check if this audit is 100% complete
-        const totalItems = latestCompletion.auditDetailItems?.length || 0;
-        const compliantItems = latestCompletion.auditDetailItems?.filter(
-          (item: any) => item.status === 'compliant'
+        // Check if this template is 100% complete
+        const totalItems = latestCompletion.items?.length || 0;
+        const compliantItems = latestCompletion.items?.filter(
+          (item: any) => item.status === 'compliant' || item.status === 'checked'
         ).length || 0;
         const percentage = totalItems > 0 ? Math.round((compliantItems / totalItems) * 100) : 0;
 
         if (percentage !== 100) {
-          allAuditsComplete = false;
+          allTemplatesComplete = false;
         }
 
-        // Track the latest completion date across all audits
-        if (!latestCompletionDate || latestCompletion.completedAt > latestCompletionDate) {
-          latestCompletionDate = latestCompletion.completedAt;
+        // Track the latest completion date across all templates
+        if (!latestCompletionDate || (latestCompletion.completedAt && latestCompletion.completedAt > latestCompletionDate)) {
+          latestCompletionDate = latestCompletion.completedAt || 0;
+        }
+
+        // Track the earliest next due date
+        if (latestCompletion.nextAuditDue) {
+          if (!earliestNextDue || latestCompletion.nextAuditDue < earliestNextDue) {
+            earliestNextDue = latestCompletion.nextAuditDue;
+          }
         }
       } else {
-        // Audit not completed
-        allAuditsComplete = false;
+        // Template not completed
+        allTemplatesComplete = false;
       }
     });
 
-    // Only show last audited if ALL audits are 100% complete
-    if (!allAuditsComplete || !latestCompletionDate) {
-      return { lastAudited: '-', nextAudit: '-' };
-    }
+    // Format last audited date (only show if ALL templates are 100% complete)
+    const formattedLastAudited = (allTemplatesComplete && latestCompletionDate)
+      ? new Date(latestCompletionDate).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        })
+      : '-';
 
-    // Format last audited date
-    const completionDate = new Date(latestCompletionDate);
-    const formattedLastAudited = completionDate.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-
-    // Calculate next audit based on frequency
-    const frequencyDays: { [key: string]: number } = {
-      '3months': 90,
-      '6months': 180,
-      'yearly': 365,
-    };
-
-    const daysToAdd = frequencyDays[careFileFrequency] || 90;
-    const nextAuditDate = new Date(completionDate);
-    nextAuditDate.setDate(nextAuditDate.getDate() + daysToAdd);
-    const formattedNextAudit = nextAuditDate.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    // Format next audit date (show the earliest next due date if available, regardless of completion)
+    const formattedNextAudit = earliestNextDue
+      ? new Date(earliestNextDue).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        })
+      : '-';
 
     return { lastAudited: formattedLastAudited, nextAudit: formattedNextAudit };
   };
 
   // Calculate completion percentages for all residents when they load or tab changes
   useEffect(() => {
-    if (activeTab === 'carefile' && residents && residents.length > 0) {
+    if (activeTab === 'carefile' && residents && residents.length > 0 && careFileTemplates && careFileResponses) {
       const completions: {[residentId: string]: number} = {};
       const dates: {[residentId: string]: {lastAudited: string, nextAudit: string}} = {};
 
@@ -679,7 +643,7 @@ function CareOAuditPageContent() {
       setResidentCompletions(completions);
       setResidentDates(dates);
     }
-  }, [residents, activeTab, careFileFrequency]);
+  }, [residents, activeTab, careFileTemplates, careFileResponses]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -847,34 +811,7 @@ function CareOAuditPageContent() {
       {/* Filters */}
       <div className="flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-2">
-          {activeTab === "carefile" ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Frequency:</span>
-              <Select value={careFileFrequency} onValueChange={setCareFileFrequency}>
-                <SelectTrigger className="h-8 w-[140px]">
-                  <SelectValue placeholder="Select frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="3months">3 Months</SelectItem>
-                  <SelectItem value="6months">6 Months</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ) : activeTab === "resident" ? (
-            <>{/* No filters for resident tab */}</>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" className="h-8">
-                <ArrowUpDown className="h-4 w-4 mr-2" />
-                Sort
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8">
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
-            </>
-          )}
+          {/* No filters for any tabs */}
         </div>
         <div className="flex items-center gap-2">
           {activeTab !== "carefile" && (
@@ -910,9 +847,6 @@ function CareOAuditPageContent() {
                 </TableHead>
                 <TableHead className="font-medium border-r last:border-r-0">
                   Next Audit
-                </TableHead>
-                <TableHead className="font-medium border-r last:border-r-0 w-20">
-                  Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -961,30 +895,11 @@ function CareOAuditPageContent() {
                     <TableCell className="text-muted-foreground border-r last:border-r-0">
                       {residentDates[resident._id]?.nextAudit || '-'}
                     </TableCell>
-                    <TableCell className="border-r last:border-r-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${resident._id}/carefileaudit`)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('Download care file audit:', resident._id)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     {residents === undefined ? "Loading residents..." : "No residents found in this team"}
                   </TableCell>
                 </TableRow>

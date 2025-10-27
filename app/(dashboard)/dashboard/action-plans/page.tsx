@@ -14,13 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -42,8 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Calendar, Clock, AlertCircle, CheckCircle2, ListTodo, Trash2 } from "lucide-react";
-import type { Id } from "@/convex/_generated/dataModel";
+import { Trash2 } from "lucide-react";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
@@ -59,25 +51,44 @@ export default function MyActionPlansPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<any>(null);
 
-  // Queries - Get action plans assigned to user
+  // Queries - Get RESIDENT audit action plans assigned to user
   const assignedActionPlans = useQuery(
     api.auditActionPlans.getMyActionPlans,
     userEmail ? { assignedTo: userEmail, status: "all" } : "skip"
   );
 
-  // Get action plans created by user
+  // Get RESIDENT audit action plans created by user
   const createdActionPlans = useQuery(
     api.auditActionPlans.getCreatedActionPlans,
     userEmail ? { createdBy: userEmail, status: "all" } : "skip"
   );
 
-  // Merge both lists and remove duplicates (in case user creates a plan and assigns to themselves)
-  const allActionPlans = React.useMemo(() => {
-    const assigned = assignedActionPlans || [];
-    const created = createdActionPlans || [];
+  // Get CARE FILE audit action plans assigned to user
+  const assignedCareFileActionPlans = useQuery(
+    api.careFileAuditActionPlans.getMyActionPlans,
+    userEmail ? { assignedTo: userEmail, status: "all" } : "skip"
+  );
 
-    // Combine both arrays
-    const combined = [...assigned, ...created];
+  // Get CARE FILE audit action plans created by user
+  const createdCareFileActionPlans = useQuery(
+    api.careFileAuditActionPlans.getCreatedActionPlans,
+    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
+  );
+
+  // Merge all lists and remove duplicates
+  const allActionPlans = React.useMemo(() => {
+    const residentAssigned = assignedActionPlans || [];
+    const residentCreated = createdActionPlans || [];
+    const careFileAssigned = assignedCareFileActionPlans || [];
+    const careFileCreated = createdCareFileActionPlans || [];
+
+    // Combine all arrays
+    const combined = [
+      ...residentAssigned,
+      ...residentCreated,
+      ...careFileAssigned,
+      ...careFileCreated,
+    ];
 
     // Remove duplicates by _id
     const uniquePlans = combined.filter((plan, index, self) =>
@@ -85,10 +96,10 @@ export default function MyActionPlansPage() {
     );
 
     return uniquePlans;
-  }, [assignedActionPlans, createdActionPlans]);
+  }, [assignedActionPlans, createdActionPlans, assignedCareFileActionPlans, createdCareFileActionPlans]);
 
   // Check if user has created any action plans (they're a manager/creator)
-  const hasCreatedPlans = (createdActionPlans?.length || 0) > 0;
+  const hasCreatedPlans = (createdActionPlans?.length || 0) > 0 || (createdCareFileActionPlans?.length || 0) > 0;
 
   // Get new action plans count (only for assigned plans)
   const newActionPlansCount = useQuery(
@@ -96,17 +107,33 @@ export default function MyActionPlansPage() {
     userEmail ? { assignedTo: userEmail } : "skip"
   );
 
-  // Mutations
-  const updateStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
-  const deleteActionPlan = useMutation(api.auditActionPlans.deleteActionPlan);
-  const markAsViewed = useMutation(api.auditActionPlans.markActionPlansAsViewed);
+  const newCareFileActionPlansCount = useQuery(
+    api.careFileAuditActionPlans.getNewActionPlansCount,
+    userEmail ? { assignedTo: userEmail } : "skip"
+  );
+
+  // Mutations for RESIDENT audits
+  const updateResidentAuditStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
+  const deleteResidentAuditActionPlan = useMutation(api.auditActionPlans.deleteActionPlan);
+  const markResidentAuditsAsViewed = useMutation(api.auditActionPlans.markActionPlansAsViewed);
+
+  // Mutations for CARE FILE audits
+  const updateCareFileAuditStatus = useMutation(api.careFileAuditActionPlans.updateActionPlanStatus);
+  const deleteCareFileAuditActionPlan = useMutation(api.careFileAuditActionPlans.deleteActionPlan);
+  const markCareFileAuditsAsViewed = useMutation(api.careFileAuditActionPlans.markActionPlansAsViewed);
 
   // Mark action plans as viewed when page is loaded (only for assigned plans)
   useEffect(() => {
     if (userEmail && newActionPlansCount && newActionPlansCount > 0) {
-      markAsViewed({ assignedTo: userEmail });
+      markResidentAuditsAsViewed({ assignedTo: userEmail });
     }
-  }, [userEmail, newActionPlansCount, markAsViewed]);
+  }, [userEmail, newActionPlansCount, markResidentAuditsAsViewed]);
+
+  useEffect(() => {
+    if (userEmail && newCareFileActionPlansCount && newCareFileActionPlansCount > 0) {
+      markCareFileAuditsAsViewed({ assignedTo: userEmail });
+    }
+  }, [userEmail, newCareFileActionPlansCount, markCareFileAuditsAsViewed]);
 
   // Group action plans by status
   const pendingPlans = allActionPlans?.filter((p) => p.status === "pending") || [];
@@ -135,7 +162,11 @@ export default function MyActionPlansPage() {
     if (!selectedActionPlan) return;
 
     try {
-      await updateStatus({
+      // Determine which mutation to use based on audit category
+      const isCareFileAudit = selectedActionPlan.auditCategory === "carefile";
+      const updateMutation = isCareFileAudit ? updateCareFileAuditStatus : updateResidentAuditStatus;
+
+      await updateMutation({
         actionPlanId: selectedActionPlan._id,
         status: newStatus,
         comment: statusComment || undefined,
@@ -164,7 +195,11 @@ export default function MyActionPlansPage() {
     if (!planToDelete) return;
 
     try {
-      await deleteActionPlan({ actionPlanId: planToDelete._id });
+      // Determine which mutation to use based on audit category
+      const isCareFileAudit = planToDelete.auditCategory === "carefile";
+      const deleteMutation = isCareFileAudit ? deleteCareFileAuditActionPlan : deleteResidentAuditActionPlan;
+
+      await deleteMutation({ actionPlanId: planToDelete._id });
       toast.success("Action plan deleted successfully");
       setDeleteDialogOpen(false);
       setPlanToDelete(null);

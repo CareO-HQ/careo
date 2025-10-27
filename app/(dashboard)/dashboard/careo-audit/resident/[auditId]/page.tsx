@@ -189,8 +189,12 @@ export default function ResidentAuditPage() {
       setResidentDates({});
       // Reset draft creation flag to allow new draft for new team
       isCreatingDraft.current = false;
+      hasLoadedDraft.current = false; // Reset draft loaded flag
     }
   }, [activeTeamId, isTemplateId]);
+
+  // Track if we've already loaded draft data to prevent resets
+  const hasLoadedDraft = React.useRef(false);
 
   // Set responseId from existing draft if it exists (for template pages)
   useEffect(() => {
@@ -198,14 +202,66 @@ export default function ResidentAuditPage() {
       existingDrafts: existingDrafts?.length,
       responseId,
       isTemplateId,
-      activeTeamId
+      activeTeamId,
+      hasLoadedDraft: hasLoadedDraft.current
     });
 
-    if (existingDrafts && existingDrafts.length > 0 && !responseId) {
+    // Only load once to prevent resetting user's work
+    if (existingDrafts && existingDrafts.length > 0 && !responseId && !hasLoadedDraft.current) {
       // Use the most recent draft (in-progress or draft status)
       const recentDraft = existingDrafts.find(d => d.status === "in-progress" || d.status === "draft") || existingDrafts[0];
       console.log("📝 Loading existing draft response:", recentDraft._id, "status:", recentDraft.status, "teamId:", recentDraft.teamId);
       setResponseId(recentDraft._id);
+
+      // Load the draft data into the form
+      if (recentDraft.responses && recentDraft.responses.length > 0) {
+        console.log("📥 Loading draft data into form...");
+
+        // Convert responses to answers format
+        const loadedAnswers: Answer[] = [];
+        const loadedComments: Comment[] = [];
+        const loadedDates: { [residentId: string]: string } = {};
+
+        recentDraft.responses.forEach((response: any) => {
+          // Load answers
+          response.answers?.forEach((answer: any) => {
+            if (answer.value !== undefined) {
+              loadedAnswers.push({
+                residentId: response.residentId,
+                questionId: answer.questionId,
+                value: answer.value,
+                notes: answer.notes
+              });
+            }
+          });
+
+          // Load comments
+          if (response.comment) {
+            loadedComments.push({
+              residentId: response.residentId,
+              text: response.comment
+            });
+          }
+
+          // Load dates
+          if (response.date) {
+            loadedDates[response.residentId] = response.date;
+          }
+        });
+
+        setAnswers(loadedAnswers);
+        setComments(loadedComments);
+        setResidentDates(loadedDates);
+        hasLoadedDraft.current = true; // Mark as loaded
+        console.log("✅ Draft data loaded:", {
+          answers: loadedAnswers.length,
+          comments: loadedComments.length,
+          dates: Object.keys(loadedDates).length,
+          sampleAnswers: loadedAnswers.slice(0, 3),
+          sampleComments: loadedComments.slice(0, 3),
+          sampleDates: Object.entries(loadedDates).slice(0, 3)
+        });
+      }
     }
   }, [existingDrafts, responseId, isTemplateId, activeTeamId]);
 
@@ -568,14 +624,22 @@ export default function ResidentAuditPage() {
           }
         }
 
-        toast.success(`${auditName} completed successfully!`, {
+        toast.success(`${auditName} completed successfully! Starting new audit...`, {
           duration: 3000,
         });
 
-        // Navigate back to audit list
-        setTimeout(() => {
-          router.push('/dashboard/careo-audit?tab=resident');
-        }, 1500);
+        // Reset form to start a new audit
+        setAnswers([]);
+        setComments([]);
+        setResidentDates({});
+        setActionPlans([]);
+        setResponseId(null);
+
+        // Reset flags to allow new draft and data loading
+        isCreatingDraft.current = false;
+        hasLoadedDraft.current = false;
+
+        // The page will automatically create a new draft and reload fresh data
       } else {
         // Fallback to localStorage if no database connection
         handleCompleteAuditLocalStorage();
@@ -586,11 +650,30 @@ export default function ResidentAuditPage() {
     }
   };
 
-  // Auto-save audit progress to database (debounced)
+  // Track if data has actually changed to avoid unnecessary saves
+  const lastSavedData = React.useRef<string>("");
+  const isSaving = React.useRef(false);
+
+  // Auto-save audit progress to database (debounced and optimized)
   useEffect(() => {
-    if (!responseId || !getTemplate || !activeTeamId || !dbResidents) return;
+    if (!responseId || !getTemplate || !activeTeamId || !dbResidents) {
+      console.log("⏸️ Auto-save skipped:", { responseId: !!responseId, template: !!getTemplate, teamId: !!activeTeamId, residents: !!dbResidents });
+      return;
+    }
+
+    // Only save if we have actual data
+    if (answers.length === 0 && comments.length === 0 && Object.keys(residentDates).length === 0) {
+      console.log("⏸️ Auto-save skipped: No data to save");
+      return;
+    }
 
     const timer = setTimeout(async () => {
+      // Prevent concurrent saves
+      if (isSaving.current) {
+        console.log("⏸️ Auto-save skipped: Already saving");
+        return;
+      }
+
       try {
         // Prepare responses array
         const responses = (dbResidents || []).map((resident) => ({
@@ -611,17 +694,37 @@ export default function ResidentAuditPage() {
           comment: comments.find((c) => c.residentId === resident._id)?.text,
         }));
 
+        // Check if data actually changed
+        const currentDataHash = JSON.stringify(responses);
+        if (currentDataHash === lastSavedData.current) {
+          console.log("⏸️ Auto-save skipped: No changes detected");
+          return;
+        }
+
+        isSaving.current = true;
+        console.log("💾 Auto-saving audit data...", {
+          answers: answers.length,
+          comments: comments.length,
+          dates: Object.keys(residentDates).length,
+          residents: dbResidents.length
+        });
+
         // Auto-save to database
         await updateResponse({
           responseId,
           responses,
           status: "in-progress",
         });
+
+        lastSavedData.current = currentDataHash;
+        console.log("✅ Auto-save successful");
       } catch (error) {
-        console.error("Auto-save failed:", error);
+        console.error("❌ Auto-save failed:", error);
         // Silent fail for auto-save
+      } finally {
+        isSaving.current = false;
       }
-    }, 5000); // Save every 5 seconds after changes stop (optimized for scale)
+    }, 5000); // Save every 5 seconds after changes stop
 
     return () => clearTimeout(timer);
   }, [answers, comments, residentDates, questions, responseId, getTemplate, activeTeamId, dbResidents, updateResponse]);

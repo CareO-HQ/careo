@@ -218,28 +218,16 @@ export default function EnvironmentAuditPage() {
                 <input type="checkbox" className="rounded border-gray-300" />
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Question</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Question
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Status</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Status
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Date</span>
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Date
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">
-                <div className="flex items-center gap-1">
-                  <span>Comment</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                Comment
               </TableHead>
             </TableRow>
           </TableHeader>

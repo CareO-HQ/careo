@@ -1,34 +1,38 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Create a new action plan
+// Create a new action plan for care file audit
 export const createActionPlan = mutation({
   args: {
-    auditResponseId: v.id("residentAuditCompletions"),
-    templateId: v.id("residentAuditTemplates"),
+    auditResponseId: v.id("careFileAuditCompletions"),
+    templateId: v.id("careFileAuditTemplates"),
+    residentId: v.id("residents"),
     description: v.string(),
     assignedTo: v.string(), // User email
     assignedToName: v.optional(v.string()),
     priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
     dueDate: v.optional(v.number()),
+    careFileReference: v.optional(v.string()),
     teamId: v.string(),
     organizationId: v.string(),
     createdBy: v.string(), // Creator email
     createdByName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Get audit and template info for the notification
-    const audit = await ctx.db.get(args.auditResponseId);
+    // Get template and resident info for notification
     const template = await ctx.db.get(args.templateId);
+    const resident = await ctx.db.get(args.residentId);
 
-    const actionPlanId = await ctx.db.insert("residentAuditActionPlans", {
+    const actionPlanId = await ctx.db.insert("careFileAuditActionPlans", {
       auditResponseId: args.auditResponseId,
       templateId: args.templateId,
+      residentId: args.residentId,
       description: args.description,
       assignedTo: args.assignedTo,
       assignedToName: args.assignedToName,
       priority: args.priority,
       dueDate: args.dueDate,
+      careFileReference: args.careFileReference,
       status: "pending",
       teamId: args.teamId,
       organizationId: args.organizationId,
@@ -48,7 +52,7 @@ export const createActionPlan = mutation({
 // Update an action plan
 export const updateActionPlan = mutation({
   args: {
-    actionPlanId: v.id("residentAuditActionPlans"),
+    actionPlanId: v.id("careFileAuditActionPlans"),
     description: v.optional(v.string()),
     assignedTo: v.optional(v.string()),
     assignedToName: v.optional(v.string()),
@@ -80,7 +84,7 @@ export const updateActionPlan = mutation({
 // Update action plan status with comment (by assignee)
 export const updateActionPlanStatus = mutation({
   args: {
-    actionPlanId: v.id("residentAuditActionPlans"),
+    actionPlanId: v.id("careFileAuditActionPlans"),
     status: v.union(
       v.literal("pending"),
       v.literal("in_progress"),
@@ -99,6 +103,7 @@ export const updateActionPlanStatus = mutation({
 
     // Get template info for notification
     const template = await ctx.db.get(actionPlan.templateId);
+    const resident = await ctx.db.get(actionPlan.residentId);
 
     // Create status history entry
     const statusUpdate = {
@@ -129,12 +134,13 @@ export const updateActionPlanStatus = mutation({
       senderName: args.updatedByName,
       type: "action_plan_status_updated",
       title: "Action Plan Status Updated",
-      message: `${args.updatedByName || "An assignee"} updated the action plan status to "${args.status}" for ${template?.name || "audit"}: "${actionPlan.description}"${args.comment ? `\n\nComment: ${args.comment}` : ""}`,
-      link: `/dashboard/careo-audit/resident/${actionPlan.auditResponseId}/view`,
+      message: `${args.updatedByName || "An assignee"} updated the action plan status to "${args.status}" for ${resident ? `${resident.firstName} ${resident.lastName}` : "resident"}'s ${template?.name || "care file audit"}: "${actionPlan.description}"${args.comment ? `\n\nComment: ${args.comment}` : ""}`,
+      link: `/dashboard/careo-audit/${actionPlan.residentId}/carefileaudit/${actionPlan.auditResponseId}/view`,
       metadata: {
         actionPlanId: args.actionPlanId,
         auditId: actionPlan.auditResponseId,
         templateId: actionPlan.templateId,
+        residentId: actionPlan.residentId,
         oldStatus: actionPlan.status,
         newStatus: args.status,
         comment: args.comment,
@@ -153,7 +159,7 @@ export const updateActionPlanStatus = mutation({
 // Complete an action plan
 export const completeActionPlan = mutation({
   args: {
-    actionPlanId: v.id("residentAuditActionPlans"),
+    actionPlanId: v.id("careFileAuditActionPlans"),
     completedBy: v.optional(v.string()), // User email who completed it
     completedByName: v.optional(v.string()),
   },
@@ -164,8 +170,9 @@ export const completeActionPlan = mutation({
       throw new Error("Action plan not found");
     }
 
-    // Get template info for notification
+    // Get template and resident info for notification
     const template = await ctx.db.get(actionPlan.templateId);
+    const resident = await ctx.db.get(actionPlan.residentId);
 
     // Mark as completed
     await ctx.db.patch(args.actionPlanId, {
@@ -181,12 +188,13 @@ export const completeActionPlan = mutation({
       senderName: args.completedByName || actionPlan.assignedToName,
       type: "action_plan_completed",
       title: "Action Plan Completed",
-      message: `${args.completedByName || actionPlan.assignedToName || "A staff member"} completed the action plan for ${template?.name || "audit"}: "${actionPlan.description}"`,
-      link: `/dashboard/careo-audit/resident/${actionPlan.auditResponseId}/view`,
+      message: `${args.completedByName || actionPlan.assignedToName || "A staff member"} completed the action plan for ${resident ? `${resident.firstName} ${resident.lastName}` : "resident"}'s ${template?.name || "care file audit"}: "${actionPlan.description}"`,
+      link: `/dashboard/careo-audit/${actionPlan.residentId}/carefileaudit/${actionPlan.auditResponseId}/view`,
       metadata: {
         actionPlanId: args.actionPlanId,
         auditId: actionPlan.auditResponseId,
         templateId: actionPlan.templateId,
+        residentId: actionPlan.residentId,
         priority: actionPlan.priority,
       },
       isRead: false,
@@ -202,11 +210,11 @@ export const completeActionPlan = mutation({
 // Get all action plans for a specific audit response
 export const getActionPlansByAudit = query({
   args: {
-    auditResponseId: v.id("residentAuditCompletions"),
+    auditResponseId: v.id("careFileAuditCompletions"),
   },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_audit_response", (q) =>
         q.eq("auditResponseId", args.auditResponseId)
       )
@@ -217,12 +225,25 @@ export const getActionPlansByAudit = query({
 // Get all action plans for a template
 export const getActionPlansByTemplate = query({
   args: {
-    templateId: v.id("residentAuditTemplates"),
+    templateId: v.id("careFileAuditTemplates"),
   },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_template", (q) => q.eq("templateId", args.templateId))
+      .collect();
+  },
+});
+
+// Get all action plans for a resident
+export const getActionPlansByResident = query({
+  args: {
+    residentId: v.id("residents"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("careFileAuditActionPlans")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
       .collect();
   },
 });
@@ -234,13 +255,13 @@ export const getActionPlansByAssignee = query({
   },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
       .collect();
   },
 });
 
-// Get action plans by assignee with enriched data (template name, etc.)
+// Get action plans by assignee with enriched data
 export const getMyActionPlans = query({
   args: {
     assignedTo: v.string(),
@@ -256,7 +277,7 @@ export const getMyActionPlans = query({
   handler: async (ctx, args) => {
     // Get all action plans for this user
     const actionPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
       .collect();
 
@@ -266,17 +287,19 @@ export const getMyActionPlans = query({
         ? actionPlans.filter((plan) => plan.status === args.status)
         : actionPlans;
 
-    // Enrich with template and audit data
+    // Enrich with template, audit, and resident data
     const enrichedPlans = await Promise.all(
       filteredPlans.map(async (plan) => {
         const template = await ctx.db.get(plan.templateId);
         const auditResponse = await ctx.db.get(plan.auditResponseId);
+        const resident = await ctx.db.get(plan.residentId);
 
         return {
           ...plan,
           templateName: template?.name || "Unknown Audit",
-          auditCategory: template?.category || auditResponse?.category || "resident",
+          auditCategory: "carefile",
           auditCompletedAt: auditResponse?.completedAt,
+          residentName: resident ? `${resident.firstName} ${resident.lastName}` : "Unknown Resident",
         };
       })
     );
@@ -323,7 +346,7 @@ export const getCreatedActionPlans = query({
   handler: async (ctx, args) => {
     // Get all action plans created by this user
     const allPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .collect();
 
     const actionPlans = allPlans.filter((plan) => plan.createdBy === args.createdBy);
@@ -334,17 +357,19 @@ export const getCreatedActionPlans = query({
         ? actionPlans.filter((plan) => plan.status === args.status)
         : actionPlans;
 
-    // Enrich with template and audit data
+    // Enrich with template, audit, and resident data
     const enrichedPlans = await Promise.all(
       filteredPlans.map(async (plan) => {
         const template = await ctx.db.get(plan.templateId);
         const auditResponse = await ctx.db.get(plan.auditResponseId);
+        const resident = await ctx.db.get(plan.residentId);
 
         return {
           ...plan,
           templateName: template?.name || "Unknown Audit",
-          auditCategory: template?.category || auditResponse?.category || "resident",
+          auditCategory: "carefile",
           auditCompletedAt: auditResponse?.completedAt,
+          residentName: resident ? `${resident.firstName} ${resident.lastName}` : "Unknown Resident",
         };
       })
     );
@@ -378,7 +403,7 @@ export const getCreatedActionPlans = query({
 // Get single action plan with full details
 export const getActionPlanById = query({
   args: {
-    actionPlanId: v.id("residentAuditActionPlans"),
+    actionPlanId: v.id("careFileAuditActionPlans"),
   },
   handler: async (ctx, args) => {
     const actionPlan = await ctx.db.get(args.actionPlanId);
@@ -386,19 +411,14 @@ export const getActionPlanById = query({
 
     const template = await ctx.db.get(actionPlan.templateId);
     const auditResponse = await ctx.db.get(actionPlan.auditResponseId);
-
-    // Get resident info if available
-    let residentInfo = null;
-    if (actionPlan.residentId) {
-      residentInfo = await ctx.db.get(actionPlan.residentId);
-    }
+    const resident = await ctx.db.get(actionPlan.residentId);
 
     return {
       ...actionPlan,
       templateName: template?.name || "Unknown Audit",
-      auditCategory: template?.category || auditResponse?.category || "resident",
+      auditCategory: "carefile",
       auditCompletedAt: auditResponse?.completedAt,
-      resident: residentInfo,
+      resident,
     };
   },
 });
@@ -410,13 +430,13 @@ export const getActionPlansByTeam = query({
   },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
       .collect();
   },
 });
 
-// Get overdue action plans
+// Get overdue action plans for a team
 export const getOverdueActionPlans = query({
   args: {
     teamId: v.string(),
@@ -425,7 +445,7 @@ export const getOverdueActionPlans = query({
     const now = Date.now();
 
     const allPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
       .collect();
 
@@ -439,11 +459,10 @@ export const getOverdueActionPlans = query({
   },
 });
 
-
 // Delete an action plan
 export const deleteActionPlan = mutation({
   args: {
-    actionPlanId: v.id("residentAuditActionPlans"),
+    actionPlanId: v.id("careFileAuditActionPlans"),
   },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.actionPlanId);
@@ -459,7 +478,7 @@ export const markActionPlansAsViewed = mutation({
   handler: async (ctx, args) => {
     // Get all new action plans for this user
     const newPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
       .collect();
 
@@ -487,7 +506,7 @@ export const getNewActionPlansCount = query({
   },
   handler: async (ctx, args) => {
     const newPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
       .collect();
 
@@ -502,7 +521,7 @@ export const getActionPlanStats = query({
   },
   handler: async (ctx, args) => {
     const allPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
       .collect();
 
@@ -530,12 +549,11 @@ export const updateOverdueActionPlans = internalMutation({
 
     // Get all non-completed action plans
     const plans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .filter((q) => q.neq(q.field("status"), "completed"))
       .collect();
 
     let updated = 0;
-    const notifications: any[] = [];
 
     for (const plan of plans) {
       // Check if overdue and not already marked as overdue
@@ -546,8 +564,9 @@ export const updateOverdueActionPlans = internalMutation({
           updatedAt: now,
         });
 
-        // Get template name for better notification message
+        // Get template and resident for better notification message
         const template = await ctx.db.get(plan.templateId);
+        const resident = await ctx.db.get(plan.residentId);
 
         // Create notification for assignee
         await ctx.db.insert("notifications", {
@@ -556,12 +575,13 @@ export const updateOverdueActionPlans = internalMutation({
           senderName: plan.createdByName,
           type: "action_plan_overdue",
           title: "Action Plan Overdue",
-          message: `Your action plan for "${template?.name || 'audit'}" is now overdue: "${plan.description}"`,
+          message: `Your action plan for ${resident ? `${resident.firstName} ${resident.lastName}` : "resident"}'s "${template?.name || 'care file audit'}" is now overdue: "${plan.description}"`,
           link: `/dashboard/action-plans`,
           metadata: {
             actionPlanId: plan._id,
             auditId: plan.auditResponseId,
             templateId: plan.templateId,
+            residentId: plan.residentId,
             priority: plan.priority,
             dueDate: plan.dueDate,
           },
@@ -579,12 +599,13 @@ export const updateOverdueActionPlans = internalMutation({
             senderName: plan.assignedToName,
             type: "action_plan_overdue_manager",
             title: "Action Plan Overdue - Manager Alert",
-            message: `Action plan assigned to ${plan.assignedToName || plan.assignedTo} is now overdue: "${plan.description}"`,
+            message: `Action plan assigned to ${plan.assignedToName || plan.assignedTo} for ${resident ? `${resident.firstName} ${resident.lastName}` : "resident"} is now overdue: "${plan.description}"`,
             link: `/dashboard/action-plans`,
             metadata: {
               actionPlanId: plan._id,
               auditId: plan.auditResponseId,
               templateId: plan.templateId,
+              residentId: plan.residentId,
               priority: plan.priority,
               dueDate: plan.dueDate,
             },
@@ -599,7 +620,7 @@ export const updateOverdueActionPlans = internalMutation({
       }
     }
 
-    console.log(`Updated ${updated} overdue action plans`);
+    console.log(`Updated ${updated} overdue care file audit action plans`);
     return { updated };
   },
 });
@@ -611,7 +632,7 @@ export const archiveOldActionPlans = internalMutation({
 
     // Find completed action plans older than 90 days
     const oldPlans = await ctx.db
-      .query("residentAuditActionPlans")
+      .query("careFileAuditActionPlans")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "completed"),
@@ -626,7 +647,7 @@ export const archiveOldActionPlans = internalMutation({
       archived++;
     }
 
-    console.log(`Archived ${archived} old completed action plans`);
+    console.log(`Archived ${archived} old completed care file audit action plans`);
     return { archived };
   },
 });
