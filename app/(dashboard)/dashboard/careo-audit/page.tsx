@@ -104,6 +104,12 @@ function CareOAuditPageContent() {
   // Mutations
   const createTemplate = useMutation(api.auditTemplates.createTemplate);
   const deleteTemplate = useMutation(api.auditTemplates.deleteTemplate);
+  const createGovernanceTemplate = useMutation(api.governanceAuditTemplates.createTemplate);
+  const deleteGovernanceTemplate = useMutation(api.governanceAuditTemplates.deleteTemplate);
+  const createClinicalTemplate = useMutation(api.clinicalAuditTemplates.createTemplate);
+  const deleteClinicalTemplate = useMutation(api.clinicalAuditTemplates.deleteTemplate);
+  const createEnvironmentTemplate = useMutation(api.environmentAuditTemplates.createTemplate);
+  const deleteEnvironmentTemplate = useMutation(api.environmentAuditTemplates.deleteTemplate);
 
   // Fetch residents for the active team
   const residents = useQuery(
@@ -129,23 +135,83 @@ function CareOAuditPageContent() {
     activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   );
 
-  // Fetch latest governance audit completions for the organization
-  const governanceCompletions = governanceTemplates?.map((template) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useQuery(
-      api.governanceAuditResponses.getLatestCompletionByTemplate,
-      activeOrganizationId
-        ? {
-            templateId: template._id,
-            organizationId: activeOrganizationId,
-          }
-        : "skip"
-    );
-  });
+  // Fetch clinical audit templates (organization-wide)
+  const clinicalTemplates = useQuery(
+    api.clinicalAuditTemplates.getActiveTemplates,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Fetch environment audit templates (organization-wide)
+  const environmentTemplates = useQuery(
+    api.environmentAuditTemplates.getActiveTemplates,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Separate useEffect for governance templates to avoid infinite loop
+  useEffect(() => {
+    if (activeTab === "governance" && governanceTemplates) {
+      const templatesAsAudits: Audit[] = governanceTemplates.map((template) => {
+        return {
+          id: template._id,
+          name: template.name,
+          status: "new",
+          auditor: template.createdBy,
+          lastAudited: "-",
+          dueDate: "-",
+          category: "governance",
+          frequency: template.frequency,
+        };
+      });
+      setAudits(templatesAsAudits);
+    }
+  }, [activeTab, governanceTemplates]);
+
+  // Separate useEffect for clinical templates to avoid infinite loop
+  useEffect(() => {
+    if (activeTab === "clinical" && clinicalTemplates) {
+      const templatesAsAudits: Audit[] = clinicalTemplates.map((template) => {
+        return {
+          id: template._id,
+          name: template.name,
+          status: "new",
+          auditor: template.createdBy,
+          lastAudited: "-",
+          dueDate: "-",
+          category: "clinical",
+          frequency: template.frequency,
+        };
+      });
+      setAudits(templatesAsAudits);
+    }
+  }, [activeTab, clinicalTemplates]);
+
+  // Separate useEffect for environment templates to avoid infinite loop
+  useEffect(() => {
+    if (activeTab === "environment" && environmentTemplates) {
+      const templatesAsAudits: Audit[] = environmentTemplates.map((template) => {
+        return {
+          id: template._id,
+          name: template.name,
+          status: "new",
+          auditor: template.createdBy,
+          lastAudited: "-",
+          dueDate: "-",
+          category: "environment",
+          frequency: template.frequency,
+        };
+      });
+      setAudits(templatesAsAudits);
+    }
+  }, [activeTab, environmentTemplates]);
 
   // Load audits from database templates (priority) or localStorage (fallback)
   useEffect(() => {
     console.log("Loading audits - activeTab:", activeTab, "residentTemplates:", residentTemplates?.length);
+
+    // Skip this useEffect for governance, clinical, and environment - handled by separate useEffect above
+    if (activeTab === "governance" || activeTab === "clinical" || activeTab === "environment") {
+      return;
+    }
 
     // If we have templates from database, use those for resident tab
     if (activeTab === "resident" && residentTemplates && residentTemplates.length > 0) {
@@ -385,6 +451,72 @@ function CareOAuditPageContent() {
         console.error("Failed to create template:", error);
         toast.error("Failed to create audit template");
       }
+    } else if (activeTab === "governance" && activeOrganizationId && session?.user) {
+      // For governance tab, create template in database
+      try {
+        const templateId = await createGovernanceTemplate({
+          name: formData.auditName,
+          items: [], // Start with empty items, user will add them in the editor
+          frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
+          organizationId: activeOrganizationId,
+          createdBy: session.user.name || session.user.email || "Unknown",
+        });
+
+        setIsDialogOpen(false);
+        setFormData({ auditName: "", auditorName: "", frequency: "" });
+
+        toast.success(`Governance audit "${formData.auditName}" created successfully!`);
+
+        // Navigate to the governance audit editor
+        router.push(`/dashboard/careo-audit/${activeTab}/${templateId}`);
+      } catch (error) {
+        console.error("Failed to create governance template:", error);
+        toast.error("Failed to create governance audit template");
+      }
+    } else if (activeTab === "clinical" && activeOrganizationId && session?.user) {
+      // For clinical tab, create template in database
+      try {
+        const templateId = await createClinicalTemplate({
+          name: formData.auditName,
+          items: [], // Start with empty items, user will add them in the editor
+          frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
+          organizationId: activeOrganizationId,
+          createdBy: session.user.name || session.user.email || "Unknown",
+        });
+
+        setIsDialogOpen(false);
+        setFormData({ auditName: "", auditorName: "", frequency: "" });
+
+        toast.success(`Clinical audit "${formData.auditName}" created successfully!`);
+
+        // Navigate to the clinical audit editor
+        router.push(`/dashboard/careo-audit/${activeTab}/${templateId}`);
+      } catch (error) {
+        console.error("Failed to create clinical template:", error);
+        toast.error("Failed to create clinical audit template");
+      }
+    } else if (activeTab === "environment" && activeOrganizationId && session?.user) {
+      // For environment tab, create template in database
+      try {
+        const templateId = await createEnvironmentTemplate({
+          name: formData.auditName,
+          items: [], // Start with empty items, user will add them in the editor
+          frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
+          organizationId: activeOrganizationId,
+          createdBy: session.user.name || session.user.email || "Unknown",
+        });
+
+        setIsDialogOpen(false);
+        setFormData({ auditName: "", auditorName: "", frequency: "" });
+
+        toast.success(`Environment audit "${formData.auditName}" created successfully!`);
+
+        // Navigate to the environment audit editor
+        router.push(`/dashboard/careo-audit/${activeTab}/${templateId}`);
+      } catch (error) {
+        console.error("Failed to create environment template:", error);
+        toast.error("Failed to create environment audit template");
+      }
     } else {
       // Fallback to localStorage for other tabs
       const newAudit: Audit = {
@@ -428,12 +560,33 @@ function CareOAuditPageContent() {
       const isConvexId = /^[a-z]/.test(auditId);
 
       if (auditToDelete.category === "resident" && isConvexId) {
-        // Delete from database
-        console.log("Deleting template from database:", auditId);
+        // Delete resident template from database
+        console.log("Deleting resident template from database:", auditId);
         await deleteTemplate({
           templateId: auditId as Id<"residentAuditTemplates">,
         });
         toast.success("Audit deleted successfully");
+      } else if (auditToDelete.category === "governance" && isConvexId) {
+        // Delete governance template from database
+        console.log("Deleting governance template from database:", auditId);
+        await deleteGovernanceTemplate({
+          templateId: auditId as Id<"governanceAuditTemplates">,
+        });
+        toast.success("Governance audit deleted successfully");
+      } else if (auditToDelete.category === "clinical" && isConvexId) {
+        // Delete clinical template from database
+        console.log("Deleting clinical template from database:", auditId);
+        await deleteClinicalTemplate({
+          templateId: auditId as Id<"clinicalAuditTemplates">,
+        });
+        toast.success("Clinical audit deleted successfully");
+      } else if (auditToDelete.category === "environment" && isConvexId) {
+        // Delete environment template from database
+        console.log("Deleting environment template from database:", auditId);
+        await deleteEnvironmentTemplate({
+          templateId: auditId as Id<"environmentAuditTemplates">,
+        });
+        toast.success("Environment audit deleted successfully");
       } else {
         // Delete from localStorage
         console.log("Deleting from localStorage:", auditId);

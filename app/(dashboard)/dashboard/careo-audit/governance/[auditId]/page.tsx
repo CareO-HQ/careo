@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import * as React from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -33,6 +38,8 @@ import { ArrowLeft, Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, Calend
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 
 interface AuditDetailItem {
   id: string;
@@ -48,8 +55,11 @@ interface ActionPlan {
   auditId: string;
   text: string;
   assignedTo: string;
+  assignedToEmail: string;
   dueDate: Date | undefined;
   priority: string;
+  status?: string;
+  latestComment?: string;
 }
 
 export default function GovernanceAuditPage() {
@@ -57,21 +67,135 @@ export default function GovernanceAuditPage() {
   const router = useRouter();
   const auditId = params.auditId as string;
 
+  // Get current user session
+  const { data: session } = authClient.useSession();
+
+  const { activeTeamId, activeOrganizationId } = useActiveTeam();
   const [auditName, setAuditName] = useState("Governance & Complaints Audit");
 
-  // Load audit name from localStorage
+  // Load organization members for action plan assignment
+  const organizationMembers = useQuery(
+    api.teams.getOrganizationMembers,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Database hooks - Template management
+  const updateTemplate = useMutation(api.governanceAuditTemplates.updateTemplate);
+
+  // Check if auditId is a Convex ID (starts with lowercase letter, not a timestamp)
+  const isConvexId = auditId && /^[a-z]/.test(auditId);
+
+  // Determine if it's a template ID or response ID
+  // Governance template IDs start with letters like 'v', 'k', 'j', etc.
+  // We need to check if the template actually exists to determine the type
+  const isTemplateId = isConvexId; // Assume template first
+  const isResponseId = false; // Will be determined after we check if template exists
+
+  const getTemplate = useQuery(
+    api.governanceAuditTemplates.getTemplateById,
+    isTemplateId
+      ? { templateId: auditId as Id<"governanceAuditTemplates"> }
+      : "skip"
+  );
+
+  // Database hooks - Audit response management
+  const getOrCreateDraft = useMutation(api.governanceAuditResponses.getOrCreateDraft);
+  const updateResponse = useMutation(api.governanceAuditResponses.updateResponse);
+  const completeAudit = useMutation(api.governanceAuditResponses.completeAudit);
+
+  // State for tracking current audit response ID
+  const [responseId, setResponseId] = useState<Id<"governanceAuditCompletions"> | null>(null);
+
+  // Ref to prevent duplicate draft creation
+  const isCreatingDraft = React.useRef(false);
+
+  // Database hooks - Action plan management
+  const createActionPlan = useMutation(api.governanceAuditActionPlans.createActionPlan);
+
+  // Load existing action plans from database (only if we have a responseId)
+  const dbActionPlans = useQuery(
+    api.governanceAuditActionPlans.getActionPlansByAudit,
+    responseId ? { auditResponseId: responseId } : "skip"
+  );
+
+  // Load audit name from template
   useEffect(() => {
-    const savedAudits = localStorage.getItem('careo-audits');
-    if (savedAudits) {
-      const audits = JSON.parse(savedAudits);
-      const currentAudit = audits.find((audit: any) => audit.id === auditId);
-      if (currentAudit) {
-        setAuditName(currentAudit.name);
-      }
+    if (getTemplate) {
+      console.log("✅ Loading from database template:", getTemplate.name);
+      setAuditName(getTemplate.name);
     }
-  }, [auditId]);
+  }, [getTemplate]);
 
   const [auditDetailItems, setAuditDetailItems] = useState<AuditDetailItem[]>([]);
+
+  // Load template items into audit detail items
+  useEffect(() => {
+    if (getTemplate && getTemplate.items && auditDetailItems.length === 0) {
+      const items: AuditDetailItem[] = getTemplate.items.map((item: any) => ({
+        id: item.id,
+        itemName: item.name,
+        status: "n/a",
+        reviewer: null,
+        lastReviewed: null,
+        notes: null,
+      }));
+      setAuditDetailItems(items);
+    }
+  }, [getTemplate]);
+
+  // Create draft response when page loads with template (if one doesn't exist)
+  useEffect(() => {
+    if (!getTemplate || responseId || !activeOrganizationId || !session) return;
+
+    // DUPLICATE PREVENTION: Check if already creating
+    if (isCreatingDraft.current) {
+      console.log("⏳ Draft creation already in progress, skipping...");
+      return;
+    }
+
+    console.log("📝 Creating new draft response...");
+
+    const createDraft = async () => {
+      isCreatingDraft.current = true;
+
+      try {
+        const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+        const draftId = await getOrCreateDraft({
+          templateId: getTemplate._id,
+          organizationId: activeOrganizationId,
+          auditedBy: auditorName,
+        });
+        console.log("✅ Draft response created:", draftId);
+        setResponseId(draftId);
+      } catch (error) {
+        console.error("Failed to create draft:", error);
+      } finally {
+        setTimeout(() => {
+          isCreatingDraft.current = false;
+        }, 2000);
+      }
+    };
+
+    createDraft();
+  }, [getTemplate, responseId, activeOrganizationId, session, getOrCreateDraft]);
+
+  // Load action plans from database
+  useEffect(() => {
+    if (dbActionPlans !== undefined && dbActionPlans.length > 0) {
+      const transformedPlans: ActionPlan[] = dbActionPlans.map((plan: any) => ({
+        id: plan._id,
+        auditId: plan.auditResponseId,
+        text: plan.description,
+        assignedTo: plan.assignedToName || plan.assignedTo,
+        assignedToEmail: plan.assignedTo,
+        dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
+        priority: plan.priority,
+        status: plan.status,
+        latestComment: plan.latestComment,
+      }));
+      setActionPlans(transformedPlans);
+    }
+  }, [dbActionPlans]);
 
   // Dialog state for adding new items
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
@@ -167,6 +291,133 @@ export default function GovernanceAuditPage() {
     }
   };
 
+  // Track if data has actually changed to avoid unnecessary saves
+  const lastSavedData = React.useRef<string>("");
+  const isSaving = React.useRef(false);
+
+  // Auto-save audit progress to database (debounced and optimized)
+  useEffect(() => {
+    if (!responseId || !getTemplate || !activeOrganizationId) {
+      console.log("⏸️ Auto-save skipped:", { responseId: !!responseId, template: !!getTemplate, orgId: !!activeOrganizationId });
+      return;
+    }
+
+    // Only save if we have actual data
+    if (auditDetailItems.length === 0) {
+      console.log("⏸️ Auto-save skipped: No data to save");
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      // Prevent concurrent saves
+      if (isSaving.current) {
+        console.log("⏸️ Auto-save skipped: Already saving");
+        return;
+      }
+
+      try {
+        // Prepare items array
+        const items = auditDetailItems.map((item) => ({
+          itemId: item.id,
+          itemName: item.itemName,
+          status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
+          notes: item.notes || undefined,
+          date: item.lastReviewed || undefined,
+        }));
+
+        // Check if data actually changed
+        const currentDataHash = JSON.stringify(items);
+        if (currentDataHash === lastSavedData.current) {
+          console.log("⏸️ Auto-save skipped: No changes detected");
+          return;
+        }
+
+        isSaving.current = true;
+        console.log("💾 Auto-saving governance audit data...", {
+          items: items.length,
+        });
+
+        // Auto-save to database
+        await updateResponse({
+          responseId,
+          items,
+          status: "in-progress",
+        });
+
+        lastSavedData.current = currentDataHash;
+        console.log("✅ Auto-save successful");
+      } catch (error) {
+        console.error("❌ Auto-save failed:", error);
+        // Silent fail for auto-save
+      } finally {
+        isSaving.current = false;
+      }
+    }, 5000); // Save every 5 seconds after changes stop
+
+    return () => clearTimeout(timer);
+  }, [auditDetailItems, responseId, getTemplate, activeOrganizationId, updateResponse]);
+
+  // Handle complete audit
+  const handleCompleteAudit = async () => {
+    if (!activeOrganizationId || !getTemplate || !responseId) {
+      toast.error("Missing required data. Please try again.");
+      return;
+    }
+
+    try {
+      // Prepare items array
+      const items = auditDetailItems.map((item) => ({
+        itemId: item.id,
+        itemName: item.itemName,
+        status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
+        notes: item.notes || undefined,
+        date: item.lastReviewed || undefined,
+      }));
+
+      // Complete the audit in database
+      await completeAudit({
+        responseId,
+        items,
+      });
+
+      // Save action plans to database
+      for (const plan of actionPlans.filter((p) => p.auditId === auditId)) {
+        if (getTemplate && activeOrganizationId) {
+          await createActionPlan({
+            auditResponseId: responseId,
+            templateId: getTemplate._id,
+            description: plan.text,
+            assignedTo: plan.assignedToEmail || plan.assignedTo,
+            assignedToName: plan.assignedTo,
+            priority: plan.priority as "Low" | "Medium" | "High",
+            dueDate: plan.dueDate?.getTime(),
+            organizationId: activeOrganizationId,
+            createdBy: session?.user?.email || session?.user?.name || "Unknown",
+            createdByName: session?.user?.name || session?.user?.email || "Unknown",
+          });
+        }
+      }
+
+      toast.success(`${auditName} completed successfully! Starting new audit...`, {
+        duration: 3000,
+      });
+
+      // Reset form to start a new audit
+      setAuditDetailItems([]);
+      setActionPlans([]);
+      setResponseId(null);
+
+      // Reset flags to allow new draft
+      isCreatingDraft.current = false;
+
+      // Reload the page to start fresh
+      router.push(`/dashboard/careo-audit/governance/${auditId}`);
+    } catch (error) {
+      console.error("Failed to complete audit:", error);
+      toast.error("Failed to complete audit. Please try again.");
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
       {/* Header */}
@@ -185,6 +436,14 @@ export default function GovernanceAuditPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {dbActionPlans && dbActionPlans.length > 0 && (
+            <Badge variant="secondary" className="mr-2">
+              {dbActionPlans.length} Action Plan{dbActionPlans.length > 1 ? "s" : ""}
+            </Badge>
+          )}
+          <Button onClick={handleCompleteAudit} className="mr-2">
+            Complete Audit
+          </Button>
           <Button variant="ghost" size="icon">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -445,39 +704,25 @@ export default function GovernanceAuditPage() {
               {/* Assign to */}
               <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                  <Badge variant="outline" className="cursor-pointer hover:bg-accent max-w-[200px] truncate">
                     {assignedTo || "Assign to"}
                   </Badge>
                 </PopoverTrigger>
                 <PopoverContent className="w-48 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
-                  <div className="space-y-1">
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-                      onClick={() => {
-                        setAssignedTo("John Doe");
-                        setAssignPopoverOpen(false);
-                      }}
-                    >
-                      John Doe
-                    </div>
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-                      onClick={() => {
-                        setAssignedTo("Jane Smith");
-                        setAssignPopoverOpen(false);
-                      }}
-                    >
-                      Jane Smith
-                    </div>
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-                      onClick={() => {
-                        setAssignedTo("Bob Johnson");
-                        setAssignPopoverOpen(false);
-                      }}
-                    >
-                      Bob Johnson
-                    </div>
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {organizationMembers?.map((member: any) => (
+                      <div
+                        key={member.email}
+                        className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                        onClick={() => {
+                          setAssignedTo(member.name || member.email);
+                          setAssignedToEmail(member.email);
+                          setAssignPopoverOpen(false);
+                        }}
+                      >
+                        {member.name || member.email}
+                      </div>
+                    ))}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -568,12 +813,14 @@ export default function GovernanceAuditPage() {
                       auditId: auditId,
                       text: actionPlanText,
                       assignedTo: assignedTo,
+                      assignedToEmail: assignedToEmail,
                       dueDate: dueDate,
                       priority: priority,
                     };
                     setActionPlans([...actionPlans, newActionPlan]);
                     setActionPlanText("");
                     setAssignedTo("");
+                    setAssignedToEmail("");
                     setDueDate(undefined);
                     setPriority("");
                     setIsActionPlanDialogOpen(false);

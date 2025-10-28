@@ -3008,4 +3008,270 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_due_date", ["dueDate"])
     .index("by_organization", ["organizationId"]),
+
+  // Clinical Care & Medicines Audit Templates (organization-wide)
+  clinicalAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.literal("clinical"), // Fixed category for clinical audits
+    items: v.array(v.object({
+      id: v.string(),
+      name: v.string(), // Question/item name
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("checkbox"),    // Checked/Unchecked
+        v.literal("notes")        // Free text notes
+      ),
+    })),
+    frequency: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("6months"),
+      v.literal("yearly")
+    ),
+    isActive: v.boolean(),
+    organizationId: v.string(), // Organization-wide, no teamId
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_organization_and_active", ["organizationId", "isActive"]),
+
+  // Clinical Audit Completions (organization-level)
+  clinicalAuditCompletions: defineTable({
+    templateId: v.id("clinicalAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+
+    // Organization context (no resident, organization-wide)
+    organizationId: v.string(),
+
+    // Item responses
+    items: v.array(v.object({
+      itemId: v.string(),
+      itemName: v.string(),
+      status: v.optional(v.union(
+        v.literal("compliant"),
+        v.literal("non-compliant"),
+        v.literal("not-applicable"),
+        v.literal("checked"),
+        v.literal("unchecked")
+      )),
+      notes: v.optional(v.string()),
+      date: v.optional(v.string()), // Date for this specific item
+    })),
+
+    overallNotes: v.optional(v.string()), // General notes for this audit
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User name or email
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_organization", ["templateId", "organizationId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans for clinical audit findings
+  clinicalAuditActionPlans: defineTable({
+    auditResponseId: v.id("clinicalAuditCompletions"),
+    templateId: v.id("clinicalAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_organization", ["organizationId"]),
+
+  // Environment & Safety Audit Templates (organization-wide)
+  environmentAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.literal("environment"), // Fixed category for environment audits
+    items: v.array(v.object({
+      id: v.string(),
+      name: v.string(), // Question/item name
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("checkbox"),    // Checked/Unchecked
+        v.literal("notes")        // Free text notes
+      ),
+    })),
+    frequency: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("6months"),
+      v.literal("yearly")
+    ),
+    isActive: v.boolean(),
+    organizationId: v.string(), // Organization-wide, no teamId
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_organization_and_active", ["organizationId", "isActive"]),
+
+  // Environment Audit Completions (organization-level)
+  environmentAuditCompletions: defineTable({
+    templateId: v.id("environmentAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+
+    // Organization context (no resident, organization-wide)
+    organizationId: v.string(),
+
+    // Item responses
+    items: v.array(v.object({
+      itemId: v.string(),
+      itemName: v.string(),
+      status: v.optional(v.union(
+        v.literal("compliant"),
+        v.literal("non-compliant"),
+        v.literal("not-applicable"),
+        v.literal("checked"),
+        v.literal("unchecked")
+      )),
+      notes: v.optional(v.string()),
+      date: v.optional(v.string()), // Date for this specific item
+    })),
+
+    overallNotes: v.optional(v.string()), // General notes for this audit
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User name or email
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_organization", ["templateId", "organizationId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans for environment audit findings
+  environmentAuditActionPlans: defineTable({
+    auditResponseId: v.id("environmentAuditCompletions"),
+    templateId: v.id("environmentAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_organization", ["organizationId"]),
 });
