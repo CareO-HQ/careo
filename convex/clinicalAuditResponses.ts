@@ -56,6 +56,100 @@ export const getResponseById = query({
   },
 });
 
+// Get draft/in-progress responses for a template
+export const getDraftResponsesByTemplate = query({
+  args: {
+    templateId: v.id("clinicalAuditTemplates"),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const responses = await ctx.db
+      .query("clinicalAuditCompletions")
+      .withIndex("by_template_and_organization", (q) =>
+        q.eq("templateId", args.templateId).eq("organizationId", args.organizationId)
+      )
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "draft"),
+          q.eq(q.field("status"), "in-progress")
+        )
+      )
+      .order("desc")
+      .collect();
+
+    return responses;
+  },
+});
+
+// Get all completed responses for a template (last 10)
+export const getCompletedResponsesByTemplate = query({
+  args: {
+    templateId: v.id("clinicalAuditTemplates"),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const responses = await ctx.db
+      .query("clinicalAuditCompletions")
+      .withIndex("by_template_and_organization", (q) =>
+        q.eq("templateId", args.templateId).eq("organizationId", args.organizationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "completed"))
+      .order("desc")
+      .take(10);
+
+    return responses;
+  },
+});
+
+// Get the latest completion for a template
+export const getLatestCompletionByTemplate = query({
+  args: {
+    templateId: v.id("clinicalAuditTemplates"),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const latestCompletion = await ctx.db
+      .query("clinicalAuditCompletions")
+      .withIndex("by_template_and_organization", (q) =>
+        q.eq("templateId", args.templateId).eq("organizationId", args.organizationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "completed"))
+      .order("desc")
+      .first();
+
+    return latestCompletion;
+  },
+});
+
+// Get all latest completions for all templates in an organization
+export const getAllLatestCompletionsByOrganization = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all completions for this organization
+    const allCompletions = await ctx.db
+      .query("clinicalAuditCompletions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "completed"))
+      .order("desc")
+      .collect();
+
+    // Group by templateId and get the latest one for each
+    const latestByTemplate = new Map();
+    for (const completion of allCompletions) {
+      const templateId = completion.templateId;
+      if (!latestByTemplate.has(templateId)) {
+        latestByTemplate.set(templateId, completion);
+      }
+    }
+
+    return Array.from(latestByTemplate.values());
+  },
+});
+
 // Update a response (auto-save)
 export const updateResponse = mutation({
   args: {
@@ -156,5 +250,24 @@ export const completeAudit = mutation({
     });
 
     return responseId;
+  },
+});
+
+
+// Helper: Get template ID from response ID (for backwards compatibility)
+export const getTemplateIdFromResponse = query({
+  args: {
+    possibleResponseId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const response = await ctx.db.get(args.possibleResponseId as any);
+      if (response && "templateId" in response && typeof response.templateId === "string") {
+        return response.templateId as any;
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
   },
 });

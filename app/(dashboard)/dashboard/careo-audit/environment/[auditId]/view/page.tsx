@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
@@ -19,29 +18,31 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 interface ArchivedAudit {
   id: string;
   templateName: string;
   completedAt: number;
   status: string;
-  responses?: any[];
+  items?: any[];
+  overallNotes?: string;
   auditedBy?: string;
 }
 
-function ResidentAuditViewPageContent() {
+function EnvironmentAuditViewPageContent() {
   const params = useParams();
   const router = useRouter();
   const auditId = params.auditId as string;
-  const { activeTeamId } = useActiveTeam();
+  const { activeOrganizationId } = useActiveTeam();
 
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
-  const [templateId, setTemplateId] = useState<Id<"auditTemplates"> | null>(null);
+  const [templateId, setTemplateId] = useState<Id<"environmentAuditTemplates"> | null>(null);
   const [isCheckingId, setIsCheckingId] = useState(true);
 
   // Try to get templateId from responseId (in case old URL is used)
   const templateIdFromResponse = useQuery(
-    api.auditResponses.getTemplateIdFromResponse,
+    api.environmentAuditResponses.getTemplateIdFromResponse,
     auditId && isCheckingId ? { possibleResponseId: auditId } : "skip"
   );
 
@@ -52,36 +53,36 @@ function ResidentAuditViewPageContent() {
     // If we got a templateId from the response query, it means auditId was a responseId
     if (templateIdFromResponse) {
       // Redirect to the correct URL with templateId
-      router.replace(`/dashboard/careo-audit/resident/${templateIdFromResponse}/view`);
+      router.replace(`/dashboard/careo-audit/environment/${templateIdFromResponse}/view`);
       setIsCheckingId(false);
     } else if (templateIdFromResponse === null) {
       // Query returned null, which means auditId is not a valid responseId
       // So it must be a templateId already
-      setTemplateId(auditId as Id<"auditTemplates">);
+      setTemplateId(auditId as Id<"environmentAuditTemplates">);
       setIsCheckingId(false);
     }
   }, [templateIdFromResponse, auditId, router, isCheckingId]);
 
   // Fetch template to get the name
   const template = useQuery(
-    api.auditTemplates.getTemplateById,
+    api.environmentAuditTemplates.getTemplateById,
     templateId ? { templateId } : "skip"
   );
 
   // Load completed audits from database for this template
   const dbArchivedAudits = useQuery(
-    api.auditResponses.getCompletedResponsesByTemplate,
-    templateId && activeTeamId
+    api.environmentAuditResponses.getCompletedResponsesByTemplate,
+    templateId && activeOrganizationId
       ? {
           templateId,
-          teamId: activeTeamId,
+          organizationId: activeOrganizationId,
         }
       : "skip"
   );
 
   // Load all action plans for this template
   const allTemplateActionPlans = useQuery(
-    api.auditActionPlans.getActionPlansByTemplate,
+    api.environmentAuditActionPlans.getActionPlansByTemplate,
     templateId ? { templateId } : "skip"
   );
 
@@ -94,7 +95,8 @@ function ResidentAuditViewPageContent() {
           templateName: audit.templateName,
           completedAt: audit.completedAt || audit.createdAt,
           status: audit.status,
-          responses: audit.responses,
+          items: audit.items,
+          overallNotes: audit.overallNotes,
           auditedBy: audit.auditedBy,
         }))
         .sort((a, b) => b.completedAt - a.completedAt);
@@ -111,11 +113,6 @@ function ResidentAuditViewPageContent() {
     ).length;
   };
 
-  // Helper function to get total residents count
-  const getResidentsCount = (audit: ArchivedAudit): number => {
-    return audit.responses?.length || 0;
-  };
-
   if (template === undefined) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -128,9 +125,9 @@ function ResidentAuditViewPageContent() {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-muted-foreground">Template not found</p>
-        <Button onClick={() => router.push(`/dashboard/careo-audit?tab=resident`)}>
+        <Button onClick={() => router.push(`/dashboard/careo-audit?tab=environment`)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Resident Audits
+          Back to Environment Audits
         </Button>
       </div>
     );
@@ -144,7 +141,7 @@ function ResidentAuditViewPageContent() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push(`/dashboard/careo-audit?tab=resident`)}
+            onClick={() => router.push(`/dashboard/careo-audit?tab=environment`)}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -171,7 +168,7 @@ function ResidentAuditViewPageContent() {
             </p>
             <Button
               variant="outline"
-              onClick={() => router.push(`/dashboard/careo-audit?tab=resident`)}
+              onClick={() => router.push(`/dashboard/careo-audit?tab=environment`)}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Audits
@@ -196,7 +193,7 @@ function ResidentAuditViewPageContent() {
                     <TableHead className="font-semibold">Completed Date</TableHead>
                     <TableHead className="font-semibold">Time</TableHead>
                     <TableHead className="font-semibold">Audited By</TableHead>
-                    <TableHead className="font-semibold">Residents</TableHead>
+                    <TableHead className="font-semibold">Items</TableHead>
                     <TableHead className="font-semibold">Action Plans</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold w-[100px]">Actions</TableHead>
@@ -206,7 +203,6 @@ function ResidentAuditViewPageContent() {
                   {archivedAudits.map((audit, index) => {
                     const completedDate = new Date(audit.completedAt);
                     const actionPlanCount = getActionPlansCountForAudit(audit.id);
-                    const residentsCount = getResidentsCount(audit);
 
                     return (
                       <TableRow key={audit.id} className="hover:bg-muted/50">
@@ -224,7 +220,7 @@ function ResidentAuditViewPageContent() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-xs">
-                            {residentsCount}
+                            {audit.items?.length || 0}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -246,7 +242,7 @@ function ResidentAuditViewPageContent() {
                             size="sm"
                             onClick={() =>
                               router.push(
-                                `/dashboard/careo-audit/resident/${audit.id}/view-single`
+                                `/dashboard/careo-audit/environment/${audit.id}/view-single`
                               )
                             }
                           >
@@ -267,10 +263,10 @@ function ResidentAuditViewPageContent() {
   );
 }
 
-export default function ResidentAuditViewPage() {
+export default function EnvironmentAuditViewPage() {
   return (
     <ErrorBoundary fallback={<AuditErrorFallback context="view" />}>
-      <ResidentAuditViewPageContent />
+      <EnvironmentAuditViewPageContent />
     </ErrorBoundary>
   );
 }

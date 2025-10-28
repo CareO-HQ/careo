@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
@@ -106,8 +106,17 @@ export default function EnvironmentAuditPage() {
   // State for tracking current audit response ID
   const [responseId, setResponseId] = useState<Id<"environmentAuditCompletions"> | null>(null);
 
-  // Ref to prevent duplicate draft creation
-  const isCreatingDraft = React.useRef(false);
+  // Fetch existing drafts for this template and organization
+  const existingDrafts = useQuery(
+    api.environmentAuditResponses.getDraftResponsesByTemplate,
+    getTemplate && activeOrganizationId
+      ? { templateId: getTemplate._id, organizationId: activeOrganizationId }
+      : "skip"
+  );
+
+  // State-based draft creation prevention (more reliable than refs)
+  const [draftCreationState, setDraftCreationState] = useState<'idle' | 'creating' | 'created'>('idle');
+  const hasLoadedDraft = React.useRef(false);
 
   // Database hooks - Action plan management
   const createActionPlan = useMutation(api.environmentAuditActionPlans.createActionPlan);
@@ -130,11 +139,11 @@ export default function EnvironmentAuditPage() {
 
   // Load template items into audit detail items
   useEffect(() => {
-    if (getTemplate && getTemplate.items && auditDetailItems.length === 0) {
+    if (getTemplate && getTemplate.items && auditDetailItems.length === 0 && !hasLoadedDraft.current) {
       const items: AuditDetailItem[] = getTemplate.items.map((item: any) => ({
         id: item.id,
         itemName: item.name,
-        status: "n/a",
+        status: "",
         reviewer: null,
         lastReviewed: null,
         notes: null,
@@ -143,41 +152,69 @@ export default function EnvironmentAuditPage() {
     }
   }, [getTemplate]);
 
+  // Load existing draft if available (only once to prevent resets)
+  useEffect(() => {
+    console.log("🔍 Checking for existing environment drafts:", {
+      existingDrafts: existingDrafts?.length,
+      responseId,
+      hasLoadedDraft: hasLoadedDraft.current
+    });
+
+    // Only load once to prevent resetting user's work
+    if (existingDrafts && existingDrafts.length > 0 && !responseId && !hasLoadedDraft.current) {
+      const latestDraft = existingDrafts[0];
+      console.log("📄 Loading existing draft:", latestDraft._id);
+      setResponseId(latestDraft._id);
+
+      // Load item responses
+      if (latestDraft.items && latestDraft.items.length > 0) {
+        const items: AuditDetailItem[] = latestDraft.items.map((item: any) => ({
+          id: item.itemId,
+          itemName: item.itemName,
+          status: item.status || "",
+          reviewer: null,
+          lastReviewed: item.date || null,
+          notes: item.notes || null,
+        }));
+        setAuditDetailItems(items);
+      }
+
+      hasLoadedDraft.current = true; // Mark as loaded to prevent resets
+      console.log("✅ Draft loaded successfully");
+    }
+  }, [existingDrafts, responseId]);
+
   // Create draft response when page loads with template (if one doesn't exist)
   useEffect(() => {
     if (!getTemplate || responseId || !activeOrganizationId || !session) return;
 
-    // DUPLICATE PREVENTION: Check if already creating
-    if (isCreatingDraft.current) {
-      console.log("⏳ Draft creation already in progress, skipping...");
+    // If drafts exist, we'll use one of them (handled by another useEffect)
+    if (existingDrafts && existingDrafts.length > 0) return;
+
+    // DUPLICATE PREVENTION: Use state-based locking
+    if (draftCreationState !== 'idle') {
       return;
     }
 
-    console.log("📝 Creating new draft response...");
+    console.log("📝 No existing environment draft found, creating new draft response...");
+    setDraftCreationState('creating');
 
-    const createDraft = async () => {
-      isCreatingDraft.current = true;
-
-      try {
-        const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
-        const draftId = await getOrCreateDraft({
-          templateId: getTemplate._id,
-          organizationId: activeOrganizationId,
-          auditedBy: auditorName,
-        });
+    const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+    getOrCreateDraft({
+      templateId: getTemplate._id,
+      organizationId: activeOrganizationId,
+      auditedBy: auditorName,
+    })
+      .then(draftId => {
         console.log("✅ Draft response created:", draftId);
         setResponseId(draftId);
-      } catch (error) {
+        setDraftCreationState('created');
+      })
+      .catch(error => {
         console.error("Failed to create draft:", error);
-      } finally {
-        setTimeout(() => {
-          isCreatingDraft.current = false;
-        }, 2000);
-      }
-    };
-
-    createDraft();
-  }, [getTemplate, responseId, activeOrganizationId, session, getOrCreateDraft]);
+        setDraftCreationState('idle'); // Allow retry on error
+      });
+  }, [getTemplate, responseId, activeOrganizationId, session, existingDrafts, draftCreationState, getOrCreateDraft]);
 
   // Load action plans from database
   useEffect(() => {
@@ -201,21 +238,24 @@ export default function EnvironmentAuditPage() {
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [newItemForm, setNewItemForm] = useState({
     question: "",
-    status: "n/a",
+    status: "",
     date: "",
     comment: "",
   });
+  const [addItemDatePopoverOpen, setAddItemDatePopoverOpen] = useState(false);
 
   // Action plan state
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
+  const [assignedToEmail, setAssignedToEmail] = useState<string>("");
   const [dueDate, setDueDate] = useState<Date>();
   const [priority, setPriority] = useState<string>("");
   const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
+  const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
 
   const handleCommentChange = (itemId: string, newComment: string) => {
     setAuditDetailItems(items =>
@@ -241,13 +281,25 @@ export default function EnvironmentAuditPage() {
     );
   };
 
-  const handleAddItem = () => {
+  // Memoize filtered action plans to avoid repeated filtering on every render
+  const relevantActionPlans = useMemo(
+    () => actionPlans.filter(plan => plan.auditId === auditId),
+    [actionPlans, auditId]
+  );
+
+  const handleAddItem = async () => {
     if (!newItemForm.question) {
+      toast.error("Please enter a question");
+      return;
+    }
+
+    if (!getTemplate) {
+      toast.error("Template not found");
       return;
     }
 
     const newItem: AuditDetailItem = {
-      id: Date.now().toString(),
+      id: `item_${Date.now()}`,
       itemName: newItemForm.question,
       status: newItemForm.status,
       reviewer: null,
@@ -255,14 +307,39 @@ export default function EnvironmentAuditPage() {
       notes: newItemForm.comment || null,
     };
 
-    setAuditDetailItems([...auditDetailItems, newItem]);
-    setIsAddItemDialogOpen(false);
-    setNewItemForm({
-      question: "",
-      status: "n/a",
-      date: "",
-      comment: "",
-    });
+    const updatedAuditItems = [...auditDetailItems, newItem];
+    setAuditDetailItems(updatedAuditItems);
+
+    try {
+      // Update template with new item
+      const updatedTemplateItems = [
+        ...getTemplate.items,
+        {
+          id: newItem.id,
+          name: newItem.itemName,
+          type: "compliance" as const,
+        }
+      ];
+
+      await updateTemplate({
+        templateId: getTemplate._id,
+        items: updatedTemplateItems,
+      });
+
+      toast.success("Question added successfully");
+      setIsAddItemDialogOpen(false);
+      setNewItemForm({
+        question: "",
+        status: "",
+        date: "",
+        comment: "",
+      });
+    } catch (error) {
+      console.error("Error adding item:", error);
+      toast.error("Failed to add question");
+      // Revert local state on error
+      setAuditDetailItems(auditDetailItems);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -286,6 +363,10 @@ export default function EnvironmentAuditPage() {
         return "Non-Compliant";
       case "n/a":
         return "N/A";
+      case "":
+      case null:
+      case undefined:
+        return "-";
       default:
         return status;
     }
@@ -293,49 +374,47 @@ export default function EnvironmentAuditPage() {
 
   // Track if data has actually changed to avoid unnecessary saves
   const lastSavedData = React.useRef<string>("");
-  const isSaving = React.useRef(false);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout>();
+  const abortControllerRef = React.useRef<AbortController>();
 
   // Auto-save audit progress to database (debounced and optimized)
   useEffect(() => {
     if (!responseId || !getTemplate || !activeOrganizationId) {
-      console.log("⏸️ Auto-save skipped:", { responseId: !!responseId, template: !!getTemplate, orgId: !!activeOrganizationId });
       return;
     }
 
     // Only save if we have actual data
     if (auditDetailItems.length === 0) {
-      console.log("⏸️ Auto-save skipped: No data to save");
       return;
     }
 
-    const timer = setTimeout(async () => {
-      // Prevent concurrent saves
-      if (isSaving.current) {
-        console.log("⏸️ Auto-save skipped: Already saving");
+    // Clear previous timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      // Prepare items array
+      const items = auditDetailItems.map((item) => ({
+        itemId: item.id,
+        itemName: item.itemName,
+        status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
+        notes: item.notes || undefined,
+        date: item.lastReviewed || undefined,
+      }));
+
+      // Check if data actually changed
+      const currentDataHash = JSON.stringify(items);
+      if (currentDataHash === lastSavedData.current) {
         return;
       }
 
+      // Cancel previous request
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
       try {
-        // Prepare items array
-        const items = auditDetailItems.map((item) => ({
-          itemId: item.id,
-          itemName: item.itemName,
-          status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
-          notes: item.notes || undefined,
-          date: item.lastReviewed || undefined,
-        }));
-
-        // Check if data actually changed
-        const currentDataHash = JSON.stringify(items);
-        if (currentDataHash === lastSavedData.current) {
-          console.log("⏸️ Auto-save skipped: No changes detected");
-          return;
-        }
-
-        isSaving.current = true;
-        console.log("💾 Auto-saving environment audit data...", {
-          items: items.length,
-        });
+        console.log("💾 Auto-saving environment audit data...");
 
         // Auto-save to database
         await updateResponse({
@@ -346,15 +425,19 @@ export default function EnvironmentAuditPage() {
 
         lastSavedData.current = currentDataHash;
         console.log("✅ Auto-save successful");
-      } catch (error) {
-        console.error("❌ Auto-save failed:", error);
-        // Silent fail for auto-save
-      } finally {
-        isSaving.current = false;
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.error("❌ Auto-save failed:", error);
+        }
       }
     }, 5000); // Save every 5 seconds after changes stop
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      abortControllerRef.current?.abort();
+    };
   }, [auditDetailItems, responseId, getTemplate, activeOrganizationId, updateResponse]);
 
   // Handle complete audit
@@ -380,10 +463,10 @@ export default function EnvironmentAuditPage() {
         items,
       });
 
-      // Save action plans to database
-      for (const plan of actionPlans.filter((p) => p.auditId === auditId)) {
-        if (getTemplate && activeOrganizationId) {
-          await createActionPlan({
+      // Save action plans to database atomically
+      if (relevantActionPlans.length > 0) {
+        const planPromises = relevantActionPlans.map(plan =>
+          createActionPlan({
             auditResponseId: responseId,
             templateId: getTemplate._id,
             description: plan.text,
@@ -394,24 +477,32 @@ export default function EnvironmentAuditPage() {
             organizationId: activeOrganizationId,
             createdBy: session?.user?.email || session?.user?.name || "Unknown",
             createdByName: session?.user?.name || session?.user?.email || "Unknown",
-          });
-        }
+          })
+        );
+        await Promise.all(planPromises);
       }
 
       toast.success(`${auditName} completed successfully! Starting new audit...`, {
         duration: 3000,
       });
 
-      // Reset form to start a new audit
-      setAuditDetailItems([]);
+      // Clear all field values but keep the questions
+      const clearedItems = getTemplate.items.map((item: any) => ({
+        id: item.id,
+        itemName: item.name,
+        status: "",
+        reviewer: null,
+        lastReviewed: null,
+        notes: null,
+      }));
+
+      setAuditDetailItems(clearedItems);
       setActionPlans([]);
       setResponseId(null);
 
-      // Reset flags to allow new draft
-      isCreatingDraft.current = false;
-
-      // Reload the page to start fresh
-      router.push(`/dashboard/careo-audit/environment/${auditId}`);
+      // Reset state to allow new draft
+      setDraftCreationState('idle');
+      hasLoadedDraft.current = false;
     } catch (error) {
       console.error("Failed to complete audit:", error);
       toast.error("Failed to complete audit. Please try again.");
@@ -434,19 +525,6 @@ export default function EnvironmentAuditPage() {
             <h1 className="text-xl font-semibold">{auditName}</h1>
             <p className="text-sm text-muted-foreground">Environment & Safety</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {dbActionPlans && dbActionPlans.length > 0 && (
-            <Badge variant="secondary" className="mr-2">
-              {dbActionPlans.length} Action Plan{dbActionPlans.length > 1 ? "s" : ""}
-            </Badge>
-          )}
-          <Button onClick={handleCompleteAudit} className="mr-2">
-            Complete Audit
-          </Button>
-          <Button variant="ghost" size="icon">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
@@ -518,7 +596,10 @@ export default function EnvironmentAuditPage() {
                   </Select>
                 </TableCell>
                 <TableCell className="border-r last:border-r-0">
-                  <Popover>
+                  <Popover
+                    open={openDatePopover === item.id}
+                    onOpenChange={(open) => setOpenDatePopover(open ? item.id : null)}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"
@@ -534,6 +615,7 @@ export default function EnvironmentAuditPage() {
                         onSelect={(date) => {
                           if (date) {
                             handleDateChange(item.id, format(date, "yyyy-MM-dd"));
+                            setOpenDatePopover(null); // Close the popover after selection
                           }
                         }}
                       />
@@ -559,16 +641,19 @@ export default function EnvironmentAuditPage() {
 
         {/* Action Plans Section */}
         <div className="py-4 space-y-4">
-          <div className="px-2 pb-4 border-b border-dashed">
+          <div className="px-2 pb-4 border-b border-dashed flex justify-between items-center">
             <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
               Action Plan
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
             </Button>
           </div>
           <div className="px-2">
             {/* Action Plan Cards */}
-            {actionPlans.filter(plan => plan.auditId === auditId).length > 0 && (
+            {relevantActionPlans.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {actionPlans.filter(plan => plan.auditId === auditId).map((plan) => (
+                {relevantActionPlans.map((plan) => (
                   <div
                     key={plan.id}
                     className="border rounded-lg p-4 space-y-3 bg-card"
@@ -608,7 +693,7 @@ export default function EnvironmentAuditPage() {
       </div>
 
       {/* Add Item Dialog */}
-      <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
+      <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen} modal={false}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Add New Question</DialogTitle>
@@ -648,14 +733,29 @@ export default function EnvironmentAuditPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={newItemForm.date}
-                onChange={(e) =>
-                  setNewItemForm({ ...newItemForm, date: e.target.value })
-                }
-              />
+              <Popover open={addItemDatePopoverOpen} onOpenChange={setAddItemDatePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    {newItemForm.date ? format(new Date(newItemForm.date), "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                  <Calendar
+                    mode="single"
+                    selected={newItemForm.date ? new Date(newItemForm.date) : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        setNewItemForm({ ...newItemForm, date: format(date, "yyyy-MM-dd") });
+                        setAddItemDatePopoverOpen(false);
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="comment">Comment</Label>

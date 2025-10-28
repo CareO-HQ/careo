@@ -147,62 +147,107 @@ function CareOAuditPageContent() {
     activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   );
 
+  // Fetch all latest completions for governance audits
+  const governanceCompletions = useQuery(
+    api.governanceAuditResponses.getAllLatestCompletionsByOrganization,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Fetch all latest completions for clinical audits
+  const clinicalCompletions = useQuery(
+    api.clinicalAuditResponses.getAllLatestCompletionsByOrganization,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Fetch all latest completions for environment audits
+  const environmentCompletions = useQuery(
+    api.environmentAuditResponses.getAllLatestCompletionsByOrganization,
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
   // Separate useEffect for governance templates to avoid infinite loop
   useEffect(() => {
     if (activeTab === "governance" && governanceTemplates) {
       const templatesAsAudits: Audit[] = governanceTemplates.map((template) => {
+        // Find the latest completion for this template
+        const latestCompletion = governanceCompletions?.find(
+          (completion) => completion.templateId === template._id
+        );
+
         return {
           id: template._id,
           name: template.name,
-          status: "new",
-          auditor: template.createdBy,
-          lastAudited: "-",
-          dueDate: "-",
+          status: latestCompletion ? "completed" : "new",
+          auditor: latestCompletion?.auditedBy || template.createdBy,
+          lastAudited: latestCompletion?.completedAt
+            ? new Date(latestCompletion.completedAt).toLocaleDateString()
+            : "-",
+          dueDate: latestCompletion?.nextAuditDue
+            ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
+            : "-",
           category: "governance",
           frequency: template.frequency,
         };
       });
       setAudits(templatesAsAudits);
     }
-  }, [activeTab, governanceTemplates]);
+  }, [activeTab, governanceTemplates, governanceCompletions]);
 
   // Separate useEffect for clinical templates to avoid infinite loop
   useEffect(() => {
     if (activeTab === "clinical" && clinicalTemplates) {
       const templatesAsAudits: Audit[] = clinicalTemplates.map((template) => {
+        // Find the latest completion for this template
+        const latestCompletion = clinicalCompletions?.find(
+          (completion) => completion.templateId === template._id
+        );
+
         return {
           id: template._id,
           name: template.name,
-          status: "new",
-          auditor: template.createdBy,
-          lastAudited: "-",
-          dueDate: "-",
+          status: latestCompletion ? "completed" : "new",
+          auditor: latestCompletion?.auditedBy || template.createdBy,
+          lastAudited: latestCompletion?.completedAt
+            ? new Date(latestCompletion.completedAt).toLocaleDateString()
+            : "-",
+          dueDate: latestCompletion?.nextAuditDue
+            ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
+            : "-",
           category: "clinical",
           frequency: template.frequency,
         };
       });
       setAudits(templatesAsAudits);
     }
-  }, [activeTab, clinicalTemplates]);
+  }, [activeTab, clinicalTemplates, clinicalCompletions]);
 
   // Separate useEffect for environment templates to avoid infinite loop
   useEffect(() => {
     if (activeTab === "environment" && environmentTemplates) {
       const templatesAsAudits: Audit[] = environmentTemplates.map((template) => {
+        // Find the latest completion for this template
+        const latestCompletion = environmentCompletions?.find(
+          (completion) => completion.templateId === template._id
+        );
+
         return {
           id: template._id,
           name: template.name,
-          status: "new",
-          auditor: template.createdBy,
-          lastAudited: "-",
-          dueDate: "-",
+          status: latestCompletion ? "completed" : "new",
+          auditor: latestCompletion?.auditedBy || template.createdBy,
+          lastAudited: latestCompletion?.completedAt
+            ? new Date(latestCompletion.completedAt).toLocaleDateString()
+            : "-",
+          dueDate: latestCompletion?.nextAuditDue
+            ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
+            : "-",
           category: "environment",
           frequency: template.frequency,
         };
       });
       setAudits(templatesAsAudits);
     }
-  }, [activeTab, environmentTemplates]);
+  }, [activeTab, environmentTemplates, environmentCompletions]);
 
   // Load audits from database templates (priority) or localStorage (fallback)
   useEffect(() => {

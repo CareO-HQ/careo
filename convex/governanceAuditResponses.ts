@@ -62,7 +62,7 @@ export const getResponseById = query({
   },
 });
 
-// Get all completed responses for a template
+// Get all completed responses for a template (last 10)
 export const getCompletedResponsesByTemplate = query({
   args: {
     templateId: v.id("governanceAuditTemplates"),
@@ -75,6 +75,31 @@ export const getCompletedResponsesByTemplate = query({
         q.eq("templateId", args.templateId).eq("organizationId", args.organizationId)
       )
       .filter((q) => q.eq(q.field("status"), "completed"))
+      .order("desc")
+      .take(10);
+
+    return responses;
+  },
+});
+
+// Get draft/in-progress responses for a template
+export const getDraftResponsesByTemplate = query({
+  args: {
+    templateId: v.id("governanceAuditTemplates"),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const responses = await ctx.db
+      .query("governanceAuditCompletions")
+      .withIndex("by_template_and_organization", (q) =>
+        q.eq("templateId", args.templateId).eq("organizationId", args.organizationId)
+      )
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "draft"),
+          q.eq(q.field("status"), "in-progress")
+        )
+      )
       .order("desc")
       .collect();
 
@@ -99,6 +124,35 @@ export const getLatestCompletionByTemplate = query({
       .first();
 
     return latestCompletion;
+  },
+});
+
+// Get all latest completions for all templates in an organization
+export const getAllLatestCompletionsByOrganization = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all completions for this organization
+    const allCompletions = await ctx.db
+      .query("governanceAuditCompletions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "completed"))
+      .order("desc")
+      .collect();
+
+    // Group by templateId and get the latest one for each
+    const latestByTemplate = new Map();
+    for (const completion of allCompletions) {
+      const templateId = completion.templateId;
+      if (!latestByTemplate.has(templateId)) {
+        latestByTemplate.set(templateId, completion);
+      }
+    }
+
+    return Array.from(latestByTemplate.values());
   },
 });
 

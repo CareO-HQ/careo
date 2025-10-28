@@ -37,7 +37,7 @@ function ArchivedAuditsContent() {
   const auditCategory = searchParams.get("category") || "resident";
   const templateId = searchParams.get("templateId") || "";
 
-  const { activeTeamId } = useActiveTeam();
+  const { activeTeamId, activeOrganizationId } = useActiveTeam();
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
 
   // Load completed audits from database for resident category
@@ -47,6 +47,39 @@ function ArchivedAuditsContent() {
       ? {
           templateId: templateId as Id<"residentAuditTemplates">,
           teamId: activeTeamId
+        }
+      : "skip"
+  );
+
+  // Load completed governance audits from database
+  const dbGovernanceAudits = useQuery(
+    api.governanceAuditResponses.getCompletedResponsesByTemplate,
+    templateId && activeOrganizationId && auditCategory === "governance"
+      ? {
+          templateId: templateId as Id<"governanceAuditTemplates">,
+          organizationId: activeOrganizationId
+        }
+      : "skip"
+  );
+
+  // Load completed clinical audits from database
+  const dbClinicalAudits = useQuery(
+    api.clinicalAuditResponses.getCompletedResponsesByTemplate,
+    templateId && activeOrganizationId && auditCategory === "clinical"
+      ? {
+          templateId: templateId as Id<"clinicalAuditTemplates">,
+          organizationId: activeOrganizationId
+        }
+      : "skip"
+  );
+
+  // Load completed environment audits from database
+  const dbEnvironmentAudits = useQuery(
+    api.environmentAuditResponses.getCompletedResponsesByTemplate,
+    templateId && activeOrganizationId && auditCategory === "environment"
+      ? {
+          templateId: templateId as Id<"environmentAuditTemplates">,
+          organizationId: activeOrganizationId
         }
       : "skip"
   );
@@ -62,11 +95,41 @@ function ArchivedAuditsContent() {
         responses: audit.responses,
       }));
       setArchivedAudits(formatted as any);
-    } else if (auditCategory !== "resident") {
-      // Fallback to localStorage for other categories
-      loadArchivedAuditsFromLocalStorage();
+    } else if (auditCategory === "governance" && dbGovernanceAudits) {
+      const formatted = dbGovernanceAudits.map((audit) => ({
+        id: audit._id,
+        name: audit.templateName,
+        category: "governance",
+        completedAt: audit.completedAt || audit.createdAt,
+        status: audit.status,
+        items: audit.items,
+        overallNotes: audit.overallNotes,
+      }));
+      setArchivedAudits(formatted as any);
+    } else if (auditCategory === "clinical" && dbClinicalAudits) {
+      const formatted = dbClinicalAudits.map((audit) => ({
+        id: audit._id,
+        name: audit.templateName,
+        category: "clinical",
+        completedAt: audit.completedAt || audit.createdAt,
+        status: audit.status,
+        items: audit.items,
+        overallNotes: audit.overallNotes,
+      }));
+      setArchivedAudits(formatted as any);
+    } else if (auditCategory === "environment" && dbEnvironmentAudits) {
+      const formatted = dbEnvironmentAudits.map((audit) => ({
+        id: audit._id,
+        name: audit.templateName,
+        category: "environment",
+        completedAt: audit.completedAt || audit.createdAt,
+        status: audit.status,
+        items: audit.items,
+        overallNotes: audit.overallNotes,
+      }));
+      setArchivedAudits(formatted as any);
     }
-  }, [auditName, auditCategory, dbArchivedAudits]);
+  }, [auditName, auditCategory, dbArchivedAudits, dbGovernanceAudits, dbClinicalAudits, dbEnvironmentAudits]);
 
   const loadArchivedAuditsFromLocalStorage = () => {
     const completedAudits = localStorage.getItem("completed-audits");
@@ -92,7 +155,7 @@ function ArchivedAuditsContent() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push("/dashboard/careo-audit?tab=resident")}
+            onClick={() => router.push(`/dashboard/careo-audit?tab=${auditCategory}`)}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -117,7 +180,7 @@ function ArchivedAuditsContent() {
             </p>
             <Button
               variant="outline"
-              onClick={() => router.push("/dashboard/careo-audit?tab=resident")}
+              onClick={() => router.push(`/dashboard/careo-audit?tab=${auditCategory}`)}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Audits
@@ -142,7 +205,9 @@ function ArchivedAuditsContent() {
                     <TableHead className="font-semibold">Completed Date</TableHead>
                     <TableHead className="font-semibold">Time</TableHead>
                     <TableHead className="font-semibold">Questions</TableHead>
-                    <TableHead className="font-semibold">Residents</TableHead>
+                    {auditCategory === "resident" && (
+                      <TableHead className="font-semibold">Residents</TableHead>
+                    )}
                     <TableHead className="font-semibold">Action Plans</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold w-[100px]">Actions</TableHead>
@@ -171,11 +236,13 @@ function ArchivedAuditsContent() {
                             {audit.questions?.length || 0}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">
-                            {residentCount}
-                          </Badge>
-                        </TableCell>
+                        {auditCategory === "resident" && (
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs">
+                              {residentCount}
+                            </Badge>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Badge variant="secondary" className="text-xs">
                             {audit.actionPlans?.length || 0}
@@ -195,7 +262,7 @@ function ArchivedAuditsContent() {
                             size="sm"
                             onClick={() =>
                               router.push(
-                                `/dashboard/careo-audit/${audit.category}/${audit.id}/view`
+                                `/dashboard/careo-audit/${auditCategory}/${audit.id}/view-single`
                               )
                             }
                           >
