@@ -72,18 +72,38 @@ export default function NotificationPage() {
     userEmail ? { userId: userEmail, limit: 100 } : "skip"
   );
 
-  const actionPlanDetails = useQuery(
+  // Determine which table the action plan belongs to based on the ID
+  const getActionPlanTable = (actionPlanId: string): string => {
+    // Convex IDs are prefixed with the table name
+    // We need to parse metadata or use a different approach
+    // For now, we'll rely on notification metadata to tell us
+    return selectedNotification?.metadata?.auditCategory || "resident";
+  };
+
+  // Get action plan details - dynamically choose which query based on category
+  const residentActionPlanDetails = useQuery(
     api.auditActionPlans.getActionPlanById,
-    selectedNotification?.metadata?.actionPlanId
+    selectedNotification?.metadata?.actionPlanId && getActionPlanTable(selectedNotification.metadata.actionPlanId) === "resident"
       ? { actionPlanId: selectedNotification.metadata.actionPlanId as Id<"residentAuditActionPlans"> }
       : "skip"
   );
+
+  // Note: We can't query clinical/governance/environment action plans here because
+  // those mutations don't have getActionPlanById. We'll need to handle this differently.
+  // For now, we'll just use the resident query and handle the error gracefully.
+  const actionPlanDetails = residentActionPlanDetails;
 
   // Mutations
   const markAsRead = useMutation(api.notifications.markNotificationAsRead);
   const markAllAsRead = useMutation(api.notifications.markAllNotificationsAsRead);
   const deleteAllNotifications = useMutation(api.notifications.deleteAllNotifications);
-  const updateStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
+
+  // Mutations for different audit types
+  const updateResidentStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
+  const updateClinicalStatus = useMutation(api.clinicalAuditActionPlans.updateActionPlanStatus);
+  const updateGovernanceStatus = useMutation(api.governanceAuditActionPlans.updateActionPlanStatus);
+  const updateEnvironmentStatus = useMutation(api.environmentAuditActionPlans.updateActionPlanStatus);
+  const updateCareFileStatus = useMutation(api.careFileAuditActionPlans.updateActionPlanStatus);
 
   // Filter notifications
   const filteredNotifications = notifications?.filter((n) => {
@@ -162,22 +182,89 @@ export default function NotificationPage() {
   const handleStatusUpdate = async () => {
     if (!selectedNotification?.metadata?.actionPlanId) return;
 
-    try {
-      await updateStatus({
-        actionPlanId: selectedNotification.metadata.actionPlanId,
-        status: newStatus,
-        comment: statusComment || undefined,
-        updatedBy: userEmail,
-        updatedByName: session?.user?.name || userEmail,
-      });
+    const actionPlanId = selectedNotification.metadata.actionPlanId;
+    const updateData = {
+      actionPlanId,
+      status: newStatus,
+      comment: statusComment || undefined,
+      updatedBy: userEmail,
+      updatedByName: session?.user?.name || userEmail,
+    };
 
+    try {
+      // Determine which mutation to use based on audit category from metadata
+      let auditCategory = selectedNotification.metadata?.auditCategory;
+
+      // If no category in metadata (old notifications), try each mutation until one works
+      if (!auditCategory) {
+        console.log("No audit category in notification metadata, trying all mutations...");
+
+        // Try each mutation in order until one succeeds
+        const mutations = [
+          { name: "resident", fn: updateResidentStatus },
+          { name: "carefile", fn: updateCareFileStatus },
+          { name: "clinical", fn: updateClinicalStatus },
+          { name: "governance", fn: updateGovernanceStatus },
+          { name: "environment", fn: updateEnvironmentStatus },
+        ];
+
+        for (const mutation of mutations) {
+          try {
+            await mutation.fn(updateData);
+            console.log(`Successfully updated using ${mutation.name} mutation`);
+            toast.success("Status updated successfully");
+            setIsDetailModalOpen(false);
+            setSelectedNotification(null);
+            setStatusComment("");
+            return;
+          } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            // If it's a table mismatch error, try the next mutation
+            if (errorMessage.includes("does not match the table name")) {
+              console.log(`${mutation.name} mutation failed with table mismatch, trying next...`);
+              continue;
+            }
+            // If it's a different error, throw it
+            throw err;
+          }
+        }
+
+        // If we get here, none of the mutations worked
+        throw new Error("Could not find the correct mutation for this action plan");
+      }
+
+      // If we have a category, use it directly
+      let updateMutation;
+      switch (auditCategory) {
+        case "clinical":
+          updateMutation = updateClinicalStatus;
+          break;
+        case "governance":
+          updateMutation = updateGovernanceStatus;
+          break;
+        case "environment":
+          updateMutation = updateEnvironmentStatus;
+          break;
+        case "carefile":
+          updateMutation = updateCareFileStatus;
+          break;
+        default:
+          updateMutation = updateResidentStatus;
+      }
+
+      await updateMutation(updateData);
       toast.success("Status updated successfully");
       setIsDetailModalOpen(false);
       setSelectedNotification(null);
       setStatusComment("");
     } catch (error) {
       console.error("Failed to update status:", error);
-      toast.error("Failed to update status. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to update status";
+      if (errorMessage.includes("does not match the table name") || errorMessage.includes("Could not find the correct mutation")) {
+        toast.error("This action plan cannot be updated from notifications. Please go to the Action Plans page to update it.");
+      } else {
+        toast.error("Failed to update status. Please try again.");
+      }
     }
   };
 

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as adminUtils from "../adminUtils.js";
 import type * as appointmentNotes from "../appointmentNotes.js";
 import type * as appointmentNotifications from "../appointmentNotifications.js";
 import type * as appointments from "../appointments.js";
@@ -101,6 +102,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  adminUtils: typeof adminUtils;
   appointmentNotes: typeof appointmentNotes;
   appointmentNotifications: typeof appointmentNotifications;
   appointments: typeof appointments;

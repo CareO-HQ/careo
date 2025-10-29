@@ -36,12 +36,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
 export default function MyActionPlansPage() {
   const { data: session } = authClient.useSession();
   const userEmail = session?.user?.email || "";
+  const { activeOrganizationId } = useActiveTeam();
 
   // State
   const [selectedActionPlan, setSelectedActionPlan] = useState<any>(null);
@@ -75,12 +77,33 @@ export default function MyActionPlansPage() {
     userEmail ? { createdBy: userEmail, status: "all" } : "skip"
   );
 
+  // Get GOVERNANCE audit action plans assigned to user
+  const assignedGovernanceActionPlans = useQuery(
+    api.governanceAuditActionPlans.getActionPlansByAssignee,
+    userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Get CLINICAL audit action plans assigned to user
+  const assignedClinicalActionPlans = useQuery(
+    api.clinicalAuditActionPlans.getActionPlansByAssignee,
+    userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
+  );
+
+  // Get ENVIRONMENT audit action plans assigned to user
+  const assignedEnvironmentActionPlans = useQuery(
+    api.environmentAuditActionPlans.getActionPlansByAssignee,
+    userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
+  );
+
   // Merge all lists and remove duplicates
   const allActionPlans = React.useMemo(() => {
     const residentAssigned = assignedActionPlans || [];
     const residentCreated = createdActionPlans || [];
     const careFileAssigned = assignedCareFileActionPlans || [];
     const careFileCreated = createdCareFileActionPlans || [];
+    const governanceAssigned = assignedGovernanceActionPlans || [];
+    const clinicalAssigned = assignedClinicalActionPlans || [];
+    const environmentAssigned = assignedEnvironmentActionPlans || [];
 
     // Combine all arrays
     const combined = [
@@ -88,6 +111,9 @@ export default function MyActionPlansPage() {
       ...residentCreated,
       ...careFileAssigned,
       ...careFileCreated,
+      ...governanceAssigned,
+      ...clinicalAssigned,
+      ...environmentAssigned,
     ];
 
     // Remove duplicates by _id
@@ -96,7 +122,7 @@ export default function MyActionPlansPage() {
     );
 
     return uniquePlans;
-  }, [assignedActionPlans, createdActionPlans, assignedCareFileActionPlans, createdCareFileActionPlans]);
+  }, [assignedActionPlans, createdActionPlans, assignedCareFileActionPlans, createdCareFileActionPlans, assignedGovernanceActionPlans, assignedClinicalActionPlans, assignedEnvironmentActionPlans]);
 
   // Check if user has created any action plans (they're a manager/creator)
   const hasCreatedPlans = (createdActionPlans?.length || 0) > 0 || (createdCareFileActionPlans?.length || 0) > 0;
@@ -112,6 +138,21 @@ export default function MyActionPlansPage() {
     userEmail ? { assignedTo: userEmail } : "skip"
   );
 
+  const newGovernanceActionPlansCount = useQuery(
+    api.governanceAuditActionPlans.getNewActionPlansCount,
+    userEmail ? { assignedTo: userEmail } : "skip"
+  );
+
+  const newClinicalActionPlansCount = useQuery(
+    api.clinicalAuditActionPlans.getNewActionPlansCount,
+    userEmail ? { assignedTo: userEmail } : "skip"
+  );
+
+  const newEnvironmentActionPlansCount = useQuery(
+    api.environmentAuditActionPlans.getNewActionPlansCount,
+    userEmail ? { assignedTo: userEmail } : "skip"
+  );
+
   // Mutations for RESIDENT audits
   const updateResidentAuditStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
   const deleteResidentAuditActionPlan = useMutation(api.auditActionPlans.deleteActionPlan);
@@ -121,6 +162,21 @@ export default function MyActionPlansPage() {
   const updateCareFileAuditStatus = useMutation(api.careFileAuditActionPlans.updateActionPlanStatus);
   const deleteCareFileAuditActionPlan = useMutation(api.careFileAuditActionPlans.deleteActionPlan);
   const markCareFileAuditsAsViewed = useMutation(api.careFileAuditActionPlans.markActionPlansAsViewed);
+
+  // Mutations for GOVERNANCE audits
+  const updateGovernanceAuditStatus = useMutation(api.governanceAuditActionPlans.updateActionPlanStatus);
+  const deleteGovernanceAuditActionPlan = useMutation(api.governanceAuditActionPlans.deleteActionPlan);
+  const markGovernanceAuditsAsViewed = useMutation(api.governanceAuditActionPlans.markActionPlansAsViewed);
+
+  // Mutations for CLINICAL audits
+  const updateClinicalAuditStatus = useMutation(api.clinicalAuditActionPlans.updateActionPlanStatus);
+  const deleteClinicalAuditActionPlan = useMutation(api.clinicalAuditActionPlans.deleteActionPlan);
+  const markClinicalAuditsAsViewed = useMutation(api.clinicalAuditActionPlans.markActionPlansAsViewed);
+
+  // Mutations for ENVIRONMENT audits
+  const updateEnvironmentAuditStatus = useMutation(api.environmentAuditActionPlans.updateActionPlanStatus);
+  const deleteEnvironmentAuditActionPlan = useMutation(api.environmentAuditActionPlans.deleteActionPlan);
+  const markEnvironmentAuditsAsViewed = useMutation(api.environmentAuditActionPlans.markActionPlansAsViewed);
 
   // Mark action plans as viewed when page is loaded (only for assigned plans)
   useEffect(() => {
@@ -134,6 +190,24 @@ export default function MyActionPlansPage() {
       markCareFileAuditsAsViewed({ assignedTo: userEmail });
     }
   }, [userEmail, newCareFileActionPlansCount, markCareFileAuditsAsViewed]);
+
+  useEffect(() => {
+    if (userEmail && newGovernanceActionPlansCount && newGovernanceActionPlansCount > 0) {
+      markGovernanceAuditsAsViewed({ assignedTo: userEmail });
+    }
+  }, [userEmail, newGovernanceActionPlansCount, markGovernanceAuditsAsViewed]);
+
+  useEffect(() => {
+    if (userEmail && newClinicalActionPlansCount && newClinicalActionPlansCount > 0) {
+      markClinicalAuditsAsViewed({ assignedTo: userEmail });
+    }
+  }, [userEmail, newClinicalActionPlansCount, markClinicalAuditsAsViewed]);
+
+  useEffect(() => {
+    if (userEmail && newEnvironmentActionPlansCount && newEnvironmentActionPlansCount > 0) {
+      markEnvironmentAuditsAsViewed({ assignedTo: userEmail });
+    }
+  }, [userEmail, newEnvironmentActionPlansCount, markEnvironmentAuditsAsViewed]);
 
   // Group action plans by status
   const pendingPlans = allActionPlans?.filter((p) => p.status === "pending") || [];
@@ -163,8 +237,23 @@ export default function MyActionPlansPage() {
 
     try {
       // Determine which mutation to use based on audit category
-      const isCareFileAudit = selectedActionPlan.auditCategory === "carefile";
-      const updateMutation = isCareFileAudit ? updateCareFileAuditStatus : updateResidentAuditStatus;
+      let updateMutation;
+      switch (selectedActionPlan.auditCategory) {
+        case "carefile":
+          updateMutation = updateCareFileAuditStatus;
+          break;
+        case "clinical":
+          updateMutation = updateClinicalAuditStatus;
+          break;
+        case "governance":
+          updateMutation = updateGovernanceAuditStatus;
+          break;
+        case "environment":
+          updateMutation = updateEnvironmentAuditStatus;
+          break;
+        default:
+          updateMutation = updateResidentAuditStatus;
+      }
 
       await updateMutation({
         actionPlanId: selectedActionPlan._id,
@@ -196,8 +285,23 @@ export default function MyActionPlansPage() {
 
     try {
       // Determine which mutation to use based on audit category
-      const isCareFileAudit = planToDelete.auditCategory === "carefile";
-      const deleteMutation = isCareFileAudit ? deleteCareFileAuditActionPlan : deleteResidentAuditActionPlan;
+      let deleteMutation;
+      switch (planToDelete.auditCategory) {
+        case "carefile":
+          deleteMutation = deleteCareFileAuditActionPlan;
+          break;
+        case "clinical":
+          deleteMutation = deleteClinicalAuditActionPlan;
+          break;
+        case "governance":
+          deleteMutation = deleteGovernanceAuditActionPlan;
+          break;
+        case "environment":
+          deleteMutation = deleteEnvironmentAuditActionPlan;
+          break;
+        default:
+          deleteMutation = deleteResidentAuditActionPlan;
+      }
 
       await deleteMutation({ actionPlanId: planToDelete._id });
       toast.success("Action plan deleted successfully");

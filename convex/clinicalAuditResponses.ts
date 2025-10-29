@@ -158,14 +158,13 @@ export const updateResponse = mutation({
       v.object({
         itemId: v.string(),
         itemName: v.string(),
-        status: v.optional(
-          v.union(
-            v.literal("compliant"),
-            v.literal("non-compliant"),
-            v.literal("not-applicable"),
-            v.literal("checked"),
-            v.literal("unchecked")
-          )
+        status: v.union(
+          v.literal("compliant"),
+          v.literal("non-compliant"),
+          v.literal("not-applicable"),
+          v.literal("checked"),
+          v.literal("unchecked"),
+          v.literal("") // Allow empty string as initial state
         ),
         notes: v.optional(v.string()),
         date: v.optional(v.string()),
@@ -198,14 +197,13 @@ export const completeAudit = mutation({
       v.object({
         itemId: v.string(),
         itemName: v.string(),
-        status: v.optional(
-          v.union(
-            v.literal("compliant"),
-            v.literal("non-compliant"),
-            v.literal("not-applicable"),
-            v.literal("checked"),
-            v.literal("unchecked")
-          )
+        status: v.union(
+          v.literal("compliant"),
+          v.literal("non-compliant"),
+          v.literal("not-applicable"),
+          v.literal("checked"),
+          v.literal("unchecked"),
+          v.literal("") // Allow empty string as initial state
         ),
         notes: v.optional(v.string()),
         date: v.optional(v.string()),

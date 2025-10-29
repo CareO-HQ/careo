@@ -145,6 +145,7 @@ export const updateActionPlanStatus = mutation({
         newStatus: args.status,
         comment: args.comment,
         priority: actionPlan.priority,
+        auditCategory: "carefile", // Add category for routing
       },
       isRead: false,
       organizationId: actionPlan.organizationId,
@@ -196,6 +197,7 @@ export const completeActionPlan = mutation({
         templateId: actionPlan.templateId,
         residentId: actionPlan.residentId,
         priority: actionPlan.priority,
+        auditCategory: "carefile", // Add category for routing
       },
       isRead: false,
       organizationId: actionPlan.organizationId,
@@ -584,6 +586,7 @@ export const updateOverdueActionPlans = internalMutation({
             residentId: plan.residentId,
             priority: plan.priority,
             dueDate: plan.dueDate,
+            auditCategory: "carefile", // Add category for routing
           },
           isRead: false,
           organizationId: plan.organizationId,
@@ -608,6 +611,7 @@ export const updateOverdueActionPlans = internalMutation({
               residentId: plan.residentId,
               priority: plan.priority,
               dueDate: plan.dueDate,
+              auditCategory: "carefile", // Add category for routing
             },
             isRead: false,
             organizationId: plan.organizationId,

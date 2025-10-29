@@ -19,6 +19,23 @@ export const getActionPlansByAudit = query({
   },
 });
 
+// Get action plans assigned to a user
+export const getActionPlansByAssignee = query({
+  args: {
+    assignedTo: v.string(),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const actionPlans = await ctx.db
+      .query("environmentAuditActionPlans")
+      .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
+      .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
+      .collect();
+
+    return actionPlans;
+  },
+});
+
 // Create a new action plan
 export const createActionPlan = mutation({
   args: {
@@ -106,5 +123,49 @@ export const deleteActionPlan = mutation({
   handler: async (ctx, args) => {
     await ctx.db.delete(args.actionPlanId);
     return args.actionPlanId;
+  },
+});
+
+// Mark action plans as viewed (remove isNew flag)
+export const markActionPlansAsViewed = mutation({
+  args: {
+    assignedTo: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all new action plans for this user
+    const newPlans = await ctx.db
+      .query("environmentAuditActionPlans")
+      .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
+      .collect();
+
+    const now = Date.now();
+    let marked = 0;
+
+    for (const plan of newPlans) {
+      if (plan.isNew) {
+        await ctx.db.patch(plan._id, {
+          isNew: false,
+          viewedAt: now,
+        });
+        marked++;
+      }
+    }
+
+    return { marked };
+  },
+});
+
+// Get count of new action plans for a user
+export const getNewActionPlansCount = query({
+  args: {
+    assignedTo: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const newPlans = await ctx.db
+      .query("environmentAuditActionPlans")
+      .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
+      .collect();
+
+    return newPlans.filter((plan) => plan.isNew === true).length;
   },
 });

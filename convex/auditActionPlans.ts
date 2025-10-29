@@ -139,6 +139,7 @@ export const updateActionPlanStatus = mutation({
         newStatus: args.status,
         comment: args.comment,
         priority: actionPlan.priority,
+        auditCategory: "resident", // Add category for routing
       },
       isRead: false,
       organizationId: actionPlan.organizationId,
@@ -188,6 +189,7 @@ export const completeActionPlan = mutation({
         auditId: actionPlan.auditResponseId,
         templateId: actionPlan.templateId,
         priority: actionPlan.priority,
+        auditCategory: "resident", // Add category for routing
       },
       isRead: false,
       organizationId: actionPlan.organizationId,

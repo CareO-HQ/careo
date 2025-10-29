@@ -3056,7 +3056,8 @@ export default defineSchema({
         v.literal("non-compliant"),
         v.literal("not-applicable"),
         v.literal("checked"),
-        v.literal("unchecked")
+        v.literal("unchecked"),
+        v.literal("") // Allow empty string as initial state
       )),
       notes: v.optional(v.string()),
       date: v.optional(v.string()), // Date for this specific item

@@ -80,8 +80,31 @@ export function AppSidebar() {
     user?.user?.email ? { assignedTo: user.user.email } : "skip"
   );
 
-  // Combine both action plan counts
-  const totalNewActionPlansCount = (newResidentActionPlansCount || 0) + (newCareFileActionPlansCount || 0);
+  // Get new action plans count for current user (Governance Audits)
+  const newGovernanceActionPlansCount = useQuery(
+    api.governanceAuditActionPlans.getNewActionPlansCount,
+    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+  );
+
+  // Get new action plans count for current user (Clinical Audits)
+  const newClinicalActionPlansCount = useQuery(
+    api.clinicalAuditActionPlans.getNewActionPlansCount,
+    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+  );
+
+  // Get new action plans count for current user (Environment Audits)
+  const newEnvironmentActionPlansCount = useQuery(
+    api.environmentAuditActionPlans.getNewActionPlansCount,
+    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+  );
+
+  // Combine all action plan counts
+  const totalNewActionPlansCount =
+    (newResidentActionPlansCount || 0) +
+    (newCareFileActionPlansCount || 0) +
+    (newGovernanceActionPlansCount || 0) +
+    (newClinicalActionPlansCount || 0) +
+    (newEnvironmentActionPlansCount || 0);
 
   return (
     <Sidebar>
