@@ -16,6 +16,7 @@ import type * as auditActionPlans from "../auditActionPlans.js";
 import type * as auditResponses from "../auditResponses.js";
 import type * as auditTemplates from "../auditTemplates.js";
 import type * as auth from "../auth.js";
+import type * as bhsctReports from "../bhsctReports.js";
 import type * as careFileAuditActionPlans from "../careFileAuditActionPlans.js";
 import type * as careFileAuditResponses from "../careFileAuditResponses.js";
 import type * as careFileAuditTemplates from "../careFileAuditTemplates.js";
@@ -110,6 +111,7 @@ declare const fullApi: ApiFromModules<{
   auditResponses: typeof auditResponses;
   auditTemplates: typeof auditTemplates;
   auth: typeof auth;
+  bhsctReports: typeof bhsctReports;
   careFileAuditActionPlans: typeof careFileAuditActionPlans;
   careFileAuditResponses: typeof careFileAuditResponses;
   careFileAuditTemplates: typeof careFileAuditTemplates;

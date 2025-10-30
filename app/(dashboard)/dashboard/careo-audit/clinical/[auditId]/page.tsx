@@ -504,6 +504,8 @@ export default function ClinicalAuditPage() {
       await completeAudit({
         responseId,
         items,
+        auditedBy: session?.user?.email || "",
+        auditedByName: session?.user?.name || session?.user?.email || "",
       });
 
       // Save action plans to database atomically

@@ -2939,7 +2939,8 @@ export default defineSchema({
     ),
 
     // Audit trail
-    auditedBy: v.string(), // User name or email
+    auditedBy: v.string(), // User email
+    auditedByName: v.optional(v.string()), // User display name
     auditedAt: v.number(), // Timestamp when started
     completedAt: v.optional(v.number()), // Timestamp when completed
 
@@ -3073,7 +3074,8 @@ export default defineSchema({
     ),
 
     // Audit trail
-    auditedBy: v.string(), // User name or email
+    auditedBy: v.string(), // User email
+    auditedByName: v.optional(v.string()), // User display name
     auditedAt: v.number(), // Timestamp when started
     completedAt: v.optional(v.number()), // Timestamp when completed
 
@@ -3206,7 +3208,8 @@ export default defineSchema({
     ),
 
     // Audit trail
-    auditedBy: v.string(), // User name or email
+    auditedBy: v.string(), // User email
+    auditedByName: v.optional(v.string()), // User display name
     auditedAt: v.number(), // Timestamp when started
     completedAt: v.optional(v.number()), // Timestamp when completed
 
@@ -3275,4 +3278,80 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_due_date", ["dueDate"])
     .index("by_organization", ["organizationId"]),
+
+  // BHSCT (Belfast Health and Social Care Trust) Reports
+  bhsctReports: defineTable({
+    // Links
+    incidentId: v.id("incidents"),
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Provider and Service User Information
+    providerName: v.string(),
+    serviceUserName: v.string(),
+    serviceUserDOB: v.string(),
+    serviceUserGender: v.string(), // Male / Female
+    careManager: v.string(),
+
+    // Incident Location
+    incidentAddress: v.string(), // Including postcode
+    exactLocation: v.string(), // Exact location where incident occurred
+
+    // Incident Details
+    incidentDate: v.string(),
+    incidentTime: v.string(),
+    incidentDescription: v.string(), // Brief, factual description
+
+    // Injury and Treatment
+    natureOfInjury: v.string(),
+    immediateActionTaken: v.string(), // First aid, GP, hospital admission, etc.
+
+    // Notifications and Witnesses
+    personsNotified: v.string(), // Including designation/relationship
+    witnesses: v.optional(v.string()), // Name and designation
+    staffInvolved: v.optional(v.string()), // Name and designation
+    otherServiceUsersInvolved: v.optional(v.string()), // Including DOB if applicable
+
+    // Reporter Information
+    reporterName: v.string(),
+    reporterSignature: v.optional(v.string()), // For digital signature
+    reporterDesignation: v.string(),
+    dateReported: v.string(),
+
+    // Follow-up Actions
+    preventionActions: v.string(), // Actions taken to prevent recurrence
+    riskAssessmentUpdateDate: v.optional(v.string()), // Date risk assessment updated
+    otherComments: v.optional(v.string()),
+
+    // Senior Staff / Manager Review
+    reviewerName: v.optional(v.string()),
+    reviewerSignature: v.optional(v.string()),
+    reviewerDesignation: v.optional(v.string()),
+    reviewDate: v.optional(v.string()),
+
+    // Status
+    status: v.union(
+      v.literal("draft"),
+      v.literal("submitted"),
+      v.literal("completed")
+    ),
+
+    // System fields
+    reportedBy: v.string(), // User email who created report
+    reportedByName: v.string(), // User full name
+    submittedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_status", ["status"])
+    .index("by_service_user", ["serviceUserName"])
+    .index("by_reporter", ["reporterName"])
+    .index("by_reported_by", ["reportedBy"]),
 });

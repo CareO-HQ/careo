@@ -447,7 +447,7 @@ export default function ViewCompletedAuditPage() {
             {auditData.actionPlans && auditData.actionPlans.length > 0 && (
               <div className="px-8 pb-8 space-y-4">
                 <h2 className="text-lg font-semibold">Action Plans</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {auditData.actionPlans.map((plan: any) => {
                     // Get status badge color
                     const getStatusColor = (status: string) => {
@@ -505,12 +505,12 @@ export default function ViewCompletedAuditPage() {
                         )}
                         {plan.assignedTo && (
                           <Badge variant="secondary" className="text-xs">
-                            👤 {plan.assignedTo}
+                            {plan.assignedTo}
                           </Badge>
                         )}
                         {plan.dueDate && (
                           <Badge variant="secondary" className="text-xs">
-                            📅 {format(new Date(plan.dueDate), "MMM dd, yyyy")}
+                            {format(new Date(plan.dueDate), "MMM dd, yyyy")}
                           </Badge>
                         )}
                         {plan.priority && (

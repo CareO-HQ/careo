@@ -113,17 +113,64 @@ export const updateTemplate = mutation({
   },
 });
 
-// Delete (deactivate) a template
+// Get deletion impact (how many items will be deleted)
+export const getDeletionImpact = query({
+  args: {
+    templateId: v.id("governanceAuditTemplates"),
+  },
+  handler: async (ctx, args) => {
+    // Count audit responses
+    const responses = await ctx.db
+      .query("governanceAuditCompletions")
+      .withIndex("by_template", (q) => q.eq("templateId", args.templateId))
+      .collect();
+
+    // Count action plans
+    const actionPlans = await ctx.db
+      .query("governanceAuditActionPlans")
+      .withIndex("by_template", (q) => q.eq("templateId", args.templateId))
+      .collect();
+
+    return {
+      auditCount: responses.length,
+      actionPlanCount: actionPlans.length,
+    };
+  },
+});
+
+// Delete a template permanently with cascade
 export const deleteTemplate = mutation({
   args: {
     templateId: v.id("governanceAuditTemplates"),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.templateId, {
-      isActive: false,
-      updatedAt: Date.now(),
-    });
+    // First, delete all action plans for this template
+    const actionPlans = await ctx.db
+      .query("governanceAuditActionPlans")
+      .withIndex("by_template", (q) => q.eq("templateId", args.templateId))
+      .collect();
 
-    return args.templateId;
+    for (const plan of actionPlans) {
+      await ctx.db.delete(plan._id);
+    }
+
+    // Then, delete all audit responses for this template
+    const responses = await ctx.db
+      .query("governanceAuditCompletions")
+      .withIndex("by_template", (q) => q.eq("templateId", args.templateId))
+      .collect();
+
+    for (const response of responses) {
+      await ctx.db.delete(response._id);
+    }
+
+    // Finally, delete the template itself
+    await ctx.db.delete(args.templateId);
+
+    return {
+      templateId: args.templateId,
+      deletedActionPlans: actionPlans.length,
+      deletedResponses: responses.length,
+    };
   },
 });

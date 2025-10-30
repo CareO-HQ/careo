@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,16 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ArrowLeft,
   TrendingDown,
@@ -27,12 +37,14 @@ import {
   ChevronRight,
   Map,
   ClipboardCheck,
-  FileBarChart
+  FileBarChart,
+  Send
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 import { ComprehensiveIncidentForm } from "./components/comprehensive-incident-form";
 import { NHSReportForm } from "./components/nhs-report-form";
+import { BHSCTReportForm } from "./components/bhsct-report-form";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +73,13 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [user, setUser] = React.useState<any>(null);
   const itemsPerPage = 5;
 
+  // NHS Trust Picker State
+  const [showTrustPicker, setShowTrustPicker] = React.useState(false);
+  const [trustPickerIncident, setTrustPickerIncident] = React.useState<any>(null);
+  const [selectedTrust, setSelectedTrust] = React.useState<string>("");
+  const [showTrustForm, setShowTrustForm] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
@@ -75,6 +94,11 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
   // Get trust incident reports for all incidents
   const trustReports = useQuery(api.trustIncidentReports.getByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
+  // Get BHSCT reports for all incidents
+  const bhsctReports = useQuery(api.bhsctReports.getByResident, {
     residentId: id as Id<"residents">
   });
 
@@ -186,8 +210,21 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       return;
     }
 
-    setNhsReportIncident(incident);
-    setShowNHSReportForm(true);
+    // Open trust picker dialog instead of going directly to form
+    setTrustPickerIncident(incident);
+    setShowTrustPicker(true);
+  };
+
+  const handleTrustSelected = (trust: string) => {
+    setSelectedTrust(trust);
+    setShowTrustPicker(false);
+    setShowTrustForm(true);
+  };
+
+  const handleCloseTrustForm = () => {
+    setShowTrustForm(false);
+    setSelectedTrust("");
+    setTrustPickerIncident(null);
   };
 
   const handleNHSReportCreated = (reportId: string) => {
@@ -202,17 +239,24 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   };
 
   const generateAndDownloadNHSReport = (incident: any, trustReport: any) => {
-    const nhsContent = generateNHSReportWithTrust(incident, trustReport);
+    // Check if it's a BHSCT report
+    const isBHSCT = trustReport.reportType === "bhsct";
+    const nhsContent = isBHSCT
+      ? generateBHSCTReportPDF(incident, trustReport)
+      : generateNHSReportWithTrust(incident, trustReport);
     const blob = new Blob([nhsContent], { type: 'text/html' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nhs-report-${incident.date}-${incident._id.slice(-6)}.html`;
+    const fileName = isBHSCT
+      ? `bhsct-report-${incident.date}-${incident._id.slice(-6)}.html`
+      : `nhs-report-${incident.date}-${incident._id.slice(-6)}.html`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-    toast.success("NHS report downloaded successfully");
+    toast.success(`${isBHSCT ? 'BHSCT' : 'NHS'} report downloaded successfully`);
   };
 
   const handleBodyMap = (incidentId: string) => {
@@ -355,6 +399,258 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               <span class="label">Date Completed:</span>
               <span class="value">${incident.dateCompleted}</span>
             </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const generateBHSCTReportPDF = (incident: any, report: any) => {
+    // BHSCT Official Logo (simplified SVG version based on official branding)
+    const bhsctLogo = `<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
+      <!-- HSC Box with teal background -->
+      <rect x="0" y="10" width="80" height="60" fill="#00A3A1" rx="4"/>
+      <text x="40" y="35" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white" text-anchor="middle">HSC</text>
+      <g transform="translate(15, 48)">
+        <circle cx="8" cy="0" r="2" fill="white" opacity="0.8"/>
+        <circle cx="14" cy="0" r="2" fill="white" opacity="0.8"/>
+        <circle cx="20" cy="0" r="2" fill="white" opacity="0.8"/>
+        <path d="M 5 0 Q 8 3 11 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
+        <path d="M 11 0 Q 14 3 17 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
+        <path d="M 17 0 Q 20 3 23 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
+      </g>
+      <!-- Trust Name Text -->
+      <text x="90" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#2C3E50">Belfast Health and</text>
+      <text x="90" y="55" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#2C3E50">Social Care Trust</text>
+    </svg>`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>BHSCT Incident Report - ${incident.date}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Arial', sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; color: #333; line-height: 1.6; }
+            .header { display: flex; align-items: center; justify-content: space-between; padding: 25px 20px; background: white; border-bottom: 4px solid #00A3A1; margin: -40px -40px 30px -40px; }
+            .logo-section { display: flex; align-items: center; }
+            .trust-badge { background: #00A3A1; color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+            .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; page-break-inside: avoid; }
+            .section-title { font-size: 18px; font-weight: bold; color: #00A3A1; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #00A3A1; }
+            .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
+            .field { margin-bottom: 15px; }
+            .field-label { font-weight: 600; color: #2C3E50; font-size: 13px; margin-bottom: 5px; display: block; }
+            .field-value { color: #333; font-size: 14px; padding: 8px; background: #f8f9fa; border-radius: 4px; display: block; min-height: 20px; }
+            .field-value.textarea { white-space: pre-wrap; min-height: 60px; }
+            .info-box { background: #E6F7F7; padding: 15px; border-left: 4px solid #00A3A1; margin: 20px 0; border-radius: 4px; }
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; font-size: 11px; color: #666; }
+            .report-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
+            .meta-item { background: #f8f9fa; padding: 12px; border-radius: 6px; text-align: center; }
+            .meta-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+            .meta-value { font-size: 14px; font-weight: bold; color: #00A3A1; margin-top: 5px; }
+            @media print {
+              body { padding: 20px; }
+              .section { page-break-inside: avoid; }
+              .header { margin: -20px -20px 20px -20px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo-section">
+              ${bhsctLogo}
+            </div>
+            <div class="trust-badge">OFFICIAL REPORT</div>
+          </div>
+
+          <div style="text-align: center; margin: 20px 0 30px 0;">
+            <h1 style="color: #2C3E50; font-size: 26px; margin-bottom: 5px;">Incident Report Form</h1>
+            <p style="color: #666; font-size: 14px;">Confidential Document</p>
+          </div>
+
+          <div class="report-meta">
+            <div class="meta-item">
+              <div class="meta-label">Report ID</div>
+              <div class="meta-value">#${report._id.slice(-8).toUpperCase()}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Report Date</div>
+              <div class="meta-value">${new Date(report.createdAt).toLocaleDateString()}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Status</div>
+              <div class="meta-value">${report.status.toUpperCase()}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Provider and Service User Information</div>
+            <div class="field-row">
+              <div class="field">
+                <span class="field-label">Provider Name</span>
+                <span class="field-value">${report.providerName}</span>
+              </div>
+              <div class="field">
+                <span class="field-label">Service User Name</span>
+                <span class="field-value">${report.serviceUserName}</span>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <span class="field-label">Date of Birth</span>
+                <span class="field-value">${report.serviceUserDOB}</span>
+              </div>
+              <div class="field">
+                <span class="field-label">Gender</span>
+                <span class="field-value">${report.serviceUserGender}</span>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">Care Manager</span>
+              <span class="field-value">${report.careManager}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Incident Location</div>
+            <div class="field">
+              <span class="field-label">Address (including postcode) where incident occurred</span>
+              <span class="field-value textarea">${report.incidentAddress}</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Exact location where incident occurred</span>
+              <span class="field-value">${report.exactLocation}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Incident Details</div>
+            <div class="field-row">
+              <div class="field">
+                <span class="field-label">Date of Incident</span>
+                <span class="field-value">${report.incidentDate}</span>
+              </div>
+              <div class="field">
+                <span class="field-label">Time of Incident</span>
+                <span class="field-value">${report.incidentTime}</span>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">Brief, factual description of incident</span>
+              <span class="field-value textarea">${report.incidentDescription}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Injury and Treatment</div>
+            <div class="field">
+              <span class="field-label">Nature of Injury Sustained</span>
+              <span class="field-value textarea">${report.natureOfInjury}</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Details of immediate action taken and treatment given</span>
+              <span class="field-value textarea">${report.immediateActionTaken}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Notifications and Witnesses</div>
+            <div class="field">
+              <span class="field-label">Persons notified including designation/relationship to Service User</span>
+              <span class="field-value textarea">${report.personsNotified}</span>
+            </div>
+            ${report.witnesses ? `
+            <div class="field">
+              <span class="field-label">Name and designation of any witnesses</span>
+              <span class="field-value textarea">${report.witnesses}</span>
+            </div>
+            ` : ''}
+            ${report.staffInvolved ? `
+            <div class="field">
+              <span class="field-label">Name and designation of any staff member involved</span>
+              <span class="field-value textarea">${report.staffInvolved}</span>
+            </div>
+            ` : ''}
+            ${report.otherServiceUsersInvolved ? `
+            <div class="field">
+              <span class="field-label">Other Service User(s) involved (include DOB)</span>
+              <span class="field-value textarea">${report.otherServiceUsersInvolved}</span>
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Reporter Information</div>
+            <div class="field-row">
+              <div class="field">
+                <span class="field-label">Name of person reporting the incident</span>
+                <span class="field-value">${report.reporterName}</span>
+              </div>
+              <div class="field">
+                <span class="field-label">Designation</span>
+                <span class="field-value">${report.reporterDesignation}</span>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">Date reported</span>
+              <span class="field-value">${report.dateReported}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Follow-up Actions</div>
+            <div class="field">
+              <span class="field-label">Actions taken to prevent recurrence</span>
+              <span class="field-value textarea">${report.preventionActions}</span>
+            </div>
+            ${report.riskAssessmentUpdateDate ? `
+            <div class="field">
+              <span class="field-label">Date Service User's risk assessment and care plan updated following this incident</span>
+              <span class="field-value">${report.riskAssessmentUpdateDate}</span>
+            </div>
+            ` : ''}
+            ${report.otherComments ? `
+            <div class="field">
+              <span class="field-label">Other Comments</span>
+              <span class="field-value textarea">${report.otherComments}</span>
+            </div>
+            ` : ''}
+          </div>
+
+          ${report.reviewerName || report.reviewerDesignation || report.reviewDate ? `
+          <div class="section">
+            <div class="section-title">Senior Staff / Service Manager Review</div>
+            ${report.reviewerName ? `
+            <div class="field">
+              <span class="field-label">Name (of senior staff / service manager)</span>
+              <span class="field-value">${report.reviewerName}</span>
+            </div>
+            ` : ''}
+            ${report.reviewerDesignation ? `
+            <div class="field">
+              <span class="field-label">Designation</span>
+              <span class="field-value">${report.reviewerDesignation}</span>
+            </div>
+            ` : ''}
+            ${report.reviewDate ? `
+            <div class="field">
+              <span class="field-label">Date</span>
+              <span class="field-value">${report.reviewDate}</span>
+            </div>
+            ` : ''}
+          </div>
+          ` : ''}
+
+          <div class="info-box">
+            <strong>Important:</strong> This report has been generated by Belfast Health and Social Care Trust (BHSCT) for incident reporting purposes.
+            Ensure this report is kept confidential and filed according to BHSCT policies and procedures.
+          </div>
+
+          <div class="footer">
+            <p><strong>Generated by CareO System</strong></p>
+            <p>Report ID: ${report._id} | Generated on: ${new Date().toLocaleString()}</p>
+            <p>Reported by: ${report.reportedByName} | Original Report Date: ${new Date(report.createdAt).toLocaleDateString()}</p>
+            <p style="margin-top: 10px;">© ${new Date().getFullYear()} Belfast Health and Social Care Trust. All rights reserved.</p>
           </div>
         </body>
       </html>
@@ -905,9 +1201,21 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     return severity.charAt(0).toUpperCase() + severity.slice(1);
   };
 
-  // Get trust reports for a specific incident
+  // Get trust reports for a specific incident (including BHSCT reports)
   const getTrustReportsForIncident = (incidentId: string) => {
-    return trustReports?.filter(report => report.incidentId === incidentId) || [];
+    const oldTrustReports = trustReports?.filter(report => report.incidentId === incidentId) || [];
+    const bhsctReportsForIncident = bhsctReports?.filter(report => report.incidentId === incidentId) || [];
+
+    // Convert BHSCT reports to the same format as trust reports
+    const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
+      _id: report._id,
+      incidentId: report.incidentId,
+      trustName: "BHSCT",
+      reportType: "bhsct",
+      ...report
+    }));
+
+    return [...oldTrustReports, ...formattedBhsctReports];
   };
 
   const handleViewNHSReport = (report: any, incident: any) => {
@@ -1054,18 +1362,18 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           <span>{incident.completedByFullName}</span>
                         </div>
                       </div>
-                      <div className="mt-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                             {/* Trust Report Indicators */}
                             {getTrustReportsForIncident(incident._id).map((report) => (
                           <Badge
                             key={report._id}
                             variant="outline"
                             className="text-xs bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
-                            title={`NHS Report by ${report.trustName} - Click to view`}
+                            title={`${report.trustName} Report - Click to view`}
                             onClick={() => handleViewNHSReport(report, incident)}
                           >
                             <FileBarChart className="w-3 h-3 mr-1" />
-                            NHS
+                            {report.trustName}
                           </Badge>
                         ))}
                       </div>
@@ -1474,10 +1782,12 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               <div className="p-2 bg-blue-100 rounded-lg">
                 <FileBarChart className="w-5 h-5 text-blue-600" />
               </div>
-              NHS Trust Report Details
+              {selectedNHSReport?.report?.reportType === "bhsct" ? "BHSCT Report Details" : "NHS Trust Report Details"}
             </DialogTitle>
             <DialogDescription>
-              View the saved NHS trust incident report information
+              {selectedNHSReport?.report?.reportType === "bhsct"
+                ? "View the saved BHSCT incident report information"
+                : "View the saved NHS trust incident report information"}
             </DialogDescription>
           </DialogHeader>
           
@@ -1504,12 +1814,14 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-blue-700">Created By</p>
-                    <p className="text-blue-900">{selectedNHSReport.report.createdByName}</p>
+                    <p className="text-blue-900">
+                      {selectedNHSReport.report.reportedByName || selectedNHSReport.report.createdByName}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-blue-700">Report Type</p>
                     <Badge className="bg-blue-600 text-white">
-                      NHS Report
+                      {selectedNHSReport.report.reportType === "bhsct" ? "BHSCT Report" : "NHS Report"}
                     </Badge>
                   </div>
                 </div>
@@ -1555,8 +1867,187 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                 </div>
               </div>
 
-              {/* Additional Notes */}
-              {selectedNHSReport.report.additionalNotes && (
+              {/* BHSCT Report Details */}
+              {selectedNHSReport.report.reportType === "bhsct" && (
+                <div className="space-y-4">
+                  {/* Provider and Service User Information */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Provider and Service User Information</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Provider Name</p>
+                        <p className="font-medium">{selectedNHSReport.report.providerName}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Service User Name</p>
+                        <p className="font-medium">{selectedNHSReport.report.serviceUserName}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Date of Birth</p>
+                        <p className="font-medium">{selectedNHSReport.report.serviceUserDOB}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Gender</p>
+                        <p className="font-medium">{selectedNHSReport.report.serviceUserGender}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-gray-500">Care Manager</p>
+                        <p className="font-medium">{selectedNHSReport.report.careManager}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Incident Location */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Incident Location</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Address (including postcode)</p>
+                        <p className="font-medium">{selectedNHSReport.report.incidentAddress}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Exact location where incident occurred</p>
+                        <p className="font-medium">{selectedNHSReport.report.exactLocation}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Incident Details */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Incident Details</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Date of Incident</p>
+                        <p className="font-medium">{selectedNHSReport.report.incidentDate}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Time of Incident</p>
+                        <p className="font-medium">{selectedNHSReport.report.incidentTime}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-gray-500">Description of Incident</p>
+                        <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.incidentDescription}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Injury and Treatment */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Injury and Treatment</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Nature of Injury Sustained</p>
+                        <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.natureOfInjury}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Immediate Action Taken and Treatment Given</p>
+                        <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.immediateActionTaken}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notifications and Witnesses */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Notifications and Witnesses</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Persons Notified</p>
+                        <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.personsNotified}</p>
+                      </div>
+                      {selectedNHSReport.report.witnesses && (
+                        <div>
+                          <p className="text-gray-500">Witnesses</p>
+                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.witnesses}</p>
+                        </div>
+                      )}
+                      {selectedNHSReport.report.staffInvolved && (
+                        <div>
+                          <p className="text-gray-500">Staff Involved</p>
+                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.staffInvolved}</p>
+                        </div>
+                      )}
+                      {selectedNHSReport.report.otherServiceUsersInvolved && (
+                        <div>
+                          <p className="text-gray-500">Other Service Users Involved</p>
+                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.otherServiceUsersInvolved}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reporter Information */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Reporter Information</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Reporter Name</p>
+                        <p className="font-medium">{selectedNHSReport.report.reporterName}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Designation</p>
+                        <p className="font-medium">{selectedNHSReport.report.reporterDesignation}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Date Reported</p>
+                        <p className="font-medium">{selectedNHSReport.report.dateReported}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Follow-up Actions */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Follow-up Actions</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Actions Taken to Prevent Recurrence</p>
+                        <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.preventionActions}</p>
+                      </div>
+                      {selectedNHSReport.report.riskAssessmentUpdateDate && (
+                        <div>
+                          <p className="text-gray-500">Risk Assessment Update Date</p>
+                          <p className="font-medium">{selectedNHSReport.report.riskAssessmentUpdateDate}</p>
+                        </div>
+                      )}
+                      {selectedNHSReport.report.otherComments && (
+                        <div>
+                          <p className="text-gray-500">Other Comments</p>
+                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.otherComments}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Senior Staff / Manager Review */}
+                  {(selectedNHSReport.report.reviewerName || selectedNHSReport.report.reviewerDesignation || selectedNHSReport.report.reviewDate) && (
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Senior Staff / Service Manager Review</h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        {selectedNHSReport.report.reviewerName && (
+                          <div>
+                            <p className="text-gray-500">Reviewer Name</p>
+                            <p className="font-medium">{selectedNHSReport.report.reviewerName}</p>
+                          </div>
+                        )}
+                        {selectedNHSReport.report.reviewerDesignation && (
+                          <div>
+                            <p className="text-gray-500">Designation</p>
+                            <p className="font-medium">{selectedNHSReport.report.reviewerDesignation}</p>
+                          </div>
+                        )}
+                        {selectedNHSReport.report.reviewDate && (
+                          <div>
+                            <p className="text-gray-500">Review Date</p>
+                            <p className="font-medium">{selectedNHSReport.report.reviewDate}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Additional Notes for non-BHSCT reports */}
+              {selectedNHSReport.report.reportType !== "bhsct" && selectedNHSReport.report.additionalNotes && (
                 <div className="border rounded-lg p-4">
                   <h3 className="font-semibold text-gray-900 mb-3">Additional NHS Trust Notes</h3>
                   <div className="bg-gray-50 p-3 rounded border-l-4 border-blue-500">
@@ -1607,11 +2098,18 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             </div>
           )}
 
-          <div className="flex justify-between items-center pt-4 border-t">
-            <div className="text-sm text-gray-500">
-              Report saved on {selectedNHSReport && new Date(selectedNHSReport.report.createdAt).toLocaleDateString()}
-            </div>
+          <div className="flex justify-end items-center pt-4 border-t">
             <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // TODO: Implement forward functionality
+                  toast.success("Forward functionality coming soon");
+                }}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Forward
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1630,6 +2128,225 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* NHS Trust Picker Dialog */}
+      <Dialog open={showTrustPicker} onOpenChange={setShowTrustPicker}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Select NHS Trust</DialogTitle>
+            <DialogDescription>
+              Choose the NHS Trust for this incident report. Each trust has specific reporting requirements.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {[
+              { code: "BHSCT", name: "Belfast Health and Social Care Trust", color: "blue" },
+              { code: "SEHSCT", name: "South Eastern Health and Social Care Trust", color: "green" },
+              { code: "WHSCT", name: "Western Health and Social Care Trust", color: "purple" },
+              { code: "SHSCT", name: "Southern Health and Social Care Trust", color: "orange" },
+              { code: "NHSCT", name: "Northern Health and Social Care Trust", color: "red" }
+            ].map((trust) => (
+              <Button
+                key={trust.code}
+                variant="outline"
+                className="w-full justify-start h-auto p-4 hover:bg-gray-50"
+                onClick={() => handleTrustSelected(trust.code)}
+              >
+                <div className="flex items-start space-x-3 w-full">
+                  <div className={`p-2 bg-${trust.color}-100 rounded-lg flex-shrink-0`}>
+                    <FileBarChart className={`w-5 h-5 text-${trust.color}-600`} />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="font-semibold text-sm">{trust.code}</p>
+                    <p className="text-xs text-muted-foreground">{trust.name}</p>
+                  </div>
+                </div>
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trust-Specific Form Dialog */}
+      {selectedTrust === "BHSCT" ? (
+        <BHSCTReportForm
+          incident={trustPickerIncident}
+          resident={resident}
+          user={user}
+          open={showTrustForm}
+          onClose={handleCloseTrustForm}
+        />
+      ) : (
+        <Dialog open={showTrustForm} onOpenChange={handleCloseTrustForm}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>{selectedTrust} Incident Report Form</DialogTitle>
+              <DialogDescription>
+                Complete the {selectedTrust} specific incident report form
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="space-y-4 py-4">
+                {/* Other trust forms with dummy fields */}
+                {selectedTrust === "SEHSCT" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm">South Eastern Health and Social Care Trust - Incident Report</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">SEHSCT Incident ID</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="SEH-IR-XXXX" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Service Area</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter service area" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Severity Rating (SEHSCT)</label>
+                      <select className="w-full mt-1 px-3 py-2 border rounded-md">
+                        <option>Select severity</option>
+                        <option>Low</option>
+                        <option>Moderate</option>
+                        <option>High</option>
+                        <option>Critical</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Immediate Actions Taken</label>
+                      <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={3} placeholder="Describe actions" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Outcome Status</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter outcome" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedTrust === "WHSCT" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm">Western Health and Social Care Trust - Incident Report</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">WHSCT Report Number</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="WH-2024-XXXX" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Directorate</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter directorate" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Investigation Required</label>
+                      <select className="w-full mt-1 px-3 py-2 border rounded-md">
+                        <option>Select option</option>
+                        <option>Yes - Full Investigation</option>
+                        <option>Yes - Review Required</option>
+                        <option>No</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Contributing Factors</label>
+                      <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={3} placeholder="Identify factors" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Preventive Measures</label>
+                      <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={3} placeholder="Recommended actions" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedTrust === "SHSCT" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm">Southern Health and Social Care Trust - Incident Report</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">SHSCT Reference</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="SH-INC-XXXX" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Care Setting</label>
+                      <select className="w-full mt-1 px-3 py-2 border rounded-md">
+                        <option>Select setting</option>
+                        <option>Residential Care</option>
+                        <option>Nursing Home</option>
+                        <option>Day Care</option>
+                        <option>Community</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Incident Classification</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter classification" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Witness Statements</label>
+                      <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={4} placeholder="Record witness information" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Follow-up Required</label>
+                      <select className="w-full mt-1 px-3 py-2 border rounded-md">
+                        <option>Yes</option>
+                        <option>No</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedTrust === "NHSCT" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm">Northern Health and Social Care Trust - Incident Report</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">NHSCT Case Number</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="NH-CASE-XXXX" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Program of Care</label>
+                      <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter program" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Root Cause Analysis Required</label>
+                      <select className="w-full mt-1 px-3 py-2 border rounded-md">
+                        <option>Select option</option>
+                        <option>Yes - RCA Required</option>
+                        <option>No - Review Only</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Duty of Candour Applied</label>
+                      <select className="w-full mt-1 px-3 py-2 border rounded-md">
+                        <option>Yes</option>
+                        <option>No</option>
+                        <option>Not Applicable</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Additional Information</label>
+                      <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={4} placeholder="NHSCT specific details" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button variant="outline" onClick={handleCloseTrustForm} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                // For other trusts (not BHSCT), show demo message
+                toast.success(`${selectedTrust} report form submitted (Demo)`);
+                handleCloseTrustForm();
+              }}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Report"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      )}
       </div>
     </div>
   );

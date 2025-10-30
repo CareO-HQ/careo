@@ -573,114 +573,72 @@ export default function MyActionPlansPage() {
         </div>
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Modal - Simplified */}
       <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[480px]">
           {selectedActionPlan && (
             <>
               <DialogHeader>
-                <DialogTitle>Action Plan Details</DialogTitle>
-                <DialogDescription>
-                  Update the status and add comments
-                </DialogDescription>
+                <DialogTitle className="text-lg">Update Action Plan</DialogTitle>
               </DialogHeader>
 
-              <div className="space-y-4">
+              <div className="space-y-4 py-2">
                 {/* Description */}
-                <div>
-                  <Label className="text-sm font-medium">Description</Label>
-                  <p className="text-sm mt-1">{selectedActionPlan.description}</p>
-                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {selectedActionPlan.description}
+                </p>
 
-                {/* Audit Info */}
-                <div className="flex gap-2">
-                  <Badge variant="outline" className={getCategoryColor(selectedActionPlan.auditCategory)}>
-                    {selectedActionPlan.auditCategory}
+                {/* Compact Info */}
+                <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-xs">
+                    {selectedActionPlan.templateName}
                   </Badge>
-                  <Badge variant="outline">{selectedActionPlan.templateName}</Badge>
-                  <Badge className={getPriorityColor(selectedActionPlan.priority)}>
-                    {selectedActionPlan.priority}
-                  </Badge>
+                  <span>•</span>
+                  <span className={selectedActionPlan.priority === "High" ? "text-red-600 font-medium" : ""}>
+                    {selectedActionPlan.priority} Priority
+                  </span>
+                  {selectedActionPlan.dueDate && (
+                    <>
+                      <span>•</span>
+                      <span className={isOverdue(selectedActionPlan) ? "text-red-600 font-medium" : ""}>
+                        Due {format(new Date(selectedActionPlan.dueDate), "MMM dd, yyyy")}
+                      </span>
+                    </>
+                  )}
+                  <span>•</span>
+                  <span>By {selectedActionPlan.createdByName || selectedActionPlan.createdBy}</span>
                 </div>
 
-                {/* Due Date */}
-                {selectedActionPlan.dueDate && (
-                  <div>
-                    <Label className="text-sm font-medium">Due Date</Label>
-                    <p className={`text-sm mt-1 ${isOverdue(selectedActionPlan) ? "text-red-500 font-medium" : ""}`}>
-                      {format(new Date(selectedActionPlan.dueDate), "MMMM dd, yyyy")}
-                      {isOverdue(selectedActionPlan) && " (Overdue)"}
-                    </p>
-                  </div>
-                )}
-
-                {/* Created By */}
-                <div>
-                  <Label className="text-sm font-medium">Created By</Label>
-                  <p className="text-sm mt-1">
-                    {selectedActionPlan.createdByName || selectedActionPlan.createdBy}
-                  </p>
+                {/* Status Update */}
+                <div className="space-y-2 pt-2">
+                  <Label htmlFor="status" className="text-sm">Status</Label>
+                  <Select value={newStatus} onValueChange={(v) => setNewStatus(v as ActionPlanStatus)}>
+                    <SelectTrigger id="status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {/* Status History */}
-                {selectedActionPlan.statusHistory && selectedActionPlan.statusHistory.length > 0 && (
-                  <div>
-                    <Label className="text-sm font-medium">Status History</Label>
-                    <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
-                      {selectedActionPlan.statusHistory.map((history: any, index: number) => (
-                        <div key={index} className="text-sm border-l-2 pl-3 py-1">
-                          <div className="flex items-center gap-2">
-                            <Badge className={getStatusColor(history.status)}>
-                              {getStatusLabel(history.status)}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(history.updatedAt), "MMM dd, yyyy HH:mm")}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            by {history.updatedByName || history.updatedBy}
-                          </p>
-                          {history.comment && (
-                            <p className="text-sm italic mt-1">"{history.comment}"</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="border-t pt-4 space-y-4">
-                  {/* Status Update */}
-                  <div>
-                    <Label htmlFor="status">Update Status</Label>
-                    <Select value={newStatus} onValueChange={(v) => setNewStatus(v as ActionPlanStatus)}>
-                      <SelectTrigger id="status" className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Comment */}
-                  <div>
-                    <Label htmlFor="comment">Comment (Optional)</Label>
-                    <Textarea
-                      id="comment"
-                      placeholder="Add a comment about this status update..."
-                      value={statusComment}
-                      onChange={(e) => setStatusComment(e.target.value)}
-                      className="mt-1"
-                      rows={3}
-                    />
-                  </div>
+                {/* Comment */}
+                <div className="space-y-2">
+                  <Label htmlFor="comment" className="text-sm">Comment (Optional)</Label>
+                  <Textarea
+                    id="comment"
+                    placeholder="Add a note..."
+                    value={statusComment}
+                    onChange={(e) => setStatusComment(e.target.value)}
+                    rows={2}
+                    className="resize-none"
+                  />
                 </div>
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="gap-2">
                 <Button
                   variant="outline"
                   onClick={() => setIsDetailModalOpen(false)}
@@ -691,7 +649,7 @@ export default function MyActionPlansPage() {
                   onClick={handleStatusUpdate}
                   disabled={newStatus === selectedActionPlan.status && !statusComment}
                 >
-                  Update Status
+                  Update
                 </Button>
               </DialogFooter>
             </>

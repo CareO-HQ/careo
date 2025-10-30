@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import {
   Users,
   Building2,
-  AlertTriangle,
+  Shield,
   Calendar,
   TrendingUp,
   LogOut,
@@ -173,7 +173,7 @@ export default function DashboardPage() {
       <Card className="p-5 border shadow-none rounded-sm">
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
           </div>
           <h2 className="text-base font-medium">Latest Incidents</h2>
         </div>
@@ -225,7 +225,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
-            <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
             <p>No recent incidents</p>
           </div>
         )}

@@ -58,13 +58,24 @@ export const getDashboardStatsByTeam = query({
     );
 
     // Get upcoming appointments for this team
-    const appointments = await ctx.db
-      .query("appointments")
-      .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
-      .order("desc")
-      .collect();
+    // First get resident IDs in this team
+    const residentIds = residents.map((r) => r._id);
 
-    const upcomingAppointments = appointments
+    // Get all appointments for these residents
+    const allAppointments = residentIds.length > 0
+      ? await Promise.all(
+          residentIds.map((residentId) =>
+            ctx.db
+              .query("appointments")
+              .withIndex("byResidentId", (q) => q.eq("residentId", residentId))
+              .collect()
+          )
+        )
+      : [];
+
+    // Flatten and filter for upcoming scheduled appointments
+    const upcomingAppointments = allAppointments
+      .flat()
       .filter((apt) => {
         const startTime = new Date(apt.startTime);
         return startTime >= new Date() && apt.status === "scheduled";
@@ -204,13 +215,24 @@ export const getDashboardStatsByOrganization = query({
     );
 
     // Get upcoming appointments for this organization
-    const appointments = await ctx.db
-      .query("appointments")
-      .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
-      .order("desc")
-      .collect();
+    // First get resident IDs in this organization
+    const residentIds = residents.map((r) => r._id);
 
-    const upcomingAppointments = appointments
+    // Get all appointments for these residents
+    const allAppointments = residentIds.length > 0
+      ? await Promise.all(
+          residentIds.map((residentId) =>
+            ctx.db
+              .query("appointments")
+              .withIndex("byResidentId", (q) => q.eq("residentId", residentId))
+              .collect()
+          )
+        )
+      : [];
+
+    // Flatten and filter for upcoming scheduled appointments
+    const upcomingAppointments = allAppointments
+      .flat()
       .filter((apt) => {
         const startTime = new Date(apt.startTime);
         return startTime >= new Date() && apt.status === "scheduled";

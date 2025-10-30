@@ -37,7 +37,8 @@ import {
   Plus,
   Search,
   Eye,
-  Stethoscope
+  Stethoscope,
+  Trash2
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
@@ -79,11 +80,13 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
 
   // Mutations
   const createNote = useMutation(api.clinicalNotes.createClinicalNote);
+  const deleteNote = useMutation(api.clinicalNotes.deleteClinicalNote);
 
   // Dialog state
   const [isAddNoteDialogOpen, setIsAddNoteDialogOpen] = React.useState(false);
   const [noteContent, setNoteContent] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [deletingNoteId, setDeletingNoteId] = React.useState<string | null>(null);
 
   // Get current date and time
   const getCurrentDate = () => {
@@ -103,8 +106,27 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
       return;
     }
 
-    if (!session?.user?.email || !activeOrganizationId || !activeTeamId) {
-      toast.error("Missing required information");
+    if (!session?.user?.email) {
+      toast.error("User session not found. Please log in again.");
+      return;
+    }
+
+    if (!resident) {
+      toast.error("Resident information not loaded.");
+      return;
+    }
+
+    // Use teamId and organizationId from resident data
+    const teamId = resident.teamId;
+    const organizationId = resident.organizationId;
+
+    if (!organizationId) {
+      toast.error("Resident organization information is missing.");
+      return;
+    }
+
+    if (!teamId) {
+      toast.error("Resident team information is missing.");
       return;
     }
 
@@ -118,8 +140,8 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
         noteContent: noteContent.trim(),
         noteDate: getCurrentDate(),
         noteTime: getCurrentTime(),
-        organizationId: activeOrganizationId,
-        teamId: activeTeamId,
+        organizationId: organizationId,
+        teamId: teamId,
       });
 
       toast.success("Clinical note added successfully");
@@ -130,6 +152,21 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
       toast.error("Failed to add clinical note");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle note deletion
+  const handleDeleteNote = async (noteId: Id<"clinicalNotes">) => {
+    setDeletingNoteId(noteId);
+
+    try {
+      await deleteNote({ noteId });
+      toast.success("Clinical note deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete clinical note:", error);
+      toast.error("Failed to delete clinical note");
+    } finally {
+      setDeletingNoteId(null);
     }
   };
 
@@ -266,7 +303,7 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
-          <Button>
+          <Button onClick={() => setIsAddNoteDialogOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Record
           </Button>
@@ -574,9 +611,9 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
         </CardHeader>
         <CardContent>
           {clinicalNotes && clinicalNotes.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {clinicalNotes.map((note) => (
-                <div key={note._id} className="p-3 border border-gray-200 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors">
+                <div key={note._id} className="p-3 border border-gray-200 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors group relative">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 bg-gray-100 rounded-md">
@@ -584,13 +621,24 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
                       </div>
                       <span className="text-sm font-medium text-gray-800">{note.staffName}</span>
                     </div>
-                    <span className="text-xs text-gray-500">
-                      {new Date(note.noteDate).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {new Date(note.noteDate).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteNote(note._id)}
+                        disabled={deletingNoteId === note._id}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-700 leading-relaxed">
                     {note.noteContent}

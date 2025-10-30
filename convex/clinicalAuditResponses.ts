@@ -210,9 +210,11 @@ export const completeAudit = mutation({
       })
     ),
     overallNotes: v.optional(v.string()),
+    auditedBy: v.string(), // Email of person completing the audit
+    auditedByName: v.optional(v.string()), // Name of person completing the audit
   },
   handler: async (ctx, args) => {
-    const { responseId, items, overallNotes } = args;
+    const { responseId, items, overallNotes, auditedBy, auditedByName } = args;
 
     // Get the current response to access template
     const response = await ctx.db.get(responseId);
@@ -244,6 +246,8 @@ export const completeAudit = mutation({
       completedAt: now,
       nextAuditDue,
       frequency: template.frequency,
+      auditedBy, // Update to person who completed it
+      auditedByName, // Update to person who completed it
       updatedAt: now,
     });
 

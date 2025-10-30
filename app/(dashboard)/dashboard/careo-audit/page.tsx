@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Id } from "@/convex/_generated/dataModel";
@@ -71,6 +71,7 @@ interface Resident {
 function CareOAuditPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const convex = useConvex();
   const [audits, setAudits] = useState<Audit[]>([]);
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
   const { data: session } = authClient.useSession();
@@ -110,6 +111,7 @@ function CareOAuditPageContent() {
   const deleteClinicalTemplate = useMutation(api.clinicalAuditTemplates.deleteTemplate);
   const createEnvironmentTemplate = useMutation(api.environmentAuditTemplates.createTemplate);
   const deleteEnvironmentTemplate = useMutation(api.environmentAuditTemplates.deleteTemplate);
+
 
   // Fetch residents for the active team
   const residents = useQuery(
@@ -455,6 +457,7 @@ function CareOAuditPageContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [auditToDelete, setAuditToDelete] = useState<Audit | null>(null);
+  const [deletionImpact, setDeletionImpact] = useState<{ auditCount: number; actionPlanCount: number } | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     auditName: "",
@@ -585,9 +588,41 @@ function CareOAuditPageContent() {
     }
   };
 
-  const handleDeleteClick = (audit: Audit) => {
+  const handleDeleteClick = async (audit: Audit) => {
     setOpenDropdownId(null); // Close the dropdown menu
     setAuditToDelete(audit);
+
+    // Fetch deletion impact if it's a database audit
+    const isConvexId = /^[a-z]/.test(audit.id);
+    if (isConvexId) {
+      try {
+        let impact = null;
+        if (audit.category === "resident") {
+          impact = await convex.query(api.auditTemplates.getDeletionImpact, {
+            templateId: audit.id as Id<"residentAuditTemplates">
+          });
+        } else if (audit.category === "governance") {
+          impact = await convex.query(api.governanceAuditTemplates.getDeletionImpact, {
+            templateId: audit.id as Id<"governanceAuditTemplates">
+          });
+        } else if (audit.category === "clinical") {
+          impact = await convex.query(api.clinicalAuditTemplates.getDeletionImpact, {
+            templateId: audit.id as Id<"clinicalAuditTemplates">
+          });
+        } else if (audit.category === "environment") {
+          impact = await convex.query(api.environmentAuditTemplates.getDeletionImpact, {
+            templateId: audit.id as Id<"environmentAuditTemplates">
+          });
+        }
+        setDeletionImpact(impact);
+      } catch (error) {
+        console.error("Failed to fetch deletion impact:", error);
+        setDeletionImpact(null);
+      }
+    } else {
+      setDeletionImpact(null);
+    }
+
     setIsDeleteDialogOpen(true);
   };
 
@@ -655,6 +690,7 @@ function CareOAuditPageContent() {
   const handleCancelDelete = () => {
     setIsDeleteDialogOpen(false);
     setAuditToDelete(null);
+    setDeletionImpact(null);
   };
 
   const handleDownloadAudit = (audit: Audit) => {
@@ -1278,20 +1314,41 @@ function CareOAuditPageContent() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Delete Audit</DialogTitle>
+            <DialogTitle className="text-red-600">Delete Audit Template</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this audit? This action cannot be undone.
+              This action cannot be undone. This will permanently delete the audit template and all associated data.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-4">
             <p className="text-sm">
               <span className="font-semibold">Audit Name:</span> {auditToDelete?.name}
             </p>
-            <p className="text-sm mt-2">
-              <span className="font-semibold">Auditor:</span> {auditToDelete?.auditor}
-            </p>
+
+            {deletionImpact && (deletionImpact.auditCount > 0 || deletionImpact.actionPlanCount > 0) && (
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md p-4">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-400 mb-2">
+                  Warning: This will also delete:
+                </p>
+                <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+                  {deletionImpact.auditCount > 0 && (
+                    <li>• <strong>{deletionImpact.auditCount}</strong> completed audit{deletionImpact.auditCount !== 1 ? 's' : ''} (archived data)</li>
+                  )}
+                  {deletionImpact.actionPlanCount > 0 && (
+                    <li>• <strong>{deletionImpact.actionPlanCount}</strong> action plan{deletionImpact.actionPlanCount !== 1 ? 's' : ''}</li>
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {deletionImpact && deletionImpact.auditCount === 0 && deletionImpact.actionPlanCount === 0 && (
+              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  This template has no completed audits or action plans.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -1306,7 +1363,9 @@ function CareOAuditPageContent() {
               variant="destructive"
               onClick={handleConfirmDelete}
             >
-              Delete
+              {deletionImpact && (deletionImpact.auditCount > 0 || deletionImpact.actionPlanCount > 0)
+                ? 'Delete Everything'
+                : 'Delete Template'}
             </Button>
           </DialogFooter>
         </DialogContent>
