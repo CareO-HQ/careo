@@ -319,7 +319,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="providerName">Provider Name <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="providerName" className="mb-2">Provider Name <span className="text-red-500">*</span></Label>
                   <Input
                     id="providerName"
                     value={formData.providerName}
@@ -328,7 +328,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="serviceUserName">Name of Service User <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="serviceUserName" className="mb-2">Name of Service User <span className="text-red-500">*</span></Label>
                   <Input
                     id="serviceUserName"
                     value={formData.serviceUserName}
@@ -337,7 +337,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="serviceUserDOB">Date of Birth (DOB) <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="serviceUserDOB" className="mb-2">Date of Birth (DOB) <span className="text-red-500">*</span></Label>
                   <Input
                     id="serviceUserDOB"
                     type="date"
@@ -347,7 +347,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="serviceUserGender">Gender <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="serviceUserGender" className="mb-2">Gender <span className="text-red-500">*</span></Label>
                   <Select
                     value={formData.serviceUserGender}
                     onValueChange={(value) => setFormData({ ...formData, serviceUserGender: value })}
@@ -363,7 +363,7 @@ export function BHSCTReportForm({
                   </Select>
                 </div>
                 <div className="md:col-span-2">
-                  <Label htmlFor="careManager">Care Manager <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="careManager" className="mb-2">Care Manager <span className="text-red-500">*</span></Label>
                   <Input
                     id="careManager"
                     value={formData.careManager}
@@ -383,7 +383,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="incidentAddress">Address (including postcode) where incident occurred <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="incidentAddress" className="mb-2">Address (including postcode) where incident occurred <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="incidentAddress"
                     value={formData.incidentAddress}
@@ -393,7 +393,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="exactLocation">Exact location where incident occurred <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="exactLocation" className="mb-2">Exact location where incident occurred <span className="text-red-500">*</span></Label>
                   <Input
                     id="exactLocation"
                     value={formData.exactLocation}
@@ -414,7 +414,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="incidentDate">Date of Incident <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="incidentDate" className="mb-2">Date of Incident <span className="text-red-500">*</span></Label>
                   <Input
                     id="incidentDate"
                     type="date"
@@ -424,7 +424,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="incidentTime">Time of Incident <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="incidentTime" className="mb-2">Time of Incident <span className="text-red-500">*</span></Label>
                   <Input
                     id="incidentTime"
                     type="time"
@@ -434,7 +434,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label htmlFor="incidentDescription">Brief, factual description of incident <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="incidentDescription" className="mb-2">Brief, factual description of incident <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="incidentDescription"
                     value={formData.incidentDescription}
@@ -456,7 +456,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="natureOfInjury">Nature of Injury Sustained <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="natureOfInjury" className="mb-2">Nature of Injury Sustained <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="natureOfInjury"
                     value={formData.natureOfInjury}
@@ -466,7 +466,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="immediateActionTaken">Details of immediate action taken and treatment given <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="immediateActionTaken" className="mb-2">Details of immediate action taken and treatment given <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="immediateActionTaken"
                     value={formData.immediateActionTaken}
@@ -488,7 +488,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="personsNotified">Persons notified including designation/relationship to Service User <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="personsNotified" className="mb-2">Persons notified including designation/relationship to Service User <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="personsNotified"
                     value={formData.personsNotified}
@@ -498,7 +498,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="witnesses">Name and designation of any witnesses</Label>
+                  <Label htmlFor="witnesses" className="mb-2">Name and designation of any witnesses</Label>
                   <Textarea
                     id="witnesses"
                     value={formData.witnesses}
@@ -508,7 +508,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="staffInvolved">Name and designation of any staff member involved</Label>
+                  <Label htmlFor="staffInvolved" className="mb-2">Name and designation of any staff member involved</Label>
                   <Textarea
                     id="staffInvolved"
                     value={formData.staffInvolved}
@@ -518,7 +518,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="otherServiceUsersInvolved">Other Service User(s) involved (include DOB)</Label>
+                  <Label htmlFor="otherServiceUsersInvolved" className="mb-2">Other Service User(s) involved (include DOB)</Label>
                   <Textarea
                     id="otherServiceUsersInvolved"
                     value={formData.otherServiceUsersInvolved}

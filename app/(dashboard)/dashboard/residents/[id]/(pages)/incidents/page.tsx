@@ -238,25 +238,52 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     }
   };
 
-  const generateAndDownloadNHSReport = (incident: any, trustReport: any) => {
-    // Check if it's a BHSCT report
-    const isBHSCT = trustReport.reportType === "bhsct";
-    const nhsContent = isBHSCT
-      ? generateBHSCTReportPDF(incident, trustReport)
-      : generateNHSReportWithTrust(incident, trustReport);
-    const blob = new Blob([nhsContent], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const fileName = isBHSCT
-      ? `bhsct-report-${incident.date}-${incident._id.slice(-6)}.html`
-      : `nhs-report-${incident.date}-${incident._id.slice(-6)}.html`;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    toast.success(`${isBHSCT ? 'BHSCT' : 'NHS'} report downloaded successfully`);
+  const generateAndDownloadNHSReport = async (incident: any, trustReport: any) => {
+    try {
+      // Check if it's a BHSCT report
+      const isBHSCT = trustReport.reportType === "bhsct";
+
+      toast.loading(`Generating ${isBHSCT ? 'BHSCT' : 'NHS'} report PDF...`);
+
+      // Call the PDF generation API
+      const response = await fetch('/api/pdf/nhs-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          incident,
+          trustReport,
+          resident,
+          isBHSCT
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      // Get the PDF blob from the response
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const fileName = isBHSCT
+        ? `bhsct-report-${incident.date}-${incident._id.slice(-6)}.pdf`
+        : `nhs-report-${incident.date}-${incident._id.slice(-6)}.pdf`;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.dismiss();
+      toast.success(`${isBHSCT ? 'BHSCT' : 'NHS'} report PDF downloaded successfully`);
+    } catch (error) {
+      console.error('Error generating NHS report PDF:', error);
+      toast.dismiss();
+      toast.error('Failed to generate NHS report PDF');
+    }
   };
 
   const handleBodyMap = (incidentId: string) => {
