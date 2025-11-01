@@ -81,6 +81,7 @@ import type * as residentFiles from "../residentFiles.js";
 import type * as residents from "../residents.js";
 import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as schemas_managerAudits from "../schemas/managerAudits.js";
+import type * as sehsctReports from "../sehsctReports.js";
 import type * as socialActivities from "../socialActivities.js";
 import type * as socialConnections from "../socialConnections.js";
 import type * as teams from "../teams.js";
@@ -176,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   residents: typeof residents;
   "schemas/carefiles": typeof schemas_carefiles;
   "schemas/managerAudits": typeof schemas_managerAudits;
+  sehsctReports: typeof sehsctReports;
   socialActivities: typeof socialActivities;
   socialConnections: typeof socialConnections;
   teams: typeof teams;

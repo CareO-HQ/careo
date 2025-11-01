@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,26 @@ export default function AppointmentPage() {
   const markMultipleAsRead = useMutation(api.appointmentNotifications.markMultipleAppointmentsAsRead);
 
   const isLoading = isTeamLoading;
+  const hasMarkedAsRead = useRef(false);
+
+  // Automatically mark all appointments as read when page loads
+  useEffect(() => {
+    if (appointmentsData && !hasMarkedAsRead.current) {
+      const unreadAppointments = appointmentsData.filter((apt) => !apt.isRead);
+
+      if (unreadAppointments.length > 0) {
+        const appointmentIds = unreadAppointments.map((apt) => apt._id);
+
+        markMultipleAsRead({ appointmentIds })
+          .then(() => {
+            hasMarkedAsRead.current = true;
+          })
+          .catch((error) => {
+            console.error("Error auto-marking appointments as read:", error);
+          });
+      }
+    }
+  }, [appointmentsData, markMultipleAsRead]);
 
   // Filter appointments by read/unread status
   const filteredAppointments = useMemo(() => {

@@ -32,28 +32,34 @@ interface NHSReportData {
     [key: string]: unknown;
   };
   isBHSCT?: boolean;
+  isSEHSCT?: boolean;
 }
 
 function generateBHSCTReportHTML(data: NHSReportData): string {
   const { incident, trustReport, resident } = data;
 
-  // BHSCT Official Logo (simplified SVG version based on official branding)
-  const bhsctLogo = `<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
-    <!-- HSC Box with teal background -->
-    <rect x="0" y="10" width="80" height="60" fill="#00A3A1" rx="4"/>
-    <text x="40" y="35" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white" text-anchor="middle">HSC</text>
-    <g transform="translate(15, 48)">
-      <circle cx="8" cy="0" r="2" fill="white" opacity="0.8"/>
-      <circle cx="14" cy="0" r="2" fill="white" opacity="0.8"/>
-      <circle cx="20" cy="0" r="2" fill="white" opacity="0.8"/>
-      <path d="M 5 0 Q 8 3 11 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
-      <path d="M 11 0 Q 14 3 17 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
-      <path d="M 17 0 Q 20 3 23 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
-    </g>
-    <!-- Trust Name Text -->
-    <text x="90" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#2C3E50">Belfast Health and</text>
-    <text x="90" y="55" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#2C3E50">Social Care Trust</text>
-  </svg>`;
+  // Helper function to safely get string value
+  const getStr = (value: unknown) => value ? String(value) : "Not specified";
+
+  // Read BHSCT logo from public directory at runtime
+  const fs = require('fs');
+  const path = require('path');
+
+  let bhsctLogoBase64 = '';
+  try {
+    const logoPath = path.join(process.cwd(), 'public', 'bht.png');
+    const logoBuffer = fs.readFileSync(logoPath);
+    bhsctLogoBase64 = logoBuffer.toString('base64');
+  } catch (error) {
+    console.error('Error reading BHSCT logo:', error);
+  }
+
+  // BHSCT Logo as embedded image
+  const bhsctLogo = bhsctLogoBase64
+    ? `<img src="data:image/png;base64,${bhsctLogoBase64}" alt="BHSCT Logo" style="height: 80px; width: auto;" />`
+    : `<div style="height: 80px; display: flex; align-items: center;">
+        <h2 style="margin: 0; color: #00A3A1;">Belfast Health and Social Care Trust</h2>
+       </div>`;
 
   return `
     <!DOCTYPE html>
@@ -62,21 +68,20 @@ function generateBHSCTReportHTML(data: NHSReportData): string {
         <title>BHSCT Incident Report - ${incident.date}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Arial', sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; color: #333; line-height: 1.6; }
-          .header { display: flex; align-items: center; justify-content: space-between; padding: 25px 20px; background: white; border-bottom: 4px solid #00A3A1; margin: -40px -40px 30px -40px; }
+          body { font-family: 'Arial', sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; color: #000; line-height: 1.6; }
+          .header { display: flex; align-items: center; justify-content: space-between; padding: 25px 20px; background: white; border-bottom: 2px solid #000; margin: -40px -40px 30px -40px; }
           .logo-section { display: flex; align-items: center; }
-          .trust-badge { background: #00A3A1; color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-          .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; page-break-inside: avoid; }
-          h1 { color: #2C3E50; font-size: 26px; margin: 0; }
-          h2 { color: #00A3A1; font-size: 18px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #00A3A1; }
-          .field { margin-bottom: 12px; display: flex; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-          .label { font-weight: 600; color: #2C3E50; min-width: 200px; }
-          .value { color: #555; flex: 1; }
-          .critical-banner { background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; display: flex; align-items: center; box-shadow: 0 2px 8px rgba(211, 47, 47, 0.3); }
-          .moderate-banner { background: linear-gradient(135deg, #f57c00 0%, #ef6c00 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; display: flex; align-items: center; box-shadow: 0 2px 8px rgba(245, 124, 0, 0.3); }
-          .low-banner { background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; display: flex; align-items: center; box-shadow: 0 2px 8px rgba(56, 142, 60, 0.3); }
-          .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; font-size: 12px; color: #777; }
-          .report-info { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+          .section { margin-bottom: 30px; padding: 20px; border: 1px solid #000; border-radius: 0; background: white; page-break-inside: avoid; }
+          h1 { color: #000; font-size: 26px; margin: 0; }
+          h2 { color: #000; font-size: 18px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #000; }
+          .field { margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid #ddd; }
+          .field-row { display: flex; justify-content: space-between; gap: 20px; }
+          .field-col { flex: 1; }
+          .label { font-weight: 600; color: #000; display: block; font-size: 13px; margin-bottom: 4px; }
+          .value { color: #000; display: block; }
+          .textarea-value { color: #000; line-height: 1.8; white-space: pre-wrap; padding: 10px; background: #fff; border: 1px solid #000; border-radius: 0; margin-top: 5px; }
+          .footer { margin-top: 40px; }
+          .report-info { background: #fff; padding: 15px; border: 1px solid #000; border-radius: 0; margin-bottom: 20px; }
           @media print {
             body { padding: 20px; }
             .section { page-break-inside: avoid; }
@@ -88,19 +93,10 @@ function generateBHSCTReportHTML(data: NHSReportData): string {
           <div class="logo-section">
             ${bhsctLogo}
           </div>
-          <div class="trust-badge">OFFICIAL REPORT</div>
         </div>
 
-        <h1 style="margin-bottom: 10px;">Patient Safety Incident Report</h1>
-        <p style="color: #666; margin-bottom: 25px;">Belfast Health and Social Care Trust</p>
-
-        ${
-          incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm"
-            ? '<div class="critical-banner">⚠️ CRITICAL INCIDENT - Immediate escalation required</div>'
-            : incident.incidentLevel === "minor_injury"
-              ? '<div class="moderate-banner">⚠️ MODERATE INCIDENT - Review required</div>'
-              : '<div class="low-banner">✓ LOW RISK INCIDENT</div>'
-        }
+        <h1 style="margin-bottom: 10px; text-align: center; color: #000; font-size: 22px; font-weight: bold; text-transform: uppercase;">INDEPENDENT SECTOR<br/>ADVERSE INCIDENT REPORT FORM</h1>
+        <p style="text-align: center; color: #000; margin-bottom: 25px; font-size: 14px; line-height: 1.6;">To be completed following any adverse incident involving a Service User of<br/>Belfast Health & Social Care Trust.</p>
 
         <div class="report-info">
           <div class="field" style="border: none;">
@@ -114,92 +110,165 @@ function generateBHSCTReportHTML(data: NHSReportData): string {
         </div>
 
         <div class="section">
-          <h2>Patient Information</h2>
-          <div class="field">
-            <span class="label">Patient Name:</span>
-            <span class="value">${resident?.firstName || "N/A"} ${resident?.lastName || ""}</span>
+          <h2>Provider and Service User Information</h2>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Provider Name:</span>
+              <span class="value">${getStr(trustReport.providerName)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Service User Name:</span>
+              <span class="value">${getStr(trustReport.serviceUserName)}</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Date of Birth:</span>
+              <span class="value">${getStr(trustReport.serviceUserDOB)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Gender:</span>
+              <span class="value">${getStr(trustReport.serviceUserGender)}</span>
+            </div>
           </div>
           <div class="field">
-            <span class="label">NHS Health Number:</span>
-            <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
+            <span class="label">Care Manager:</span>
+            <span class="value">${getStr(trustReport.careManager)}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Incident Location</h2>
+          <div class="field">
+            <span class="label">Address (including postcode):</span>
+            <span class="value">${getStr(trustReport.incidentAddress)}</span>
           </div>
           <div class="field">
-            <span class="label">Date of Birth:</span>
-            <span class="value">${resident?.dateOfBirth || "Not Available"}</span>
+            <span class="label">Exact location where incident occurred:</span>
+            <span class="value">${getStr(trustReport.exactLocation)}</span>
           </div>
         </div>
 
         <div class="section">
           <h2>Incident Details</h2>
-          <div class="field">
-            <span class="label">Incident Reference:</span>
-            <span class="value">${incident._id.slice(-8).toUpperCase()}</span>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Date of Incident:</span>
+              <span class="value">${getStr(trustReport.incidentDate)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Time of Incident:</span>
+              <span class="value">${getStr(trustReport.incidentTime)}</span>
+            </div>
           </div>
           <div class="field">
-            <span class="label">Date of Incident:</span>
-            <span class="value">${incident.date}</span>
-          </div>
-          <div class="field">
-            <span class="label">Time of Incident:</span>
-            <span class="value">${incident.time}</span>
-          </div>
-          <div class="field">
-            <span class="label">Location:</span>
-            <span class="value">${incident.location || "Not specified"}</span>
-          </div>
-          <div class="field">
-            <span class="label">Incident Type(s):</span>
-            <span class="value">${incident.incidentTypes?.join(", ") || "Not specified"}</span>
-          </div>
-          <div class="field">
-            <span class="label">Severity Level:</span>
-            <span class="value">${incident.incidentLevel || "Not specified"}</span>
+            <span class="label">Brief, factual description of incident:</span>
+            <div class="textarea-value">${getStr(trustReport.incidentDescription)}</div>
           </div>
         </div>
 
         <div class="section">
-          <h2>Incident Description</h2>
-          <p style="color: #555; line-height: 1.8;">${incident.description || "No description provided"}</p>
+          <h2>Injury and Treatment</h2>
+          <div class="field">
+            <span class="label">Nature of Injury Sustained:</span>
+            <div class="textarea-value">${getStr(trustReport.natureOfInjury)}</div>
+          </div>
+          <div class="field">
+            <span class="label">Immediate Action Taken and Treatment Given:</span>
+            <div class="textarea-value">${getStr(trustReport.immediateActionTaken)}</div>
+          </div>
         </div>
 
-        ${
-          incident.immediateAction
-            ? `
         <div class="section">
-          <h2>Immediate Action Taken</h2>
-          <p style="color: #555; line-height: 1.8;">${incident.immediateAction}</p>
+          <h2>Notifications and Witnesses</h2>
+          <div class="field">
+            <span class="label">Persons Notified (including designation/relationship):</span>
+            <div class="textarea-value">${getStr(trustReport.personsNotified)}</div>
+          </div>
+          ${trustReport.witnesses ? `
+          <div class="field">
+            <span class="label">Witnesses (Name and designation):</span>
+            <div class="textarea-value">${getStr(trustReport.witnesses)}</div>
+          </div>
+          ` : ''}
+          ${trustReport.staffInvolved ? `
+          <div class="field">
+            <span class="label">Staff Involved (Name and designation):</span>
+            <div class="textarea-value">${getStr(trustReport.staffInvolved)}</div>
+          </div>
+          ` : ''}
+          ${trustReport.otherServiceUsersInvolved ? `
+          <div class="field">
+            <span class="label">Other Service Users Involved:</span>
+            <div class="textarea-value">${getStr(trustReport.otherServiceUsersInvolved)}</div>
+          </div>
+          ` : ''}
         </div>
-        `
-            : ""
-        }
 
-        ${
-          incident.witnesses
-            ? `
         <div class="section">
-          <h2>Witnesses</h2>
-          <p style="color: #555; line-height: 1.8;">${incident.witnesses}</p>
+          <h2>Reporter Information</h2>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Reporter Name:</span>
+              <span class="value">${getStr(trustReport.reporterName)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Designation:</span>
+              <span class="value">${getStr(trustReport.reporterDesignation)}</span>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Date Reported:</span>
+            <span class="value">${getStr(trustReport.dateReported)}</span>
+          </div>
         </div>
-        `
-            : ""
-        }
 
-        ${
-          trustReport.additionalNotes
-            ? `
         <div class="section">
-          <h2>Additional Trust Notes</h2>
-          <p style="color: #555; line-height: 1.8;">${trustReport.additionalNotes}</p>
+          <h2>Follow-up Actions</h2>
+          <div class="field">
+            <span class="label">Actions Taken to Prevent Recurrence:</span>
+            <div class="textarea-value">${getStr(trustReport.preventionActions)}</div>
+          </div>
+          ${trustReport.riskAssessmentUpdateDate ? `
+          <div class="field">
+            <span class="label">Date Risk Assessment Updated:</span>
+            <span class="value">${getStr(trustReport.riskAssessmentUpdateDate)}</span>
+          </div>
+          ` : ''}
+          ${trustReport.otherComments ? `
+          <div class="field">
+            <span class="label">Other Comments:</span>
+            <div class="textarea-value">${getStr(trustReport.otherComments)}</div>
+          </div>
+          ` : ''}
         </div>
-        `
-            : ""
-        }
+
+        ${trustReport.reviewerName || trustReport.reviewerDesignation || trustReport.reviewDate ? `
+        <div class="section">
+          <h2>Senior Staff / Service Manager Review</h2>
+          ${trustReport.reviewerName ? `
+          <div class="field">
+            <span class="label">Reviewer Name:</span>
+            <span class="value">${getStr(trustReport.reviewerName)}</span>
+          </div>
+          ` : ''}
+          ${trustReport.reviewerDesignation ? `
+          <div class="field">
+            <span class="label">Reviewer Designation:</span>
+            <span class="value">${getStr(trustReport.reviewerDesignation)}</span>
+          </div>
+          ` : ''}
+          ${trustReport.reviewDate ? `
+          <div class="field">
+            <span class="label">Review Date:</span>
+            <span class="value">${getStr(trustReport.reviewDate)}</span>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
 
         <div class="footer">
-          <p><strong>Belfast Health and Social Care Trust</strong></p>
-          <p>This is an official incident report generated on ${new Date().toLocaleDateString("en-GB")}</p>
-          <p>Report Reference: BHSCT-${incident._id.slice(-8).toUpperCase()}</p>
-          <p style="margin-top: 10px; font-size: 11px;">This document contains confidential patient information and must be handled in accordance with data protection regulations.</p>
+          <!-- Footer removed as per user request -->
         </div>
       </body>
     </html>
@@ -355,6 +424,389 @@ function generateNHSReportHTML(data: NHSReportData): string {
   `;
 }
 
+function generateSEHSCTReportHTML(data: NHSReportData): string {
+  const { incident, trustReport, resident } = data;
+
+  // Read SEHSCT logo from public directory at runtime
+  const fs = require('fs');
+  const path = require('path');
+
+  let sehsctLogoBase64 = '';
+  try {
+    const logoPath = path.join(process.cwd(), 'public', 'SEHSCT.png');
+    const logoBuffer = fs.readFileSync(logoPath);
+    sehsctLogoBase64 = logoBuffer.toString('base64');
+  } catch (error) {
+    console.error('Error reading SEHSCT logo:', error);
+  }
+
+  // SEHSCT Logo as embedded image
+  const sehsctLogo = sehsctLogoBase64
+    ? `<img src="data:image/png;base64,${sehsctLogoBase64}" alt="SEHSCT Logo" style="height: 80px; width: auto;" />`
+    : `<div style="height: 80px; display: flex; align-items: center;">
+        <h2 style="margin: 0; color: #4CAF50;">South Eastern Health and Social Care Trust</h2>
+       </div>`;
+
+  // Helper function to format boolean as Yes/No
+  const formatBoolean = (value: unknown) => value ? "Yes" : "No";
+
+  // Helper function to safely get string value
+  const getStr = (value: unknown) => value ? String(value) : "Not specified";
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>SEHSCT Incident Report - ${incident.date}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Arial', sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; color: #333; line-height: 1.6; }
+          .header { display: flex; align-items: center; justify-content: space-between; padding: 25px 20px; background: white; border-bottom: 4px solid #4CAF50; margin: -40px -40px 30px -40px; }
+          .logo-section { display: flex; align-items: center; }
+          .trust-badge { background: #4CAF50; color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+          .section { margin-bottom: 25px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; page-break-inside: avoid; }
+          h1 { color: #2C3E50; font-size: 26px; margin: 0; }
+          h2 { color: #4CAF50; font-size: 18px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #4CAF50; }
+          h3 { color: #2C3E50; font-size: 15px; margin-top: 15px; margin-bottom: 10px; font-weight: 600; }
+          .field { margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+          .field-row { display: flex; justify-content: space-between; gap: 20px; }
+          .field-col { flex: 1; }
+          .label { font-weight: 600; color: #2C3E50; display: block; font-size: 13px; margin-bottom: 4px; }
+          .value { color: #555; display: block; }
+          .textarea-value { color: #555; line-height: 1.8; white-space: pre-wrap; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+          .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; margin: 0 4px 4px 0; }
+          .badge-yes { background: #4CAF50; color: white; }
+          .badge-no { background: #e0e0e0; color: #666; }
+          .badge-default { background: #2196F3; color: white; }
+          .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; font-size: 12px; color: #777; }
+          .report-info { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+          .subsection { margin-left: 15px; margin-top: 10px; padding-left: 15px; border-left: 3px solid #4CAF50; }
+          @media print {
+            body { padding: 20px; }
+            .section { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo-section">
+            ${sehsctLogo}
+          </div>
+          <div class="trust-badge">OFFICIAL REPORT</div>
+        </div>
+
+        <h1 style="margin-bottom: 10px;">Incident Report Form</h1>
+        <p style="color: #666; margin-bottom: 25px;">South Eastern Health and Social Care Trust</p>
+
+        <div class="report-info">
+          <div class="field" style="border: none;">
+            <span class="label">Report Generated:</span>
+            <span class="value">${new Date(trustReport._creationTime).toLocaleString("en-GB")}</span>
+          </div>
+          <div class="field" style="border: none; margin-bottom: 0;">
+            <span class="label">Generated By:</span>
+            <span class="value">${trustReport.createdByName}</span>
+          </div>
+        </div>
+
+        ${trustReport.datixRef ? `
+        <div class="section" style="background: #e8f5e9;">
+          <h2 style="color: #2C3E50;">Administrative - For Office Use Only</h2>
+          <div class="field">
+            <span class="label">DATIX Ref:</span>
+            <span class="value">${getStr(trustReport.datixRef)}</span>
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <h2>Section 1 & 2 - Where and When</h2>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Date of Incident:</span>
+              <span class="value">${getStr(trustReport.incidentDate)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Time of Incident:</span>
+              <span class="value">${getStr(trustReport.incidentTime)}</span>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Primary Location:</span>
+            <span class="value">${getStr(trustReport.primaryLocation)}</span>
+          </div>
+          ${trustReport.exactLocation ? `
+          <div class="field">
+            <span class="label">Exact Location:</span>
+            <span class="value">${getStr(trustReport.exactLocation)}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="section">
+          <h2>Incident Description</h2>
+          <div class="textarea-value">${getStr(trustReport.incidentDescription)}</div>
+        </div>
+
+        <div class="section">
+          <h2>Contributory Factors & Circumstances</h2>
+          ${trustReport.contributoryFactors ? `
+          <div class="field">
+            <span class="label">Contributory Factors:</span>
+            <div class="textarea-value">${getStr(trustReport.contributoryFactors)}</div>
+          </div>
+          ` : ''}
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Caused by Behaviors of Concern:</span>
+              <span class="badge badge-${trustReport.causedByBehaviorsOfConcern ? 'yes' : 'no'}">${formatBoolean(trustReport.causedByBehaviorsOfConcern)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Documented in Care Plan:</span>
+              <span class="badge badge-${trustReport.documentedInCarePlan ? 'yes' : 'no'}">${formatBoolean(trustReport.documentedInCarePlan)}</span>
+            </div>
+          </div>
+          ${trustReport.apparentCauseOfInjury ? `
+          <div class="field">
+            <span class="label">Apparent Cause of Injury:</span>
+            <div class="textarea-value">${getStr(trustReport.apparentCauseOfInjury)}</div>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="section">
+          <h2>Actions Taken</h2>
+          ${trustReport.remedialActionTaken ? `
+          <div class="field">
+            <span class="label">Remedial Action Taken:</span>
+            <div class="textarea-value">${getStr(trustReport.remedialActionTaken)}</div>
+          </div>
+          ` : ''}
+          ${trustReport.actionsTakenToPreventRecurrence ? `
+          <div class="field">
+            <span class="label">Actions Taken to Prevent Recurrence:</span>
+            <div class="textarea-value">${getStr(trustReport.actionsTakenToPreventRecurrence)}</div>
+          </div>
+          ` : ''}
+          ${trustReport.riskAssessmentUpdateDate ? `
+          <div class="field">
+            <span class="label">Risk Assessment Update Date:</span>
+            <span class="value">${getStr(trustReport.riskAssessmentUpdateDate)}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="section">
+          <h2>Section F - Individual Involved</h2>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Service User Full Name:</span>
+              <span class="value">${getStr(trustReport.serviceUserFullName)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Date of Birth:</span>
+              <span class="value">${getStr(trustReport.dateOfBirth)}</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">Gender:</span>
+              <span class="value">${getStr(trustReport.gender)}</span>
+            </div>
+            ${trustReport.hcNumber ? `
+            <div class="field-col">
+              <span class="label">H&C Number:</span>
+              <span class="value">${getStr(trustReport.hcNumber)}</span>
+            </div>
+            ` : ''}
+          </div>
+          ${trustReport.trustKeyWorkerName ? `
+          <div class="field">
+            <span class="label">Trust Key Worker:</span>
+            <span class="value">${getStr(trustReport.trustKeyWorkerName)} - ${getStr(trustReport.trustKeyWorkerDesignation)}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        ${trustReport.personSufferedInjury ? `
+        <div class="section">
+          <h2>Section G - Injury Details</h2>
+          <span class="badge badge-yes">Person Suffered Injury</span>
+          ${trustReport.partOfBodyAffected ? `
+          <div class="field">
+            <span class="label">Part of Body Affected:</span>
+            <span class="value">${getStr(trustReport.partOfBodyAffected)}</span>
+          </div>
+          ` : ''}
+          ${trustReport.natureOfInjury ? `
+          <div class="field">
+            <span class="label">Nature of Injury:</span>
+            <div class="textarea-value">${getStr(trustReport.natureOfInjury)}</div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        ${trustReport.attentionReceived && Array.isArray(trustReport.attentionReceived) && trustReport.attentionReceived.length > 0 ? `
+        <div class="section">
+          <h2>Section H - Attention Received</h2>
+          <div style="margin-bottom: 10px;">
+            ${trustReport.attentionReceived.map((attention: string) => `<span class="badge badge-default">${attention}</span>`).join('')}
+          </div>
+          ${trustReport.attentionReceivedOther ? `
+          <div class="field">
+            <span class="label">Other Attention Details:</span>
+            <span class="value">${getStr(trustReport.attentionReceivedOther)}</span>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <h2>Section 4 - Provider Information</h2>
+          <div class="field">
+            <span class="label">Provider Name:</span>
+            <span class="value">${getStr(trustReport.providerName)}</span>
+          </div>
+          ${trustReport.providerAddress ? `
+          <div class="field">
+            <span class="label">Provider Address:</span>
+            <span class="value">${getStr(trustReport.providerAddress)}</span>
+          </div>
+          ` : ''}
+          <div class="field-row">
+            ${trustReport.serviceName ? `
+            <div class="field-col">
+              <span class="label">Service Name:</span>
+              <span class="value">${getStr(trustReport.serviceName)}</span>
+            </div>
+            ` : ''}
+            ${trustReport.typeOfService ? `
+            <div class="field-col">
+              <span class="label">Type of Service:</span>
+              <span class="value">${getStr(trustReport.typeOfService)}</span>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Section 6 - Identification and Contact</h2>
+          <div class="field">
+            <span class="label">Identified By:</span>
+            <span class="badge badge-default">${getStr(trustReport.identifiedBy)}</span>
+          </div>
+          ${trustReport.identifiedBy === 'Provider' && trustReport.identifierName ? `
+          <div class="subsection">
+            <h3>Provider Contact Information</h3>
+            <div class="field-row">
+              <div class="field-col">
+                <span class="label">Name:</span>
+                <span class="value">${getStr(trustReport.identifierName)}</span>
+              </div>
+              <div class="field-col">
+                <span class="label">Job Title:</span>
+                <span class="value">${getStr(trustReport.identifierJobTitle)}</span>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field-col">
+                <span class="label">Telephone:</span>
+                <span class="value">${getStr(trustReport.identifierTelephone)}</span>
+              </div>
+              <div class="field-col">
+                <span class="label">Email:</span>
+                <span class="value">${getStr(trustReport.identifierEmail)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+          ${trustReport.identifiedBy === 'Trust Staff' && trustReport.trustStaffName ? `
+          <div class="subsection">
+            <h3>Trust Staff Contact Information</h3>
+            <div class="field-row">
+              <div class="field-col">
+                <span class="label">Name:</span>
+                <span class="value">${getStr(trustReport.trustStaffName)}</span>
+              </div>
+              <div class="field-col">
+                <span class="label">Job Title:</span>
+                <span class="value">${getStr(trustReport.trustStaffJobTitle)}</span>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field-col">
+                <span class="label">Telephone:</span>
+                <span class="value">${getStr(trustReport.trustStaffTelephone)}</span>
+              </div>
+              <div class="field-col">
+                <span class="label">Email:</span>
+                <span class="value">${getStr(trustReport.trustStaffEmail)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+
+        ${trustReport.outcomeComments || trustReport.reviewOutcome || trustReport.lessonsLearned ? `
+        <div class="section">
+          <h2>Section 7 - Trust Key Worker Review</h2>
+          ${trustReport.outcomeComments ? `
+          <div class="field">
+            <span class="label">Outcome Comments:</span>
+            <div class="textarea-value">${getStr(trustReport.outcomeComments)}</div>
+          </div>
+          ` : ''}
+          ${trustReport.reviewOutcome ? `
+          <div class="field">
+            <span class="label">Review Outcome:</span>
+            <div class="textarea-value">${getStr(trustReport.reviewOutcome)}</div>
+          </div>
+          ` : ''}
+          ${trustReport.lessonsLearned ? `
+          <div class="field">
+            <span class="label">Lessons Learned:</span>
+            <div class="textarea-value">${getStr(trustReport.lessonsLearned)}</div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        <div class="section" style="background: #f5f5f5;">
+          <h2 style="color: #2C3E50;">Review Questions</h2>
+          <div class="field-row">
+            <div class="field-col">
+              <span class="label">All issues satisfactorily dealt with:</span>
+              <span class="badge badge-${trustReport.allIssuesSatisfactorilyDealt ? 'yes' : 'no'}">${formatBoolean(trustReport.allIssuesSatisfactorilyDealt)}</span>
+            </div>
+            <div class="field-col">
+              <span class="label">Client/Family satisfied:</span>
+              <span class="badge badge-${trustReport.clientFamilySatisfied ? 'yes' : 'no'}">${formatBoolean(trustReport.clientFamilySatisfied)}</span>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Case ready for closure:</span>
+            <span class="badge badge-${trustReport.caseReadyForClosure ? 'yes' : 'no'}">${formatBoolean(trustReport.caseReadyForClosure)}</span>
+          </div>
+          ${!trustReport.caseReadyForClosure && trustReport.caseNotReadyReason ? `
+          <div class="field">
+            <span class="label">Reason Case Not Ready:</span>
+            <div class="textarea-value">${getStr(trustReport.caseNotReadyReason)}</div>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="footer">
+          <p><strong>South Eastern Health and Social Care Trust</strong></p>
+          <p>This is an official incident report generated on ${new Date().toLocaleDateString("en-GB")}</p>
+          <p>Report Reference: SEHSCT-${incident._id.slice(-8).toUpperCase()}</p>
+          <p style="margin-top: 10px; font-size: 11px;">This document contains confidential patient information and must be handled in accordance with data protection regulations.</p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Check for API token authentication (server-to-server)
@@ -381,12 +833,15 @@ export async function POST(request: NextRequest) {
     console.log("NHS Report PDF API called:", {
       incidentId: reportData.incident._id,
       trustName: reportData.trustReport.trustName,
-      isBHSCT: reportData.isBHSCT
+      isBHSCT: reportData.isBHSCT,
+      isSEHSCT: reportData.isSEHSCT
     });
 
     // Generate HTML content based on trust type
     const htmlContent = reportData.isBHSCT
       ? generateBHSCTReportHTML(reportData)
+      : reportData.isSEHSCT
+      ? generateSEHSCTReportHTML(reportData)
       : generateNHSReportHTML(reportData);
 
     // Launch Playwright browser
@@ -421,7 +876,7 @@ export async function POST(request: NextRequest) {
       await browser.close();
 
       // Determine filename
-      const trustType = reportData.isBHSCT ? "bhsct" : "nhs";
+      const trustType = reportData.isBHSCT ? "bhsct" : reportData.isSEHSCT ? "sehsct" : "nhs";
       const fileName = `${trustType}-report-${reportData.incident.date}-${reportData.incident._id.slice(-6)}.pdf`;
 
       // Return the PDF as a response

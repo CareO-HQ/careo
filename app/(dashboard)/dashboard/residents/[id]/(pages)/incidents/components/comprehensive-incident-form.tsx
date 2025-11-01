@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -166,22 +167,26 @@ export function ComprehensiveIncidentForm({
   const [dobPopoverOpen, setDobPopoverOpen] = React.useState(false);
   const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = React.useState(false);
   const createIncident = useMutation(api.incidents.create);
-  
+
   // Fetch resident data to pre-populate form
   const resident = useQuery(api.residents.getById, {
     residentId: residentId as Id<"residents">
   });
-  
+
   // Fetch resident's organization and team names
   const organizationData = useQuery(
     api.teams.getOrganizationName,
     resident?.organizationId ? { organizationId: resident.organizationId } : "skip"
   );
-  
+
   const teamData = useQuery(
     api.teams.getTeamName,
     resident?.teamId ? { teamId: resident.teamId } : "skip"
   );
+
+  // Get current user for auto-populating signature fields
+  const { data: user } = authClient.useSession();
+  const currentUserName = user?.user?.name || "";
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
     resolver: zodResolver(ComprehensiveIncidentSchema),
@@ -228,9 +233,9 @@ export function ComprehensiveIncidentForm({
       careManagerEmail: "",
       keyWorkerName: "",
       keyWorkerEmail: "",
-      completedByFullName: "",
+      completedByFullName: currentUserName,
       completedByJobTitle: "",
-      completedBySignature: "",
+      completedBySignature: currentUserName,
       dateCompleted: new Date(),
     },
   });
@@ -279,7 +284,13 @@ export function ComprehensiveIncidentForm({
         form.setValue("keyWorkerEmail", resident.keyWorker.email || "");
       }
     }
-  }, [resident, organizationData, teamData, form]);
+
+    // Pre-populate Section 20: Form completion details with current user
+    if (currentUserName) {
+      form.setValue("completedByFullName", currentUserName);
+      form.setValue("completedBySignature", currentUserName);
+    }
+  }, [resident, organizationData, teamData, form, currentUserName]);
 
   const watchedIncidentTypes = form.watch("incidentTypes");
   const hasFallType = watchedIncidentTypes?.some(type => 
@@ -537,8 +548,8 @@ export function ComprehensiveIncidentForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader className="pb-4">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="pb-4 px-6 pt-6 shrink-0 border-b">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <FileText className="w-6 h-6" />
             Incident Report Form
@@ -551,9 +562,9 @@ export function ComprehensiveIncidentForm({
           )}
         </DialogHeader>
 
-        <div>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 pb-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
               
               {/* Step 1: Incident Details */}
               {currentStep === 1 && (
@@ -1736,7 +1747,12 @@ export function ComprehensiveIncidentForm({
                           <FormItem>
                             <FormLabel required>Full Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="Your full name" {...field} />
+                              <Input
+                                placeholder="Your full name"
+                                {...field}
+                                readOnly
+                                className="bg-muted cursor-not-allowed"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1764,7 +1780,12 @@ export function ComprehensiveIncidentForm({
                           <FormItem>
                             <FormLabel>Signature</FormLabel>
                             <FormControl>
-                              <Input placeholder="Digital signature or typed name" {...field} />
+                              <Input
+                                placeholder="Digital signature or typed name"
+                                {...field}
+                                readOnly
+                                className="bg-muted cursor-not-allowed"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1817,38 +1838,42 @@ export function ComprehensiveIncidentForm({
               )}
 
               {/* Navigation buttons */}
-              <div className="flex justify-between items-center pt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={prevStep}
-                  disabled={currentStep === 1}
-                >
-                  Back
-                </Button>
-
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Step {currentStep} of {maxSteps}</span>
-                </div>
-
-                {currentStep < maxSteps ? (
-                  <Button
-                    type="button"
-                    onClick={nextStep}
-                  >
-                    Continue
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "Submitting..." : "Submit Report"}
-                  </Button>
-                )}
-              </div>
             </form>
           </Form>
+        </div>
+
+        <div className="shrink-0 border-t px-6 py-4 bg-background">
+          <div className="flex justify-between items-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={prevStep}
+              disabled={currentStep === 1}
+            >
+              Back
+            </Button>
+
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Step {currentStep} of {maxSteps}</span>
+            </div>
+
+            {currentStep < maxSteps ? (
+              <Button
+                type="button"
+                onClick={nextStep}
+              >
+                Continue
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={form.handleSubmit(onSubmit)}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Submitting..." : "Submit Report"}
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -21,7 +21,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ChevronLeft, ChevronRight, Check, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface BHSCTReportFormProps {
   incident: any;
@@ -41,13 +49,20 @@ export function BHSCTReportForm({
   const [currentStep, setCurrentStep] = React.useState(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  // Popover states for date pickers
+  const [dobPopoverOpen, setDobPopoverOpen] = React.useState(false);
+  const [incidentDatePopoverOpen, setIncidentDatePopoverOpen] = React.useState(false);
+  const [dateReportedPopoverOpen, setDateReportedPopoverOpen] = React.useState(false);
+  const [riskAssessmentPopoverOpen, setRiskAssessmentPopoverOpen] = React.useState(false);
+  const [reviewDatePopoverOpen, setReviewDatePopoverOpen] = React.useState(false);
+
   const createBHSCTReport = useMutation(api.bhsctReports.create);
 
   const [formData, setFormData] = React.useState({
     // Provider and Service User Information
     providerName: "",
     serviceUserName: "",
-    serviceUserDOB: "",
+    serviceUserDOB: undefined as Date | undefined,
     serviceUserGender: "",
     careManager: "",
 
@@ -56,7 +71,7 @@ export function BHSCTReportForm({
     exactLocation: "",
 
     // Incident Details
-    incidentDate: "",
+    incidentDate: undefined as Date | undefined,
     incidentTime: "",
     incidentDescription: "",
 
@@ -73,17 +88,17 @@ export function BHSCTReportForm({
     // Reporter Information
     reporterName: "",
     reporterDesignation: "",
-    dateReported: "",
+    dateReported: undefined as Date | undefined,
 
     // Follow-up Actions
     preventionActions: "",
-    riskAssessmentUpdateDate: "",
+    riskAssessmentUpdateDate: undefined as Date | undefined,
     otherComments: "",
 
     // Senior Staff / Manager Review
     reviewerName: "",
     reviewerDesignation: "",
-    reviewDate: "",
+    reviewDate: undefined as Date | undefined,
   });
 
   const totalSteps = 8;
@@ -216,7 +231,7 @@ export function BHSCTReportForm({
         // Provider and Service User Information
         providerName: formData.providerName.trim(),
         serviceUserName: formData.serviceUserName.trim(),
-        serviceUserDOB: formData.serviceUserDOB,
+        serviceUserDOB: formData.serviceUserDOB ? format(formData.serviceUserDOB, "yyyy-MM-dd") : "",
         serviceUserGender: formData.serviceUserGender,
         careManager: formData.careManager.trim(),
 
@@ -225,7 +240,7 @@ export function BHSCTReportForm({
         exactLocation: formData.exactLocation.trim(),
 
         // Incident Details
-        incidentDate: formData.incidentDate,
+        incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",
         incidentTime: formData.incidentTime,
         incidentDescription: formData.incidentDescription.trim(),
 
@@ -242,17 +257,17 @@ export function BHSCTReportForm({
         // Reporter Information
         reporterName: formData.reporterName.trim(),
         reporterDesignation: formData.reporterDesignation.trim(),
-        dateReported: formData.dateReported,
+        dateReported: formData.dateReported ? format(formData.dateReported, "yyyy-MM-dd") : "",
 
         // Follow-up Actions
         preventionActions: formData.preventionActions.trim(),
-        riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate || undefined,
+        riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd") : undefined,
         otherComments: formData.otherComments.trim() || undefined,
 
         // Senior Staff / Manager Review
         reviewerName: formData.reviewerName.trim() || undefined,
         reviewerDesignation: formData.reviewerDesignation.trim() || undefined,
-        reviewDate: formData.reviewDate || undefined,
+        reviewDate: formData.reviewDate ? format(formData.reviewDate, "yyyy-MM-dd") : undefined,
 
         // Status
         status: "submitted",
@@ -269,12 +284,12 @@ export function BHSCTReportForm({
       setFormData({
         providerName: "",
         serviceUserName: "",
-        serviceUserDOB: "",
+        serviceUserDOB: undefined,
         serviceUserGender: "",
         careManager: "",
         incidentAddress: "",
         exactLocation: "",
-        incidentDate: "",
+        incidentDate: undefined,
         incidentTime: "",
         incidentDescription: "",
         natureOfInjury: "",
@@ -285,13 +300,13 @@ export function BHSCTReportForm({
         otherServiceUsersInvolved: "",
         reporterName: "",
         reporterDesignation: "",
-        dateReported: "",
+        dateReported: undefined,
         preventionActions: "",
-        riskAssessmentUpdateDate: "",
+        riskAssessmentUpdateDate: undefined,
         otherComments: "",
         reviewerName: "",
         reviewerDesignation: "",
-        reviewDate: "",
+        reviewDate: undefined,
       });
     } catch (error) {
       console.error("Error submitting BHSCT report:", error);
@@ -338,13 +353,40 @@ export function BHSCTReportForm({
                 </div>
                 <div>
                   <Label htmlFor="serviceUserDOB" className="mb-2">Date of Birth (DOB) <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="serviceUserDOB"
-                    type="date"
-                    value={formData.serviceUserDOB}
-                    onChange={(e) => setFormData({ ...formData, serviceUserDOB: e.target.value })}
-                    disabled={isSubmitting}
-                  />
+                  <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !formData.serviceUserDOB && "text-muted-foreground"
+                        )}
+                        disabled={isSubmitting}
+                      >
+                        {formData.serviceUserDOB ? (
+                          format(formData.serviceUserDOB, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.serviceUserDOB}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          setFormData({ ...formData, serviceUserDOB: date });
+                          setDobPopoverOpen(false);
+                        }}
+                        disabled={isSubmitting}
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div>
                   <Label htmlFor="serviceUserGender" className="mb-2">Gender <span className="text-red-500">*</span></Label>
@@ -415,13 +457,40 @@ export function BHSCTReportForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="incidentDate" className="mb-2">Date of Incident <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="incidentDate"
-                    type="date"
-                    value={formData.incidentDate}
-                    onChange={(e) => setFormData({ ...formData, incidentDate: e.target.value })}
-                    disabled={isSubmitting}
-                  />
+                  <Popover open={incidentDatePopoverOpen} onOpenChange={setIncidentDatePopoverOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !formData.incidentDate && "text-muted-foreground"
+                        )}
+                        disabled={isSubmitting}
+                      >
+                        {formData.incidentDate ? (
+                          format(formData.incidentDate, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.incidentDate}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          setFormData({ ...formData, incidentDate: date });
+                          setIncidentDatePopoverOpen(false);
+                        }}
+                        disabled={isSubmitting}
+                        fromYear={2000}
+                        toYear={new Date().getFullYear() + 1}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div>
                   <Label htmlFor="incidentTime" className="mb-2">Time of Incident <span className="text-red-500">*</span></Label>
@@ -539,7 +608,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="reporterName">Name of person reporting the incident <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="reporterName" className="mb-2 block">Name of person reporting the incident <span className="text-red-500">*</span></Label>
                   <Input
                     id="reporterName"
                     value={formData.reporterName}
@@ -548,7 +617,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="reporterDesignation">Designation <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="reporterDesignation" className="mb-2 block">Designation <span className="text-red-500">*</span></Label>
                   <Input
                     id="reporterDesignation"
                     value={formData.reporterDesignation}
@@ -557,14 +626,41 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="dateReported">Date reported <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="dateReported"
-                    type="date"
-                    value={formData.dateReported}
-                    onChange={(e) => setFormData({ ...formData, dateReported: e.target.value })}
-                    disabled={isSubmitting}
-                  />
+                  <Label htmlFor="dateReported" className="mb-2 block">Date reported <span className="text-red-500">*</span></Label>
+                  <Popover open={dateReportedPopoverOpen} onOpenChange={setDateReportedPopoverOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !formData.dateReported && "text-muted-foreground"
+                        )}
+                        disabled={isSubmitting}
+                      >
+                        {formData.dateReported ? (
+                          format(formData.dateReported, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.dateReported}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          setFormData({ ...formData, dateReported: date });
+                          setDateReportedPopoverOpen(false);
+                        }}
+                        disabled={isSubmitting}
+                        fromYear={2000}
+                        toYear={new Date().getFullYear() + 1}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </div>
@@ -578,7 +674,7 @@ export function BHSCTReportForm({
               </h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="preventionActions">Actions taken to prevent recurrence <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="preventionActions" className="mb-2 block">Actions taken to prevent recurrence <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="preventionActions"
                     value={formData.preventionActions}
@@ -588,17 +684,44 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="riskAssessmentUpdateDate">Date Service User&apos;s risk assessment and care plan updated following this incident</Label>
-                  <Input
-                    id="riskAssessmentUpdateDate"
-                    type="date"
-                    value={formData.riskAssessmentUpdateDate}
-                    onChange={(e) => setFormData({ ...formData, riskAssessmentUpdateDate: e.target.value })}
-                    disabled={isSubmitting}
-                  />
+                  <Label htmlFor="riskAssessmentUpdateDate" className="mb-2 block">Date Service User&apos;s risk assessment and care plan updated following this incident</Label>
+                  <Popover open={riskAssessmentPopoverOpen} onOpenChange={setRiskAssessmentPopoverOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !formData.riskAssessmentUpdateDate && "text-muted-foreground"
+                        )}
+                        disabled={isSubmitting}
+                      >
+                        {formData.riskAssessmentUpdateDate ? (
+                          format(formData.riskAssessmentUpdateDate, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.riskAssessmentUpdateDate}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          setFormData({ ...formData, riskAssessmentUpdateDate: date });
+                          setRiskAssessmentPopoverOpen(false);
+                        }}
+                        disabled={isSubmitting}
+                        fromYear={2000}
+                        toYear={new Date().getFullYear() + 1}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div>
-                  <Label htmlFor="otherComments">Other Comments</Label>
+                  <Label htmlFor="otherComments" className="mb-2 block">Other Comments</Label>
                   <Textarea
                     id="otherComments"
                     value={formData.otherComments}
@@ -622,7 +745,7 @@ export function BHSCTReportForm({
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="reviewerName">Name (of senior staff / service manager)</Label>
+                  <Label htmlFor="reviewerName" className="mb-2 block">Name (of senior staff / service manager)</Label>
                   <Input
                     id="reviewerName"
                     value={formData.reviewerName}
@@ -631,7 +754,7 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="reviewerDesignation">Designation</Label>
+                  <Label htmlFor="reviewerDesignation" className="mb-2 block">Designation</Label>
                   <Input
                     id="reviewerDesignation"
                     value={formData.reviewerDesignation}
@@ -640,14 +763,41 @@ export function BHSCTReportForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="reviewDate">Date</Label>
-                  <Input
-                    id="reviewDate"
-                    type="date"
-                    value={formData.reviewDate}
-                    onChange={(e) => setFormData({ ...formData, reviewDate: e.target.value })}
-                    disabled={isSubmitting}
-                  />
+                  <Label htmlFor="reviewDate" className="mb-2 block">Date</Label>
+                  <Popover open={reviewDatePopoverOpen} onOpenChange={setReviewDatePopoverOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !formData.reviewDate && "text-muted-foreground"
+                        )}
+                        disabled={isSubmitting}
+                      >
+                        {formData.reviewDate ? (
+                          format(formData.reviewDate, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.reviewDate}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          setFormData({ ...formData, reviewDate: date });
+                          setReviewDatePopoverOpen(false);
+                        }}
+                        disabled={isSubmitting}
+                        fromYear={2000}
+                        toYear={new Date().getFullYear() + 1}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </div>

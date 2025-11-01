@@ -141,4 +141,54 @@ crons.weekly(
   internal.notifications.archiveOldNotifications
 );
 
+/**
+ * ✅ NEW: ARCHIVE OLD INCIDENTS (1+ YEARS)
+ * Automatically archives incidents older than 1 year
+ * Makes them read-only and calculates deletion date
+ * Runs daily at 2:30 AM to avoid conflicts
+ */
+crons.daily(
+  "Archive old incidents",
+  {
+    // London time: 02:30 - archive incidents older than 1 year
+    hourUTC: 2,
+    minuteUTC: 30
+  },
+  internal.incidents.archiveOldIncidents
+);
+
+/**
+ * ✅ NEW: WEEKLY INCIDENT BACKUP
+ * Creates complete backup of all incidents for disaster recovery
+ * Stores in Convex storage with integrity checksum
+ * Runs weekly on Sunday at 3:30 AM
+ */
+crons.weekly(
+  "Weekly incident backup",
+  {
+    // Sunday at 3:30 AM London time
+    dayOfWeek: "sunday",
+    hourUTC: 3,
+    minuteUTC: 30
+  },
+  internal.compliance.createBackup,
+  {} // No args = backup everything
+);
+
+/**
+ * ✅ NEW: MONTHLY RETENTION POLICY ENFORCEMENT
+ * Permanently deletes incidents past 7-year retention period
+ * IMPORTANT: This is irreversible! Runs on 1st of month at 4:30 AM
+ */
+crons.monthly(
+  "Enforce incident retention policy",
+  {
+    // 1st of month at 4:30 AM London time
+    hourUTC: 4,
+    minuteUTC: 30,
+    day: 1
+  },
+  internal.compliance.enforceRetentionPolicy
+);
+
 export default crons;

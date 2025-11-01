@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -56,6 +56,26 @@ export default function NotificationPage() {
 
   // Only show loading if we're waiting for team info, not if no team is selected
   const isLoading = isTeamLoading;
+  const hasMarkedAsRead = useRef(false);
+
+  // Automatically mark all incidents as read when page loads
+  useEffect(() => {
+    if (incidents && !hasMarkedAsRead.current) {
+      const unreadIncidents = incidents.filter((incident) => !incident.isRead);
+
+      if (unreadIncidents.length > 0) {
+        const incidentIds = unreadIncidents.map((incident) => incident._id);
+
+        markMultipleAsRead({ incidentIds })
+          .then(() => {
+            hasMarkedAsRead.current = true;
+          })
+          .catch((error) => {
+            console.error("Error auto-marking incidents as read:", error);
+          });
+      }
+    }
+  }, [incidents, markMultipleAsRead]);
 
   // Filter incidents based on read status from database
   const filteredIncidents = incidents?.filter((incident) => {

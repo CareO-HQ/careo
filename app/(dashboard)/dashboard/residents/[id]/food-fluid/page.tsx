@@ -1262,6 +1262,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="Full Plate">Full Plate</SelectItem>
+                          <SelectItem value="Half Plate">Half Plate</SelectItem>
+                          <SelectItem value="Quarter Plate">Quarter Plate</SelectItem>
                           <SelectItem value="1 slice">1 slice</SelectItem>
                           <SelectItem value="2 slices">2 slices</SelectItem>
                           <SelectItem value="1 scoop">1 scoop</SelectItem>
@@ -1377,7 +1380,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   <FormItem>
                     <FormLabel>Staff Signature</FormLabel>
                     <FormControl>
-                      <Input placeholder="Your name..." {...field} />
+                      <Input
+                        placeholder="Your name..."
+                        {...field}
+                        readOnly
+                        className="bg-muted cursor-not-allowed"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
