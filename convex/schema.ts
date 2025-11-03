@@ -646,8 +646,22 @@ export default defineSchema({
     fluidConsumedMl: v.optional(v.number()), // e.g., 150
     signature: v.string(), // staff name/id
     date: v.string(), // "YYYY-MM-DD" for easier querying
-    isArchived: v.optional(v.boolean()), // true if archived at 7am
+
+    // Archival and retention (UK Healthcare: 7 years)
+    isArchived: v.boolean(), // true after 1 year (becomes read-only)
     archivedAt: v.optional(v.number()), // timestamp when archived
+    retentionPeriodYears: v.optional(v.number()), // 7 for UK healthcare compliance
+    scheduledDeletionAt: v.optional(v.number()), // createdAt + 7 years
+    isReadOnly: v.optional(v.boolean()), // true for archived logs (prevents edits)
+
+    // Schema versioning for future migrations
+    schemaVersion: v.optional(v.number()), // current: 1
+
+    // GDPR compliance fields
+    consentToStore: v.optional(v.boolean()), // data processing consent
+    dataProcessingBasis: v.optional(v.string()), // "care_delivery", "legal_obligation"
+
+    // Metadata
     organizationId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
@@ -662,7 +676,38 @@ export default defineSchema({
     .index("by_resident_timestamp", ["residentId", "timestamp"]) // For date range queries
     .index("by_resident_archived", ["residentId", "isArchived", "timestamp"]) // For filtering archived
     .index("by_organization_date", ["organizationId", "date"]) // For org-level reports
-    .index("by_archived_date", ["isArchived", "archivedAt"]), // For auto-archive cleanup
+    .index("by_archived_date", ["isArchived", "archivedAt"]) // For auto-archive cleanup
+    .index("by_scheduled_deletion", ["scheduledDeletionAt"]) // For retention enforcement
+    .index("by_retention_period", ["retentionPeriodYears", "createdAt"]), // For retention queries
+
+  // Audit log for food/fluid data access (GDPR Article 30 - Records of Processing)
+  foodFluidAuditLog: defineTable({
+    logId: v.union(v.id("foodFluidLogs"), v.null()), // null for bulk operations
+    residentId: v.id("residents"),
+    userId: v.id("users"),
+    action: v.union(
+      v.literal("create"),
+      v.literal("view"),
+      v.literal("update"),
+      v.literal("delete"),
+      v.literal("archive"),
+      v.literal("export")
+    ),
+    timestamp: v.number(),
+    metadata: v.optional(
+      v.object({
+        count: v.optional(v.number()), // for bulk operations
+        exportFormat: v.optional(v.string()), // "json", "csv"
+        section: v.optional(v.string()),
+        fluidMl: v.optional(v.number()),
+      })
+    ),
+  })
+    .index("by_log", ["logId"])
+    .index("by_user", ["userId", "timestamp"])
+    .index("by_resident", ["residentId", "timestamp"])
+    .index("by_action", ["action", "timestamp"])
+    .index("by_user_action", ["userId", "action", "timestamp"]),
 
   // Quick care notes for residents
   quickCareNotes: defineTable({
@@ -3488,4 +3533,101 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_service_user", ["serviceUserFullName"])
     .index("by_reported_by", ["reportedBy"]),
+
+  // NHS Trust Reports - Generated from care home incident reports
+  nhsReports: defineTable({
+    // Link to original incident
+    incidentId: v.id("incidents"),
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Trust information
+    trustName: v.union(v.literal("BHSCT"), v.literal("SEHSCT")), // Belfast or South Eastern HSC Trust
+    trustFullName: v.string(),
+
+    // NHS Report Data (all mapped from incident + user additions)
+    reportData: v.object({
+      // Patient Demographics (auto-populated from incident)
+      patientFirstName: v.optional(v.string()),
+      patientSurname: v.optional(v.string()),
+      patientDOB: v.optional(v.string()),
+      nhsNumber: v.optional(v.string()),
+      patientAddress: v.optional(v.string()),
+      patientPostcode: v.optional(v.string()),
+
+      // Incident Details (auto-populated from incident)
+      incidentDate: v.optional(v.string()),
+      incidentTime: v.optional(v.string()),
+      locationWard: v.optional(v.string()),
+      locationSite: v.optional(v.string()),
+
+      // Incident Classification (auto-populated from incident)
+      incidentType: v.optional(v.string()),
+      incidentCategory: v.optional(v.string()),
+      severityLevel: v.optional(v.string()),
+      harmLevel: v.optional(v.string()),
+
+      // Description (auto-populated from incident)
+      incidentDescription: v.optional(v.string()),
+      injuryDetails: v.optional(v.string()),
+      bodyPartAffected: v.optional(v.string()),
+      treatmentGiven: v.optional(v.string()),
+      immediateActions: v.optional(v.string()),
+
+      // Staff/Reporter Information (auto-populated from incident)
+      reporterName: v.optional(v.string()),
+      reporterJobTitle: v.optional(v.string()),
+      reporterEmail: v.optional(v.string()),
+      reporterPhone: v.optional(v.string()),
+
+      // Witnesses (auto-populated from incident)
+      witness1Name: v.optional(v.string()),
+      witness1Contact: v.optional(v.string()),
+      witness2Name: v.optional(v.string()),
+      witness2Contact: v.optional(v.string()),
+
+      // Notifications (auto-populated from incident)
+      managerInformed: v.optional(v.string()),
+      managerInformedDateTime: v.optional(v.string()),
+      nextOfKinInformed: v.optional(v.string()),
+      nextOfKinInformedDateTime: v.optional(v.string()),
+
+      // NHS-Specific Fields (user fills these)
+      cqcNotificationRequired: v.optional(v.boolean()),
+      cqcNotificationReason: v.optional(v.string()),
+      policeInformed: v.optional(v.boolean()),
+      policeReferenceNumber: v.optional(v.string()),
+      safeguardingConcern: v.optional(v.boolean()),
+      safeguardingReferenceNumber: v.optional(v.string()),
+      gpName: v.optional(v.string()),
+      gpPractice: v.optional(v.string()),
+      additionalNotes: v.optional(v.string()),
+    }),
+
+    // Status tracking
+    status: v.union(
+      v.literal("draft"),
+      v.literal("completed"),
+      v.literal("submitted"),
+      v.literal("acknowledged")
+    ),
+
+    // Submission tracking
+    submittedAt: v.optional(v.number()),
+    submittedBy: v.optional(v.string()),
+    nhsReferenceNumber: v.optional(v.string()),
+
+    // Metadata
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_trust", ["trustName"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
 });

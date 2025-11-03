@@ -206,6 +206,112 @@ export const create = mutation({
   },
 });
 
+export const update = mutation({
+  args: {
+    incidentId: v.id("incidents"),
+    // Section 1: Incident Details (all required)
+    date: v.string(),
+    time: v.string(),
+    homeName: v.string(),
+    unit: v.string(),
+
+    // Section 2: Injured Person Details
+    injuredPersonFirstName: v.string(),
+    injuredPersonSurname: v.string(),
+    injuredPersonDOB: v.string(),
+    residentId: v.optional(v.id("residents")),
+    residentInternalId: v.optional(v.string()),
+    dateOfAdmission: v.optional(v.string()),
+    healthCareNumber: v.optional(v.string()),
+
+    // Metadata for filtering
+    teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
+
+    // Section 3: Status of Injured Person
+    injuredPersonStatus: v.optional(v.array(v.string())),
+    contractorEmployer: v.optional(v.string()),
+
+    // Section 4: Type of Incident
+    incidentTypes: v.array(v.string()),
+    typeOtherDetails: v.optional(v.string()),
+
+    // Section 5-6: Fall-Specific Questions
+    anticoagulantMedication: v.optional(v.string()),
+    fallPathway: v.optional(v.string()),
+
+    // Section 7: Detailed Description
+    detailedDescription: v.string(),
+
+    // Section 8: Incident Level
+    incidentLevel: v.string(),
+
+    // Section 9: Details of Injury
+    injuryDescription: v.optional(v.string()),
+    bodyPartInjured: v.optional(v.string()),
+
+    // Section 10: Treatment Required
+    treatmentTypes: v.optional(v.array(v.string())),
+
+    // Section 11: Details of Treatment Given
+    treatmentDetails: v.optional(v.string()),
+    vitalSigns: v.optional(v.string()),
+    treatmentRefused: v.optional(v.boolean()),
+
+    // Section 12: Witnesses
+    witness1Name: v.optional(v.string()),
+    witness1Contact: v.optional(v.string()),
+    witness2Name: v.optional(v.string()),
+    witness2Contact: v.optional(v.string()),
+
+    // Section 13: Further Actions by Nurse
+    nurseActions: v.optional(v.array(v.string())),
+
+    // Section 14: Further Actions Advised
+    furtherActionsAdvised: v.optional(v.string()),
+
+    // Section 15: Prevention Measures
+    preventionMeasures: v.optional(v.string()),
+
+    // Section 16: Home Manager Informed
+    homeManagerInformedBy: v.optional(v.string()),
+    homeManagerInformedDateTime: v.optional(v.string()),
+
+    // Section 17: Out of Hours On-Call
+    onCallManagerName: v.optional(v.string()),
+    onCallContactedDateTime: v.optional(v.string()),
+
+    // Section 18: Next of Kin Informed
+    nokInformedWho: v.optional(v.string()),
+    nokInformedBy: v.optional(v.string()),
+    nokInformedDateTime: v.optional(v.string()),
+
+    // Section 19: Trust Incident Form Recipients
+    careManagerName: v.optional(v.string()),
+    careManagerEmail: v.optional(v.string()),
+    keyWorkerName: v.optional(v.string()),
+    keyWorkerEmail: v.optional(v.string()),
+
+    // Section 20: Completed By
+    completedByFullName: v.string(),
+    completedByJobTitle: v.optional(v.string()),
+    completedBySignature: v.optional(v.string()),
+    dateCompleted: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const { incidentId, ...updateData } = args;
+
+    await ctx.db.patch(incidentId, updateData);
+
+    return incidentId;
+  },
+});
+
 export const getByResident = query({
   args: { residentId: v.id("residents") },
   handler: async (ctx, args) => {

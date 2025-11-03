@@ -101,6 +101,63 @@ export function BHSCTReportForm({
     reviewDate: undefined as Date | undefined,
   });
 
+  // Auto-populate form data from incident when dialog opens
+  React.useEffect(() => {
+    if (open && incident && resident) {
+      setFormData({
+        // Provider and Service User Information (auto-populated from resident + incident)
+        providerName: incident.homeName || "",
+        serviceUserName: `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
+                         `${incident.injuredPersonFirstName || ""} ${incident.injuredPersonSurname || ""}`.trim(),
+        serviceUserDOB: resident.dateOfBirth ? new Date(resident.dateOfBirth) :
+                        (incident.injuredPersonDOB ? new Date(incident.injuredPersonDOB) : undefined),
+        serviceUserGender: resident.gender || "",
+        careManager: resident.careManagerName || resident.careManager?.name || incident.careManagerName || "",
+
+        // Incident Location (auto-populated from incident)
+        incidentAddress: incident.homeName || "",
+        exactLocation: incident.unit || "",
+
+        // Incident Details (auto-populated from incident)
+        incidentDate: incident.date ? new Date(incident.date) : undefined,
+        incidentTime: incident.time || "",
+        incidentDescription: incident.detailedDescription || "",
+
+        // Injury and Treatment (auto-populated from incident)
+        natureOfInjury: [incident.injuryDescription, incident.bodyPartInjured]
+          .filter(Boolean)
+          .join(" - ") || "",
+        immediateActionTaken: incident.treatmentDetails || "",
+
+        // Notifications and Witnesses (auto-populated from incident)
+        personsNotified: [
+          incident.homeManagerInformedBy ? `Manager: ${incident.homeManagerInformedBy}` : "",
+          incident.nokInformedWho ? `NOK: ${incident.nokInformedWho}` : "",
+        ].filter(Boolean).join(", ") || "",
+        witnesses: [incident.witness1Name, incident.witness2Name]
+          .filter(Boolean)
+          .join(", ") || "",
+        staffInvolved: incident.completedByFullName || "",
+        otherServiceUsersInvolved: "",
+
+        // Reporter Information (auto-populated from incident)
+        reporterName: incident.completedByFullName || "",
+        reporterDesignation: incident.completedByJobTitle || "",
+        dateReported: incident.dateCompleted ? new Date(incident.dateCompleted) : new Date(),
+
+        // Follow-up Actions (auto-populated from incident)
+        preventionActions: incident.preventionMeasures || "",
+        riskAssessmentUpdateDate: undefined,
+        otherComments: incident.furtherActionsAdvised || "",
+
+        // Senior Staff / Manager Review (leave empty for user to fill)
+        reviewerName: "",
+        reviewerDesignation: "",
+        reviewDate: undefined,
+      });
+    }
+  }, [open, incident, resident]);
+
   const totalSteps = 8;
 
   const handleNext = () => {

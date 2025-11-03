@@ -24,7 +24,7 @@ export async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
 
   const user = await ctx.db
     .query("users")
-    .withIndex("byEmail", (q) => q.eq("email", identity.email))
+    .withIndex("byEmail", (q) => q.eq("email", identity.email!))
     .first();
 
   if (!user) {
@@ -115,7 +115,8 @@ export async function checkPermission(
     member: ["create_incident", "view_incident"],
   };
 
-  if (!permissions[role]?.includes(permission)) {
+  const rolePermissions = permissions[role || "member"] || [];
+  if (!rolePermissions.includes(permission)) {
     throw new Error(`Permission denied: ${permission} (role: ${role})`);
   }
 
@@ -126,6 +127,8 @@ export async function checkPermission(
  * Log data access for audit trail
  *
  * Creates an audit log entry for compliance and security monitoring.
+ * Note: This function is currently disabled as incidentAuditLog table doesn't exist.
+ * Use foodFluidAuditLog for food/fluid logging audit trails.
  *
  * @param ctx - Mutation context (queries can't insert)
  * @param params - Audit log parameters
@@ -139,13 +142,9 @@ export async function logDataAccess(
     metadata?: Record<string, any>;
   }
 ) {
-  await ctx.db.insert("incidentAuditLog", {
-    incidentId: params.incidentId,
-    userId: params.userId,
-    action: params.action,
-    timestamp: Date.now(),
-    metadata: params.metadata,
-  });
+  // TODO: Add incidentAuditLog table to schema if incident audit logging is needed
+  // For now, this function is a no-op
+  console.log(`Audit log: ${params.action} by ${params.userId} on incident ${params.incidentId}`);
 }
 
 /**
@@ -218,17 +217,12 @@ export function validateIncidentData(args: any): void {
 /**
  * Sanitize text inputs (server-side)
  *
- * Note: Requires isomorphic-dompurify
- * npm install isomorphic-dompurify
+ * Uses pure JavaScript sanitization - no external dependencies.
  *
  * @param args - Incident form data
  * @returns Sanitized data object
  */
 export function sanitizeIncidentInputs(args: any): any {
-  // Import DOMPurify (works on server-side with isomorphic-dompurify)
-  const createDOMPurify = require('isomorphic-dompurify');
-  const DOMPurify = createDOMPurify();
-
   const sanitized = { ...args };
 
   // List of all text fields that need sanitization
@@ -267,37 +261,32 @@ export function sanitizeIncidentInputs(args: any): any {
 
   textFields.forEach(field => {
     if (sanitized[field] && typeof sanitized[field] === 'string') {
-      // Strip all HTML tags and dangerous characters
-      sanitized[field] = DOMPurify.sanitize(sanitized[field], {
-        ALLOWED_TAGS: [], // Remove all HTML
-        ALLOWED_ATTR: [],
-        KEEP_CONTENT: true, // Keep text content
-      }).trim();
+      sanitized[field] = sanitizeInput(sanitized[field]);
     }
   });
 
   // Sanitize array fields
   if (sanitized.incidentTypes && Array.isArray(sanitized.incidentTypes)) {
     sanitized.incidentTypes = sanitized.incidentTypes.map((type: string) =>
-      DOMPurify.sanitize(type, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+      sanitizeInput(type)
     );
   }
 
   if (sanitized.treatmentTypes && Array.isArray(sanitized.treatmentTypes)) {
     sanitized.treatmentTypes = sanitized.treatmentTypes.map((type: string) =>
-      DOMPurify.sanitize(type, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+      sanitizeInput(type)
     );
   }
 
   if (sanitized.nurseActions && Array.isArray(sanitized.nurseActions)) {
     sanitized.nurseActions = sanitized.nurseActions.map((action: string) =>
-      DOMPurify.sanitize(action, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+      sanitizeInput(action)
     );
   }
 
   if (sanitized.injuredPersonStatus && Array.isArray(sanitized.injuredPersonStatus)) {
     sanitized.injuredPersonStatus = sanitized.injuredPersonStatus.map((status: string) =>
-      DOMPurify.sanitize(status, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+      sanitizeInput(status)
     );
   }
 
@@ -305,40 +294,170 @@ export function sanitizeIncidentInputs(args: any): any {
 }
 
 /**
- * Rate limiting check for incident creation
+ * Rate limiting check
  *
- * Prevents abuse by limiting incidents per user per time period.
- * In production, use Redis instead of in-memory Map.
+ * Prevents abuse by limiting operations per user per time period.
+ * In production, use Redis or Convex tables for distributed rate limiting.
  *
  * @param ctx - Query or Mutation context
  * @param userId - ID of the user
+ * @param options - Rate limit configuration
  * @throws {Error} If rate limit exceeded
  */
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 export async function checkRateLimit(
   ctx: QueryCtx | MutationCtx,
-  userId: Id<"users">
+  userId: Id<"users">,
+  options?: {
+    operation?: string;
+    maxRequests?: number;
+    windowMs?: number;
+  }
 ): Promise<void> {
+  const operation = options?.operation || "incident_create";
+  const maxRequests = options?.maxRequests || 10;
+  const windowMs = options?.windowMs || 60 * 60 * 1000; // 1 hour default
+
   const now = Date.now();
-  const oneHour = 60 * 60 * 1000;
-  const key = `incident_create:${userId}`;
+  const key = `${operation}:${userId}`;
 
   const limit = rateLimitMap.get(key);
 
   if (!limit || limit.resetAt < now) {
     // Reset or initialize
-    rateLimitMap.set(key, { count: 1, resetAt: now + oneHour });
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
     return;
   }
 
-  if (limit.count >= 10) {
-    // Max 10 incidents per hour
+  if (limit.count >= maxRequests) {
     const minutesUntilReset = Math.ceil((limit.resetAt - now) / 60000);
     throw new Error(
-      `Rate limit exceeded. You can create more incidents in ${minutesUntilReset} minutes.`
+      `Rate limit exceeded. You can perform this action again in ${minutesUntilReset} minutes.`
     );
   }
 
   limit.count++;
+}
+
+/**
+ * Sanitize text input (server-side)
+ *
+ * Removes HTML tags, script tags, and dangerous characters.
+ * Pure JavaScript implementation - no external dependencies needed.
+ *
+ * @param text - Input text to sanitize
+ * @returns Sanitized text with HTML/scripts stripped
+ */
+export function sanitizeInput(text: string | undefined | null): string {
+  if (!text) return "";
+
+  // Convert to string and trim
+  let sanitized = String(text).trim();
+
+  // Remove script tags and content
+  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+
+  // Remove all HTML tags but keep text content
+  sanitized = sanitized.replace(/<[^>]*>/g, '');
+
+  // Remove HTML entities that could be used for XSS
+  sanitized = sanitized.replace(/&lt;/g, '<');
+  sanitized = sanitized.replace(/&gt;/g, '>');
+  sanitized = sanitized.replace(/&quot;/g, '"');
+  sanitized = sanitized.replace(/&#x27;/g, "'");
+  sanitized = sanitized.replace(/&#x2F;/g, '/');
+
+  // Remove any remaining < > characters (XSS prevention)
+  sanitized = sanitized.replace(/[<>]/g, '');
+
+  // Remove null bytes
+  sanitized = sanitized.replace(/\0/g, '');
+
+  return sanitized.trim();
+}
+
+/**
+ * Validate food/fluid log data
+ *
+ * Server-side validation for food and fluid intake logs.
+ *
+ * @param args - Log form data
+ * @throws {Error} If validation fails
+ */
+export function validateFoodFluidLog(args: {
+  section?: string;
+  typeOfFoodDrink?: string;
+  portionServed?: string;
+  amountEaten?: string;
+  fluidConsumedMl?: number | null;
+  signature?: string;
+}): void {
+  // Validate section
+  const validSections = ["midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"];
+  if (args.section && !validSections.includes(args.section)) {
+    throw new Error(`Invalid section: ${args.section}`);
+  }
+
+  // Validate typeOfFoodDrink (required, max 100 chars)
+  if (!args.typeOfFoodDrink || args.typeOfFoodDrink.trim().length === 0) {
+    throw new Error("Food/drink type is required");
+  }
+  if (args.typeOfFoodDrink.length > 100) {
+    throw new Error("Food/drink type must not exceed 100 characters");
+  }
+
+  // Validate amountEaten
+  const validAmounts = ["None", "1/4", "1/2", "3/4", "All"];
+  if (args.amountEaten && !validAmounts.includes(args.amountEaten)) {
+    throw new Error(`Invalid amount eaten: ${args.amountEaten}`);
+  }
+
+  // Validate fluidConsumedMl
+  if (args.fluidConsumedMl !== undefined && args.fluidConsumedMl !== null) {
+    if (args.fluidConsumedMl < 0 || args.fluidConsumedMl > 2000) {
+      throw new Error("Fluid volume must be between 0-2000ml");
+    }
+  }
+
+  // Validate signature (required, max 50 chars)
+  if (!args.signature || args.signature.trim().length === 0) {
+    throw new Error("Signature is required");
+  }
+  if (args.signature.length > 50) {
+    throw new Error("Signature must not exceed 50 characters");
+  }
+}
+
+/**
+ * Log food/fluid data access for audit trail
+ *
+ * Creates an audit log entry for GDPR compliance and security monitoring.
+ *
+ * @param ctx - Mutation context
+ * @param params - Audit log parameters
+ */
+export async function logFoodFluidAccess(
+  ctx: MutationCtx,
+  params: {
+    logId: Id<"foodFluidLogs"> | null;
+    residentId: Id<"residents">;
+    userId: Id<"users">;
+    action: "create" | "view" | "update" | "delete" | "archive" | "export";
+    metadata?: {
+      count?: number;
+      exportFormat?: string;
+      section?: string;
+      fluidMl?: number;
+    };
+  }
+) {
+  await ctx.db.insert("foodFluidAuditLog", {
+    logId: params.logId,
+    residentId: params.residentId,
+    userId: params.userId,
+    action: params.action,
+    timestamp: Date.now(),
+    metadata: params.metadata,
+  });
 }

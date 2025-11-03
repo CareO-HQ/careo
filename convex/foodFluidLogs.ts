@@ -1,8 +1,26 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
+import {
+  getAuthenticatedUser,
+  canAccessResident,
+  checkRateLimit,
+  sanitizeInput,
+  validateFoodFluidLog,
+  logFoodFluidAccess,
+} from "./lib/authHelpers";
 
-// Create a new food/fluid log entry
+/**
+ * Create a new food/fluid log entry
+ *
+ * SECURITY:
+ * - ✅ Authentication: getAuthenticatedUser
+ * - ✅ Authorization: canAccessResident
+ * - ✅ Rate Limiting: 100 logs/hour per user
+ * - ✅ Input Sanitization: sanitizeInput for XSS prevention
+ * - ✅ Validation: validateFoodFluidLog for data integrity
+ * - ✅ Audit Trail: logFoodFluidAccess for compliance
+ */
 export const createFoodFluidLog = mutation({
   args: {
     residentId: v.id("residents"),
@@ -16,25 +34,84 @@ export const createFoodFluidLog = mutation({
     createdBy: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-    
-    const logEntry = await ctx.db.insert("foodFluidLogs", {
-      residentId: args.residentId,
-      timestamp: now,
+    // 1. AUTHENTICATE USER
+    const user = await getAuthenticatedUser(ctx);
+
+    // 2. AUTHORIZE ACCESS TO RESIDENT
+    await canAccessResident(ctx, user._id, args.residentId);
+
+    // 3. RATE LIMIT (100 logs per hour per user)
+    await checkRateLimit(ctx, user._id, {
+      operation: "food_fluid_create",
+      maxRequests: 100,
+      windowMs: 60 * 60 * 1000,
+    });
+
+    // 4. VALIDATE INPUT DATA
+    validateFoodFluidLog({
       section: args.section,
       typeOfFoodDrink: args.typeOfFoodDrink,
       portionServed: args.portionServed,
       amountEaten: args.amountEaten,
       fluidConsumedMl: args.fluidConsumedMl,
       signature: args.signature,
+    });
+
+    // 5. SANITIZE TEXT INPUTS (XSS prevention)
+    const sanitized = {
+      typeOfFoodDrink: sanitizeInput(args.typeOfFoodDrink),
+      portionServed: sanitizeInput(args.portionServed),
+      signature: sanitizeInput(args.signature),
+    };
+
+    const now = Date.now();
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+
+    // 6. CALCULATE RETENTION SCHEDULE (UK Healthcare: 7 years)
+    const retentionPeriodYears = 7;
+    const scheduledDeletionAt = now + retentionPeriodYears * 365 * 24 * 60 * 60 * 1000;
+
+    // 7. INSERT LOG ENTRY
+    const logEntry = await ctx.db.insert("foodFluidLogs", {
+      residentId: args.residentId,
+      timestamp: now,
+      section: args.section,
+      typeOfFoodDrink: sanitized.typeOfFoodDrink,
+      portionServed: sanitized.portionServed,
+      amountEaten: args.amountEaten,
+      fluidConsumedMl: args.fluidConsumedMl ?? undefined,
+      signature: sanitized.signature,
       date: today,
+
+      // Retention fields
       isArchived: false,
+      retentionPeriodYears,
+      scheduledDeletionAt,
+      isReadOnly: false,
+      schemaVersion: 1,
+
+      // GDPR compliance
+      consentToStore: true,
+      dataProcessingBasis: "care_delivery",
+
+      // Metadata
       organizationId: args.organizationId,
       createdBy: args.createdBy,
       createdAt: now,
     });
-    
+
+    // 8. AUDIT LOG (GDPR compliance)
+    await logFoodFluidAccess(ctx, {
+      logId: logEntry,
+      residentId: args.residentId,
+      userId: user._id,
+      action: "create",
+      metadata: {
+        section: args.section,
+        fluidMl: args.fluidConsumedMl,
+      },
+    });
+
     return logEntry;
   },
 });

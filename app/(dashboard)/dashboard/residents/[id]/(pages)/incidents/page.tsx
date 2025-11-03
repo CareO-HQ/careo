@@ -16,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -35,10 +42,13 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  Map,
+  Map as MapIcon,
   ClipboardCheck,
   FileBarChart,
-  Send
+  Send,
+  MoreVertical,
+  Pencil,
+  Shield
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
@@ -108,6 +118,49 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     residentId: id as Id<"residents">
   });
 
+  // Memoize NHS report existence check to avoid repeated .some() calls
+  // MUST be before any early returns to maintain hook order
+  const nhsReportExistsMap = React.useMemo(() => {
+    const map = new Map<string, boolean>();
+
+    bhsctReports?.forEach(report => {
+      map.set(report.incidentId, true);
+    });
+
+    sehsctReports?.forEach(report => {
+      map.set(report.incidentId, true);
+    });
+
+    return map;
+  }, [bhsctReports, sehsctReports]);
+
+  // Get trust reports for a specific incident (including BHSCT and SEHSCT reports)
+  const getTrustReportsForIncident = React.useCallback((incidentId: string) => {
+    const oldTrustReports = trustReports?.filter(report => report.incidentId === incidentId) || [];
+    const bhsctReportsForIncident = bhsctReports?.filter(report => report.incidentId === incidentId) || [];
+    const sehsctReportsForIncident = sehsctReports?.filter(report => report.incidentId === incidentId) || [];
+
+    // Convert BHSCT reports to the same format as trust reports
+    const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
+      _id: report._id,
+      incidentId: report.incidentId,
+      trustName: "BHSCT",
+      reportType: "bhsct",
+      ...report
+    }));
+
+    // Convert SEHSCT reports to the same format as trust reports
+    const formattedSehsctReports = sehsctReportsForIncident.map(report => ({
+      _id: report._id,
+      incidentId: report.incidentId,
+      trustName: "SEHSCT",
+      reportType: "sehsct",
+      ...report
+    }));
+
+    return [...oldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
+  }, [trustReports, bhsctReports, sehsctReports]);
+
   // Get user info
   React.useEffect(() => {
     const getUser = async () => {
@@ -175,8 +228,18 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const handleViewIncident = (incidentId: string) => {
     const incident = incidents?.find(i => i._id === incidentId);
     if (incident) {
-      setSelectedIncident(incident);
+      // Deep clone the incident object to prevent Convex real-time updates from triggering re-renders
+      setSelectedIncident(JSON.parse(JSON.stringify(incident)));
       setShowViewDialog(true);
+    }
+  };
+
+  const handleEditIncident = (incidentId: string) => {
+    const incident = incidents?.find(i => i._id === incidentId);
+    if (incident) {
+      // Deep clone the incident object to prevent Convex real-time updates from triggering useEffect loops
+      setSelectedIncident(JSON.parse(JSON.stringify(incident)));
+      setShowReportForm(true);
     }
   };
 
@@ -1239,33 +1302,6 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     return severity.charAt(0).toUpperCase() + severity.slice(1);
   };
 
-  // Get trust reports for a specific incident (including BHSCT and SEHSCT reports)
-  const getTrustReportsForIncident = (incidentId: string) => {
-    const oldTrustReports = trustReports?.filter(report => report.incidentId === incidentId) || [];
-    const bhsctReportsForIncident = bhsctReports?.filter(report => report.incidentId === incidentId) || [];
-    const sehsctReportsForIncident = sehsctReports?.filter(report => report.incidentId === incidentId) || [];
-
-    // Convert BHSCT reports to the same format as trust reports
-    const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
-      _id: report._id,
-      incidentId: report.incidentId,
-      trustName: "BHSCT",
-      reportType: "bhsct",
-      ...report
-    }));
-
-    // Convert SEHSCT reports to the same format as trust reports
-    const formattedSehsctReports = sehsctReportsForIncident.map(report => ({
-      _id: report._id,
-      incidentId: report.incidentId,
-      trustName: "SEHSCT",
-      reportType: "sehsct",
-      ...report
-    }));
-
-    return [...oldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
-  };
-
   const handleViewNHSReport = (report: any, incident: any) => {
     setSelectedNHSReport({ report, incident });
     setShowNHSReportView(true);
@@ -1315,41 +1351,11 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      {incidentStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-0">
-            <CardContent className="p-4">
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold text-primary">{incidentStats.totalIncidents}</span>
-                <span className="text-xs text-muted-foreground">Total Incidents</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0">
-            <CardContent className="p-4">
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold text-red-600">{incidentStats.fallsCount}</span>
-                <span className="text-xs text-muted-foreground">Falls</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0">
-            <CardContent className="p-4">
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold text-orange-600">{incidentStats.last30Days}</span>
-                <span className="text-xs text-muted-foreground">Last 30 Days</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Incidents List */}
       <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600" />
+            <Shield className="w-5 h-5" />
             <span>Recent Incidents</span>
           </CardTitle>
         </CardHeader>
@@ -1409,10 +1415,8 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           <User className="w-3 h-3" />
                           <span>{incident.completedByFullName}</span>
                         </div>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                            {/* Trust Report Indicators */}
-                            {getTrustReportsForIncident(incident._id).map((report) => (
+                        {/* Trust Report Indicators - inline with metadata */}
+                        {getTrustReportsForIncident(incident._id).map((report) => (
                           <Badge
                             key={report._id}
                             variant="outline"
@@ -1428,62 +1432,51 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                     </div>
                     
                   </div>
-                  
-                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleViewIncident(incident._id)}
-                      title="View Details"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleDownloadIncident(incident._id)}
-                      title="Download PDF"
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleNHSReport(incident._id)}
-                      title={
-                        bhsctReports?.some(report => report.incidentId === incident._id) ||
-                        sehsctReports?.some(report => report.incidentId === incident._id)
-                          ? "NHS Report already generated"
-                          : "Generate NHS Report"
-                      }
-                      disabled={
-                        bhsctReports?.some(report => report.incidentId === incident._id) ||
-                        sehsctReports?.some(report => report.incidentId === incident._id)
-                      }
-                    >
-                      <FileBarChart className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleBodyMap(incident._id)}
-                      title="Body Map"
-                    >
-                      <Map className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handlePS1Report(incident._id)}
-                      title="Generate APP1 Report"
-                    >
-                      <ClipboardCheck className="w-4 h-4" />
-                    </Button>
+
+                  <div className="flex items-center mt-3 md:mt-0 md:ml-4">
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => handleViewIncident(incident._id)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditIncident(incident._id)}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit Incident
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadIncident(incident._id)}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleNHSReport(incident._id)}
+                          disabled={nhsReportExistsMap.get(incident._id) || false}
+                        >
+                          <FileBarChart className="w-4 h-4 mr-2" />
+                          {nhsReportExistsMap.get(incident._id)
+                            ? "NHS Report Generated"
+                            : "Generate NHS Report"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <User className="w-4 h-4 mr-2" />
+                          <span>Body Map</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <ClipboardCheck className="w-4 h-4 mr-2" />
+                          <span>Generate APP1 Report</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
@@ -1608,11 +1601,16 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           residentId={id}
           residentName={`${resident.firstName} ${resident.lastName}`}
           isOpen={showReportForm}
-          onClose={() => setShowReportForm(false)}
+          onClose={() => {
+            setShowReportForm(false);
+            setSelectedIncident(null);
+          }}
           onSuccess={() => {
             // Refresh incidents data when a new report is submitted
             setShowReportForm(false);
+            setSelectedIncident(null);
           }}
+          existingIncident={selectedIncident}
         />
       )}
 

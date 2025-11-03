@@ -200,19 +200,19 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
   const MAX_ALLERGIES = 10;
 
+  // Loading state - matches daily-care pattern
   if (resident === undefined) {
     return (
-      <div className="container mx-auto p-6 max-w-6xl">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading resident...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading resident...</p>
         </div>
       </div>
     );
   }
 
+  // Not found state
   if (resident === null) {
     return (
       <div className="container mx-auto p-6 max-w-6xl">

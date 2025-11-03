@@ -166,6 +166,125 @@ export function SEHSCTReportForm({
     dateApproved: undefined as Date | undefined,
   });
 
+  // Auto-populate form data from incident when dialog opens
+  React.useEffect(() => {
+    if (open && incident && resident) {
+      setFormData({
+        // Administrative
+        datixRef: "",
+
+        // Section 1 & 2 - A: Where and when (auto-populated from incident)
+        incidentDate: incident.date ? new Date(incident.date) : undefined,
+        incidentTime: incident.time || "",
+        primaryLocation: incident.homeName || "",
+        exactLocation: incident.unit || "",
+
+        // B: Circumstances (auto-populated from incident)
+        incidentDescription: incident.detailedDescription || "",
+        contributoryFactors: incident.typeOtherDetails || "",
+        propertyEquipmentMedication: "",
+        causedByBehaviorsOfConcern: false,
+        documentedInCarePlan: false,
+        apparentCauseOfInjury: incident.incidentTypes?.join(", ") || "",
+
+        // C: Actions (auto-populated from incident)
+        remedialActionTaken: incident.treatmentDetails || "",
+        actionsTakenToPreventRecurrence: incident.preventionMeasures || "",
+        riskAssessmentUpdateDate: undefined,
+
+        // D: Equipment or Property
+        equipmentInvolved: false,
+        equipmentDetails: "",
+        reportedToNIAC: false,
+        propertyInvolved: false,
+        propertyDetails: "",
+
+        // E: Persons notified (auto-populated from incident)
+        personsNotified: [
+          incident.homeManagerInformedBy ? `Manager: ${incident.homeManagerInformedBy}` : "",
+          incident.nokInformedWho ? `NOK: ${incident.nokInformedWho}` : "",
+        ].filter(Boolean).join(", ") || "",
+
+        // F: Individual involved (auto-populated from resident + incident)
+        hcNumber: resident.nhsHealthNumber || incident.healthCareNumber || "",
+        gender: resident.gender || "",
+        dateOfBirth: resident.dateOfBirth ? new Date(resident.dateOfBirth) :
+                     (incident.injuredPersonDOB ? new Date(incident.injuredPersonDOB) : undefined),
+        serviceUserFullName: `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
+                             `${incident.injuredPersonFirstName || ""} ${incident.injuredPersonSurname || ""}`.trim(),
+        serviceUserAddress: resident.gpAddress || "",
+        trustKeyWorkerName: resident.keyWorker?.name || "",
+        trustKeyWorkerDesignation: resident.keyWorker?.role || "",
+
+        // G: Injury details (auto-populated from incident)
+        personSufferedInjury: !!incident.injuryDescription,
+        partOfBodyAffected: incident.bodyPartInjured || "",
+        natureOfInjury: incident.injuryDescription || "",
+
+        // H: Attention received (auto-populated from incident)
+        attentionReceived: incident.treatmentTypes || [],
+        attentionReceivedOther: "",
+
+        // Section 3 - A: Staff/Service Users involved (auto-populated from incident)
+        staffMembersInvolved: incident.completedByFullName || "",
+        otherServiceUsersInvolved: "",
+
+        // B: Witnesses (auto-populated from incident)
+        witnessDetails: [incident.witness1Name, incident.witness2Name]
+          .filter(Boolean)
+          .join(", ") || "",
+
+        // Section 4 - Provider Information (auto-populated from incident)
+        providerName: incident.homeName || "",
+        providerAddress: "",
+        groupName: "",
+        serviceName: "",
+        typeOfService: "",
+
+        // Section 5 - Medication
+        medicationNames: "",
+        pharmacyDetails: "",
+
+        // Section 6 - Identification and Contact (auto-populated from incident)
+        identifiedBy: "",
+        identifierName: incident.completedByFullName || "",
+        identifierJobTitle: incident.completedByJobTitle || "",
+        identifierTelephone: "",
+        identifierEmail: "",
+        trustStaffName: resident.careManagerName || "",
+        trustStaffJobTitle: "",
+        trustStaffTelephone: "",
+        trustStaffEmail: resident.careManager?.email || "",
+        returnEmail: "",
+
+        // Section 7 - Trust Key Worker Completion (leave empty for user)
+        outcomeComments: incident.furtherActionsAdvised || "",
+        reviewOutcome: "",
+        furtherActionByProvider: "",
+        furtherActionByProviderDate: "",
+        furtherActionByProviderActionBy: "",
+        furtherActionByTrust: "",
+        furtherActionByTrustDate: "",
+        furtherActionByTrustActionBy: "",
+        lessonsLearned: "",
+        finalReviewAndOutcome: "",
+
+        // Review Questions (leave empty for user)
+        allIssuesSatisfactorilyDealt: false,
+        clientFamilySatisfied: false,
+        allRecommendationsImplemented: "",
+        caseReadyForClosure: false,
+        caseNotReadyReason: "",
+
+        // Signatures (leave empty for user)
+        keyWorkerNameDesignation: "",
+        dateClosed: undefined,
+        lineManagerNameDesignation: "",
+        dateApproved: undefined,
+      });
+    }
+  }, [open, incident, resident]);
+
   const totalSteps = 15;
 
   const handleNext = () => {

@@ -122,16 +122,16 @@ const ComprehensiveIncidentSchema = z.object({
   
   // Section 16: Home Manager Informed
   homeManagerInformedBy: z.string().optional(),
-  homeManagerInformedDateTime: z.string().optional(),
-  
+  homeManagerInformedDateTime: z.date().optional(),
+
   // Section 17: Out of Hours On-Call
   onCallManagerName: z.string().optional(),
-  onCallContactedDateTime: z.string().optional(),
-  
+  onCallContactedDateTime: z.date().optional(),
+
   // Section 18: Next of Kin Informed
   nokInformedWho: z.string().optional(),
   nokInformedBy: z.string().optional(),
-  nokInformedDateTime: z.string().optional(),
+  nokInformedDateTime: z.date().optional(),
   
   // Section 19: Trust Incident Form Recipients
   careManagerName: z.string().optional(),
@@ -152,6 +152,7 @@ interface ComprehensiveIncidentFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  existingIncident?: any;
 }
 
 export function ComprehensiveIncidentForm({
@@ -159,14 +160,22 @@ export function ComprehensiveIncidentForm({
   residentName,
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  existingIncident
 }: ComprehensiveIncidentFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
   const [doiPopoverOpen, setDoiPopoverOpen] = React.useState(false);
   const [dobPopoverOpen, setDobPopoverOpen] = React.useState(false);
   const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = React.useState(false);
+  const [homeManagerDatePopoverOpen, setHomeManagerDatePopoverOpen] = React.useState(false);
+  const [onCallDatePopoverOpen, setOnCallDatePopoverOpen] = React.useState(false);
+  const [nokDatePopoverOpen, setNokDatePopoverOpen] = React.useState(false);
   const createIncident = useMutation(api.incidents.create);
+  const updateIncident = useMutation(api.incidents.update);
+
+  // Track if we've already populated the form to prevent re-population
+  const hasPopulatedRef = React.useRef(false);
 
   // Fetch resident data to pre-populate form
   const resident = useQuery(api.residents.getById, {
@@ -188,20 +197,73 @@ export function ComprehensiveIncidentForm({
   const { data: user } = authClient.useSession();
   const currentUserName = user?.user?.name || "";
 
-  const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
-    resolver: zodResolver(ComprehensiveIncidentSchema),
-    defaultValues: {
+  // Compute form default values based on edit mode or new incident mode
+  const formDefaultValues = React.useMemo(() => {
+    // If editing existing incident, populate from existingIncident
+    if (existingIncident) {
+      return {
+        date: existingIncident.date ? new Date(existingIncident.date) : new Date(),
+        time: existingIncident.time || format(new Date(), "HH:mm"),
+        homeName: existingIncident.homeName || "",
+        unit: existingIncident.unit || "",
+        injuredPersonFirstName: existingIncident.injuredPersonFirstName || "",
+        injuredPersonSurname: existingIncident.injuredPersonSurname || "",
+        injuredPersonDOB: existingIncident.injuredPersonDOB ? new Date(existingIncident.injuredPersonDOB) : new Date(),
+        residentInternalId: existingIncident.residentInternalId || "",
+        dateOfAdmission: existingIncident.dateOfAdmission ? new Date(existingIncident.dateOfAdmission) : undefined,
+        healthCareNumber: existingIncident.healthCareNumber || "",
+        injuredPersonStatus: existingIncident.injuredPersonStatus || ["Resident"],
+        contractorEmployer: existingIncident.contractorEmployer || "",
+        incidentTypes: existingIncident.incidentTypes || [],
+        typeOtherDetails: existingIncident.typeOtherDetails || "",
+        anticoagulantMedication: existingIncident.anticoagulantMedication,
+        fallPathway: existingIncident.fallPathway,
+        detailedDescription: existingIncident.detailedDescription || "",
+        incidentLevel: existingIncident.incidentLevel || "no_harm",
+        injuryDescription: existingIncident.injuryDescription || "",
+        bodyPartInjured: existingIncident.bodyPartInjured || "",
+        treatmentTypes: existingIncident.treatmentTypes || [],
+        treatmentDetails: existingIncident.treatmentDetails || "",
+        vitalSigns: existingIncident.vitalSigns || "",
+        treatmentRefused: existingIncident.treatmentRefused || false,
+        witness1Name: existingIncident.witness1Name || "",
+        witness1Contact: existingIncident.witness1Contact || "",
+        witness2Name: existingIncident.witness2Name || "",
+        witness2Contact: existingIncident.witness2Contact || "",
+        nurseActions: existingIncident.nurseActions || [],
+        furtherActionsAdvised: existingIncident.furtherActionsAdvised || "",
+        preventionMeasures: existingIncident.preventionMeasures || "",
+        homeManagerInformedBy: existingIncident.homeManagerInformedBy || "",
+        homeManagerInformedDateTime: existingIncident.homeManagerInformedDateTime ? new Date(existingIncident.homeManagerInformedDateTime) : undefined,
+        onCallManagerName: existingIncident.onCallManagerName || "",
+        onCallContactedDateTime: existingIncident.onCallContactedDateTime ? new Date(existingIncident.onCallContactedDateTime) : undefined,
+        nokInformedWho: existingIncident.nokInformedWho || "",
+        nokInformedBy: existingIncident.nokInformedBy || "",
+        nokInformedDateTime: existingIncident.nokInformedDateTime ? new Date(existingIncident.nokInformedDateTime) : undefined,
+        careManagerName: existingIncident.careManagerName || "",
+        careManagerEmail: existingIncident.careManagerEmail || "",
+        keyWorkerName: existingIncident.keyWorkerName || "",
+        keyWorkerEmail: existingIncident.keyWorkerEmail || "",
+        completedByFullName: existingIncident.completedByFullName || currentUserName,
+        completedByJobTitle: existingIncident.completedByJobTitle || "",
+        completedBySignature: existingIncident.completedBySignature || currentUserName,
+        dateCompleted: existingIncident.dateCompleted ? new Date(existingIncident.dateCompleted) : new Date(),
+      };
+    }
+
+    // For new incidents, populate with resident and team data
+    return {
       date: new Date(),
       time: format(new Date(), "HH:mm"),
-      homeName: "",
-      unit: "",
-      injuredPersonFirstName: "",
-      injuredPersonSurname: "",
-      injuredPersonDOB: new Date(),
-      residentInternalId: "",
-      dateOfAdmission: undefined,
-      healthCareNumber: "",
-      injuredPersonStatus: ["Resident"], // Default to Resident status
+      homeName: teamData?.name || "",
+      unit: teamData?.name || "",
+      injuredPersonFirstName: resident?.firstName || "",
+      injuredPersonSurname: resident?.lastName || "",
+      injuredPersonDOB: resident?.dateOfBirth ? new Date(resident.dateOfBirth) : new Date(),
+      residentInternalId: resident?.internalId || resident?._id || "",
+      dateOfAdmission: resident?.admissionDate ? new Date(resident.admissionDate) : undefined,
+      healthCareNumber: resident?.nhsHealthNumber || "",
+      injuredPersonStatus: ["Resident"],
       contractorEmployer: "",
       incidentTypes: [],
       typeOtherDetails: "",
@@ -223,74 +285,100 @@ export function ComprehensiveIncidentForm({
       furtherActionsAdvised: "",
       preventionMeasures: "",
       homeManagerInformedBy: "",
-      homeManagerInformedDateTime: "",
+      homeManagerInformedDateTime: undefined,
       onCallManagerName: "",
-      onCallContactedDateTime: "",
-      nokInformedWho: "",
+      onCallContactedDateTime: undefined,
+      nokInformedWho: resident?.nextOfKin?.name || "",
       nokInformedBy: "",
-      nokInformedDateTime: "",
-      careManagerName: "",
-      careManagerEmail: "",
-      keyWorkerName: "",
-      keyWorkerEmail: "",
+      nokInformedDateTime: undefined,
+      careManagerName: resident?.careManager?.name || resident?.careManagerName || "",
+      careManagerEmail: resident?.careManager?.email || "",
+      keyWorkerName: resident?.keyWorker?.name || "",
+      keyWorkerEmail: resident?.keyWorker?.email || "",
       completedByFullName: currentUserName,
       completedByJobTitle: "",
       completedBySignature: currentUserName,
       dateCompleted: new Date(),
+    };
+  }, [existingIncident, resident, teamData, currentUserName]); // Only recompute when these change
+
+  const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
+    resolver: zodResolver(ComprehensiveIncidentSchema),
+    defaultValues: {
+      date: new Date(),
+      time: format(new Date(), "HH:mm"),
+      homeName: "",
+      unit: "",
+      injuredPersonFirstName: "",
+      injuredPersonSurname: "",
+      injuredPersonDOB: new Date(),
+      residentInternalId: "",
+      dateOfAdmission: undefined,
+      healthCareNumber: "",
+      injuredPersonStatus: ["Resident"],
+      contractorEmployer: "",
+      incidentTypes: [],
+      typeOtherDetails: "",
+      anticoagulantMedication: undefined,
+      fallPathway: undefined,
+      detailedDescription: "",
+      incidentLevel: "no_harm",
+      injuryDescription: "",
+      bodyPartInjured: "",
+      treatmentTypes: [],
+      treatmentDetails: "",
+      vitalSigns: "",
+      treatmentRefused: false,
+      witness1Name: "",
+      witness1Contact: "",
+      witness2Name: "",
+      witness2Contact: "",
+      nurseActions: [],
+      furtherActionsAdvised: "",
+      preventionMeasures: "",
+      homeManagerInformedBy: "",
+      homeManagerInformedDateTime: undefined,
+      onCallManagerName: "",
+      onCallContactedDateTime: undefined,
+      nokInformedWho: "",
+      nokInformedBy: "",
+      nokInformedDateTime: undefined,
+      careManagerName: "",
+      careManagerEmail: "",
+      keyWorkerName: "",
+      keyWorkerEmail: "",
+      completedByFullName: "",
+      completedByJobTitle: "",
+      completedBySignature: "",
+      dateCompleted: new Date(),
     },
   });
 
-  // Update form with resident and organization data when available
+  // Populate form ONLY when dialog opens (track with ref to prevent loops)
   React.useEffect(() => {
-    // Pre-populate Section 1: Incident Details with resident's team name
-    // Using team name instead of organization name for consistency with notifications
-    if (teamData?.name) {
-      form.setValue("homeName", teamData.name);
+    if (isOpen && !hasPopulatedRef.current) {
+      hasPopulatedRef.current = true;
+      // Reset form with the computed values
+      form.reset(formDefaultValues);
     }
+  }, [isOpen]); // Only depend on isOpen
 
-    if (teamData?.name) {
-      form.setValue("unit", teamData.name);
+  // Reset form and step when dialog closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      // Reset population flag so form can be re-populated next time
+      hasPopulatedRef.current = false;
+      // Reset to step 1
+      setCurrentStep(1);
+      // Close all popovers
+      setDoiPopoverOpen(false);
+      setDobPopoverOpen(false);
+      setAdmissionDatePopoverOpen(false);
+      setHomeManagerDatePopoverOpen(false);
+      setOnCallDatePopoverOpen(false);
+      setNokDatePopoverOpen(false);
     }
-    
-    if (resident) {
-      // Pre-populate Section 2: Injured Person Details
-      form.setValue("injuredPersonFirstName", resident.firstName || "");
-      form.setValue("injuredPersonSurname", resident.lastName || "");
-      
-      if (resident.dateOfBirth) {
-        form.setValue("injuredPersonDOB", new Date(resident.dateOfBirth));
-      }
-      
-      form.setValue("residentInternalId", resident.internalId || resident._id || "");
-      
-      if (resident.admissionDate) {
-        form.setValue("dateOfAdmission", new Date(resident.admissionDate));
-      }
-      
-      form.setValue("healthCareNumber", resident.nhsHealthNumber || "");
-      
-      // Pre-populate Section 18: Next of Kin (if available)
-      if (resident.nextOfKin) {
-        form.setValue("nokInformedWho", resident.nextOfKin.name || "");
-      }
-      
-      // Pre-populate Section 19: Care team (if available)
-      if (resident.careManager) {
-        form.setValue("careManagerName", resident.careManager.name || "");
-        form.setValue("careManagerEmail", resident.careManager.email || "");
-      }
-      if (resident.keyWorker) {
-        form.setValue("keyWorkerName", resident.keyWorker.name || "");
-        form.setValue("keyWorkerEmail", resident.keyWorker.email || "");
-      }
-    }
-
-    // Pre-populate Section 20: Form completion details with current user
-    if (currentUserName) {
-      form.setValue("completedByFullName", currentUserName);
-      form.setValue("completedBySignature", currentUserName);
-    }
-  }, [resident, organizationData, teamData, form, currentUserName]);
+  }, [isOpen]); // Only depend on isOpen, not form
 
   const watchedIncidentTypes = form.watch("incidentTypes");
   const hasFallType = watchedIncidentTypes?.some(type => 
@@ -373,8 +461,8 @@ export function ComprehensiveIncidentForm({
   async function onSubmit(values: z.infer<typeof ComprehensiveIncidentSchema>) {
     try {
       setIsSubmitting(true);
-      
-      await createIncident({
+
+      const incidentData = {
         // Convert dates to strings
         date: values.date.toISOString().split('T')[0],
         time: values.time,
@@ -393,73 +481,84 @@ export function ComprehensiveIncidentForm({
         // Metadata for filtering
         teamId: resident?.teamId,
         organizationId: resident?.organizationId,
-        
+
         // Status
         injuredPersonStatus: values.injuredPersonStatus,
         contractorEmployer: values.contractorEmployer,
-        
+
         // Incident types
         incidentTypes: values.incidentTypes,
         typeOtherDetails: values.typeOtherDetails,
-        
+
         // Fall specific
         anticoagulantMedication: values.anticoagulantMedication,
         fallPathway: values.fallPathway,
-        
+
         // Description
         detailedDescription: values.detailedDescription,
-        
+
         // Level and injury
         incidentLevel: values.incidentLevel,
         injuryDescription: values.injuryDescription,
         bodyPartInjured: values.bodyPartInjured,
-        
+
         // Treatment
         treatmentTypes: values.treatmentTypes,
         treatmentDetails: values.treatmentDetails,
         vitalSigns: values.vitalSigns,
         treatmentRefused: values.treatmentRefused,
-        
+
         // Witnesses
         witness1Name: values.witness1Name,
         witness1Contact: values.witness1Contact,
         witness2Name: values.witness2Name,
         witness2Contact: values.witness2Contact,
-        
+
         // Actions
         nurseActions: values.nurseActions,
         furtherActionsAdvised: values.furtherActionsAdvised,
         preventionMeasures: values.preventionMeasures,
-        
+
         // Notifications
         homeManagerInformedBy: values.homeManagerInformedBy,
-        homeManagerInformedDateTime: values.homeManagerInformedDateTime,
+        homeManagerInformedDateTime: values.homeManagerInformedDateTime?.toISOString(),
         onCallManagerName: values.onCallManagerName,
-        onCallContactedDateTime: values.onCallContactedDateTime,
+        onCallContactedDateTime: values.onCallContactedDateTime?.toISOString(),
         nokInformedWho: values.nokInformedWho,
         nokInformedBy: values.nokInformedBy,
-        nokInformedDateTime: values.nokInformedDateTime,
-        
+        nokInformedDateTime: values.nokInformedDateTime?.toISOString(),
+
         // Recipients
         careManagerName: values.careManagerName,
         careManagerEmail: values.careManagerEmail,
         keyWorkerName: values.keyWorkerName,
         keyWorkerEmail: values.keyWorkerEmail,
-        
+
         // Completion
         completedByFullName: values.completedByFullName,
         completedByJobTitle: values.completedByJobTitle,
         completedBySignature: values.completedBySignature,
         dateCompleted: values.dateCompleted.toISOString().split('T')[0],
-      });
+      };
 
-      toast.success("Incident report submitted successfully");
+      // Check if we're editing an existing incident or creating a new one
+      if (existingIncident && existingIncident._id) {
+        await updateIncident({
+          incidentId: existingIncident._id,
+          ...incidentData,
+        });
+        toast.success("Incident report updated successfully");
+      } else {
+        await createIncident(incidentData);
+        toast.success("Incident report created successfully");
+      }
+
       form.reset();
       onClose();
       onSuccess?.();
     } catch (error) {
       console.error("Error submitting incident report:", error);
-      toast.error("Failed to submit incident report");
+      toast.error(existingIncident ? "Failed to update incident report" : "Failed to create incident report");
     } finally {
       setIsSubmitting(false);
     }
@@ -1542,9 +1641,44 @@ export function ComprehensiveIncidentForm({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Date/Time</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Date and time informed" {...field} />
-                            </FormControl>
+                            <Popover modal open={homeManagerDatePopoverOpen} onOpenChange={setHomeManagerDatePopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal justify-between",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <span className="truncate">
+                                      {field.value ? (
+                                        format(field.value, "PPP")
+                                      ) : (
+                                        "Pick a date"
+                                      )}
+                                    </span>
+                                    <ChevronDownIcon className="h-4 w-4 opacity-50 flex-shrink-0" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  captionLayout="dropdown"
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(date);
+                                      setHomeManagerDatePopoverOpen(false);
+                                    }
+                                  }}
+                                  disabled={(date) =>
+                                    date > new Date() || date < new Date("1900-01-01")
+                                  }
+                                />
+                              </PopoverContent>
+                            </Popover>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1581,9 +1715,44 @@ export function ComprehensiveIncidentForm({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Date/Time contacted</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Date and time contacted" {...field} />
-                            </FormControl>
+                            <Popover modal open={onCallDatePopoverOpen} onOpenChange={setOnCallDatePopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal justify-between",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <span className="truncate">
+                                      {field.value ? (
+                                        format(field.value, "PPP")
+                                      ) : (
+                                        "Pick a date"
+                                      )}
+                                    </span>
+                                    <ChevronDownIcon className="h-4 w-4 opacity-50 flex-shrink-0" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  captionLayout="dropdown"
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(date);
+                                      setOnCallDatePopoverOpen(false);
+                                    }
+                                  }}
+                                  disabled={(date) =>
+                                    date > new Date() || date < new Date("1900-01-01")
+                                  }
+                                />
+                              </PopoverContent>
+                            </Popover>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1595,38 +1764,40 @@ export function ComprehensiveIncidentForm({
                   <Card className="shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                       
+
                 NOK (Next of Kin) Informed
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                      <FormField
-                        control={form.control}
-                        name="nokInformedWho"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>To who</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Name of next of kin" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <FormField
+                          control={form.control}
+                          name="nokInformedWho"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>To who</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Name of next of kin" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="nokInformedBy"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>By whom</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Name of person who informed NOK" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="nokInformedBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>By whom</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Name of person who informed NOK" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
                       <FormField
                         control={form.control}
@@ -1634,9 +1805,44 @@ export function ComprehensiveIncidentForm({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Date/Time</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Date and time informed" {...field} />
-                            </FormControl>
+                            <Popover modal open={nokDatePopoverOpen} onOpenChange={setNokDatePopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal justify-between",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <span className="truncate">
+                                      {field.value ? (
+                                        format(field.value, "PPP")
+                                      ) : (
+                                        "Pick a date"
+                                      )}
+                                    </span>
+                                    <ChevronDownIcon className="h-4 w-4 opacity-50 flex-shrink-0" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  captionLayout="dropdown"
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(date);
+                                      setNokDatePopoverOpen(false);
+                                    }
+                                  }}
+                                  disabled={(date) =>
+                                    date > new Date() || date < new Date("1900-01-01")
+                                  }
+                                />
+                              </PopoverContent>
+                            </Popover>
                             <FormMessage />
                           </FormItem>
                         )}
