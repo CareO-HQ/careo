@@ -48,7 +48,9 @@ import {
   Send,
   MoreVertical,
   Pencil,
-  Shield
+  Shield,
+  Trash2,
+  ShieldAlert
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
@@ -117,6 +119,9 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const sehsctReports = useQuery(api.sehsctReports.getByResident, {
     residentId: id as Id<"residents">
   });
+
+  // Mutation for deleting incidents
+  const deleteIncident = useMutation(api.incidents.remove);
 
   // Memoize NHS report existence check to avoid repeated .some() calls
   // MUST be before any early returns to maintain hook order
@@ -240,6 +245,20 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       // Deep clone the incident object to prevent Convex real-time updates from triggering useEffect loops
       setSelectedIncident(JSON.parse(JSON.stringify(incident)));
       setShowReportForm(true);
+    }
+  };
+
+  const handleDeleteIncident = async (incidentId: string) => {
+    if (!confirm("Are you sure you want to delete this incident report? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      await deleteIncident({ incidentId: incidentId as Id<"incidents"> });
+      toast.success("Incident report deleted successfully");
+    } catch (error) {
+      console.error("Error deleting incident:", error);
+      toast.error("Failed to delete incident report");
     }
   };
 
@@ -1472,8 +1491,20 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           <span>Body Map</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem>
+                          <ShieldAlert className="w-4 h-4 mr-2" />
+                          <span>Restrictive Practice Form</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
                           <ClipboardCheck className="w-4 h-4 mr-2" />
                           <span>Generate APP1 Report</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteIncident(incident._id)}
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          <span>Delete Incident</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

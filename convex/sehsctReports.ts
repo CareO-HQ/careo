@@ -128,6 +128,16 @@ export const create = mutation({
     reportedByName: v.string(),
   },
   handler: async (ctx, args) => {
+    // Check if a report already exists for this incident
+    const existingReport = await ctx.db
+      .query("sehsctReports")
+      .withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
+      .first();
+
+    if (existingReport) {
+      throw new Error("A SEHSCT report already exists for this incident. Each incident can have a maximum of one SEHSCT report.");
+    }
+
     const now = Date.now();
 
     const reportId = await ctx.db.insert("sehsctReports", {

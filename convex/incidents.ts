@@ -678,3 +678,50 @@ export const getIncidentsByOrganization = query({
     return incidentsWithResidents;
   },
 });
+
+export const remove = mutation({
+  args: {
+    incidentId: v.id("incidents"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Delete all related NHS reports (BHSCT)
+    const bhsctReports = await ctx.db
+      .query("bhsctReports")
+      .withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
+      .collect();
+
+    for (const report of bhsctReports) {
+      await ctx.db.delete(report._id);
+    }
+
+    // Delete all related NHS reports (SEHSCT)
+    const sehsctReports = await ctx.db
+      .query("sehsctReports")
+      .withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
+      .collect();
+
+    for (const report of sehsctReports) {
+      await ctx.db.delete(report._id);
+    }
+
+    // Delete all related trust incident reports (legacy)
+    const trustReports = await ctx.db
+      .query("trustIncidentReports")
+      .withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
+      .collect();
+
+    for (const report of trustReports) {
+      await ctx.db.delete(report._id);
+    }
+
+    // Finally, delete the incident itself
+    await ctx.db.delete(args.incidentId);
+
+    return { success: true };
+  },
+});
