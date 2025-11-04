@@ -529,7 +529,7 @@ export default function ViewCompletedAuditPage() {
                       {/* Latest Comment */}
                       {plan.latestComment && (
                         <div className="text-xs text-muted-foreground italic border-l-2 pl-2 mt-2">
-                          "{plan.latestComment}"
+                          &quot;{plan.latestComment}&quot;
                         </div>
                       )}
                     </div>

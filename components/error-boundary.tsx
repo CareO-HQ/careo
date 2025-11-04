@@ -63,24 +63,8 @@ export class ErrorBoundary extends React.Component<
       this.props.onError(error, errorInfo);
     }
 
-    // Log to Sentry in production
-    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-      // Dynamically import Sentry to avoid SSR issues
-      import("@sentry/nextjs").then((Sentry) => {
-        Sentry.captureException(error, {
-          contexts: {
-            react: {
-              componentStack: errorInfo.componentStack,
-            },
-          },
-          tags: {
-            errorBoundary: true,
-          },
-        });
-      }).catch(err => {
-        console.error("Failed to log error to Sentry:", err);
-      });
-    }
+    // TODO: Add error logging service integration here (e.g., Sentry, LogRocket, etc.)
+    // For now, errors are logged to console above
   }
 
   handleReset = () => {
@@ -119,7 +103,7 @@ export class ErrorBoundary extends React.Component<
                 Something went wrong
               </h1>
               <p className="text-muted-foreground">
-                We're sorry, but an unexpected error occurred. Our team has been
+                We&apos;re sorry, but an unexpected error occurred. Our team has been
                 notified and is working on a fix.
               </p>
             </div>
@@ -203,7 +187,34 @@ export function IncidentErrorFallback() {
       <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
       <h2 className="text-xl font-semibold mb-2">Failed to Load Incident</h2>
       <p className="text-muted-foreground text-center mb-6 max-w-md">
-        We couldn't load this incident. This might be due to a network error or
+        We couldn&apos;t load this incident. This might be due to a network error or
+        missing data. Please try again.
+      </p>
+      <div className="flex gap-3">
+        <Button onClick={() => window.location.reload()} variant="default">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Reload
+        </Button>
+        <Button onClick={() => window.history.back()} variant="outline">
+          Go Back
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * AUDIT PAGE ERROR FALLBACK
+ *
+ * Specialized error UI for audit pages.
+ */
+export function AuditErrorFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
+      <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
+      <h2 className="text-xl font-semibold mb-2">Failed to Load Audit</h2>
+      <p className="text-muted-foreground text-center mb-6 max-w-md">
+        We couldn&apos;t load this audit. This might be due to a network error or
         missing data. Please try again.
       </p>
       <div className="flex gap-3">

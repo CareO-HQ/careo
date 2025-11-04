@@ -42,7 +42,9 @@ function generateBHSCTReportHTML(data: NHSReportData): string {
   const getStr = (value: unknown) => value ? String(value) : "Not specified";
 
   // Read BHSCT logo from public directory at runtime
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require('fs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path = require('path');
 
   let bhsctLogoBase64 = '';
@@ -428,7 +430,9 @@ function generateSEHSCTReportHTML(data: NHSReportData): string {
   const { incident, trustReport, resident } = data;
 
   // Read SEHSCT logo from public directory at runtime
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require('fs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path = require('path');
 
   let sehsctLogoBase64 = '';

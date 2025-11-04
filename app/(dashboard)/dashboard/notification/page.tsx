@@ -193,7 +193,7 @@ export default function NotificationPage() {
 
     try {
       // Determine which mutation to use based on audit category from metadata
-      let auditCategory = selectedNotification.metadata?.auditCategory;
+      const auditCategory = selectedNotification.metadata?.auditCategory;
 
       // If no category in metadata (old notifications), try each mutation until one works
       if (!auditCategory) {
@@ -589,7 +589,7 @@ export default function NotificationPage() {
                             by {history.updatedByName || history.updatedBy}
                           </p>
                           {history.comment && (
-                            <p className="text-sm italic mt-1">"{history.comment}"</p>
+                            <p className="text-sm italic mt-1">&quot;{history.comment}&quot;</p>
                           )}
                         </div>
                       ))}

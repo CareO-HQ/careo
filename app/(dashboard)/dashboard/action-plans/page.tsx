@@ -381,7 +381,7 @@ export default function MyActionPlansPage() {
           <div>
             <h1 className="text-3xl font-bold">Action Plans</h1>
             <p className="text-muted-foreground">
-              Track action plans you've created and been assigned to
+              Track action plans you&apos;ve created and been assigned to
             </p>
           </div>
           {newActionPlansCount !== undefined && newActionPlansCount > 0 && (

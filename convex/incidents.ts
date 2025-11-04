@@ -712,7 +712,7 @@ export const remove = mutation({
     // Delete all related trust incident reports (legacy)
     const trustReports = await ctx.db
       .query("trustIncidentReports")
-      .withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
+      .withIndex("by_incidentId", (q) => q.eq("incidentId", args.incidentId))
       .collect();
 
     for (const report of trustReports) {
