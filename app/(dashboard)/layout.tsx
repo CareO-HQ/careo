@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/navigation/AppSidebar";
+import { Toaster } from "@/components/ui/toaster";
 
 export default function DashboardLayout({
   children
@@ -9,6 +10,7 @@ export default function DashboardLayout({
     <main className="flex p-10 w-full">
       <AppSidebar />
       {children}
+      <Toaster />
     </main>
   );
 }

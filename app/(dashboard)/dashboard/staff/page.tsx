@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { api } from "@/convex/_generated/api";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { useQuery } from "convex/react";
+import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,110 +18,111 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, Mail, Phone, Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-// Mock data for staff members - Replace with actual data from convex later
-const mockStaff = [
-  {
-    id: "1",
-    firstName: "Sarah",
-    lastName: "Johnson",
-    email: "sarah.johnson@careo.com",
-    phone: "+44 7123 456789",
-    role: "Care Manager",
-    department: "Care Team",
-    shift: "Day Shift",
-    status: "Active",
-    avatar: null,
-  },
-  {
-    id: "2",
-    firstName: "Michael",
-    lastName: "Brown",
-    email: "michael.brown@careo.com",
-    phone: "+44 7234 567890",
-    role: "Senior Carer",
-    department: "Care Team",
-    shift: "Night Shift",
-    status: "Active",
-    avatar: null,
-  },
-  {
-    id: "3",
-    firstName: "Emma",
-    lastName: "Davis",
-    email: "emma.davis@careo.com",
-    phone: "+44 7345 678901",
-    role: "Registered Nurse",
-    department: "Medical",
-    shift: "Day Shift",
-    status: "Active",
-    avatar: null,
-  },
-  {
-    id: "4",
-    firstName: "James",
-    lastName: "Wilson",
-    email: "james.wilson@careo.com",
-    phone: "+44 7456 789012",
-    role: "Care Assistant",
-    department: "Care Team",
-    shift: "Evening Shift",
-    status: "On Leave",
-    avatar: null,
-  },
-  {
-    id: "5",
-    firstName: "Lisa",
-    lastName: "Anderson",
-    email: "lisa.anderson@careo.com",
-    phone: "+44 7567 890123",
-    role: "Activity Coordinator",
-    department: "Activities",
-    shift: "Day Shift",
-    status: "Active",
-    avatar: null,
-  },
-];
+interface TeamStaffMember {
+  _id: string;
+  userId: string;
+  _creationTime: number;
+  email: string;
+  name?: string;
+  phone?: string;
+  imageUrl?: string | null;
+  role?: string;
+  teamId?: string;
+  organizationId?: string;
+}
+
+interface OrgStaffMember {
+  id: string;
+  userId: string;
+  role: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string;
+  };
+  phone?: string;
+  address?: string;
+  dateOfJoin?: string;
+  rightToWorkStatus?: string;
+}
 
 export default function StaffPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const router = useRouter();
+  const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
+  const { data: activeOrg } = authClient.useActiveOrganization();
 
-  const filteredStaff = mockStaff.filter((staff) =>
-    `${staff.firstName} ${staff.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  console.log("Staff Page - activeTeamId:", activeTeamId);
+  console.log("Staff Page - activeOrganizationId:", activeOrganizationId);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-100 text-green-800 border-green-300";
-      case "On Leave":
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
-      case "Inactive":
-        return "bg-gray-100 text-gray-800 border-gray-300";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-300";
+  // Fetch staff by team if team is selected
+  const teamStaff = useQuery(
+    activeTeamId ? api.users.getByTeamId : "skip",
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  ) as TeamStaffMember[] | undefined;
+
+  // Fetch enriched organization members with phone numbers
+  const enrichedOrgStaff = useQuery(
+    !activeTeamId && activeOrganizationId ? api.users.getEnrichedOrgMembers : "skip",
+    !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  ) as OrgStaffMember[] | undefined;
+
+  console.log("Staff Page - teamStaff:", teamStaff);
+  console.log("Staff Page - enrichedOrgStaff:", enrichedOrgStaff);
+
+  // Use organization members if only org is selected, otherwise use team members
+  const staff = activeTeamId ? teamStaff : enrichedOrgStaff;
+
+  // Determine display name for header
+  const displayName = activeTeamId
+    ? activeTeam?.name || 'selected unit'
+    : activeOrganizationId
+    ? `All units in ${activeOrganization?.name || 'care home'}`
+    : '';
+
+  // Filter staff based on search term
+  const filteredStaff = (staff || []).filter((member) => {
+    if (activeTeamId) {
+      // Team member structure
+      const teamMember = member as TeamStaffMember;
+      const name = teamMember.name || '';
+      const email = teamMember.email || '';
+      const role = teamMember.role || '';
+      const searchLower = searchTerm.toLowerCase();
+
+      return (
+        name.toLowerCase().includes(searchLower) ||
+        email.toLowerCase().includes(searchLower) ||
+        role.toLowerCase().includes(searchLower)
+      );
+    } else {
+      // Organization member structure
+      const orgMember = member as OrgStaffMember;
+      const name = orgMember.user.name || '';
+      const email = orgMember.user.email || '';
+      const role = orgMember.role || '';
+      const searchLower = searchTerm.toLowerCase();
+
+      return (
+        name.toLowerCase().includes(searchLower) ||
+        email.toLowerCase().includes(searchLower) ||
+        role.toLowerCase().includes(searchLower)
+      );
     }
-  };
-
-  const getShiftColor = (shift: string) => {
-    switch (shift) {
-      case "Day Shift":
-        return "bg-blue-100 text-blue-800 border-blue-300";
-      case "Evening Shift":
-        return "bg-orange-100 text-orange-800 border-orange-300";
-      case "Night Shift":
-        return "bg-purple-100 text-purple-800 border-purple-300";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-300";
-    }
-  };
+  });
 
   return (
     <div className="container mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Staff</h1>
+        {displayName && (
+          <p className="text-sm text-muted-foreground">
+            {displayName}
+          </p>
+        )}
       </div>
 
       <div className="w-full">
@@ -147,9 +152,9 @@ export default function StaffPage() {
           {/* Results count */}
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              {filteredStaff.length} of {mockStaff.length} staff member(s)
+              {filteredStaff.length} of {staff?.length || 0} staff member(s)
             </div>
-            <Button variant="outline">
+            <Button variant="outline" disabled>
               <Plus className="w-4 h-4 mr-2" />
               Add Staff Member
             </Button>
@@ -161,67 +166,93 @@ export default function StaffPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Staff Member</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Shift</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStaff.length ? (
-                filteredStaff.map((staff) => {
-                  const initials = `${staff.firstName[0]}${staff.lastName[0]}`.toUpperCase();
+              {!staff ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    <p className="text-muted-foreground">Loading staff members...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredStaff.length ? (
+                filteredStaff.map((member) => {
+                  // Handle different member structures
+                  const isTeamMember = activeTeamId;
+                  const teamMember = member as TeamStaffMember;
+                  const orgMember = member as OrgStaffMember;
+
+                  const name = isTeamMember ? teamMember.name : orgMember.user.name;
+                  const email = isTeamMember ? teamMember.email : orgMember.user.email;
+                  const phone = isTeamMember ? teamMember.phone : orgMember.phone;
+                  const imageUrl = isTeamMember ? teamMember.imageUrl : orgMember.user.image;
+                  const role = isTeamMember ? teamMember.role : orgMember.role;
+                  const memberId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
+
+                  // Get initials from name or email
+                  const nameParts = name?.split(' ') || [];
+                  const initials = nameParts.length >= 2
+                    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+                    : name?.[0]?.toUpperCase() || email[0].toUpperCase();
+
                   return (
-                    <TableRow key={staff.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableRow
+                      key={memberId}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => router.push(`/dashboard/staff/${memberId}`)}
+                    >
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={staff.avatar || ""} alt={`${staff.firstName} ${staff.lastName}`} />
+                            <AvatarImage src={imageUrl || ""} alt={name || email} />
                             <AvatarFallback className="text-xs bg-primary/10 text-primary">
                               {initials}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium text-sm">{staff.firstName} {staff.lastName}</p>
+                            <p className="font-medium text-sm">{name || 'No name set'}</p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <p className="text-sm font-medium">{staff.role}</p>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-muted-foreground">{staff.department}</p>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={getShiftColor(staff.shift)}>
-                          {staff.shift}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3" />
-                            <span>{staff.email}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3" />
-                            <span>{staff.phone}</span>
-                          </div>
+                        <div className="flex items-center space-x-1 text-sm">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          <span>{email}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={getStatusColor(staff.status)}>
-                          {staff.status}
-                        </Badge>
+                        {phone ? (
+                          <div className="flex items-center space-x-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            <span>{phone}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No phone</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {role ? (
+                          <Badge variant="secondary">
+                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No role</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
-                    <p className="text-muted-foreground">No staff members found matching your search.</p>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    <p className="text-muted-foreground">
+                      {staff.length === 0
+                        ? 'No staff members found in this organization/team.'
+                        : 'No staff members found matching your search.'}
+                    </p>
                   </TableCell>
                 </TableRow>
               )}

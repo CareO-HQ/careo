@@ -77,7 +77,24 @@ export default defineSchema({
     phone: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     isOnboardingComplete: v.optional(v.boolean()),
-    activeTeamId: v.optional(v.string())
+    activeTeamId: v.optional(v.string()),
+
+    // Staff details
+    address: v.optional(v.string()),
+    dateOfJoin: v.optional(v.string()), // ISO date string
+    rightToWorkStatus: v.optional(v.union(
+      v.literal("verified"),
+      v.literal("pending"),
+      v.literal("expired"),
+      v.literal("not_verified")
+    )),
+
+    // Next of Kin details
+    nextOfKinName: v.optional(v.string()),
+    nextOfKinRelationship: v.optional(v.string()),
+    nextOfKinPhone: v.optional(v.string()),
+    nextOfKinEmail: v.optional(v.string()),
+    nextOfKinAddress: v.optional(v.string()),
   }).index("byEmail", ["email"]), // Add index for email lookups
 
   // Passkey table for better-auth passkey plugin

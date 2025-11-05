@@ -17,7 +17,8 @@ export const sendImage = mutation({
       v.literal("resident")
     ),
     organizationId: v.optional(v.string()),
-    residentId: v.optional(v.string())
+    residentId: v.optional(v.string()),
+    userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -46,6 +47,9 @@ export const sendImage = mutation({
         }
         id = activeOrganization.activeOrganizationId;
       }
+    } else if (args.type === "profile") {
+      // For profile images, use provided userId or default to current user
+      id = args.userId || identity.subject;
     } else {
       id = identity.subject;
     }
@@ -77,6 +81,35 @@ export const getUserLogo = query({
       const url = await ctx.storage.getUrl(userLogo.body);
       return { url, storageId: userLogo._id };
     }
+    return null;
+  }
+});
+
+export const getUserImageByUserId = query({
+  args: {
+    userId: v.string()
+  },
+  returns: v.union(
+    v.object({
+      url: v.union(v.string(), v.null()),
+      storageId: v.string()
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const { userId } = args;
+
+    const userLogo = await ctx.db
+      .query("files")
+      .filter((q) => q.eq(q.field("type"), "profile"))
+      .filter((q) => q.eq(q.field("userId"), userId))
+      .first();
+
+    if (userLogo?.format === "image") {
+      const url = await ctx.storage.getUrl(userLogo.body);
+      return { url, storageId: userLogo._id };
+    }
+
     return null;
   }
 });
