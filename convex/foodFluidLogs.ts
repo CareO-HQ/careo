@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
+import { api } from "./_generated/api";
 import {
   getAuthenticatedUser,
   canAccessResident,
@@ -111,6 +112,24 @@ export const createFoodFluidLog = mutation({
         fluidMl: args.fluidConsumedMl,
       },
     });
+
+    // 9. AUTO-RESOLVE FOOD/FLUID ALERTS
+    // Map section names to time periods for alert resolution
+    const sectionToTimePeriod: Record<string, "morning" | "afternoon" | "evening" | "night"> = {
+      "Morning": "morning",
+      "Afternoon": "afternoon",
+      "Evening": "evening",
+      "Night": "night",
+    };
+
+    const timePeriod = sectionToTimePeriod[args.section];
+    if (timePeriod) {
+      // Resolve any active alerts for this time period
+      await ctx.runMutation(api.alerts.autoResolveFoodFluidAlerts, {
+        residentId: args.residentId,
+        timePeriod,
+      });
+    }
 
     return logEntry;
   },

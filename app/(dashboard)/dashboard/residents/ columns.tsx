@@ -13,7 +13,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { cn, getAge, getColorForBadge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { Bell, Clock } from "lucide-react";
 
 // Component for displaying allergies
@@ -151,29 +151,51 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
   );
 };
 
-// Component for displaying alerts (with dummy data for demonstration)
+// Component for displaying alerts (real data from alerts system)
 const NotificationsCell = ({ residentId }: { residentId: string }) => {
-  // Generate dummy alert based on residentId for demonstration
-  const hash = residentId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const dummyMinutesUntil = hash % 35; // Random value between 0-34
+  const resolveAlert = useMutation(api.alerts.resolveAlert);
 
-  // Check if there are alerts (within 30 minutes)
-  const hasNotifications = dummyMinutesUntil <= 30;
+  const alertData = useQuery(
+    api.alerts.getResidentAlertCount,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
 
-  const dummyMedications = [
-    "Paracetamol 500mg",
-    "Metformin 850mg",
-    "Aspirin 75mg",
-    "Omeprazole 20mg",
-    "Atorvastatin 40mg"
-  ];
+  const alerts = useQuery(
+    api.alerts.getResidentAlerts,
+    {
+      residentId: residentId as Id<"residents">
+    }
+  );
 
-  const medicationName = dummyMedications[hash % dummyMedications.length];
-  const scheduledTime = new Date();
-  scheduledTime.setMinutes(scheduledTime.getMinutes() + dummyMinutesUntil);
+  const handleDismissAlert = async (alertId: Id<"alerts">, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent event bubbling
+    try {
+      await resolveAlert({
+        alertId,
+        resolutionNote: "Dismissed by staff"
+      });
+    } catch (error) {
+      console.error("Failed to dismiss alert:", error);
+    }
+  };
 
-  // Dummy alert count (1-3 alerts)
-  const notificationCount = (hash % 3) + 1;
+  if (alertData === undefined || alerts === undefined) {
+    // Loading state
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+      >
+        <Bell className="h-4 w-4 text-black" />
+      </Button>
+    );
+  }
+
+  const hasNotifications = alertData.total > 0;
+  const notificationCount = alertData.total;
 
   if (!hasNotifications) {
     return (
@@ -186,6 +208,9 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
       </Button>
     );
   }
+
+  // Get the most urgent alert for display
+  const topAlert = alerts[0];
 
   return (
     <Tooltip>
@@ -208,26 +233,24 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
         <div className="flex flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
             <p className="font-medium text-sm text-primary">
-              {medicationName}
+              {topAlert.title}
             </p>
             <Badge
               variant="table"
               className={cn(
                 "flex-shrink-0",
-                dummyMinutesUntil <= 5
+                topAlert.severity === "critical"
                   ? "bg-red-50 text-red-700 border-red-300"
-                  : "bg-orange-50 text-orange-700 border-orange-300"
+                  : topAlert.severity === "warning"
+                  ? "bg-orange-50 text-orange-700 border-orange-300"
+                  : "bg-blue-50 text-blue-700 border-blue-300"
               )}
             >
-              {dummyMinutesUntil <= 5
-                ? `${dummyMinutesUntil}m`
-                : scheduledTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {topAlert.severity === "critical" ? "Critical" : topAlert.severity === "warning" ? "Warning" : "Info"}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {dummyMinutesUntil <= 5
-              ? `Due in ${dummyMinutesUntil} minute${dummyMinutesUntil !== 1 ? 's' : ''}`
-              : `Scheduled for ${scheduledTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+            {topAlert.message}
           </p>
           {notificationCount > 1 && (
             <div className="pt-2 border-t">
@@ -236,6 +259,16 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
               </p>
             </div>
           )}
+          <div className="pt-2 border-t flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => handleDismissAlert(topAlert._id, e)}
+              className="text-xs h-7"
+            >
+              Dismiss
+            </Button>
+          </div>
         </div>
       </TooltipContent>
     </Tooltip>

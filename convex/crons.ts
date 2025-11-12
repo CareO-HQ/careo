@@ -141,4 +141,48 @@ crons.weekly(
   internal.notifications.archiveOldNotifications
 );
 
+/**
+ * GENERATE FOOD/FLUID ALERTS
+ * Checks for missing food/fluid logs and generates alerts
+ * Runs every hour at the top of the hour
+ * - Morning alerts: Generated after 12 PM if no morning log
+ * - Afternoon alerts: Generated after 6 PM if no afternoon log
+ * - Evening alerts: Generated after 10 PM if no evening log
+ * - Night alerts: Generated after 6 AM if no night log
+ */
+crons.interval(
+  "Generate food/fluid alerts",
+  { hours: 1 },
+  internal.alertGeneration.generateFoodFluidAlerts
+);
+
+/**
+ * GENERATE NIGHT CHECK ALERTS
+ * Checks for overdue night checks and generates alerts
+ * Runs every hour at the top of the hour
+ * - Positioning: Alerts if overdue by 15+ minutes
+ * - Bed rails: Alerts if not checked during night shift
+ * - Night check: Alerts if not completed during night shift
+ * - Pad change: Alerts if overdue by 30+ minutes
+ */
+crons.interval(
+  "Generate night check alerts",
+  { hours: 1 },
+  internal.alertGeneration.generateNightCheckAlerts
+);
+
+/**
+ * GENERATE MEDICATION ALERTS
+ * Checks for due soon, overdue, and missed medications
+ * Runs every 15 minutes for timely notifications
+ * - Due Soon (Info): Medication scheduled within next 30 minutes
+ * - Overdue (Critical): Medication past scheduled time by 15+ minutes
+ * - Missed (Warning): Medication marked as missed state
+ */
+crons.interval(
+  "Generate medication alerts",
+  { minutes: 15 },
+  internal.alertGeneration.generateMedicationAlerts
+);
+
 export default crons;

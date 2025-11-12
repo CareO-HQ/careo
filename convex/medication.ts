@@ -508,6 +508,18 @@ export const updateMedicationIntakeState = mutation({
     }
 
     await ctx.db.patch(args.intakeId, updateData);
+
+    // AUTO-RESOLVE MEDICATION ALERTS when administered, refused, or skipped
+    if (args.state === "administered" || args.state === "refused" || args.state === "skipped") {
+      const intake = await ctx.db.get(args.intakeId);
+      if (intake) {
+        await ctx.runMutation(api.alerts.autoResolveMedicationAlerts, {
+          residentId: intake.residentId as Id<"residents">,
+          intakeId: args.intakeId,
+        });
+      }
+    }
+
     return null;
   }
 });

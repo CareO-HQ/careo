@@ -3,9 +3,18 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
+import { cn } from "@/lib/utils";
 import {
   Activity,
   Ambulance,
@@ -24,7 +33,8 @@ import {
   User,
   Users,
   Utensils,
-  NotebookPen
+  NotebookPen,
+  X
 } from "lucide-react";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -38,9 +48,36 @@ type ResidentPageProps = {
 export default function ResidentPage({ params }: ResidentPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const [showAlertsDialog, setShowAlertsDialog] = React.useState(false);
+
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
+  // Get alert count for this resident
+  const alertCount = useQuery(
+    api.alerts.getResidentAlertCount,
+    resident ? { residentId: id as Id<"residents"> } : "skip"
+  );
+
+  // Get all alerts for this resident
+  const alerts = useQuery(
+    api.alerts.getResidentAlerts,
+    resident ? { residentId: id as Id<"residents"> } : "skip"
+  );
+
+  const resolveAlert = useMutation(api.alerts.resolveAlert);
+
+  const handleDismissAlert = async (alertId: Id<"alerts">) => {
+    try {
+      await resolveAlert({
+        alertId,
+        resolutionNote: "Dismissed by staff"
+      });
+    } catch (error) {
+      console.error("Failed to dismiss alert:", error);
+    }
+  };
 
   console.log("RESIDENT", resident);
 
@@ -127,11 +164,20 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="icon" className="relative bg-gray-50 hover:bg-gray-100">
+        <Button
+          variant="outline"
+          size="icon"
+          className="relative bg-gray-50 hover:bg-gray-100"
+          onClick={() => setShowAlertsDialog(true)}
+        >
           <Bell className="h-5 w-5" />
-          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-semibold shadow-md">
-            2
-          </span>
+          {alertCount && alertCount.total > 0 && (
+            <span className={`absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-xs flex items-center justify-center font-semibold shadow-md ${
+              alertCount.critical > 0 ? 'bg-red-600' : 'bg-orange-500'
+            }`}>
+              {alertCount.total}
+            </span>
+          )}
         </Button>
       </div>
 
@@ -503,6 +549,78 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           </Card>
         </div>
       </div>
+
+      {/* ALERTS DIALOG */}
+      <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Alerts for {resident.firstName} {resident.lastName}</DialogTitle>
+            <DialogDescription>
+              {alerts && alerts.length > 0
+                ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} requiring attention`
+                : "No active alerts"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {alerts && alerts.length > 0 ? (
+              alerts.map((alert) => (
+                <div
+                  key={alert._id}
+                  className={cn(
+                    "p-4 rounded-lg border-2",
+                    alert.severity === "critical"
+                      ? "border-red-300 bg-red-50"
+                      : alert.severity === "warning"
+                      ? "border-orange-300 bg-orange-50"
+                      : "border-blue-300 bg-blue-50"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge
+                          variant="table"
+                          className={cn(
+                            alert.severity === "critical"
+                              ? "bg-red-100 text-red-800 border-red-400"
+                              : alert.severity === "warning"
+                              ? "bg-orange-100 text-orange-800 border-orange-400"
+                              : "bg-blue-100 text-blue-800 border-blue-400"
+                          )}
+                        >
+                          {alert.severity === "critical"
+                            ? "Critical"
+                            : alert.severity === "warning"
+                            ? "Warning"
+                            : "Info"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(alert.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
+                      <p className="text-sm text-muted-foreground">{alert.message}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDismissAlert(alert._id)}
+                      className="flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No active alerts</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

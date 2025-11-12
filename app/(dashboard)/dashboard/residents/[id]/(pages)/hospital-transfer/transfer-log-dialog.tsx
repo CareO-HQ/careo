@@ -23,7 +23,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar, X, Pill, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 // Form validation schema
 const TransferLogSchema = z.object({
@@ -273,13 +281,51 @@ export function TransferLogDialog({
                       control={form.control}
                       name="date"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Transfer Date <span className="text-red-500">*</span></FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
+                          <FormItem className="flex flex-col">
+                            <FormLabel>Transfer Date <span className="text-red-500">*</span></FormLabel>
+                            <Popover modal>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    type="button"
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    {field.value ? (
+                                      format(new Date(field.value), "PPP")
+                                    ) : (
+                                      <span>Pick a date</span>
+                                    )}
+                                    <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={field.value ? new Date(field.value) : undefined}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(format(date, "yyyy-MM-dd"));
+                                    }
+                                  }}
+                                  disabled={(date) => {
+                                    const today = new Date();
+                                    today.setHours(23, 59, 59, 999);
+                                    return date > today;
+                                  }}
+                                  captionLayout="dropdown"
+                                  defaultMonth={field.value ? new Date(field.value) : new Date()}
+                                  startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                  endMonth={new Date()}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
                       )}
                     />
 

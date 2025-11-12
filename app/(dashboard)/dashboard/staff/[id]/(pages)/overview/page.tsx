@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -75,6 +82,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   // Form state
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
   const [formData, setFormData] = React.useState({
     phone: "",
     address: "",
@@ -246,14 +254,52 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                         placeholder="+44 1234 567890"
                       />
                     </div>
-                    <div>
+                    <div className="flex flex-col gap-2">
                       <Label htmlFor="dateOfJoin">Date of Join</Label>
-                      <Input
-                        id="dateOfJoin"
-                        type="date"
-                        value={formData.dateOfJoin}
-                        onChange={(e) => setFormData({ ...formData, dateOfJoin: e.target.value })}
-                      />
+                      <Popover
+                        open={isDatePickerOpen}
+                        onOpenChange={setIsDatePickerOpen}
+                        modal
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            type="button"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formData.dateOfJoin && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {formData.dateOfJoin ? (
+                              format(new Date(formData.dateOfJoin), "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={formData.dateOfJoin ? new Date(formData.dateOfJoin) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                setFormData({ ...formData, dateOfJoin: format(date, "yyyy-MM-dd") });
+                                setIsDatePickerOpen(false);
+                              }
+                            }}
+                            disabled={(date) => {
+                              const today = new Date();
+                              today.setHours(23, 59, 59, 999);
+                              return date > today;
+                            }}
+                            captionLayout="dropdown"
+                            defaultMonth={formData.dateOfJoin ? new Date(formData.dateOfJoin) : new Date()}
+                            startMonth={new Date(new Date().getFullYear() - 50, 0)}
+                            endMonth={new Date()}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                   <div>

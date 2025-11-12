@@ -102,6 +102,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const existingDiet = batchedData?.diet ?? null;
   const logSummary = batchedData?.summary ?? null;
 
+  // Fetch resident image separately
+  const residentImage = useQuery(
+    api.files.image.getResidentImageByResidentId,
+    resident?._id ? { residentId: resident._id } : "skip"
+  );
+
   // Use separate server-filtered queries for food/fluid logs (better than client filtering!)
   const foodLogs = useQuery(api.foodFluidLogs.getTodayFoodLogs, {
     residentId: id as Id<"residents">,
@@ -396,7 +402,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <Avatar className="w-10 h-10">
-          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarImage src={residentImage?.url || ""} alt={fullName} className="border" />
           <AvatarFallback className="text-sm bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>

@@ -33,6 +33,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import {
   Form,
   FormControl,
   FormField,
@@ -658,13 +665,51 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
                       control={form.control}
                       name="noteDate"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Note Date *</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
+                          <FormItem className="flex flex-col">
+                            <FormLabel>Note Date *</FormLabel>
+                            <Popover modal>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    type="button"
+                                    className={cn(
+                                      "w-full justify-start text-left font-normal",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    {field.value ? (
+                                      format(new Date(field.value), "PPP")
+                                    ) : (
+                                      <span>Pick a date</span>
+                                    )}
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={field.value ? new Date(field.value) : undefined}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      field.onChange(format(date, "yyyy-MM-dd"));
+                                    }
+                                  }}
+                                  disabled={(date) => {
+                                    const today = new Date();
+                                    today.setHours(23, 59, 59, 999);
+                                    return date > today;
+                                  }}
+                                  captionLayout="dropdown"
+                                  defaultMonth={field.value ? new Date(field.value) : new Date()}
+                                  startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                  endMonth={new Date()}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
                       )}
                     />
 

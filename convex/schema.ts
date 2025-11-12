@@ -3647,4 +3647,62 @@ export default defineSchema({
     .index("by_trust", ["trustName"])
     .index("by_status", ["status"])
     .index("by_created_at", ["createdAt"]),
+
+  // Alerts system for residents
+  alerts: defineTable({
+    residentId: v.id("residents"),
+    alertType: v.union(
+      v.literal("food_fluid"),
+      v.literal("night_check"),
+      v.literal("medication"),
+      v.literal("activity"),
+      v.literal("vital_signs"),
+      v.literal("care_plan")
+    ),
+    severity: v.union(
+      v.literal("critical"), // Requires immediate attention
+      v.literal("warning"),  // Should be addressed soon
+      v.literal("info")      // Informational only
+    ),
+    title: v.string(), // Short title (e.g., "No food logged - Morning")
+    message: v.string(), // Detailed message
+    timestamp: v.number(), // When alert was created
+
+    // Time period context (for food/fluid alerts)
+    timePeriod: v.optional(v.union(
+      v.literal("morning"),
+      v.literal("afternoon"),
+      v.literal("evening"),
+      v.literal("night")
+    )),
+
+    // Resolution tracking
+    isResolved: v.boolean(),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.string()), // userId who resolved it
+    resolutionNote: v.optional(v.string()),
+
+    // Auto-resolution (when data is logged)
+    autoResolved: v.optional(v.boolean()),
+
+    // Additional context
+    metadata: v.optional(v.any()), // Flexible field for alert-specific data
+
+    // Organization tracking
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Audit fields
+    createdBy: v.optional(v.string()), // For manual alerts
+    createdAt: v.number(),
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byAlertType", ["alertType"])
+    .index("bySeverity", ["severity"])
+    .index("byIsResolved", ["isResolved"])
+    .index("byTimestamp", ["timestamp"])
+    .index("byResidentAndType", ["residentId", "alertType"])
+    .index("byResidentAndResolved", ["residentId", "isResolved"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"]),
 });

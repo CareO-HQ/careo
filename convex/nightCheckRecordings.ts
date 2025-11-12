@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { api } from "./_generated/api";
 
 // Create a new night check recording
 export const create = mutation({
@@ -40,6 +41,14 @@ export const create = mutation({
       recordedBy: args.recordedBy,
       recordedByName: args.recordedByName,
       createdAt: Date.now(),
+    });
+
+    // AUTO-RESOLVE NIGHT CHECK ALERTS
+    // Resolve any active alerts for this check type
+    await ctx.runMutation(api.alerts.autoResolveNightCheckAlerts, {
+      residentId: args.residentId,
+      checkType: args.checkType,
+      configurationId: args.configurationId,
     });
 
     return recordingId;

@@ -8,11 +8,18 @@ import {
   SheetTitle
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery, useMutation } from "convex/react";
 import { format } from "date-fns";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
@@ -70,6 +77,7 @@ export default function CarePlanSheetContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasModified, setHasModified] = useState(false);
   const [showEvaluationForm, setShowEvaluationForm] = useState(false);
+  const [openDatePickers, setOpenDatePickers] = useState<{ [key: number]: boolean }>({});
   const [evaluationComments, setEvaluationComments] = useState("");
 
   // Initialize form data when care plan loads
@@ -373,18 +381,52 @@ export default function CarePlanSheetContent({
                         <label className="text-xs text-muted-foreground">
                           Date
                         </label>
-                        <Input
-                          type="date"
-                          value={format(new Date(entry.date), "yyyy-MM-dd")}
-                          onChange={(e) =>
-                            handleUpdateEntry(
-                              index,
-                              "date",
-                              new Date(e.target.value).getTime()
-                            )
-                          }
-                          className="text-sm"
-                        />
+                        <Popover
+                          open={openDatePickers[index] || false}
+                          onOpenChange={(open) => {
+                            setOpenDatePickers(prev => ({ ...prev, [index]: open }));
+                          }}
+                          modal
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              type="button"
+                              className={cn(
+                                "w-full justify-start text-left font-normal text-sm h-9",
+                                !entry.date && "text-muted-foreground"
+                              )}
+                            >
+                              <Calendar className="mr-2 h-3 w-3" />
+                              {entry.date ? (
+                                format(new Date(entry.date), "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={entry.date ? new Date(entry.date) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  handleUpdateEntry(index, "date", date.getTime());
+                                  setOpenDatePickers(prev => ({ ...prev, [index]: false }));
+                                }
+                              }}
+                              disabled={(date) => {
+                                const today = new Date();
+                                today.setHours(23, 59, 59, 999);
+                                return date > today;
+                              }}
+                              captionLayout="dropdown"
+                              defaultMonth={entry.date ? new Date(entry.date) : new Date()}
+                              startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                              endMonth={new Date()}
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">

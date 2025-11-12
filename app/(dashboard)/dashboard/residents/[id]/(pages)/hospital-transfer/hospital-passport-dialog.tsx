@@ -21,6 +21,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -31,6 +39,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
+  Calendar,
 } from "lucide-react";
 
 
@@ -262,15 +271,72 @@ export function HospitalPassportDialog({
                       <FormField
                         control={form.control}
                         name="generalDetails.transferDateTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabelRequired required>Date and Time of Transfer</FormLabelRequired>
-                            <FormControl>
-                              <Input type="datetime-local" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          // Parse the datetime-local value to get date and time parts
+                          const dateTimeValue = field.value || '';
+                          const dateValue = dateTimeValue ? dateTimeValue.split('T')[0] : '';
+                          const timeValue = dateTimeValue ? dateTimeValue.split('T')[1] || '' : '';
+
+                          return (
+                            <FormItem className="flex flex-col">
+                              <FormLabelRequired required>Date and Time of Transfer</FormLabelRequired>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <Popover modal>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      type="button"
+                                      className={cn(
+                                        "justify-start text-left font-normal",
+                                        !dateValue && "text-muted-foreground"
+                                      )}
+                                    >
+                                      <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
+                                      {dateValue ? (
+                                        <span className="truncate">{format(new Date(dateValue), "PP")}</span>
+                                      ) : (
+                                        <span>Pick a date</span>
+                                      )}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={dateValue ? new Date(dateValue) : undefined}
+                                      onSelect={(date) => {
+                                        if (date) {
+                                          const newDateStr = format(date, "yyyy-MM-dd");
+                                          const newDateTime = timeValue ? `${newDateStr}T${timeValue}` : `${newDateStr}T00:00`;
+                                          field.onChange(newDateTime);
+                                        }
+                                      }}
+                                      disabled={(date) => {
+                                        const today = new Date();
+                                        today.setHours(23, 59, 59, 999);
+                                        return date > today;
+                                      }}
+                                      captionLayout="dropdown"
+                                      defaultMonth={dateValue ? new Date(dateValue) : new Date()}
+                                      startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                      endMonth={new Date()}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <Input
+                                  type="time"
+                                  value={timeValue}
+                                  onChange={(e) => {
+                                    const newTime = e.target.value;
+                                    const newDateTime = dateValue ? `${dateValue}T${newTime}` : `${format(new Date(), 'yyyy-MM-dd')}T${newTime}`;
+                                    field.onChange(newDateTime);
+                                  }}
+                                  className="font-normal"
+                                />
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
                       <FormField
                         control={form.control}
@@ -859,12 +925,50 @@ export function HospitalPassportDialog({
                             control={form.control}
                             name="medicalCareNeeds.dateOfLastFall"
                             render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Date of Last Fall</FormLabel>
-                                <FormControl>
-                                  <Input type="date" {...field} />
-                                </FormControl>
-                              </FormItem>
+                                <FormItem className="flex flex-col">
+                                  <FormLabel>Date of Last Fall</FormLabel>
+                                  <Popover modal>
+                                    <PopoverTrigger asChild>
+                                      <FormControl>
+                                        <Button
+                                          variant="outline"
+                                          type="button"
+                                          className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                          )}
+                                        >
+                                          <Calendar className="mr-2 h-4 w-4" />
+                                          {field.value ? (
+                                            format(new Date(field.value), "PPP")
+                                          ) : (
+                                            <span>Pick a date</span>
+                                          )}
+                                        </Button>
+                                      </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <CalendarComponent
+                                        mode="single"
+                                        selected={field.value ? new Date(field.value) : undefined}
+                                        onSelect={(date) => {
+                                          if (date) {
+                                            field.onChange(format(date, "yyyy-MM-dd"));
+                                          }
+                                        }}
+                                        disabled={(date) => {
+                                          const today = new Date();
+                                          today.setHours(23, 59, 59, 999);
+                                          return date > today;
+                                        }}
+                                        captionLayout="dropdown"
+                                        defaultMonth={field.value ? new Date(field.value) : new Date()}
+                                        startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                        endMonth={new Date()}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                </FormItem>
                             )}
                           />
                         )}
@@ -1219,27 +1323,141 @@ export function HospitalPassportDialog({
                       <FormField
                         control={form.control}
                         name="skinMedicationAttachments.lastMedicationDateTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabelRequired required>Date and Time Last Medication Administered</FormLabelRequired>
-                            <FormControl>
-                              <Input type="datetime-local" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          // Parse the datetime-local value to get date and time parts
+                          const dateTimeValue = field.value || '';
+                          const dateValue = dateTimeValue ? dateTimeValue.split('T')[0] : '';
+                          const timeValue = dateTimeValue ? dateTimeValue.split('T')[1] || '' : '';
+
+                          return (
+                            <FormItem className="flex flex-col">
+                              <FormLabelRequired required>Date and Time Last Medication Administered</FormLabelRequired>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <Popover modal>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      type="button"
+                                      className={cn(
+                                        "justify-start text-left font-normal",
+                                        !dateValue && "text-muted-foreground"
+                                      )}
+                                    >
+                                      <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
+                                      {dateValue ? (
+                                        <span className="truncate">{format(new Date(dateValue), "PP")}</span>
+                                      ) : (
+                                        <span>Pick a date</span>
+                                      )}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={dateValue ? new Date(dateValue) : undefined}
+                                      onSelect={(date) => {
+                                        if (date) {
+                                          const newDateStr = format(date, "yyyy-MM-dd");
+                                          const newDateTime = timeValue ? `${newDateStr}T${timeValue}` : `${newDateStr}T00:00`;
+                                          field.onChange(newDateTime);
+                                        }
+                                      }}
+                                      disabled={(date) => {
+                                        const today = new Date();
+                                        today.setHours(23, 59, 59, 999);
+                                        return date > today;
+                                      }}
+                                      captionLayout="dropdown"
+                                      defaultMonth={dateValue ? new Date(dateValue) : new Date()}
+                                      startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                      endMonth={new Date()}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <Input
+                                  type="time"
+                                  value={timeValue}
+                                  onChange={(e) => {
+                                    const newTime = e.target.value;
+                                    const newDateTime = dateValue ? `${dateValue}T${newTime}` : `${format(new Date(), 'yyyy-MM-dd')}T${newTime}`;
+                                    field.onChange(newDateTime);
+                                  }}
+                                  className="font-normal"
+                                />
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
                       <FormField
                         control={form.control}
                         name="skinMedicationAttachments.lastMealDrinkDateTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Date and Time Last Meal/Drink Taken</FormLabel>
-                            <FormControl>
-                              <Input type="datetime-local" {...field} />
-                            </FormControl>
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          // Parse the datetime-local value to get date and time parts
+                          const dateTimeValue = field.value || '';
+                          const dateValue = dateTimeValue ? dateTimeValue.split('T')[0] : '';
+                          const timeValue = dateTimeValue ? dateTimeValue.split('T')[1] || '' : '';
+
+                          return (
+                            <FormItem className="flex flex-col">
+                              <FormLabel>Date and Time Last Meal/Drink Taken</FormLabel>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <Popover modal>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      type="button"
+                                      className={cn(
+                                        "justify-start text-left font-normal",
+                                        !dateValue && "text-muted-foreground"
+                                      )}
+                                    >
+                                      <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
+                                      {dateValue ? (
+                                        <span className="truncate">{format(new Date(dateValue), "PP")}</span>
+                                      ) : (
+                                        <span>Pick a date</span>
+                                      )}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={dateValue ? new Date(dateValue) : undefined}
+                                      onSelect={(date) => {
+                                        if (date) {
+                                          const newDateStr = format(date, "yyyy-MM-dd");
+                                          const newDateTime = timeValue ? `${newDateStr}T${timeValue}` : `${newDateStr}T00:00`;
+                                          field.onChange(newDateTime);
+                                        }
+                                      }}
+                                      disabled={(date) => {
+                                        const today = new Date();
+                                        today.setHours(23, 59, 59, 999);
+                                        return date > today;
+                                      }}
+                                      captionLayout="dropdown"
+                                      defaultMonth={dateValue ? new Date(dateValue) : new Date()}
+                                      startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                      endMonth={new Date()}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <Input
+                                  type="time"
+                                  value={timeValue}
+                                  onChange={(e) => {
+                                    const newTime = e.target.value;
+                                    const newDateTime = dateValue ? `${dateValue}T${newTime}` : `${format(new Date(), 'yyyy-MM-dd')}T${newTime}`;
+                                    field.onChange(newDateTime);
+                                  }}
+                                  className="font-normal"
+                                />
+                              </div>
+                            </FormItem>
+                          );
+                        }}
                       />
                     </div>
                   </div>
@@ -1415,13 +1633,51 @@ export function HospitalPassportDialog({
                         control={form.control}
                         name="signOff.completedDate"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabelRequired required>Date Completed</FormLabelRequired>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
+                            <FormItem className="flex flex-col">
+                              <FormLabelRequired required>Date Completed</FormLabelRequired>
+                              <Popover modal>
+                                <PopoverTrigger asChild>
+                                  <FormControl>
+                                    <Button
+                                      variant="outline"
+                                      type="button"
+                                      className={cn(
+                                        "w-full justify-start text-left font-normal",
+                                        !field.value && "text-muted-foreground"
+                                      )}
+                                    >
+                                      <Calendar className="mr-2 h-4 w-4" />
+                                      {field.value ? (
+                                        format(new Date(field.value), "PPP")
+                                      ) : (
+                                        <span>Pick a date</span>
+                                      )}
+                                    </Button>
+                                  </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <CalendarComponent
+                                    mode="single"
+                                    selected={field.value ? new Date(field.value) : undefined}
+                                    onSelect={(date) => {
+                                      if (date) {
+                                        field.onChange(format(date, "yyyy-MM-dd"));
+                                      }
+                                    }}
+                                    disabled={(date) => {
+                                      const today = new Date();
+                                      today.setHours(23, 59, 59, 999);
+                                      return date > today;
+                                    }}
+                                    captionLayout="dropdown"
+                                    defaultMonth={field.value ? new Date(field.value) : new Date()}
+                                    startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                    endMonth={new Date()}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              <FormMessage />
+                            </FormItem>
                         )}
                       />
                       <FormField

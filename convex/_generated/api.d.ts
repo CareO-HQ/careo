@@ -9,6 +9,8 @@
  */
 
 import type * as adminUtils from "../adminUtils.js";
+import type * as alertGeneration from "../alertGeneration.js";
+import type * as alerts from "../alerts.js";
 import type * as appointmentNotes from "../appointmentNotes.js";
 import type * as appointmentNotifications from "../appointmentNotifications.js";
 import type * as appointments from "../appointments.js";
@@ -64,6 +66,7 @@ import type * as http from "../http.js";
 import type * as incidents from "../incidents.js";
 import type * as labels from "../labels.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
+import type * as lib_errorHandling from "../lib/errorHandling.js";
 import type * as managerAudits from "../managerAudits.js";
 import type * as medication from "../medication.js";
 import type * as migrations_initializeProgressNoteStats from "../migrations/initializeProgressNoteStats.js";
@@ -107,6 +110,8 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   adminUtils: typeof adminUtils;
+  alertGeneration: typeof alertGeneration;
+  alerts: typeof alerts;
   appointmentNotes: typeof appointmentNotes;
   appointmentNotifications: typeof appointmentNotifications;
   appointments: typeof appointments;
@@ -162,6 +167,7 @@ declare const fullApi: ApiFromModules<{
   incidents: typeof incidents;
   labels: typeof labels;
   "lib/authHelpers": typeof lib_authHelpers;
+  "lib/errorHandling": typeof lib_errorHandling;
   managerAudits: typeof managerAudits;
   medication: typeof medication;
   "migrations/initializeProgressNoteStats": typeof migrations_initializeProgressNoteStats;

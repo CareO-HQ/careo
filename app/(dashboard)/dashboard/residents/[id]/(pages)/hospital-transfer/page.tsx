@@ -231,6 +231,17 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const { data: user } = authClient.useSession();
   const { data: activeOrganization } = authClient.useActiveOrganization();
 
+  // For now, use activeOrganization (in most cases resident belongs to user's active org)
+  // TODO: Fetch specific organization by resident.organizationId if needed
+  const residentOrganization = activeOrganization;
+
+  // Parse organization metadata to get address and phone
+  const organizationMetadata = React.useMemo(() => {
+    return residentOrganization?.metadata
+      ? JSON.parse(residentOrganization.metadata)
+      : {};
+  }, [residentOrganization?.metadata]);
+
   // Update form with resident data when resident loads
   React.useEffect(() => {
     if (resident) {
@@ -258,6 +269,23 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       form.setValue('generalDetails.careManagerPhone', resident.careManagerPhone || "");
     }
   }, [resident, form]);
+
+  // Update create form with organization data when it loads
+  React.useEffect(() => {
+    if (residentOrganization) {
+      console.log("Resident Organization:", residentOrganization);
+      console.log("Organization Metadata:", organizationMetadata);
+
+      // Update care home details from resident's organization for create form
+      form.setValue('generalDetails.careHomeName', residentOrganization.name || "");
+      form.setValue('generalDetails.careHomeAddress', organizationMetadata?.address || "");
+      form.setValue('generalDetails.careHomePhone', organizationMetadata?.phone || "");
+
+      console.log("Set care home name:", residentOrganization.name);
+      console.log("Set care home address:", organizationMetadata?.address);
+      console.log("Set care home phone:", organizationMetadata?.phone);
+    }
+  }, [residentOrganization, organizationMetadata, form]);
 
   // Update form with diet information when it loads
   React.useEffect(() => {
@@ -395,6 +423,16 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   }, [user, form, editForm]);
 
+  // Update edit form with organization data when it loads
+  React.useEffect(() => {
+    if (residentOrganization) {
+      // Update care home details from resident's organization for edit form
+      editForm.setValue('generalDetails.careHomeName', residentOrganization.name || "");
+      editForm.setValue('generalDetails.careHomeAddress', organizationMetadata?.address || "");
+      editForm.setValue('generalDetails.careHomePhone', organizationMetadata?.phone || "");
+    }
+  }, [residentOrganization, organizationMetadata, editForm]);
+
   // Edit step state
   const [editCurrentStep, setEditCurrentStep] = React.useState(1);
 
@@ -523,9 +561,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     try {
       setEditingPassport(passport);
 
-      // Populate the edit form with existing passport data
+      // Populate the edit form with existing passport data, but use resident's organization data for care home details
       editForm.reset({
-        generalDetails: passport.generalDetails || {},
+        generalDetails: {
+          ...passport.generalDetails,
+          // Always use resident's organization data for care home details
+          careHomeName: residentOrganization?.name || passport.generalDetails?.careHomeName || "",
+          careHomeAddress: organizationMetadata?.address || passport.generalDetails?.careHomeAddress || "",
+          careHomePhone: organizationMetadata?.phone || passport.generalDetails?.careHomePhone || "",
+        },
         medicalCareNeeds: passport.medicalCareNeeds || {},
         skinMedicationAttachments: passport.skinMedicationAttachments || {},
         signOff: passport.signOff || {},

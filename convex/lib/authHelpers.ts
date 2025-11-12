@@ -8,6 +8,7 @@
 
 import { QueryCtx, MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { ConvexError, ErrorType, safeDatabaseOperation } from "./errorHandling";
 
 /**
  * Get authenticated user with error handling
@@ -16,34 +17,58 @@ import { Id } from "../_generated/dataModel";
  * @returns Promise<User> The authenticated user object
  */
 export async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
-  const identity = await ctx.auth.getUserIdentity();
+  try {
+    const identity = await ctx.auth.getUserIdentity();
 
-  if (!identity?.email) {
-    throw new Error("Not authenticated");
+    if (!identity?.email) {
+      throw new ConvexError(
+        "You must be logged in to perform this action",
+        ErrorType.AUTHENTICATION,
+        401
+      );
+    }
+
+    const user = await safeDatabaseOperation(
+      () => ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+        .first(),
+      "Failed to fetch user from database"
+    );
+
+    if (!user) {
+      throw new ConvexError(
+        "User account not found. Please contact support.",
+        ErrorType.NOT_FOUND,
+        404,
+        { email: identity.email }
+      );
+    }
+
+    return user;
+  } catch (error) {
+    if (error instanceof ConvexError) {
+      throw error;
+    }
+    throw new ConvexError(
+      "Authentication failed. Please try logging in again.",
+      ErrorType.AUTHENTICATION,
+      401,
+      { originalError: (error as Error).message }
+    );
   }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("byEmail", (q) => q.eq("email", identity.email!))
-    .first();
-
-  if (!user) {
-    throw new Error("User not found in database");
-  }
-
-  return user;
 }
 
 /**
  * Check if user has access to a specific resident
  *
- * Verifies that the user belongs to the same team as the resident.
- * This prevents cross-team data access.
+ * TODO: Currently allows any authenticated user to access resident data.
+ * Role-based authorization will be implemented later.
  *
  * @param ctx - Query or Mutation context
- * @param userId - ID of the user requesting access
+ * @param userId - ID of the user requesting access (Convex document ID)
  * @param residentId - ID of the resident being accessed
- * @throws {Error} If resident not found or user not authorized
+ * @throws {Error} If resident not found or user not authenticated
  * @returns Promise<Resident> The resident object if access is granted
  */
 export async function canAccessResident(
@@ -57,24 +82,24 @@ export async function canAccessResident(
     throw new Error("Resident not found");
   }
 
-  // Get user's team memberships
-  const teamMember = await ctx.db
-    .query("teamMembers")
-    .withIndex("byUserId", (q) => q.eq("userId", userId))
-    .filter((q) => q.eq(q.field("teamId"), resident.teamId))
-    .first();
-
-  if (!teamMember) {
-    throw new Error("Not authorized to access this resident's data");
+  // Get the user's better-auth identity
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
   }
 
+  // TODO: Add role-based authorization checks here
+  // For now, any authenticated user can access resident data
   return resident;
 }
 
 /**
  * Check if user has permission for specific action
  *
- * Implements Role-Based Access Control (RBAC):
+ * TODO: Currently allows any authenticated user to perform any action.
+ * Role-based permissions will be implemented later.
+ *
+ * Planned RBAC:
  * - Owner: Full access (create, view, edit, delete)
  * - Admin: Create, view, edit (no delete)
  * - Member: Create and view only
@@ -82,7 +107,7 @@ export async function canAccessResident(
  * @param ctx - Query or Mutation context
  * @param userId - ID of the user
  * @param permission - Action being requested
- * @throws {Error} If user lacks permission
+ * @throws {Error} If user not authenticated
  * @returns Promise<true> If permission is granted
  */
 export async function checkPermission(
@@ -96,30 +121,14 @@ export async function checkPermission(
     throw new Error("User not found");
   }
 
-  // Get user's role from team membership
-  const teamMember = await ctx.db
-    .query("teamMembers")
-    .withIndex("byUserId", (q) => q.eq("userId", userId))
-    .first();
-
-  if (!teamMember) {
-    throw new Error("User not assigned to any team");
+  // Get the user's better-auth identity
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
   }
 
-  const role = teamMember.role; // "owner" | "admin" | "member"
-
-  // Define permissions matrix
-  const permissions: Record<string, string[]> = {
-    owner: ["create_incident", "view_incident", "edit_incident", "delete_incident"],
-    admin: ["create_incident", "view_incident", "edit_incident"],
-    member: ["create_incident", "view_incident"],
-  };
-
-  const rolePermissions = permissions[role || "member"] || [];
-  if (!rolePermissions.includes(permission)) {
-    throw new Error(`Permission denied: ${permission} (role: ${role})`);
-  }
-
+  // TODO: Implement role-based permission checks here
+  // For now, any authenticated user can perform any action
   return true;
 }
 

@@ -475,6 +475,12 @@ function CareOAuditPageContent() {
       return;
     }
 
+    // For resident tab, check if a unit is selected
+    if (activeTab === "resident" && !activeTeamId) {
+      toast.error("Please select a unit to create a resident audit");
+      return;
+    }
+
     // For resident tab, create template in database
     if (activeTab === "resident" && activeTeamId && activeOrganizationId && session?.user) {
       try {
