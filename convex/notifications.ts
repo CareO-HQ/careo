@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 // Mark an incident as read by the current user
@@ -166,7 +166,7 @@ export const createNotification = mutation({
   },
 });
 
-// Get all notifications for a user
+// Get all notifications for a user (OPTIMIZED: Uses index)
 export const getUserNotifications = query({
   args: {
     userId: v.string(),
@@ -175,9 +175,10 @@ export const getUserNotifications = query({
   handler: async (ctx, args) => {
     const limit = args.limit || 50;
 
+    // Use the "by_user" index for efficient querying
     const notifications = await ctx.db
       .query("notifications")
-      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
       .take(limit);
 
@@ -185,26 +186,21 @@ export const getUserNotifications = query({
   },
 });
 
-// Get notification count for a user
+// Get notification count for a user (OPTIMIZED: Uses composite index)
 export const getNotificationCount = query({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const allNotifications = await ctx.db
+    // Use the "by_user_and_read" composite index for maximum efficiency
+    const unreadNotifications = await ctx.db
       .query("notifications")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userId"), args.userId),
-          q.or(
-            q.eq(q.field("isRead"), false),
-            q.eq(q.field("isRead"), undefined)
-          )
-        )
+      .withIndex("by_user_and_read", (q) =>
+        q.eq("userId", args.userId).eq("isRead", false)
       )
       .collect();
 
-    return allNotifications.length;
+    return unreadNotifications.length;
   },
 });
 
@@ -261,6 +257,29 @@ export const deleteNotification = mutation({
   handler: async (ctx, args) => {
     await ctx.db.delete(args.notificationId);
     return args.notificationId;
+  },
+});
+
+// Delete all notifications for a user
+export const deleteAllNotifications = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all notifications for this user
+    const notifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Delete all notifications
+    let deleted = 0;
+    for (const notification of notifications) {
+      await ctx.db.delete(notification._id);
+      deleted++;
+    }
+
+    return { deleted };
   },
 });
 
@@ -346,5 +365,32 @@ export const getUnreadCount = query({
     ).length;
 
     return unreadCount;
+  },
+});
+
+// Archive old read notifications (called by cron job)
+export const archiveOldNotifications = internalMutation({
+  handler: async (ctx) => {
+    const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+
+    // Find read notifications older than 90 days
+    const oldNotifications = await ctx.db
+      .query("notifications")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isRead"), true),
+          q.lt(q.field("readAt"), ninetyDaysAgo)
+        )
+      )
+      .collect();
+
+    let archived = 0;
+    for (const notification of oldNotifications) {
+      await ctx.db.delete(notification._id);
+      archived++;
+    }
+
+    console.log(`Archived ${archived} old read notifications`);
+    return { archived };
   },
 });

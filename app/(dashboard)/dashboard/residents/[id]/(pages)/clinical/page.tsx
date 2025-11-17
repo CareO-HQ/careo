@@ -1,9 +1,12 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,6 +15,17 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ArrowLeft,
   Heart,
@@ -23,7 +37,8 @@ import {
   Plus,
   Search,
   Eye,
-  Stethoscope
+  Stethoscope,
+  Trash2
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
@@ -35,9 +50,125 @@ type ClinicalPageProps = {
 export default function ClinicalPage({ params }: ClinicalPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const { data: session } = authClient.useSession();
+  const { activeTeam, activeTeamId, activeOrganizationId } = useActiveTeam();
+
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+
+  // Fetch real vital signs data
+  const latestVitals = useQuery(api.healthMonitoring.getLatestVitals, {
+    residentId: id as Id<"residents">
+  });
+
+  const recentVitals = useQuery(api.healthMonitoring.getRecentVitals, {
+    residentId: id as Id<"residents">,
+    limit: 4
+  });
+
+  // Fetch diet information (includes allergies)
+  const dietInfo = useQuery(api.diet.getDietByResidentId, {
+    residentId: id as Id<"residents">
+  });
+
+  // Fetch clinical notes
+  const clinicalNotes = useQuery(api.clinicalNotes.getRecentClinicalNotes, {
+    residentId: id as Id<"residents">,
+    limit: 10
+  });
+
+  // Mutations
+  const createNote = useMutation(api.clinicalNotes.createClinicalNote);
+  const deleteNote = useMutation(api.clinicalNotes.deleteClinicalNote);
+
+  // Dialog state
+  const [isAddNoteDialogOpen, setIsAddNoteDialogOpen] = React.useState(false);
+  const [noteContent, setNoteContent] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [deletingNoteId, setDeletingNoteId] = React.useState<string | null>(null);
+
+  // Get current date and time
+  const getCurrentDate = () => {
+    const now = new Date();
+    return now.toISOString().split('T')[0]; // YYYY-MM-DD
+  };
+
+  const getCurrentTime = () => {
+    const now = new Date();
+    return now.toTimeString().slice(0, 5); // HH:MM
+  };
+
+  // Handle note submission
+  const handleAddNote = async () => {
+    if (!noteContent.trim()) {
+      toast.error("Please enter a note");
+      return;
+    }
+
+    if (!session?.user?.email) {
+      toast.error("User session not found. Please log in again.");
+      return;
+    }
+
+    if (!resident) {
+      toast.error("Resident information not loaded.");
+      return;
+    }
+
+    // Use teamId and organizationId from resident data
+    const teamId = resident.teamId;
+    const organizationId = resident.organizationId;
+
+    if (!organizationId) {
+      toast.error("Resident organization information is missing.");
+      return;
+    }
+
+    if (!teamId) {
+      toast.error("Resident team information is missing.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await createNote({
+        residentId: id as Id<"residents">,
+        staffName: session.user.name || session.user.email,
+        staffEmail: session.user.email,
+        noteContent: noteContent.trim(),
+        noteDate: getCurrentDate(),
+        noteTime: getCurrentTime(),
+        organizationId: organizationId,
+        teamId: teamId,
+      });
+
+      toast.success("Clinical note added successfully");
+      setNoteContent("");
+      setIsAddNoteDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add clinical note:", error);
+      toast.error("Failed to add clinical note");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle note deletion
+  const handleDeleteNote = async (noteId: Id<"clinicalNotes">) => {
+    setDeletingNoteId(noteId);
+
+    try {
+      await deleteNote({ noteId });
+      toast.success("Clinical note deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete clinical note:", error);
+      toast.error("Failed to delete clinical note");
+    } finally {
+      setDeletingNoteId(null);
+    }
+  };
 
   if (resident === undefined) {
     return (
@@ -118,153 +249,77 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
     }
   };
 
-  // Mock clinical data - in a real app, this would come from the API
-  const mockVitalSigns = [
-    { date: "2024-03-01", type: "Blood Pressure", value: "140/90 mmHg", status: "high" },
-    { date: "2024-03-01", type: "Heart Rate", value: "78 bpm", status: "normal" },
-    { date: "2024-03-01", type: "Temperature", value: "36.8°C", status: "normal" },
-    { date: "2024-03-01", type: "Blood Sugar", value: "8.2 mmol/L", status: "high" }
-  ];
+  // Format vital signs data for display
+  const formatVitalValue = (vital: any) => {
+    if (vital.vitalType === "bloodPressure") {
+      return `${vital.value}/${vital.value2} mmHg`;
+    }
+    return `${vital.value}${vital.unit ? ` ${vital.unit}` : ''}`;
+  };
 
-  const mockAllergies = [
-    { allergen: "Penicillin", reaction: "Skin rash", severity: "Moderate" },
-    { allergen: "Shellfish", reaction: "Anaphylaxis", severity: "Severe" }
-  ];
+  const getVitalTypeLabel = (vitalType: string) => {
+    const labels: Record<string, string> = {
+      bloodPressure: "Blood Pressure",
+      heartRate: "Heart Rate",
+      temperature: "Temperature",
+      respiratoryRate: "Respiratory Rate",
+      oxygenSaturation: "Oxygen Saturation",
+      glucoseLevel: "Blood Sugar",
+      weight: "Weight",
+      height: "Height"
+    };
+    return labels[vitalType] || vitalType;
+  };
+
+  // Convert recent vitals to display format
+  const displayVitals = recentVitals?.slice(0, 4).map(vital => ({
+    date: vital.recordDate,
+    type: getVitalTypeLabel(vital.vitalType),
+    value: formatVitalValue(vital),
+    status: "normal" // You can add logic to determine status based on ranges
+  })) || [];
+
+  // Get allergies from diet information
+  const allergies = dietInfo?.allergies || [];
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Clinical</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-red-100 rounded-lg">
-            <Heart className="w-6 h-6 text-red-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Clinical</h1>
-            <p className="text-muted-foreground text-sm">Health conditions & medical information</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Clinical</h1>
+          <p className="text-muted-foreground text-sm">
+            View health conditions and medical information for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button onClick={() => setIsAddNoteDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Record
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View Records
+          </Button>
         </div>
       </div>
 
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
-                    <Heart className="w-3 h-3 mr-1" />
-                    {Array.isArray(resident.healthConditions) ? resident.healthConditions.length : 0} Conditions
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Clinical Record
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Records
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
-                    <Heart className="w-3 h-3 mr-1" />
-                    Clinical Information
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Record</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
-                className="flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Records
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Health Conditions */}
       {resident.healthConditions && resident.healthConditions.length > 0 && (
-        <Card>
+        <Card className="border-0">
           <CardHeader>
             {/* Mobile Layout */}
             <CardTitle className="block sm:hidden">
@@ -288,38 +343,30 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {Array.isArray(resident.healthConditions) &&
               typeof resident.healthConditions[0] === "string"
                 ? (resident.healthConditions as string[]).map((condition, index) => (
-                    <Card key={index} className="border border-red-200 bg-red-50">
-                      <CardContent className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-red-100 rounded-lg">
-                            <Heart className="w-4 h-4 text-red-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-red-800">{condition}</h3>
-                            <p className="text-sm text-red-600">Chronic condition</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div key={index} className="flex items-center gap-2.5 p-3 border border-red-200 bg-red-50/50 rounded-lg hover:bg-red-50 transition-colors">
+                      <div className="flex-shrink-0 p-1.5 bg-red-100 rounded-md">
+                        <Heart className="w-3.5 h-3.5 text-red-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-medium text-red-800 truncate">{condition}</h3>
+                        <p className="text-xs text-red-600/80">Chronic</p>
+                      </div>
+                    </div>
                   ))
                 : (resident.healthConditions as { condition: string }[]).map((item, index) => (
-                    <Card key={index} className="border border-red-200 bg-red-50">
-                      <CardContent className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-red-100 rounded-lg">
-                            <Heart className="w-4 h-4 text-red-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-red-800">{item.condition}</h3>
-                            <p className="text-sm text-red-600">Chronic condition</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div key={index} className="flex items-center gap-2.5 p-3 border border-red-200 bg-red-50/50 rounded-lg hover:bg-red-50 transition-colors">
+                      <div className="flex-shrink-0 p-1.5 bg-red-100 rounded-md">
+                        <Heart className="w-3.5 h-3.5 text-red-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-medium text-red-800 truncate">{item.condition}</h3>
+                        <p className="text-xs text-red-600/80">Chronic</p>
+                      </div>
+                    </div>
                   ))}
             </div>
           </CardContent>
@@ -328,7 +375,7 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
 
       {/* Risk Factors */}
       {resident.risks && resident.risks.length > 0 && (
-        <Card>
+        <Card className="border-0">
           <CardHeader>
             {/* Mobile Layout */}
             <CardTitle className="block sm:hidden">
@@ -352,17 +399,20 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {Array.isArray(resident.risks) &&
               typeof resident.risks[0] === "string"
                 ? (resident.risks as string[]).map((risk, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-4 bg-amber-50 rounded-lg border border-amber-200"
+                      className="flex items-center gap-2.5 p-3 border border-amber-200 bg-amber-50/50 rounded-lg hover:bg-amber-50 transition-colors"
                     >
-                      <div className="flex items-center space-x-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-600" />
-                        <span className="font-medium text-amber-800">{risk}</span>
+                      <div className="flex-shrink-0 p-1.5 bg-amber-100 rounded-md">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-medium text-amber-800 truncate">{risk}</h3>
+                        <p className="text-xs text-amber-600/80">Risk factor</p>
                       </div>
                     </div>
                   ))
@@ -371,18 +421,20 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
                     return (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-4 bg-amber-50 rounded-lg border border-amber-200"
+                        className="flex items-center justify-between gap-2.5 p-3 border border-amber-200 bg-amber-50/50 rounded-lg hover:bg-amber-50 transition-colors"
                       >
-                        <div className="flex items-center space-x-3">
-                          <AlertTriangle className="w-5 h-5 text-amber-600" />
-                          <span className="font-medium text-amber-800">{item.risk}</span>
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="flex-shrink-0 p-1.5 bg-amber-100 rounded-md">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                          </div>
+                          <h3 className="text-sm font-medium text-amber-800 truncate">{item.risk}</h3>
                         </div>
                         {item.level && (
-                          <Badge 
+                          <Badge
                             variant="outline"
-                            className={`${colors.bg} ${colors.border} ${colors.text}`}
+                            className={`${colors.bg} ${colors.border} ${colors.text} text-xs flex-shrink-0`}
                           >
-                            {item.level} risk
+                            {item.level}
                           </Badge>
                         )}
                       </div>
@@ -394,7 +446,7 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
       )}
 
       {/* Recent Vital Signs */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -403,7 +455,7 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
               <span>Recent Vital Signs</span>
             </div>
             <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-              {mockVitalSigns.length} recent readings
+              {displayVitals.length} recent readings
             </Badge>
           </CardTitle>
           {/* Desktop Layout */}
@@ -413,41 +465,51 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
               <span>Recent Vital Signs</span>
             </div>
             <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-              {mockVitalSigns.length} recent readings
+              {displayVitals.length} recent readings
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mockVitalSigns.map((vital, index) => (
-              <Card key={index} className="border border-gray-200">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold">{vital.type}</h3>
-                    <Badge 
-                      variant={vital.status === 'normal' ? 'secondary' : 'destructive'}
-                      className={vital.status === 'normal' 
-                        ? 'bg-green-100 text-green-700 border-green-200' 
-                        : 'bg-red-100 text-red-700 border-red-200'
-                      }
-                    >
-                      {vital.status}
-                    </Badge>
+          {displayVitals.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {displayVitals.map((vital, index) => (
+              <div key={index} className="p-3 border border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-blue-100 rounded-md">
+                      <Activity className="w-3.5 h-3.5 text-blue-600" />
+                    </div>
+                    <h3 className="text-sm font-medium text-blue-800">{vital.type}</h3>
                   </div>
-                  <p className="text-lg font-bold text-gray-900">{vital.value}</p>
-                  <p className="text-sm text-gray-500 flex items-center mt-2">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {vital.date}
-                  </p>
-                </CardContent>
-              </Card>
+                  <Badge
+                    variant="outline"
+                    className={vital.status === 'normal'
+                      ? 'bg-green-100 text-green-700 border-green-200 text-xs'
+                      : 'bg-red-100 text-red-700 border-red-200 text-xs'
+                    }
+                  >
+                    {vital.status}
+                  </Badge>
+                </div>
+                <p className="text-lg font-bold text-gray-900 mb-1.5">{vital.value}</p>
+                <p className="text-xs text-blue-600/80 flex items-center">
+                  <Calendar className="w-3 h-3 mr-1" />
+                  {vital.date}
+                </p>
+              </div>
             ))}
           </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No vital signs recorded yet</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Allergies */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -456,7 +518,7 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
               <span>Allergies & Reactions</span>
             </div>
             <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700">
-              {mockAllergies.length} allergies
+              {allergies.length} allergies
             </Badge>
           </CardTitle>
           {/* Desktop Layout */}
@@ -466,37 +528,53 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
               <span>Allergies & Adverse Reactions</span>
             </div>
             <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700">
-              {mockAllergies.length} allergies
+              {allergies.length} allergies
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {mockAllergies.map((allergy, index) => (
-              <div key={index} className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-red-800">{allergy.allergen}</h3>
-                  <Badge 
-                    variant="destructive"
-                    className={allergy.severity === 'Severe' 
-                      ? 'bg-red-200 text-red-800' 
-                      : 'bg-orange-200 text-orange-800'
-                    }
-                  >
-                    {allergy.severity}
-                  </Badge>
+          {allergies.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {allergies.map((allergy: any, index: number) => (
+                <div key={index} className="p-3 bg-red-50/50 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex-shrink-0 p-1.5 bg-red-100 rounded-md">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                      </div>
+                      <h3 className="text-sm font-medium text-red-800 truncate">{allergy.allergy}</h3>
+                    </div>
+                    {allergy.severity && (
+                      <Badge
+                        variant="outline"
+                        className={allergy.severity === 'Severe'
+                          ? 'bg-red-200 text-red-800 border-red-300 text-xs flex-shrink-0'
+                          : 'bg-orange-200 text-orange-800 border-orange-300 text-xs flex-shrink-0'
+                        }
+                      >
+                        {allergy.severity}
+                      </Badge>
+                    )}
+                  </div>
+                  {allergy.reaction && (
+                    <p className="text-xs text-red-600/80">
+                      <span className="font-medium">Reaction:</span> {allergy.reaction}
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm text-red-600">
-                  <span className="font-medium">Reaction:</span> {allergy.reaction}
-                </p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No allergies recorded</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Clinical Notes */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           {/* Mobile Layout */}
           <CardTitle className="block sm:hidden">
@@ -504,9 +582,15 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
               <FileText className="w-5 h-5 text-gray-600" />
               <span>Clinical Notes</span>
             </div>
-            <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
-              2 recent notes
-            </Badge>
+            <div className="flex items-center justify-between">
+              <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
+                {clinicalNotes?.length || 0} recent notes
+              </Badge>
+              <Button size="sm" onClick={() => setIsAddNoteDialogOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Note
+              </Button>
+            </div>
           </CardTitle>
           {/* Desktop Layout */}
           <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
@@ -514,125 +598,116 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
               <FileText className="w-5 h-5 text-gray-600" />
               <span>Clinical Notes</span>
             </div>
-            <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
-              2 recent notes
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700">
+                {clinicalNotes?.length || 0} recent notes
+              </Badge>
+              <Button size="sm" onClick={() => setIsAddNoteDialogOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Note
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <User className="w-4 h-4 text-gray-500" />
-                  <span className="font-medium">Dr. Sarah Johnson</span>
+          {clinicalNotes && clinicalNotes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {clinicalNotes.map((note) => (
+                <div key={note._id} className="p-3 border border-gray-200 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors group relative">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-gray-100 rounded-md">
+                        <User className="w-3.5 h-3.5 text-gray-600" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-800">{note.staffName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {new Date(note.noteDate).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteNote(note._id)}
+                        disabled={deletingNoteId === note._id}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {note.noteContent}
+                  </p>
                 </div>
-                <span className="text-sm text-gray-500">2024-03-01</span>
-              </div>
-              <p className="text-sm text-gray-700">
-                Patient showing good progress with mobility. Blood pressure remains elevated - 
-                continue monitoring. Consider medication review with GP.
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No clinical notes recorded yet</p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => setIsAddNoteDialogOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Your First Note
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add Clinical Note Dialog */}
+      <Dialog open={isAddNoteDialogOpen} onOpenChange={setIsAddNoteDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add Clinical Note</DialogTitle>
+            <DialogDescription>
+              Record a clinical observation or note for {resident.firstName} {resident.lastName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="note">Clinical Note</Label>
+              <Textarea
+                id="note"
+                placeholder="Enter clinical note here..."
+                value={noteContent}
+                onChange={(e) => setNoteContent(e.target.value)}
+                rows={6}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current date and time will be recorded automatically
               </p>
             </div>
-            
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <User className="w-4 h-4 text-gray-500" />
-                  <span className="font-medium">Nurse Mary Wilson</span>
-                </div>
-                <span className="text-sm text-gray-500">2024-02-28</span>
-              </div>
-              <p className="text-sm text-gray-700">
-                Regular wound care completed. Healing progressing well. 
-                No signs of infection observed.
-              </p>
-            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Clinical Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Heart className="w-5 h-5 text-red-600" />
-            <span>Clinical Summary</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
-              <div className="text-2xl font-bold text-red-600">
-                {Array.isArray(resident.healthConditions) ? resident.healthConditions.length : 0}
-              </div>
-              <p className="text-sm text-red-700">Health Conditions</p>
-            </div>
-            
-            <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="text-2xl font-bold text-amber-600">
-                {Array.isArray(resident.risks) ? resident.risks.length : 0}
-              </div>
-              <p className="text-sm text-amber-700">Risk Factors</p>
-            </div>
-
-            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">
-                {mockVitalSigns.length}
-              </div>
-              <p className="text-sm text-blue-700">Recent Vitals</p>
-            </div>
-
-            <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <div className="text-2xl font-bold text-purple-600">
-                {mockAllergies.length}
-              </div>
-              <p className="text-sm text-purple-700">Allergies</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      {/* Clinical Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Heart className="w-5 h-5 text-red-600" />
-            <span>Clinical Management</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <DialogFooter>
             <Button
-              className="h-16 text-lg bg-red-600 hover:bg-red-700 text-white"
+              variant="outline"
+              onClick={() => {
+                setNoteContent("");
+                setIsAddNoteDialogOpen(false);
+              }}
+              disabled={isSubmitting}
             >
-              <Plus className="w-6 h-6 mr-3" />
-              Add Clinical Record
+              Cancel
             </Button>
-            <Button
-             className="h-16 text-lg bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => router.push(`/dashboard/residents/${id}/clinical/documents`)}
-            >
-              <Eye className="w-6 h-6 mr-3" />
-              View All Records
+            <Button onClick={handleAddNote} disabled={isSubmitting || !noteContent.trim()}>
+              {isSubmitting ? "Adding..." : "Add Note"}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Development Notice */}
-      <Card className="bg-red-50 border-red-200">
-        <CardContent className="p-6 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-red-100 rounded-full">
-              <Heart className="w-8 h-8 text-red-600" />
-            </div>
-          </div>
-          <h3 className="text-lg font-semibold text-red-800 mb-2">Enhanced Features Coming Soon</h3>
-          <p className="text-red-600 text-sm">
-            Advanced clinical assessments, medical history tracking, care plan integration, and comprehensive health analytics are in development.
-          </p>
-        </CardContent>
-      </Card>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
     </div>
   );
 }

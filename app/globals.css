@@ -120,3 +120,35 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Smooth page transitions - eliminates flash */
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Apply to main content containers */
+  main,
+  [role="main"],
+  .container {
+    animation: fadeIn 150ms ease-in;
+  }
+
+  /* Prevent layout shift during transitions */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Prevent flash of unstyled content */
+  @supports (view-transition-name: none) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 150ms;
+    }
+  }
+}

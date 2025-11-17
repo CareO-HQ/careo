@@ -23,11 +23,13 @@ import { toast } from "sonner";
 interface UploadFileModalProps {
   folderName: string;
   residentId: Id<"residents">;
+  variant?: "text" | "button";
 }
 
 export default function UploadFileModal({
   folderName,
-  residentId
+  residentId,
+  variant = "text"
 }: UploadFileModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -66,36 +68,68 @@ export default function UploadFileModal({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !fileName.trim()) {
-      toast.error("Please select a file and enter a name");
+    // Validate file and name
+    if (!selectedFile) {
+      toast.error("Please select a PDF file to upload");
       return;
     }
 
-    if (!activeTeamId || !activeOrg?.id || !currentUser?.user.email) {
-      toast.error("Missing required information for upload");
+    if (!fileName.trim()) {
+      toast.error("Please enter a name for the PDF file");
+      return;
+    }
+
+    // Validate required context
+    const missingInfo: string[] = [];
+    if (!activeTeamId) missingInfo.push("Active Team");
+    if (!activeOrg?.id) missingInfo.push("Organization");
+    if (!currentUser?.user.email) missingInfo.push("User Session");
+
+    if (missingInfo.length > 0) {
+      toast.error(`Missing required information: ${missingInfo.join(", ")}. Please refresh the page and try again.`);
       return;
     }
 
     setIsUploading(true);
 
     try {
+      console.log("Starting upload process...");
+      console.log("File:", selectedFile.name, "Size:", selectedFile.size);
+      console.log("Upload params:", {
+        fileName: fileName.trim(),
+        folderName,
+        residentId,
+        organizationId: activeOrg.id,
+        teamId: activeTeamId,
+        uploadedBy: currentUser.user.email
+      });
+
       // Generate upload URL
+      console.log("Generating upload URL...");
       const uploadUrl = await generateUploadUrl();
+      console.log("Upload URL generated:", uploadUrl);
 
       // Upload file to Convex storage
+      console.log("Uploading file to storage...");
       const result = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": selectedFile.type },
         body: selectedFile
       });
 
+      console.log("Upload response status:", result.status);
+
       if (!result.ok) {
-        throw new Error("Failed to upload file");
+        const errorText = await result.text();
+        console.error("Upload failed with response:", errorText);
+        throw new Error(`Failed to upload file: ${result.status} ${result.statusText}`);
       }
 
       const { storageId } = await result.json();
+      console.log("File uploaded, storageId:", storageId);
 
       // Save PDF metadata
+      console.log("Saving PDF metadata...");
       await uploadPdf({
         fileId: storageId,
         name: fileName.trim(),
@@ -108,6 +142,7 @@ export default function UploadFileModal({
         size: selectedFile.size
       });
 
+      console.log("PDF metadata saved successfully");
       toast.success("PDF uploaded successfully");
 
       // Reset form and close modal
@@ -121,7 +156,8 @@ export default function UploadFileModal({
       }
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload PDF");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      toast.error(`Failed to upload PDF: ${errorMessage}`);
     } finally {
       setIsUploading(false);
     }
@@ -141,9 +177,16 @@ export default function UploadFileModal({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
-          Upload file
-        </p>
+        {variant === "button" ? (
+          <Button variant="outline" size="sm">
+            <Upload className="h-4 w-4 mr-2" />
+            Upload PDF
+          </Button>
+        ) : (
+          <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
+            Upload file
+          </p>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -215,17 +258,33 @@ export default function UploadFileModal({
           {/* File Name Input */}
           {selectedFile && (
             <div className="space-y-2">
-              <Label htmlFor="file-name">File Name</Label>
+              <Label htmlFor="file-name">
+                File Name <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="file-name"
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
                 placeholder="Enter a name for this file"
                 disabled={isUploading}
+                className={!fileName.trim() ? "border-red-300" : ""}
               />
               <p className="text-xs text-muted-foreground">
                 The file will be saved as &ldquo;{fileName.trim() || "Untitled"}
                 .pdf&rdquo;
+              </p>
+            </div>
+          )}
+
+          {/* Missing Context Warning */}
+          {(!activeTeamId || !activeOrg?.id || !currentUser?.user.email) && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <p className="text-sm text-yellow-800">
+                <strong>Warning:</strong> Missing required information.
+                {!activeTeamId && " Please select an active team."}
+                {!activeOrg?.id && " Organization not found."}
+                {!currentUser?.user.email && " User session not found."}
+                {" "}Please refresh the page and try again.
               </p>
             </div>
           )}
@@ -244,7 +303,7 @@ export default function UploadFileModal({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || !fileName.trim() || isUploading}
+            disabled={!selectedFile || !fileName.trim() || isUploading || !activeTeamId || !activeOrg?.id || !currentUser?.user.email}
           >
             {isUploading ? "Uploading..." : "Upload PDF"}
           </Button>

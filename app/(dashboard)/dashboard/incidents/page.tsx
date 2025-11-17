@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -56,6 +56,9 @@ export default function NotificationPage() {
 
   // Only show loading if we're waiting for team info, not if no team is selected
   const isLoading = isTeamLoading;
+  const hasMarkedAsRead = useRef(false);
+
+  // Removed auto-mark as read functionality - incidents only marked as read when clicked
 
   // Filter incidents based on read status from database
   const filteredIncidents = incidents?.filter((incident) => {
@@ -271,8 +274,8 @@ export default function NotificationPage() {
             return (
               <div
                 key={incident._id}
-                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/30 transition-colors cursor-pointer ${
-                  !incident.isRead ? "bg-muted/10" : ""
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${
+                  !incident.isRead ? "bg-muted/50" : "bg-muted/5"
                 }`}
                 onClick={() => handleIncidentClick(incident)}
               >
@@ -286,8 +289,8 @@ export default function NotificationPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <p className={`text-sm ${incident.isRead ? "text-muted-foreground" : "text-foreground"}`}>
-                        <span className="font-medium">Incident Report</span> - {residentName} • {formatIncidentTypes(incident.incidentTypes)}
+                      <p className={`text-sm ${incident.isRead ? "text-muted-foreground" : "font-medium text-foreground"}`}>
+                        <span className="font-semibold">Incident Report</span> - {residentName} • {formatIncidentTypes(incident.incidentTypes)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">

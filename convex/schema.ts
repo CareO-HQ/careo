@@ -77,7 +77,24 @@ export default defineSchema({
     phone: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     isOnboardingComplete: v.optional(v.boolean()),
-    activeTeamId: v.optional(v.string())
+    activeTeamId: v.optional(v.string()),
+
+    // Staff details
+    address: v.optional(v.string()),
+    dateOfJoin: v.optional(v.string()), // ISO date string
+    rightToWorkStatus: v.optional(v.union(
+      v.literal("verified"),
+      v.literal("pending"),
+      v.literal("expired"),
+      v.literal("not_verified")
+    )),
+
+    // Next of Kin details
+    nextOfKinName: v.optional(v.string()),
+    nextOfKinRelationship: v.optional(v.string()),
+    nextOfKinPhone: v.optional(v.string()),
+    nextOfKinEmail: v.optional(v.string()),
+    nextOfKinAddress: v.optional(v.string()),
   }).index("byEmail", ["email"]), // Add index for email lookups
 
   // Passkey table for better-auth passkey plugin
@@ -646,8 +663,22 @@ export default defineSchema({
     fluidConsumedMl: v.optional(v.number()), // e.g., 150
     signature: v.string(), // staff name/id
     date: v.string(), // "YYYY-MM-DD" for easier querying
-    isArchived: v.optional(v.boolean()), // true if archived at 7am
+
+    // Archival and retention (UK Healthcare: 7 years)
+    isArchived: v.boolean(), // true after 1 year (becomes read-only)
     archivedAt: v.optional(v.number()), // timestamp when archived
+    retentionPeriodYears: v.optional(v.number()), // 7 for UK healthcare compliance
+    scheduledDeletionAt: v.optional(v.number()), // createdAt + 7 years
+    isReadOnly: v.optional(v.boolean()), // true for archived logs (prevents edits)
+
+    // Schema versioning for future migrations
+    schemaVersion: v.optional(v.number()), // current: 1
+
+    // GDPR compliance fields
+    consentToStore: v.optional(v.boolean()), // data processing consent
+    dataProcessingBasis: v.optional(v.string()), // "care_delivery", "legal_obligation"
+
+    // Metadata
     organizationId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
@@ -662,7 +693,38 @@ export default defineSchema({
     .index("by_resident_timestamp", ["residentId", "timestamp"]) // For date range queries
     .index("by_resident_archived", ["residentId", "isArchived", "timestamp"]) // For filtering archived
     .index("by_organization_date", ["organizationId", "date"]) // For org-level reports
-    .index("by_archived_date", ["isArchived", "archivedAt"]), // For auto-archive cleanup
+    .index("by_archived_date", ["isArchived", "archivedAt"]) // For auto-archive cleanup
+    .index("by_scheduled_deletion", ["scheduledDeletionAt"]) // For retention enforcement
+    .index("by_retention_period", ["retentionPeriodYears", "createdAt"]), // For retention queries
+
+  // Audit log for food/fluid data access (GDPR Article 30 - Records of Processing)
+  foodFluidAuditLog: defineTable({
+    logId: v.union(v.id("foodFluidLogs"), v.null()), // null for bulk operations
+    residentId: v.id("residents"),
+    userId: v.id("users"),
+    action: v.union(
+      v.literal("create"),
+      v.literal("view"),
+      v.literal("update"),
+      v.literal("delete"),
+      v.literal("archive"),
+      v.literal("export")
+    ),
+    timestamp: v.number(),
+    metadata: v.optional(
+      v.object({
+        count: v.optional(v.number()), // for bulk operations
+        exportFormat: v.optional(v.string()), // "json", "csv"
+        section: v.optional(v.string()),
+        fluidMl: v.optional(v.number()),
+      })
+    ),
+  })
+    .index("by_log", ["logId"])
+    .index("by_user", ["userId", "timestamp"])
+    .index("by_resident", ["residentId", "timestamp"])
+    .index("by_action", ["action", "timestamp"])
+    .index("by_user_action", ["userId", "action", "timestamp"]),
 
   // Quick care notes for residents
   quickCareNotes: defineTable({
@@ -2617,6 +2679,24 @@ export default defineSchema({
       v.literal("overdue")
     ),
 
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Link to specific care file or resident (for care file audits)
+    residentId: v.optional(v.id("residents")),
+    careFileReference: v.optional(v.string()), // Reference to specific care file section
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
     teamId: v.string(),
     organizationId: v.string(),
     createdBy: v.string(),
@@ -2630,7 +2710,158 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_due_date", ["dueDate"])
     .index("by_team", ["teamId"])
-    .index("by_organization", ["organizationId"]),
+    .index("by_organization", ["organizationId"])
+    .index("by_resident", ["residentId"]),
+
+  // Care File Audit Templates (similar to resident audit but for care files)
+  careFileAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.literal("carefile"), // Fixed category for care file audits
+    items: v.array(v.object({
+      id: v.string(),
+      name: v.string(), // Item/section name (e.g., "Pre-Admission Assessment")
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("checkbox"),    // Checked/Unchecked
+        v.literal("notes")        // Free text notes
+      ),
+    })),
+    frequency: v.union(
+      v.literal("3months"),
+      v.literal("6months"),
+      v.literal("yearly")
+    ),
+    isActive: v.boolean(),
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_team_and_active", ["teamId", "isActive"]),
+
+  // Care File Audit Completions (one per resident)
+  careFileAuditCompletions: defineTable({
+    templateId: v.id("careFileAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+
+    // Single resident per audit
+    residentId: v.id("residents"),
+    residentName: v.string(), // Denormalized
+    roomNumber: v.optional(v.string()),
+
+    // Team context
+    teamId: v.string(),
+    organizationId: v.string(),
+
+    // Item responses
+    items: v.array(v.object({
+      itemId: v.string(),
+      itemName: v.string(),
+      status: v.optional(v.union(
+        v.literal("compliant"),
+        v.literal("non-compliant"),
+        v.literal("not-applicable"),
+        v.literal("checked"),
+        v.literal("unchecked")
+      )),
+      notes: v.optional(v.string()),
+      date: v.optional(v.string()), // Date for this specific item
+    })),
+
+    overallNotes: v.optional(v.string()), // General notes for this audit
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User name or email
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_resident", ["residentId"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_resident", ["templateId", "residentId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"])
+    .index("by_resident_and_status", ["residentId", "status"]),
+
+  // Action plans for care file audit findings
+  careFileAuditActionPlans: defineTable({
+    auditResponseId: v.id("careFileAuditCompletions"),
+    templateId: v.id("careFileAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Link to resident and care file
+    residentId: v.id("residents"),
+    careFileReference: v.optional(v.string()), // Reference to specific care file section
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
+    teamId: v.string(),
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_resident", ["residentId"]),
 
   // Centralized Notifications System (reusable across all modules)
   notifications: defineTable({
@@ -2679,5 +2910,799 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_type", ["type"])
     .index("by_created_at", ["createdAt"])
-    .index("by_idempotency_key", ["idempotencyKey"]) // For preventing duplicate incident notifications
+    .index("by_idempotency_key", ["idempotencyKey"]), // For preventing duplicate incident notifications
+
+  // Clinical Notes
+  clinicalNotes: defineTable({
+    residentId: v.id("residents"),
+    staffName: v.string(),
+    staffEmail: v.string(),
+    noteContent: v.string(),
+    category: v.optional(v.string()), // e.g., "general", "medical", "behavioral"
+    noteDate: v.string(), // Date of the note (YYYY-MM-DD format)
+    noteTime: v.optional(v.string()), // Time of the note (HH:MM format)
+
+    // Organization context
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.string(), // User ID who created the note
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.string()),
+  })
+    .index("by_resident", ["residentId"])
+    .index("by_resident_and_date", ["residentId", "noteDate"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_created_at", ["createdAt"]),
+
+  // Governance Audit Templates (organization-wide)
+  governanceAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.literal("governance"), // Fixed category for governance audits
+    items: v.array(v.object({
+      id: v.string(),
+      name: v.string(), // Question/item name
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("checkbox"),    // Checked/Unchecked
+        v.literal("notes")        // Free text notes
+      ),
+    })),
+    frequency: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("6months"),
+      v.literal("yearly")
+    ),
+    isActive: v.boolean(),
+    organizationId: v.string(), // Organization-wide, no teamId
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_organization_and_active", ["organizationId", "isActive"]),
+
+  // Governance Audit Completions (organization-level)
+  governanceAuditCompletions: defineTable({
+    templateId: v.id("governanceAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+
+    // Organization context (no resident, organization-wide)
+    organizationId: v.string(),
+
+    // Item responses
+    items: v.array(v.object({
+      itemId: v.string(),
+      itemName: v.string(),
+      status: v.optional(v.union(
+        v.literal("compliant"),
+        v.literal("non-compliant"),
+        v.literal("not-applicable"),
+        v.literal("checked"),
+        v.literal("unchecked")
+      )),
+      notes: v.optional(v.string()),
+      date: v.optional(v.string()), // Date for this specific item
+    })),
+
+    overallNotes: v.optional(v.string()), // General notes for this audit
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User email
+    auditedByName: v.optional(v.string()), // User display name
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_organization", ["templateId", "organizationId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans for governance audit findings
+  governanceAuditActionPlans: defineTable({
+    auditResponseId: v.id("governanceAuditCompletions"),
+    templateId: v.id("governanceAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_organization", ["organizationId"]),
+
+  // Clinical Care & Medicines Audit Templates (organization-wide)
+  clinicalAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.literal("clinical"), // Fixed category for clinical audits
+    items: v.array(v.object({
+      id: v.string(),
+      name: v.string(), // Question/item name
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("checkbox"),    // Checked/Unchecked
+        v.literal("notes")        // Free text notes
+      ),
+    })),
+    frequency: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("6months"),
+      v.literal("yearly")
+    ),
+    isActive: v.boolean(),
+    organizationId: v.string(), // Organization-wide, no teamId
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_organization_and_active", ["organizationId", "isActive"]),
+
+  // Clinical Audit Completions (organization-level)
+  clinicalAuditCompletions: defineTable({
+    templateId: v.id("clinicalAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+
+    // Organization context (no resident, organization-wide)
+    organizationId: v.string(),
+
+    // Item responses
+    items: v.array(v.object({
+      itemId: v.string(),
+      itemName: v.string(),
+      status: v.optional(v.union(
+        v.literal("compliant"),
+        v.literal("non-compliant"),
+        v.literal("not-applicable"),
+        v.literal("checked"),
+        v.literal("unchecked"),
+        v.literal("") // Allow empty string as initial state
+      )),
+      notes: v.optional(v.string()),
+      date: v.optional(v.string()), // Date for this specific item
+    })),
+
+    overallNotes: v.optional(v.string()), // General notes for this audit
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User email
+    auditedByName: v.optional(v.string()), // User display name
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_organization", ["templateId", "organizationId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans for clinical audit findings
+  clinicalAuditActionPlans: defineTable({
+    auditResponseId: v.id("clinicalAuditCompletions"),
+    templateId: v.id("clinicalAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_organization", ["organizationId"]),
+
+  // Environment & Safety Audit Templates (organization-wide)
+  environmentAuditTemplates: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.literal("environment"), // Fixed category for environment audits
+    items: v.array(v.object({
+      id: v.string(),
+      name: v.string(), // Question/item name
+      type: v.union(
+        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
+        v.literal("checkbox"),    // Checked/Unchecked
+        v.literal("notes")        // Free text notes
+      ),
+    })),
+    frequency: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("6months"),
+      v.literal("yearly")
+    ),
+    isActive: v.boolean(),
+    organizationId: v.string(), // Organization-wide, no teamId
+    createdBy: v.string(), // User ID or email
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_active", ["isActive"])
+    .index("by_organization_and_active", ["organizationId", "isActive"]),
+
+  // Environment Audit Completions (organization-level)
+  environmentAuditCompletions: defineTable({
+    templateId: v.id("environmentAuditTemplates"),
+    templateName: v.string(), // Denormalized for easy display
+
+    // Organization context (no resident, organization-wide)
+    organizationId: v.string(),
+
+    // Item responses
+    items: v.array(v.object({
+      itemId: v.string(),
+      itemName: v.string(),
+      status: v.optional(v.union(
+        v.literal("compliant"),
+        v.literal("non-compliant"),
+        v.literal("not-applicable"),
+        v.literal("checked"),
+        v.literal("unchecked")
+      )),
+      notes: v.optional(v.string()),
+      date: v.optional(v.string()), // Date for this specific item
+    })),
+
+    overallNotes: v.optional(v.string()), // General notes for this audit
+
+    // Audit metadata
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in-progress"),
+      v.literal("completed")
+    ),
+
+    // Audit trail
+    auditedBy: v.string(), // User email
+    auditedByName: v.optional(v.string()), // User display name
+    auditedAt: v.number(), // Timestamp when started
+    completedAt: v.optional(v.number()), // Timestamp when completed
+
+    // Next audit scheduling
+    frequency: v.optional(v.string()), // Inherited from template
+    nextAuditDue: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_template", ["templateId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_auditor", ["auditedBy"])
+    .index("by_status", ["status"])
+    .index("by_template_and_organization", ["templateId", "organizationId"])
+    .index("by_completed_at", ["completedAt"])
+    .index("by_next_due", ["nextAuditDue"]),
+
+  // Action plans for environment audit findings
+  environmentAuditActionPlans: defineTable({
+    auditResponseId: v.id("environmentAuditCompletions"),
+    templateId: v.id("environmentAuditTemplates"), // For easier querying
+
+    description: v.string(),
+    assignedTo: v.string(), // User email or ID
+    assignedToName: v.optional(v.string()), // Display name
+    priority: v.union(
+      v.literal("Low"),
+      v.literal("Medium"),
+      v.literal("High")
+    ),
+
+    dueDate: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("overdue")
+    ),
+
+    // Status updates and comments
+    statusHistory: v.optional(v.array(v.object({
+      status: v.string(),
+      comment: v.optional(v.string()),
+      updatedBy: v.string(), // User email
+      updatedByName: v.optional(v.string()),
+      updatedAt: v.number(),
+    }))),
+    latestComment: v.optional(v.string()), // Quick access to latest comment
+
+    // Track if action plan is new (unviewed by assignee)
+    isNew: v.optional(v.boolean()),
+    viewedAt: v.optional(v.number()), // When assignee first viewed the action plan
+
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_audit_response", ["auditResponseId"])
+    .index("by_template", ["templateId"])
+    .index("by_assigned_to", ["assignedTo"])
+    .index("by_status", ["status"])
+    .index("by_due_date", ["dueDate"])
+    .index("by_organization", ["organizationId"]),
+
+  // BHSCT (Belfast Health and Social Care Trust) Reports
+  bhsctReports: defineTable({
+    // Links
+    incidentId: v.id("incidents"),
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Provider and Service User Information
+    providerName: v.string(),
+    serviceUserName: v.string(),
+    serviceUserDOB: v.string(),
+    serviceUserGender: v.string(), // Male / Female
+    careManager: v.string(),
+
+    // Incident Location
+    incidentAddress: v.string(), // Including postcode
+    exactLocation: v.string(), // Exact location where incident occurred
+
+    // Incident Details
+    incidentDate: v.string(),
+    incidentTime: v.string(),
+    incidentDescription: v.string(), // Brief, factual description
+
+    // Injury and Treatment
+    natureOfInjury: v.string(),
+    immediateActionTaken: v.string(), // First aid, GP, hospital admission, etc.
+
+    // Notifications and Witnesses
+    personsNotified: v.string(), // Including designation/relationship
+    witnesses: v.optional(v.string()), // Name and designation
+    staffInvolved: v.optional(v.string()), // Name and designation
+    otherServiceUsersInvolved: v.optional(v.string()), // Including DOB if applicable
+
+    // Reporter Information
+    reporterName: v.string(),
+    reporterSignature: v.optional(v.string()), // For digital signature
+    reporterDesignation: v.string(),
+    dateReported: v.string(),
+
+    // Follow-up Actions
+    preventionActions: v.string(), // Actions taken to prevent recurrence
+    riskAssessmentUpdateDate: v.optional(v.string()), // Date risk assessment updated
+    otherComments: v.optional(v.string()),
+
+    // Senior Staff / Manager Review
+    reviewerName: v.optional(v.string()),
+    reviewerSignature: v.optional(v.string()),
+    reviewerDesignation: v.optional(v.string()),
+    reviewDate: v.optional(v.string()),
+
+    // Status
+    status: v.union(
+      v.literal("draft"),
+      v.literal("submitted"),
+      v.literal("completed")
+    ),
+
+    // System fields
+    reportedBy: v.string(), // User email who created report
+    reportedByName: v.string(), // User full name
+    submittedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_status", ["status"])
+    .index("by_service_user", ["serviceUserName"])
+    .index("by_reporter", ["reporterName"])
+    .index("by_reported_by", ["reportedBy"]),
+
+  sehsctReports: defineTable({
+    // Links
+    incidentId: v.id("incidents"),
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Administrative
+    datixRef: v.optional(v.string()),
+
+    // Section 1 & 2 - Where and When
+    incidentDate: v.string(),
+    incidentTime: v.string(),
+    primaryLocation: v.string(),
+    exactLocation: v.optional(v.string()),
+
+    // Circumstances
+    incidentDescription: v.string(),
+    contributoryFactors: v.optional(v.string()),
+    propertyEquipmentMedication: v.optional(v.string()),
+    causedByBehaviorsOfConcern: v.boolean(),
+    documentedInCarePlan: v.boolean(),
+    apparentCauseOfInjury: v.optional(v.string()),
+
+    // Actions
+    remedialActionTaken: v.optional(v.string()),
+    actionsTakenToPreventRecurrence: v.optional(v.string()),
+    riskAssessmentUpdateDate: v.optional(v.string()),
+
+    // Equipment or Property
+    equipmentInvolved: v.boolean(),
+    equipmentDetails: v.optional(v.string()),
+    reportedToNIAC: v.boolean(),
+    propertyInvolved: v.boolean(),
+    propertyDetails: v.optional(v.string()),
+
+    // Persons notified
+    personsNotified: v.optional(v.string()),
+
+    // Individual involved (F)
+    hcNumber: v.optional(v.string()),
+    gender: v.string(),
+    dateOfBirth: v.string(),
+    serviceUserFullName: v.string(),
+    serviceUserAddress: v.optional(v.string()),
+    trustKeyWorkerName: v.optional(v.string()),
+    trustKeyWorkerDesignation: v.optional(v.string()),
+
+    // Injury details (G)
+    personSufferedInjury: v.boolean(),
+    partOfBodyAffected: v.optional(v.string()),
+    natureOfInjury: v.optional(v.string()),
+
+    // Attention received (H)
+    attentionReceived: v.array(v.string()),
+    attentionReceivedOther: v.optional(v.string()),
+
+    // Section 3 - Staff/Service Users
+    staffMembersInvolved: v.optional(v.string()),
+    otherServiceUsersInvolved: v.optional(v.string()),
+    witnessDetails: v.optional(v.string()),
+
+    // Section 4 - Provider Information
+    providerName: v.string(),
+    providerAddress: v.optional(v.string()),
+    groupName: v.optional(v.string()),
+    serviceName: v.optional(v.string()),
+    typeOfService: v.optional(v.string()),
+
+    // Section 5 - Medication
+    medicationNames: v.optional(v.string()),
+    pharmacyDetails: v.optional(v.string()),
+
+    // Section 6 - Identification
+    identifiedBy: v.string(), // "Provider" or "Trust"
+    identifierName: v.optional(v.string()),
+    identifierJobTitle: v.optional(v.string()),
+    identifierTelephone: v.optional(v.string()),
+    identifierEmail: v.optional(v.string()),
+    trustStaffName: v.optional(v.string()),
+    trustStaffJobTitle: v.optional(v.string()),
+    trustStaffTelephone: v.optional(v.string()),
+    trustStaffEmail: v.optional(v.string()),
+    returnEmail: v.optional(v.string()),
+
+    // Section 7 - Trust Key Worker Completion
+    outcomeComments: v.optional(v.string()),
+    reviewOutcome: v.optional(v.string()),
+    furtherActionByProvider: v.optional(v.string()),
+    furtherActionByProviderDate: v.optional(v.string()),
+    furtherActionByProviderActionBy: v.optional(v.string()),
+    furtherActionByTrust: v.optional(v.string()),
+    furtherActionByTrustDate: v.optional(v.string()),
+    furtherActionByTrustActionBy: v.optional(v.string()),
+    lessonsLearned: v.optional(v.string()),
+    finalReviewAndOutcome: v.optional(v.string()),
+
+    // Review Questions
+    allIssuesSatisfactorilyDealt: v.boolean(),
+    clientFamilySatisfied: v.boolean(),
+    allRecommendationsImplemented: v.optional(v.string()),
+    caseReadyForClosure: v.boolean(),
+    caseNotReadyReason: v.optional(v.string()),
+
+    // Signatures
+    keyWorkerNameDesignation: v.optional(v.string()),
+    dateClosed: v.optional(v.string()),
+    lineManagerNameDesignation: v.optional(v.string()),
+    dateApproved: v.optional(v.string()),
+
+    // Status
+    status: v.union(
+      v.literal("draft"),
+      v.literal("submitted"),
+      v.literal("completed")
+    ),
+
+    // System fields
+    reportedBy: v.string(),
+    reportedByName: v.string(),
+    submittedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_status", ["status"])
+    .index("by_service_user", ["serviceUserFullName"])
+    .index("by_reported_by", ["reportedBy"]),
+
+  // NHS Trust Reports - Generated from care home incident reports
+  nhsReports: defineTable({
+    // Link to original incident
+    incidentId: v.id("incidents"),
+    residentId: v.id("residents"),
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Trust information
+    trustName: v.union(v.literal("BHSCT"), v.literal("SEHSCT")), // Belfast or South Eastern HSC Trust
+    trustFullName: v.string(),
+
+    // NHS Report Data (all mapped from incident + user additions)
+    reportData: v.object({
+      // Patient Demographics (auto-populated from incident)
+      patientFirstName: v.optional(v.string()),
+      patientSurname: v.optional(v.string()),
+      patientDOB: v.optional(v.string()),
+      nhsNumber: v.optional(v.string()),
+      patientAddress: v.optional(v.string()),
+      patientPostcode: v.optional(v.string()),
+
+      // Incident Details (auto-populated from incident)
+      incidentDate: v.optional(v.string()),
+      incidentTime: v.optional(v.string()),
+      locationWard: v.optional(v.string()),
+      locationSite: v.optional(v.string()),
+
+      // Incident Classification (auto-populated from incident)
+      incidentType: v.optional(v.string()),
+      incidentCategory: v.optional(v.string()),
+      severityLevel: v.optional(v.string()),
+      harmLevel: v.optional(v.string()),
+
+      // Description (auto-populated from incident)
+      incidentDescription: v.optional(v.string()),
+      injuryDetails: v.optional(v.string()),
+      bodyPartAffected: v.optional(v.string()),
+      treatmentGiven: v.optional(v.string()),
+      immediateActions: v.optional(v.string()),
+
+      // Staff/Reporter Information (auto-populated from incident)
+      reporterName: v.optional(v.string()),
+      reporterJobTitle: v.optional(v.string()),
+      reporterEmail: v.optional(v.string()),
+      reporterPhone: v.optional(v.string()),
+
+      // Witnesses (auto-populated from incident)
+      witness1Name: v.optional(v.string()),
+      witness1Contact: v.optional(v.string()),
+      witness2Name: v.optional(v.string()),
+      witness2Contact: v.optional(v.string()),
+
+      // Notifications (auto-populated from incident)
+      managerInformed: v.optional(v.string()),
+      managerInformedDateTime: v.optional(v.string()),
+      nextOfKinInformed: v.optional(v.string()),
+      nextOfKinInformedDateTime: v.optional(v.string()),
+
+      // NHS-Specific Fields (user fills these)
+      cqcNotificationRequired: v.optional(v.boolean()),
+      cqcNotificationReason: v.optional(v.string()),
+      policeInformed: v.optional(v.boolean()),
+      policeReferenceNumber: v.optional(v.string()),
+      safeguardingConcern: v.optional(v.boolean()),
+      safeguardingReferenceNumber: v.optional(v.string()),
+      gpName: v.optional(v.string()),
+      gpPractice: v.optional(v.string()),
+      additionalNotes: v.optional(v.string()),
+    }),
+
+    // Status tracking
+    status: v.union(
+      v.literal("draft"),
+      v.literal("completed"),
+      v.literal("submitted"),
+      v.literal("acknowledged")
+    ),
+
+    // Submission tracking
+    submittedAt: v.optional(v.number()),
+    submittedBy: v.optional(v.string()),
+    nhsReferenceNumber: v.optional(v.string()),
+
+    // Metadata
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
+    .index("by_resident", ["residentId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_team", ["teamId"])
+    .index("by_trust", ["trustName"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
+
+  // Alerts system for residents
+  alerts: defineTable({
+    residentId: v.id("residents"),
+    alertType: v.union(
+      v.literal("food_fluid"),
+      v.literal("night_check"),
+      v.literal("medication"),
+      v.literal("activity"),
+      v.literal("vital_signs"),
+      v.literal("care_plan")
+    ),
+    severity: v.union(
+      v.literal("critical"), // Requires immediate attention
+      v.literal("warning"),  // Should be addressed soon
+      v.literal("info")      // Informational only
+    ),
+    title: v.string(), // Short title (e.g., "No food logged - Morning")
+    message: v.string(), // Detailed message
+    timestamp: v.number(), // When alert was created
+
+    // Time period context (for food/fluid alerts)
+    timePeriod: v.optional(v.union(
+      v.literal("morning"),
+      v.literal("afternoon"),
+      v.literal("evening"),
+      v.literal("night")
+    )),
+
+    // Resolution tracking
+    isResolved: v.boolean(),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.string()), // userId who resolved it
+    resolutionNote: v.optional(v.string()),
+
+    // Auto-resolution (when data is logged)
+    autoResolved: v.optional(v.boolean()),
+
+    // Additional context
+    metadata: v.optional(v.any()), // Flexible field for alert-specific data
+
+    // Organization tracking
+    organizationId: v.string(),
+    teamId: v.string(),
+
+    // Audit fields
+    createdBy: v.optional(v.string()), // For manual alerts
+    createdAt: v.number(),
+  })
+    .index("byResidentId", ["residentId"])
+    .index("byAlertType", ["alertType"])
+    .index("bySeverity", ["severity"])
+    .index("byIsResolved", ["isResolved"])
+    .index("byTimestamp", ["timestamp"])
+    .index("byResidentAndType", ["residentId", "alertType"])
+    .index("byResidentAndResolved", ["residentId", "isResolved"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byTeamId", ["teamId"]),
 });

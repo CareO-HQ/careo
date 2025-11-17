@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 // Create a new action plan
@@ -35,29 +35,11 @@ export const createActionPlan = mutation({
       createdBy: args.createdBy,
       createdByName: args.createdByName,
       createdAt: Date.now(),
+      isNew: true, // Mark as new for badge display
     });
 
-    // Create notification for the assigned user
-    await ctx.db.insert("notifications", {
-      userId: args.assignedTo,
-      senderId: args.createdBy,
-      senderName: args.createdByName,
-      type: "action_plan",
-      title: "New Action Plan Assigned",
-      message: `${args.createdByName || "A manager"} assigned you an action plan for ${template?.name || "audit"}: "${args.description}"`,
-      link: `/dashboard/careo-audit/resident/${args.auditResponseId}/view`,
-      metadata: {
-        actionPlanId: actionPlanId,
-        auditId: args.auditResponseId,
-        templateId: args.templateId,
-        priority: args.priority,
-        dueDate: args.dueDate,
-      },
-      isRead: false,
-      organizationId: args.organizationId,
-      teamId: args.teamId,
-      createdAt: Date.now(),
-    });
+    // Note: No notification sent to assignee - they will see it in their Action Plans dashboard
+    // Only status change notifications go to the manager who created the action plan
 
     return actionPlanId;
   },
@@ -92,6 +74,80 @@ export const updateActionPlan = mutation({
     });
 
     return actionPlanId;
+  },
+});
+
+// Update action plan status with comment (by assignee)
+export const updateActionPlanStatus = mutation({
+  args: {
+    actionPlanId: v.id("residentAuditActionPlans"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed")
+    ),
+    comment: v.optional(v.string()),
+    updatedBy: v.string(), // User email
+    updatedByName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get the action plan
+    const actionPlan = await ctx.db.get(args.actionPlanId);
+    if (!actionPlan) {
+      throw new Error("Action plan not found");
+    }
+
+    // Get template info for notification
+    const template = await ctx.db.get(actionPlan.templateId);
+
+    // Create status history entry
+    const statusUpdate = {
+      status: args.status,
+      comment: args.comment,
+      updatedBy: args.updatedBy,
+      updatedByName: args.updatedByName,
+      updatedAt: Date.now(),
+    };
+
+    // Get existing history or initialize empty array
+    const existingHistory = actionPlan.statusHistory || [];
+    const updatedHistory = [...existingHistory, statusUpdate];
+
+    // Update action plan
+    await ctx.db.patch(args.actionPlanId, {
+      status: args.status,
+      statusHistory: updatedHistory,
+      latestComment: args.comment,
+      updatedAt: Date.now(),
+      ...(args.status === "completed" && { completedAt: Date.now() }),
+    });
+
+    // Notify the manager who created the action plan
+    await ctx.db.insert("notifications", {
+      userId: actionPlan.createdBy,
+      senderId: args.updatedBy,
+      senderName: args.updatedByName,
+      type: "action_plan_status_updated",
+      title: "Action Plan Status Updated",
+      message: `${args.updatedByName || "An assignee"} updated the action plan status to "${args.status}" for ${template?.name || "audit"}: "${actionPlan.description}"${args.comment ? `\n\nComment: ${args.comment}` : ""}`,
+      link: `/dashboard/careo-audit/resident/${actionPlan.auditResponseId}/view`,
+      metadata: {
+        actionPlanId: args.actionPlanId,
+        auditId: actionPlan.auditResponseId,
+        templateId: actionPlan.templateId,
+        oldStatus: actionPlan.status,
+        newStatus: args.status,
+        comment: args.comment,
+        priority: actionPlan.priority,
+        auditCategory: "resident", // Add category for routing
+      },
+      isRead: false,
+      organizationId: actionPlan.organizationId,
+      teamId: actionPlan.teamId,
+      createdAt: Date.now(),
+    });
+
+    return args.actionPlanId;
   },
 });
 
@@ -133,6 +189,7 @@ export const completeActionPlan = mutation({
         auditId: actionPlan.auditResponseId,
         templateId: actionPlan.templateId,
         priority: actionPlan.priority,
+        auditCategory: "resident", // Add category for routing
       },
       isRead: false,
       organizationId: actionPlan.organizationId,
@@ -185,6 +242,169 @@ export const getActionPlansByAssignee = query({
   },
 });
 
+// Get action plans by assignee with enriched data (template name, etc.)
+export const getMyActionPlans = query({
+  args: {
+    assignedTo: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Get all action plans for this user
+    const actionPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
+      .collect();
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template and audit data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+        const auditResponse = await ctx.db.get(plan.auditResponseId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Audit",
+          auditCategory: template?.category || auditResponse?.category || "resident",
+          auditCompletedAt: auditResponse?.completedAt,
+        };
+      })
+    );
+
+    // Sort by due date (overdue first, then by priority)
+    return enrichedPlans.sort((a, b) => {
+      const now = Date.now();
+      const aOverdue = a.dueDate && a.dueDate < now && a.status !== "completed";
+      const bOverdue = b.dueDate && b.dueDate < now && b.status !== "completed";
+
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+
+      // Then by priority
+      const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+      const aPriority = priorityOrder[a.priority] || 3;
+      const bPriority = priorityOrder[b.priority] || 3;
+
+      if (aPriority !== bPriority) return aPriority - bPriority;
+
+      // Then by due date
+      if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+
+      return b.createdAt - a.createdAt; // Newest first
+    });
+  },
+});
+
+// Get action plans created by a user (for managers)
+export const getCreatedActionPlans = query({
+  args: {
+    createdBy: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Get all action plans created by this user
+    const allPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .collect();
+
+    const actionPlans = allPlans.filter((plan) => plan.createdBy === args.createdBy);
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template and audit data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+        const auditResponse = await ctx.db.get(plan.auditResponseId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Audit",
+          auditCategory: template?.category || auditResponse?.category || "resident",
+          auditCompletedAt: auditResponse?.completedAt,
+        };
+      })
+    );
+
+    // Sort by due date (overdue first, then by priority)
+    return enrichedPlans.sort((a, b) => {
+      const now = Date.now();
+      const aOverdue = a.dueDate && a.dueDate < now && a.status !== "completed";
+      const bOverdue = b.dueDate && b.dueDate < now && b.status !== "completed";
+
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+
+      // Then by priority
+      const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+      const aPriority = priorityOrder[a.priority] || 3;
+      const bPriority = priorityOrder[b.priority] || 3;
+
+      if (aPriority !== bPriority) return aPriority - bPriority;
+
+      // Then by due date
+      if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+
+      return b.createdAt - a.createdAt; // Newest first
+    });
+  },
+});
+
+// Get single action plan with full details
+export const getActionPlanById = query({
+  args: {
+    actionPlanId: v.id("residentAuditActionPlans"),
+  },
+  handler: async (ctx, args) => {
+    const actionPlan = await ctx.db.get(args.actionPlanId);
+    if (!actionPlan) return null;
+
+    const template = await ctx.db.get(actionPlan.templateId);
+    const auditResponse = await ctx.db.get(actionPlan.auditResponseId);
+
+    // Get resident info if available
+    let residentInfo = null;
+    if (actionPlan.residentId) {
+      residentInfo = await ctx.db.get(actionPlan.residentId);
+    }
+
+    return {
+      ...actionPlan,
+      templateName: template?.name || "Unknown Audit",
+      auditCategory: template?.category || auditResponse?.category || "resident",
+      auditCompletedAt: auditResponse?.completedAt,
+      resident: residentInfo,
+    };
+  },
+});
+
 // Get all action plans for a team
 export const getActionPlansByTeam = query({
   args: {
@@ -233,6 +453,50 @@ export const deleteActionPlan = mutation({
   },
 });
 
+// Mark action plans as viewed (remove isNew flag)
+export const markActionPlansAsViewed = mutation({
+  args: {
+    assignedTo: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all new action plans for this user
+    const newPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
+      .collect();
+
+    const now = Date.now();
+    let marked = 0;
+
+    for (const plan of newPlans) {
+      if (plan.isNew) {
+        await ctx.db.patch(plan._id, {
+          isNew: false,
+          viewedAt: now,
+        });
+        marked++;
+      }
+    }
+
+    return { marked };
+  },
+});
+
+// Get count of new action plans for a user
+export const getNewActionPlansCount = query({
+  args: {
+    assignedTo: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const newPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .withIndex("by_assigned_to", (q) => q.eq("assignedTo", args.assignedTo))
+      .collect();
+
+    return newPlans.filter((plan) => plan.isNew === true).length;
+  },
+});
+
 // Get action plan statistics for a team
 export const getActionPlanStats = query({
   args: {
@@ -258,5 +522,113 @@ export const getActionPlanStats = query({
         (p) => p.priority === "High" && p.status !== "completed"
       ).length,
     };
+  },
+});
+
+// Update overdue action plans (called by cron job)
+export const updateOverdueActionPlans = internalMutation({
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Get all non-completed action plans
+    const plans = await ctx.db
+      .query("residentAuditActionPlans")
+      .filter((q) => q.neq(q.field("status"), "completed"))
+      .collect();
+
+    let updated = 0;
+    const notifications: any[] = [];
+
+    for (const plan of plans) {
+      // Check if overdue and not already marked as overdue
+      if (plan.dueDate && plan.dueDate < now && plan.status !== "overdue") {
+        // Update status to overdue
+        await ctx.db.patch(plan._id, {
+          status: "overdue",
+          updatedAt: now,
+        });
+
+        // Get template name for better notification message
+        const template = await ctx.db.get(plan.templateId);
+
+        // Create notification for assignee
+        await ctx.db.insert("notifications", {
+          userId: plan.assignedTo,
+          senderId: plan.createdBy,
+          senderName: plan.createdByName,
+          type: "action_plan_overdue",
+          title: "Action Plan Overdue",
+          message: `Your action plan for "${template?.name || 'audit'}" is now overdue: "${plan.description}"`,
+          link: `/dashboard/action-plans`,
+          metadata: {
+            actionPlanId: plan._id,
+            auditId: plan.auditResponseId,
+            templateId: plan.templateId,
+            priority: plan.priority,
+            dueDate: plan.dueDate,
+          },
+          isRead: false,
+          organizationId: plan.organizationId,
+          teamId: plan.teamId,
+          createdAt: now,
+        });
+
+        // Also notify the manager who created it
+        if (plan.createdBy !== plan.assignedTo) {
+          await ctx.db.insert("notifications", {
+            userId: plan.createdBy,
+            senderId: plan.assignedTo,
+            senderName: plan.assignedToName,
+            type: "action_plan_overdue_manager",
+            title: "Action Plan Overdue - Manager Alert",
+            message: `Action plan assigned to ${plan.assignedToName || plan.assignedTo} is now overdue: "${plan.description}"`,
+            link: `/dashboard/action-plans`,
+            metadata: {
+              actionPlanId: plan._id,
+              auditId: plan.auditResponseId,
+              templateId: plan.templateId,
+              priority: plan.priority,
+              dueDate: plan.dueDate,
+            },
+            isRead: false,
+            organizationId: plan.organizationId,
+            teamId: plan.teamId,
+            createdAt: now,
+          });
+        }
+
+        updated++;
+      }
+    }
+
+    console.log(`Updated ${updated} overdue action plans`);
+    return { updated };
+  },
+});
+
+// Archive old completed action plans (called by cron job)
+export const archiveOldActionPlans = internalMutation({
+  handler: async (ctx) => {
+    const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+
+    // Find completed action plans older than 90 days
+    const oldPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "completed"),
+          q.lt(q.field("completedAt"), ninetyDaysAgo)
+        )
+      )
+      .collect();
+
+    let archived = 0;
+    for (const plan of oldPlans) {
+      await ctx.db.delete(plan._id);
+      archived++;
+    }
+
+    console.log(`Archived ${archived} old completed action plans`);
+    return { archived };
   },
 });

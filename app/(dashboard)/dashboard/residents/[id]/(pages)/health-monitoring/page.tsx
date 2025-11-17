@@ -33,6 +33,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
   Form,
   FormControl,
   FormField,
@@ -44,7 +50,7 @@ import {
   ArrowLeft,
   Stethoscope,
   User,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   Plus,
   Eye,
@@ -59,6 +65,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 type HealthMonitoringPageProps = {
   params: Promise<{ id: string }>;
@@ -313,18 +321,24 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
   // Helper to get latest recorded time from vitals
   const getLatestRecordedTime = () => {
     if (!latestVitals) return null;
-    
+
     const vitalsArray = Object.values(latestVitals);
     if (vitalsArray.length === 0) return null;
-    
+
     const mostRecent = vitalsArray.reduce((latest: any, current: any) => {
       if (!latest) return current;
       const latestTime = new Date(`${latest.recordDate} ${latest.recordTime}`);
       const currentTime = new Date(`${current.recordDate} ${current.recordTime}`);
       return currentTime > latestTime ? current : latest;
     }, null);
-    
+
     return mostRecent ? `${mostRecent.recordDate} ${mostRecent.recordTime}` : null;
+  };
+
+  // Helper to get latest vital value for quick stats
+  const getLatestVitalValue = (vitalType: string) => {
+    if (!latestVitals || !latestVitals[vitalType]) return "—";
+    return formatVitalValue(latestVitals[vitalType]);
   };
 
   if (resident === undefined) {
@@ -363,167 +377,99 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Health & Monitoring</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-emerald-100 rounded-lg">
-            <Stethoscope className="w-6 h-6 text-emerald-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Health & Monitoring</h1>
-            <p className="text-muted-foreground text-sm">Vital signs & health tracking</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Health & Monitoring</h1>
+          <p className="text-muted-foreground text-sm">
+            View vital signs and health tracking for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <Button
+            onClick={() => setIsVitalsDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Record Vital
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View History
+          </Button>
         </div>
       </div>
 
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700 text-xs">
-                    <Heart className="w-3 h-3 mr-1" />
-                    Vitals
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                onClick={() => setIsVitalsDialogOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Record Vitals
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring/documents`)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </Badge>
-                  <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700 text-xs">
-                    <Heart className="w-3 h-3 mr-1" />
-                    Health Monitoring
-                  </Badge>
-                </div>
-              </div>
-            </div>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-0">
+          <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsVitalsDialogOpen(true)}
-                className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Record Vitals</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring/documents`)}
-                className="flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
+              <Heart className="w-4 h-4 text-red-600" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Heart Rate</span>
+                <span className="text-lg font-bold">{getLatestVitalValue("heartRate")}</span>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        <Card className="border-0">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Thermometer className="w-4 h-4 text-orange-600" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Temperature</span>
+                <span className="text-lg font-bold">{getLatestVitalValue("temperature")}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-600" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">BP</span>
+                <span className="text-lg font-bold">{getLatestVitalValue("bloodPressure")}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Droplets className="w-4 h-4 text-cyan-600" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">O2 Sat</span>
+                <span className="text-lg font-bold">{getLatestVitalValue("oxygenSaturation")}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Latest Vitals Overview */}
-      <Card>
+      {/* Vitals List */}
+      <Card className="border-0">
         <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <Activity className="w-5 h-5 text-emerald-600" />
-              <span>Latest Vitals</span>
-            </div>
-            {getLatestRecordedTime() && (
-              <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
-                {getLatestRecordedTime()}
-              </Badge>
-            )}
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-5 h-5 text-emerald-600" />
-              <span>Latest Vitals</span>
-            </div>
-            {getLatestRecordedTime() && (
-              <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
-                {getLatestRecordedTime()}
-              </Badge>
-            )}
+          <CardTitle className="flex items-center space-x-2">
+            <Stethoscope className="w-5 h-5 text-blue-600" />
+            <span>Recent Vitals</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           {!latestVitals || Object.keys(latestVitals).length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -670,13 +616,51 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                   control={form.control}
                   name="recordDate"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm">Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} className="h-9" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="text-sm">Date</FormLabel>
+                        <Popover modal>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                type="button"
+                                className={cn(
+                                  "h-9 w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(new Date(field.value), "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value ? new Date(field.value) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(format(date, "yyyy-MM-dd"));
+                                }
+                              }}
+                              disabled={(date) => {
+                                const today = new Date();
+                                today.setHours(23, 59, 59, 999);
+                                return date > today;
+                              }}
+                              captionLayout="dropdown"
+                              defaultMonth={field.value ? new Date(field.value) : new Date()}
+                              startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                              endMonth={new Date()}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
                   )}
                 />
                 <FormField
@@ -904,6 +888,7 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
           </Form>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

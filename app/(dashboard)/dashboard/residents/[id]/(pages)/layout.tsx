@@ -6,7 +6,7 @@ export default function ResidentsLayout({
 }>) {
 
   return (
-    <main className="flex flex-col w-full">
+    <main className="container mx-auto p-6 max-w-6xl">
       {children}
     </main>
   );

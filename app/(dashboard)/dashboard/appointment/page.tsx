@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,9 @@ export default function AppointmentPage() {
   const markMultipleAsRead = useMutation(api.appointmentNotifications.markMultipleAppointmentsAsRead);
 
   const isLoading = isTeamLoading;
+  const hasMarkedAsRead = useRef(false);
+
+  // Removed auto-mark as read functionality - appointments only marked as read when clicked
 
   // Filter appointments by read/unread status
   const filteredAppointments = useMemo(() => {
@@ -218,8 +221,8 @@ export default function AppointmentPage() {
             return (
               <div
                 key={appointment._id}
-                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/30 transition-colors cursor-pointer ${
-                  !appointment.isRead ? "bg-muted/10" : ""
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${
+                  !appointment.isRead ? "bg-muted/50" : "bg-muted/5"
                 }`}
                 onClick={() => handleAppointmentClick(appointment)}
               >
@@ -233,8 +236,8 @@ export default function AppointmentPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <p className={`text-sm ${appointment.isRead ? "text-muted-foreground" : "text-foreground"}`}>
-                        <span className="font-medium">{appointment.title}</span> - {residentName}
+                      <p className={`text-sm ${appointment.isRead ? "text-muted-foreground" : "font-medium text-foreground"}`}>
+                        <span className="font-semibold">{appointment.title}</span> - {residentName}
                         {appointment.description && ` • ${appointment.description}`}
                       </p>
                       <div className="flex items-center gap-2 mt-1">

@@ -231,6 +231,17 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const { data: user } = authClient.useSession();
   const { data: activeOrganization } = authClient.useActiveOrganization();
 
+  // For now, use activeOrganization (in most cases resident belongs to user's active org)
+  // TODO: Fetch specific organization by resident.organizationId if needed
+  const residentOrganization = activeOrganization;
+
+  // Parse organization metadata to get address and phone
+  const organizationMetadata = React.useMemo(() => {
+    return residentOrganization?.metadata
+      ? JSON.parse(residentOrganization.metadata)
+      : {};
+  }, [residentOrganization?.metadata]);
+
   // Update form with resident data when resident loads
   React.useEffect(() => {
     if (resident) {
@@ -258,6 +269,23 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       form.setValue('generalDetails.careManagerPhone', resident.careManagerPhone || "");
     }
   }, [resident, form]);
+
+  // Update create form with organization data when it loads
+  React.useEffect(() => {
+    if (residentOrganization) {
+      console.log("Resident Organization:", residentOrganization);
+      console.log("Organization Metadata:", organizationMetadata);
+
+      // Update care home details from resident's organization for create form
+      form.setValue('generalDetails.careHomeName', residentOrganization.name || "");
+      form.setValue('generalDetails.careHomeAddress', organizationMetadata?.address || "");
+      form.setValue('generalDetails.careHomePhone', organizationMetadata?.phone || "");
+
+      console.log("Set care home name:", residentOrganization.name);
+      console.log("Set care home address:", organizationMetadata?.address);
+      console.log("Set care home phone:", organizationMetadata?.phone);
+    }
+  }, [residentOrganization, organizationMetadata, form]);
 
   // Update form with diet information when it loads
   React.useEffect(() => {
@@ -395,6 +423,16 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   }, [user, form, editForm]);
 
+  // Update edit form with organization data when it loads
+  React.useEffect(() => {
+    if (residentOrganization) {
+      // Update care home details from resident's organization for edit form
+      editForm.setValue('generalDetails.careHomeName', residentOrganization.name || "");
+      editForm.setValue('generalDetails.careHomeAddress', organizationMetadata?.address || "");
+      editForm.setValue('generalDetails.careHomePhone', organizationMetadata?.phone || "");
+    }
+  }, [residentOrganization, organizationMetadata, editForm]);
+
   // Edit step state
   const [editCurrentStep, setEditCurrentStep] = React.useState(1);
 
@@ -523,9 +561,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     try {
       setEditingPassport(passport);
 
-      // Populate the edit form with existing passport data
+      // Populate the edit form with existing passport data, but use resident's organization data for care home details
       editForm.reset({
-        generalDetails: passport.generalDetails || {},
+        generalDetails: {
+          ...passport.generalDetails,
+          // Always use resident's organization data for care home details
+          careHomeName: residentOrganization?.name || passport.generalDetails?.careHomeName || "",
+          careHomeAddress: organizationMetadata?.address || passport.generalDetails?.careHomeAddress || "",
+          careHomePhone: organizationMetadata?.phone || passport.generalDetails?.careHomePhone || "",
+        },
         medicalCareNeeds: passport.medicalCareNeeds || {},
         skinMedicationAttachments: passport.skinMedicationAttachments || {},
         signOff: passport.signOff || {},
@@ -1593,141 +1637,46 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Hospital Transfer</span>
-      </div>
-
-      {/* Header with Back Button */}
-      <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Ambulance className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex flex-col gap-6">
+        {/* Header with Back Button */}
+        <div className="flex items-center space-x-4 mb-6">
+          <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <Avatar className="w-10 h-10">
+            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Hospital Transfer</h1>
-            <p className="text-muted-foreground text-sm">Emergency transfers & hospital admissions</p>
+            <p className="text-muted-foreground text-sm">
+              Manage hospital transfers and passports for {resident.firstName} {resident.lastName}.
+            </p>
+          </div>
+          <div className="flex flex-row gap-2">
+            <Button
+              onClick={() => setIsTransferLogDialogOpen(true)}
+              disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+              className="bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
+            >
+              <Ambulance className="w-4 h-4 mr-2" />
+              Hospital Transfer Entry
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Transfer History
+            </Button>
           </div>
         </div>
-      </div>
-
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    Emergency Ready
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <Button
-                variant="outline"
-                onClick={() => setIsTransferLogDialogOpen(true)}
-                disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-                className="w-full"
-              >
-                <Ambulance className="w-6 h-6 mr-3" />
-                Hospital Transfer Entry
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident?.roomNumber || "N/A"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {typeof currentAge === 'number' ? `${currentAge} years old` : currentAge}
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 text-xs">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    Emergency Ready
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsTransferLogDialogOpen(true)}
-                disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-              >
-                <Ambulance className="w-6 h-6 mr-3" />
-                Hospital Transfer Entry
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-                className="flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Transfer History
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Emergency Information */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <AlertTriangle className="w-5 h-5 text-orange-600" />
@@ -1810,7 +1759,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       </Card>
 
       {/* Hospital Passport Card */}
-      <Card>
+      <Card className="border-0">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="w-5 h-5 text-indigo-600" />
@@ -2418,6 +2367,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

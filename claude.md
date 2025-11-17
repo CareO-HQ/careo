@@ -181,3 +181,5 @@ npm run typecheck        # Run TypeScript compiler (configure this)
 **Last Updated**: September 25, 2025
 **Status**: Active Development
 **Deployment**: Not Production Ready (Security Issues)
+
+- Never use the any type in TypeScript; instead, create proper type interfaces.

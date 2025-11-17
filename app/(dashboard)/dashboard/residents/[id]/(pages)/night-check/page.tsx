@@ -870,259 +870,127 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl" style={{ scrollbarGutter: 'stable' }}>
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">Night Check</span>
-      </div>
-
+    <div className="container mx-auto p-6 max-w-6xl" style={{ scrollbarGutter: 'stable' }}>
+      <div className="flex flex-col gap-6">
       {/* Header with Back Button */}
       <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
+        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Moon className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Night Check</h1>
-            <p className="text-muted-foreground text-sm">Night monitoring & wellness checks</p>
-          </div>
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Night Check</h1>
+          <p className="text-muted-foreground text-sm">
+            View night monitoring and wellness checks for {resident.firstName} {resident.lastName}.
+          </p>
+        </div>
+        <div className="flex flex-row gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Check
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Night Check Options</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isItemTypeAdded("night_check")) {
+                    setFrequencyDialogType("night_check");
+                    setPendingNightCheckAdd(true);
+                  }
+                }}
+                disabled={isItemTypeAdded("night_check")}
+              >
+                <Moon className="w-4 h-4 mr-2" />
+                Night Check
+                {isItemTypeAdded("night_check") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isItemTypeAdded("positioning")) {
+                    setFrequencyDialogType("positioning");
+                    setPendingPositioningAdd(true);
+                  }
+                }}
+                disabled={isItemTypeAdded("positioning")}
+              >
+                <RotateCw className="w-4 h-4 mr-2" />
+                Positioning
+                {isItemTypeAdded("positioning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isItemTypeAdded("pad_change")) {
+                    setFrequencyDialogType("pad_change");
+                    setPendingPadChangeAdd(true);
+                  }
+                }}
+                disabled={isItemTypeAdded("pad_change")}
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Pad Change
+                {isItemTypeAdded("pad_change") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isItemTypeAdded("bed_rails")) {
+                    setPendingBedRailsAdd(true);
+                  }
+                }}
+                disabled={isItemTypeAdded("bed_rails")}
+              >
+                <BedDouble className="w-4 h-4 mr-2" />
+                Bed Rails Check
+                {isItemTypeAdded("bed_rails") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isItemTypeAdded("environmental")) {
+                    setPendingEnvironmentalAdd(true);
+                  }
+                }}
+                disabled={isItemTypeAdded("environmental")}
+              >
+                <Home className="w-4 h-4 mr-2" />
+                Environmental Check
+                {isItemTypeAdded("environmental") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isItemTypeAdded("cleaning")) {
+                    setPendingCleaningAdd(true);
+                  }
+                }}
+                disabled={isItemTypeAdded("cleaning")}
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Cleaning
+                {isItemTypeAdded("cleaning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openDialog("night_note")}>
+                <StickyNote className="w-4 h-4 mr-2" />
+                Night Note
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            See All Records
+          </Button>
         </div>
       </div>
-
-      {/* Resident Info Card - Matching daily-care pattern */}
-      <Card className="border-0">
-        <CardContent className="p-4">
-          {/* Mobile Layout */}
-          <div className="flex flex-col space-y-4 sm:hidden">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-12 h-12 flex-shrink-0">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate">{fullName}</h3>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <BadgeComponent variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </BadgeComponent>
-                  <BadgeComponent variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
-                    <Moon className="w-3 h-3 mr-1" />
-                    Night Shift
-                  </BadgeComponent>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Night Checks
-                    <ChevronDown className="w-4 h-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Add Check Item</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("night_check")}
-                    onClick={() => addNightCheckItem("night_check")}
-                  >
-                    <Moon className="w-4 h-4 mr-2" />
-                    Night Check
-                    {isItemTypeAdded("night_check") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("positioning")}
-                    onClick={() => addNightCheckItem("positioning")}
-                  >
-                    <RotateCw className="w-4 h-4 mr-2" />
-                    Positioning
-                    {isItemTypeAdded("positioning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("pad_change")}
-                    onClick={() => addNightCheckItem("pad_change")}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Pad Change
-                    {isItemTypeAdded("pad_change") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("bed_rails")}
-                    onClick={() => addNightCheckItem("bed_rails")}
-                  >
-                    <BedDouble className="w-4 h-4 mr-2" />
-                    Bed Rails Equipment Check
-                    {isItemTypeAdded("bed_rails") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("environmental")}
-                    onClick={() => addNightCheckItem("environmental")}
-                  >
-                    <Home className="w-4 h-4 mr-2" />
-                    Environmental Checks
-                    {isItemTypeAdded("environmental") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("cleaning")}
-                    onClick={() => addNightCheckItem("cleaning")}
-                  >
-                    <ShieldCheck className="w-4 h-4 mr-2" />
-                    Cleaning
-                    {isItemTypeAdded("cleaning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("night_note")}
-                    onClick={() => addNightCheckItem("night_note")}
-                  >
-                    <StickyNote className="w-4 h-4 mr-2" />
-                    Night Note
-                    {isItemTypeAdded("night_note") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}
-                className="w-full"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="w-15 h-15">
-                <AvatarImage
-                  src={resident.imageUrl}
-                  alt={fullName}
-                  className="border"
-                />
-                <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{fullName}</h3>
-                <div className="flex items-center gap-2">
-                  <BadgeComponent variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
-                  </BadgeComponent>
-                  <BadgeComponent variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
-                  </BadgeComponent>
-                  <BadgeComponent variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
-                    <Moon className="w-3 h-3 mr-1" />
-                    Night Shift
-                  </BadgeComponent>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Night Checks
-                    <ChevronDown className="w-4 h-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Add Check Item</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("night_check")}
-                    onClick={() => addNightCheckItem("night_check")}
-                  >
-                    <Moon className="w-4 h-4 mr-2" />
-                    Night Check
-                    {isItemTypeAdded("night_check") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("positioning")}
-                    onClick={() => addNightCheckItem("positioning")}
-                  >
-                    <RotateCw className="w-4 h-4 mr-2" />
-                    Positioning
-                    {isItemTypeAdded("positioning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("pad_change")}
-                    onClick={() => addNightCheckItem("pad_change")}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Pad Change
-                    {isItemTypeAdded("pad_change") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("bed_rails")}
-                    onClick={() => addNightCheckItem("bed_rails")}
-                  >
-                    <BedDouble className="w-4 h-4 mr-2" />
-                    Bed Rails Equipment Check
-                    {isItemTypeAdded("bed_rails") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("environmental")}
-                    onClick={() => addNightCheckItem("environmental")}
-                  >
-                    <Home className="w-4 h-4 mr-2" />
-                    Environmental Checks
-                    {isItemTypeAdded("environmental") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("cleaning")}
-                    onClick={() => addNightCheckItem("cleaning")}
-                  >
-                    <ShieldCheck className="w-4 h-4 mr-2" />
-                    Cleaning
-                    {isItemTypeAdded("cleaning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={isItemTypeAdded("night_note")}
-                    onClick={() => addNightCheckItem("night_note")}
-                  >
-                    <StickyNote className="w-4 h-4 mr-2" />
-                    Night Note
-                    {isItemTypeAdded("night_note") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}
-                className="flex items-center space-x-2"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Night Check Recording - Shows added items */}
       <Card className="border-0">
@@ -2280,6 +2148,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           </Form>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

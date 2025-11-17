@@ -190,7 +190,8 @@ export const updateActiveTeam = mutation({
     // Get the current user
     const userMetadata = await betterAuthComponent.getAuthUser(ctx);
     if (!userMetadata) {
-      throw new Error("No active session found");
+      // Silently return if no session - this can happen during page load
+      return { success: false, activeTeamId: null };
     }
 
     const userId = userMetadata.userId as Id<"users">;
@@ -198,7 +199,8 @@ export const updateActiveTeam = mutation({
 
     if (!user) {
       console.log("USER NOT FOUND", userId);
-      throw new Error("User not found");
+      // Silently return if user not found
+      return { success: false, activeTeamId: null };
     }
 
     await ctx.db.patch(userId, {

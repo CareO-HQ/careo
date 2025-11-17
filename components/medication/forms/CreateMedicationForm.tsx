@@ -41,9 +41,13 @@ import { z } from "zod";
 
 export default function CreateMedicationForm({
   residentId,
+  teamId,
+  organizationId,
   onSuccess
 }: {
   residentId: Id<"residents">;
+  teamId?: string;
+  organizationId?: string;
   onSuccess: () => void;
 }) {
   const createMedication = useMutation(api.medication.createMedication);
@@ -72,15 +76,31 @@ export default function CreateMedicationForm({
     }
   });
 
-  function onSubmit(values: z.infer<typeof CreateMedicationSchema>) {
+  async function onSubmit(values: z.infer<typeof CreateMedicationSchema>) {
     console.log("Form submitted with values:", values);
+
+    // Validate step 3 fields before submitting
+    const isValid = await handleThirdStepValidation();
+    if (!isValid) {
+      return;
+    }
+
     startTransition(async () => {
       try {
+        console.log("Creating medication with:", {
+          residentId,
+          teamId,
+          organizationId,
+          medication: values
+        });
+
         const medicationId = await createMedication({
           residentId,
+          teamId,
+          organizationId,
           medication: {
             ...values,
-            prescriberName: values.prescriberName as string,
+            prescriberName: values.prescriberName,
             startDate: new Date(
               values.startDate.getFullYear(),
               values.startDate.getMonth(),
@@ -103,13 +123,17 @@ export default function CreateMedicationForm({
               : undefined
           }
         });
+
+        console.log("Medication created successfully with ID:", medicationId);
+
         if (medicationId) {
           toast.success("Medication created successfully");
           onSuccess();
         }
       } catch (error) {
         console.error("Error creating medication:", error);
-        toast.error("Failed to create medication");
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        toast.error(`Failed to create medication: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
   }
@@ -154,6 +178,19 @@ export default function CreateMedicationForm({
     setStep(step + 1);
   };
 
+  const handleThirdStepValidation = async () => {
+    const fieldsToValidate = ["prescriberName", "startDate"] as const;
+
+    const isValid = await form.trigger(fieldsToValidate);
+
+    if (!isValid) {
+      toast.error("Please fill in all required fields correctly");
+      return false;
+    }
+
+    return true;
+  };
+
   return (
     <div>
       <Form {...form}>
@@ -179,7 +216,6 @@ export default function CreateMedicationForm({
                   name="strength"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Strength</FormLabel>
                       <FormLabel required>Strength</FormLabel>
                       <FormControl>
                         <div className="relative">
@@ -479,7 +515,7 @@ export default function CreateMedicationForm({
                 name="prescriberName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prescriber Name</FormLabel>
+                    <FormLabel required>Prescriber Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Dr. John Doe" {...field} />
                     </FormControl>

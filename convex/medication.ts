@@ -177,6 +177,8 @@ async function createMedicationIntakes(
 export const createMedication = mutation({
   args: {
     residentId: v.optional(v.string()),
+    teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
     medication: v.object({
       name: v.string(),
       strength: v.string(),
@@ -231,7 +233,14 @@ export const createMedication = mutation({
   },
   returns: v.id("medication"),
   handler: async (ctx, args) => {
-    const { medication, residentId } = args;
+    const { medication, residentId, teamId, organizationId } = args;
+
+    console.log("createMedication called with args:", {
+      residentId,
+      teamId,
+      organizationId,
+      medicationName: medication.name
+    });
 
     // Get current session for organization and authentication
     const session = await ctx.runQuery(
@@ -248,18 +257,34 @@ export const createMedication = mutation({
       throw new Error("User not found");
     }
 
-    // Get current organization from session
-    const currentOrganizationId = session.activeOrganizationId;
+    console.log("Session activeOrganizationId:", session.activeOrganizationId);
+    console.log("Provided teamId:", teamId);
+    console.log("Provided organizationId:", organizationId);
+
+    // Use provided organizationId or get from session
+    let currentOrganizationId = organizationId;
     if (!currentOrganizationId) {
-      throw new Error("No active organization found");
+      currentOrganizationId = session.activeOrganizationId;
+      if (!currentOrganizationId) {
+        throw new Error("No active organization found");
+      }
     }
 
-    // Get current user's active team
-    const userData = await ctx.db.get(userMetadata.userId as Id<"users">);
-    const currentTeamId = userData?.activeTeamId;
+    console.log("Final organizationId:", currentOrganizationId);
+
+    // Use provided teamId or get from user data
+    let currentTeamId = teamId;
     if (!currentTeamId) {
-      throw new Error("No active team found");
+      console.log("No teamId provided, checking user data...");
+      const userData = await ctx.db.get(userMetadata.userId as Id<"users">);
+      console.log("User activeTeamId:", userData?.activeTeamId);
+      currentTeamId = userData?.activeTeamId;
+      if (!currentTeamId) {
+        throw new Error("No active team found");
+      }
     }
+
+    console.log("Final teamId:", currentTeamId);
 
     const medicationData = {
       ...medication,
@@ -483,6 +508,18 @@ export const updateMedicationIntakeState = mutation({
     }
 
     await ctx.db.patch(args.intakeId, updateData);
+
+    // AUTO-RESOLVE MEDICATION ALERTS when administered, refused, or skipped
+    if (args.state === "administered" || args.state === "refused" || args.state === "skipped") {
+      const intake = await ctx.db.get(args.intakeId);
+      if (intake) {
+        await ctx.runMutation(api.alerts.autoResolveMedicationAlerts, {
+          residentId: intake.residentId as Id<"residents">,
+          intakeId: args.intakeId,
+        });
+      }
+    }
+
     return null;
   }
 });
