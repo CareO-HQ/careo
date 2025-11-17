@@ -62,8 +62,25 @@ export default function DashboardPage() {
 
   // Handle sign out
   const handleSignOut = async () => {
-    await authClient.signOut();
-    router.push("/login");
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            // Force a hard redirect to clear all client state
+            window.location.href = "/login";
+          },
+          onError: (ctx) => {
+            console.error("Sign out error:", ctx.error);
+            // Force redirect even on error to ensure user can access login
+            window.location.href = "/login";
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Unexpected sign out error:", error);
+      // Force redirect on any error
+      window.location.href = "/login";
+    }
   };
 
   // Helper function to get severity badge color
