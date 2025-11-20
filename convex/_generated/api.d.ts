@@ -63,6 +63,7 @@ import type * as healthMonitoring from "../healthMonitoring.js";
 import type * as hospitalPassports from "../hospitalPassports.js";
 import type * as hospitalTransferLogs from "../hospitalTransferLogs.js";
 import type * as http from "../http.js";
+import type * as httpHelpers from "../httpHelpers.js";
 import type * as incidents from "../incidents.js";
 import type * as labels from "../labels.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
@@ -164,6 +165,7 @@ declare const fullApi: ApiFromModules<{
   hospitalPassports: typeof hospitalPassports;
   hospitalTransferLogs: typeof hospitalTransferLogs;
   http: typeof http;
+  httpHelpers: typeof httpHelpers;
   incidents: typeof incidents;
   labels: typeof labels;
   "lib/authHelpers": typeof lib_authHelpers;

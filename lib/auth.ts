@@ -16,7 +16,18 @@ export const createAuth = (ctx: GenericCtx) =>
   betterAuth({
     baseURL: siteUrl,
     database: convexAdapter(ctx, betterAuthComponent),
-    trustedOrigins: ["http://localhost:3000"],
+    trustedOrigins: [
+      "http://localhost:3000",
+      "http://localhost:8081", // Mobile app (Expo)
+      "exp://localhost:8081",  // Expo Go app
+      ...(process.env.NEXT_PUBLIC_MOBILE_APP_URL ? [process.env.NEXT_PUBLIC_MOBILE_APP_URL] : [])
+    ],
+    advanced: {
+      crossSubDomainCookies: {
+        enabled: true,
+      },
+      useSecureCookies: process.env.NODE_ENV === "production",
+    },
     databaseHooks: {
       session: {
         create: {

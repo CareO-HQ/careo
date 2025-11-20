@@ -3,8 +3,59 @@ import { betterAuthComponent } from "./auth";
 import { createAuth } from "../lib/auth";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { createCorsHeaders, isOriginAllowed } from "./httpHelpers";
 
 const http = httpRouter();
+
+// Create a CORS-wrapped HTTP router
+const corsMiddleware = (handler: (ctx: any, request: Request) => Promise<Response>) => {
+  return async (ctx: any, request: Request) => {
+    const origin = request.headers.get("origin");
+
+    // Handle preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: createCorsHeaders(origin),
+      });
+    }
+
+    // Execute the actual handler
+    const response = await handler(ctx, request);
+
+    // Add CORS headers to response
+    const corsHeaders = createCorsHeaders(origin);
+    const headers = new Headers(response.headers);
+
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      headers.set(key, value);
+    });
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  };
+};
+
+// Wrap the Better Auth component's handler with CORS
+const originalRegisterRoutes = betterAuthComponent.registerRoutes;
+
+betterAuthComponent.registerRoutes = function(router: any, authCreator: any) {
+  // Create a wrapped router that adds CORS to all responses
+  const wrappedRouter = {
+    ...router,
+    route: (config: any) => {
+      const originalHandler = config.handler;
+      config.handler = httpAction(corsMiddleware(originalHandler));
+      return router.route(config);
+    },
+  };
+
+  // Register routes with the wrapped router
+  return originalRegisterRoutes.call(this, wrappedRouter, authCreator);
+};
 
 betterAuthComponent.registerRoutes(http, createAuth);
 

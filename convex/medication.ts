@@ -309,6 +309,94 @@ export const createMedication = mutation({
   }
 });
 
+export const updateMedication = mutation({
+  args: {
+    medicationId: v.id("medication"),
+    updates: v.object({
+      name: v.optional(v.string()),
+      strength: v.optional(v.string()),
+      strengthUnit: v.optional(v.union(v.literal("mg"), v.literal("g"))),
+      totalCount: v.optional(v.number()),
+      dosageForm: v.optional(
+        v.union(
+          v.literal("Tablet"),
+          v.literal("Capsule"),
+          v.literal("Liquid"),
+          v.literal("Injection"),
+          v.literal("Cream"),
+          v.literal("Ointment"),
+          v.literal("Patch"),
+          v.literal("Inhaler")
+        )
+      ),
+      route: v.optional(
+        v.union(
+          v.literal("Oral"),
+          v.literal("Topical"),
+          v.literal("Intramuscular (IM)"),
+          v.literal("Intravenous (IV)"),
+          v.literal("Subcutaneous"),
+          v.literal("Inhalation"),
+          v.literal("Rectal"),
+          v.literal("Sublingual")
+        )
+      ),
+      frequency: v.optional(
+        v.union(
+          v.literal("Once daily (OD)"),
+          v.literal("Twice daily (BD)"),
+          v.literal("Three times daily (TD)"),
+          v.literal("Four times daily (QDS)"),
+          v.literal("Four times daily (QIS)"),
+          v.literal("As Needed (PRN)"),
+          v.literal("One time (STAT)"),
+          v.literal("Weekly"),
+          v.literal("Monthly")
+        )
+      ),
+      scheduleType: v.optional(
+        v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)"))
+      ),
+      times: v.optional(v.array(v.string())),
+      instructions: v.optional(v.string()),
+      prescriberName: v.optional(v.string()),
+      startDate: v.optional(v.number()),
+      endDate: v.optional(v.number()),
+      status: v.optional(
+        v.union(
+          v.literal("active"),
+          v.literal("completed"),
+          v.literal("cancelled")
+        )
+      )
+    })
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { medicationId, updates } = args;
+
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get the medication to verify it exists
+    const medication = await ctx.db.get(medicationId);
+    if (!medication) {
+      throw new Error("Medication not found");
+    }
+
+    // Update the medication with only the fields that were provided
+    await ctx.db.patch(medicationId, updates);
+
+    return null;
+  }
+});
+
 export const getActiveByTeamId = query({
   args: {
     teamId: v.string()

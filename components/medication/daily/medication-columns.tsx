@@ -9,6 +9,12 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +30,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
+import { MoreVertical, Pencil } from "lucide-react";
+import EditMedicationDialog from "@/components/medication/forms/EditMedicationDialog";
 
 interface Medication {
   _id: string;
@@ -117,6 +125,38 @@ export const createMedicationColumns = (
         <p className="text-sm text-muted-foreground">
           {instructions || "No instructions"}
         </p>
+      );
+    }
+  },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => {
+      const medication = row.original;
+      const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+      return (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Medication
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <EditMedicationDialog
+            medication={medication}
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+          />
+        </>
       );
     }
   },
