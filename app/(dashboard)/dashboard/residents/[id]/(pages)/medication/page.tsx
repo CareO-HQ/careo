@@ -14,7 +14,7 @@ import { authClient } from "@/lib/auth-client";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, ClockIcon, Pill } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { config } from "@/config";
 
@@ -78,6 +78,73 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   );
   const createAndAdministerMedicationIntake = useMutation(
     api.medication.createAndAdministerMedicationIntake
+  );
+
+  // Memoize columns to prevent recreation on every render
+  // Must be before early returns to follow Rules of Hooks
+  const dailyMedicationColumns = useMemo(
+    () =>
+      createColumns(
+        teamWithMembers?.members || [],
+        markMedicationIntakeAsPoppedOut,
+        setWithnessForMedicationIntake,
+        updateMedicationIntakeStatus,
+        saveMedicationIntakeComment,
+        currentUser?.user
+          ? {
+              name: currentUser.user.name,
+              userId: currentUser.user.id
+            }
+          : undefined
+      ),
+    [
+      teamWithMembers?.members,
+      markMedicationIntakeAsPoppedOut,
+      setWithnessForMedicationIntake,
+      updateMedicationIntakeStatus,
+      saveMedicationIntakeComment,
+      currentUser?.user
+    ]
+  );
+
+  const prnTopicalColumns = useMemo(
+    () =>
+      createMedicationColumns(
+        createAndAdministerMedicationIntake,
+        true,
+        teamWithMembers?.members || [],
+        currentUser?.user
+          ? {
+              name: currentUser.user.name,
+              userId: currentUser.user.id
+            }
+          : undefined
+      ),
+    [
+      createAndAdministerMedicationIntake,
+      teamWithMembers?.members,
+      currentUser?.user
+    ]
+  );
+
+  const allActiveMedicationColumns = useMemo(
+    () =>
+      createMedicationColumns(
+        createAndAdministerMedicationIntake,
+        false,
+        teamWithMembers?.members || [],
+        currentUser?.user
+          ? {
+              name: currentUser.user.name,
+              userId: currentUser.user.id
+            }
+          : undefined
+      ),
+    [
+      createAndAdministerMedicationIntake,
+      teamWithMembers?.members,
+      currentUser?.user
+    ]
   );
 
   // Filter intakes by selected time (date filtering is handled by the query)
@@ -202,22 +269,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       </div>
 
       <div className="w-full">
-        <DataTable
-          columns={createColumns(
-            teamWithMembers?.members || [],
-            markMedicationIntakeAsPoppedOut,
-            setWithnessForMedicationIntake,
-            updateMedicationIntakeStatus,
-            saveMedicationIntakeComment,
-            currentUser?.user
-              ? {
-                  name: currentUser.user.name,
-                  userId: currentUser.user.id
-                }
-              : undefined
-          )}
-          data={filteredIntakes}
-        />
+        <DataTable columns={dailyMedicationColumns} data={filteredIntakes} />
       </div>
 
       <div className="flex flex-col gap-4 mt-8">
@@ -226,17 +278,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         </div>
         <div className="w-full">
           <DataTable
-            columns={createMedicationColumns(
-              createAndAdministerMedicationIntake,
-              true,
-              teamWithMembers?.members || [],
-              currentUser?.user
-                ? {
-                    name: currentUser.user.name,
-                    userId: currentUser.user.id
-                  }
-                : undefined
-            )}
+            columns={prnTopicalColumns}
             data={prnOrTopicalMedications || []}
           />
         </div>
@@ -248,17 +290,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         </div>
         <div className="w-full">
           <DataTable
-            columns={createMedicationColumns(
-              createAndAdministerMedicationIntake,
-              false,
-              teamWithMembers?.members || [],
-              currentUser?.user
-                ? {
-                    name: currentUser.user.name,
-                    userId: currentUser.user.id
-                  }
-                : undefined
-            )}
+            columns={allActiveMedicationColumns}
             data={allActiveMedications || []}
           />
         </div>

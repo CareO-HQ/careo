@@ -132,7 +132,7 @@ export default function EditMedicationDialog({
 
   const form = useForm<z.infer<typeof UpdateMedicationSchema>>({
     resolver: zodResolver(UpdateMedicationSchema),
-    mode: "onChange",
+    mode: "onBlur",
     defaultValues: {
       name: medication.name,
       strength: medication.strength,

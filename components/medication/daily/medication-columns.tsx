@@ -133,31 +133,42 @@ export const createMedicationColumns = (
     header: "Actions",
     cell: ({ row }) => {
       const medication = row.original;
-      const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-      return (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Medication
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      const ActionsCell = () => {
+        const [editDialogOpen, setEditDialogOpen] = useState(false);
+        const [dropdownOpen, setDropdownOpen] = useState(false);
 
-          <EditMedicationDialog
-            medication={medication}
-            open={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-          />
-        </>
-      );
+        return (
+          <>
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditDialogOpen(true);
+                  setDropdownOpen(false);
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Medication
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {editDialogOpen && (
+              <EditMedicationDialog
+                medication={medication}
+                open={editDialogOpen}
+                onOpenChange={setEditDialogOpen}
+              />
+            )}
+          </>
+        );
+      };
+
+      return <ActionsCell />;
     }
   },
   ...(showAdministrateButton
