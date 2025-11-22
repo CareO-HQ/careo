@@ -28,6 +28,7 @@ import type * as careFiles_bladderBowel from "../careFiles/bladderBowel.js";
 import type * as careFiles_carePlan from "../careFiles/carePlan.js";
 import type * as careFiles_dependency from "../careFiles/dependency.js";
 import type * as careFiles_dnacpr from "../careFiles/dnacpr.js";
+import type * as careFiles_handlingProfile from "../careFiles/handlingProfile.js";
 import type * as careFiles_index from "../careFiles/index.js";
 import type * as careFiles_infectionPrevention from "../careFiles/infectionPrevention.js";
 import type * as careFiles_longTermFalls from "../careFiles/longTermFalls.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   "careFiles/carePlan": typeof careFiles_carePlan;
   "careFiles/dependency": typeof careFiles_dependency;
   "careFiles/dnacpr": typeof careFiles_dnacpr;
+  "careFiles/handlingProfile": typeof careFiles_handlingProfile;
   "careFiles/index": typeof careFiles_index;
   "careFiles/infectionPrevention": typeof careFiles_infectionPrevention;
   "careFiles/longTermFalls": typeof careFiles_longTermFalls;

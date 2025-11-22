@@ -12,7 +12,8 @@ export type CareFileFormKey =
   | "dependency-assessment"
   | "timl"
   | "skin-integrity-form"
-  | "resident-valuables-form";
+  | "resident-valuables-form"
+  | "resident-handling-profile-form";
 
 export type CareFileFormStatus =
   | "not-started"

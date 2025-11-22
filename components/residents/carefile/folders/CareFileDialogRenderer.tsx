@@ -14,6 +14,7 @@ import PreAdmissionDialog from "@/components/residents/carefile/dialogs/PreAdmis
 import ResidentValuablesDialog from "@/components/residents/carefile/dialogs/ResidentValuables";
 import SkinIntegrityDialog from "@/components/residents/carefile/dialogs/SkinIntegrityDialog";
 import TimlDialog from "@/components/residents/carefile/dialogs/TimlDialog";
+import ResidentHandlingProfileDialog from "@/components/residents/carefile/dialogs/ResidentHandlingProfileDialog";
 
 interface BaseDialogProps {
   residentId: Id<"residents">;
@@ -159,6 +160,11 @@ export function CareFileDialogRenderer({
     case "resident-valuables-form":
       return (
         <ResidentValuablesDialog {...commonProps} initialData={editData} />
+      );
+
+    case "resident-handling-profile-form":
+      return (
+        <ResidentHandlingProfileDialog {...commonProps} initialData={editData} />
       );
 
     default:

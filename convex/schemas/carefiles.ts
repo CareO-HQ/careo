@@ -602,3 +602,79 @@ export const residentValuablesAssessments = defineTable({
   // Metadata
   pdfFileId: v.optional(v.id("_storage"))
 }).index("by_resident", ["residentId"]);
+
+export const residentHandlingProfileForm = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+
+  // Completed by
+  completedBy: v.string(),
+  jobRole: v.string(),
+  date: v.number(),
+
+  // Resident information
+  residentName: v.string(),
+  bedroomNumber: v.string(),
+  weight: v.number(),
+  weightBearing: v.string(),
+
+  // Transfer to or from bed
+  transferBed: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+
+  // Transfer to or from chair
+  transferChair: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+
+  // Transfer to or from chair
+  walking: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+
+  // Toileting
+  toileting: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+
+  // Movement in bed
+  movementInBed: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+  // Bathing
+  bath: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+
+  // Outdoor mobility
+  outdoorMobility: v.object({
+    nStaff: v.number(),
+    equipment: v.string(),
+    handlingPlan: v.string(),
+    dateForReview: v.number()
+  }),
+
+  // PDF file ID
+  pdfFileId: v.optional(v.id("_storage"))
+}).index("by_resident", ["residentId"]);

@@ -113,6 +113,13 @@ export function useFolderForms({
       : "skip"
   );
 
+  const allHandlingProfileForms = useQuery(
+    api.careFiles.handlingProfile.getHandlingProfilesByResident,
+    folderFormKeys.includes("resident-handling-profile-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   const latestCarePlanForm = useQuery(
     api.careFiles.carePlan.getLatestCarePlanByResidentAndFolder,
     includeCarePlans && residentId && folderKey
@@ -355,6 +362,25 @@ export function useFolderForms({
       });
     }
 
+    // Process Resident Handling Profile forms
+    if (
+      allHandlingProfileForms &&
+      folderFormKeys.includes("resident-handling-profile-form")
+    ) {
+      const sortedForms = [...allHandlingProfileForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      sortedForms.forEach((form, index) => {
+        pdfFiles.push({
+          formKey: "resident-handling-profile-form",
+          formId: form._id,
+          name: "Resident Handling Profile",
+          completedAt: form._creationTime,
+          isLatest: index === 0
+        });
+      });
+    }
+
     // Sort all PDFs by completion date (newest first)
     const sortedPdfFiles = pdfFiles.sort(
       (a, b) => b.completedAt - a.completedAt
@@ -375,6 +401,7 @@ export function useFolderForms({
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
+    allHandlingProfileForms,
     folderFormKeys
   ]);
 
@@ -393,6 +420,7 @@ export function useFolderForms({
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
+    allHandlingProfileForms,
     latestCarePlanForm,
     // Computed data
     getAllPdfFiles

@@ -613,7 +613,8 @@ export const getFormDataForReview = query({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("residentHandlingProfileForm")
     ),
     formId: v.string()
   },
@@ -642,6 +643,8 @@ export const getFormDataForReview = query({
         case "peep":
           return await ctx.db.get(args.formId as any);
         case "dependencyAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "residentHandlingProfileForm":
           return await ctx.db.get(args.formId as any);
         default:
           return null;

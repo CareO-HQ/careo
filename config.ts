@@ -166,6 +166,12 @@ export const config = {
           key: "long-term-fall-risk-form",
           value: "Long Term Fall Risk Assessment",
           description: "Long Term Fall Risk Assessment"
+        },
+        {
+          type: "form",
+          key: "resident-handling-profile-form",
+          value: "Resident Handling Profile",
+          description: "Resident Handling Profile"
         }
       ]
     },

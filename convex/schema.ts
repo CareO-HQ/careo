@@ -5,6 +5,7 @@ import {
   dnacprs,
   peeps,
   photographyConsents,
+  residentHandlingProfileForm,
   residentValuablesAssessments,
   skinIntegrityAssessments,
   timlAssessments
@@ -82,19 +83,21 @@ export default defineSchema({
     // Staff details
     address: v.optional(v.string()),
     dateOfJoin: v.optional(v.string()), // ISO date string
-    rightToWorkStatus: v.optional(v.union(
-      v.literal("verified"),
-      v.literal("pending"),
-      v.literal("expired"),
-      v.literal("not_verified")
-    )),
+    rightToWorkStatus: v.optional(
+      v.union(
+        v.literal("verified"),
+        v.literal("pending"),
+        v.literal("expired"),
+        v.literal("not_verified")
+      )
+    ),
 
     // Next of Kin details
     nextOfKinName: v.optional(v.string()),
     nextOfKinRelationship: v.optional(v.string()),
     nextOfKinPhone: v.optional(v.string()),
     nextOfKinEmail: v.optional(v.string()),
-    nextOfKinAddress: v.optional(v.string()),
+    nextOfKinAddress: v.optional(v.string())
   }).index("byEmail", ["email"]), // Add index for email lookups
 
   // Passkey table for better-auth passkey plugin
@@ -194,13 +197,15 @@ export default defineSchema({
     admissionDate: v.string(),
     nhsHealthNumber: v.optional(v.string()),
     // Status tracking
-    status: v.optional(v.union(
-      v.literal("active"),
-      v.literal("discharged"),
-      v.literal("deceased"),
-      v.literal("transferred"),
-      v.literal("hospital")
-    )),
+    status: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("discharged"),
+        v.literal("deceased"),
+        v.literal("transferred"),
+        v.literal("hospital")
+      )
+    ),
     dischargeDate: v.optional(v.number()),
     dischargeReason: v.optional(v.string()),
     dataRetentionUntil: v.optional(v.number()),
@@ -716,9 +721,9 @@ export default defineSchema({
         count: v.optional(v.number()), // for bulk operations
         exportFormat: v.optional(v.string()), // "json", "csv"
         section: v.optional(v.string()),
-        fluidMl: v.optional(v.number()),
+        fluidMl: v.optional(v.number())
       })
-    ),
+    )
   })
     .index("by_log", ["logId"])
     .index("by_user", ["userId", "timestamp"])
@@ -2268,9 +2273,8 @@ export default defineSchema({
     incidentCount: v.number(),
     behavioralCount: v.number(),
     otherCount: v.number(),
-    lastUpdated: v.string(), // ISO timestamp
-  })
-    .index("by_residentId", ["residentId"]),
+    lastUpdated: v.string() // ISO timestamp
+  }).index("by_residentId", ["residentId"]),
 
   // Trust Incident Reports table
   trustIncidentReports: defineTable({
@@ -2496,7 +2500,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdAt: v.number(),
     updatedBy: v.optional(v.string()),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_resident", ["residentId"])
     .index("by_resident_active", ["residentId", "isActive"])
@@ -2532,7 +2536,7 @@ export default defineSchema({
     recordedByName: v.string(),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_resident", ["residentId"])
     .index("by_resident_date", ["residentId", "recordDate"])
@@ -2547,7 +2551,7 @@ export default defineSchema({
   notificationReadStatus: defineTable({
     userId: v.id("users"),
     incidentId: v.id("incidents"),
-    readAt: v.number(),
+    readAt: v.number()
   })
     .index("by_user", ["userId"])
     .index("by_incident", ["incidentId"])
@@ -2556,7 +2560,7 @@ export default defineSchema({
   appointmentReadStatus: defineTable({
     userId: v.id("users"),
     appointmentId: v.id("appointments"),
-    readAt: v.number(),
+    readAt: v.number()
   })
     .index("by_user", ["userId"])
     .index("by_appointment", ["appointmentId"])
@@ -2574,14 +2578,16 @@ export default defineSchema({
       v.literal("clinical"),
       v.literal("environment")
     ),
-    questions: v.array(v.object({
-      id: v.string(),
-      text: v.string(),
-      type: v.union(
-        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
-        v.literal("yesno")        // Yes/No/N/A
-      ),
-    })),
+    questions: v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        type: v.union(
+          v.literal("compliance"), // Compliant/Non-Compliant/N/A
+          v.literal("yesno") // Yes/No/N/A
+        )
+      })
+    ),
     frequency: v.union(
       v.literal("daily"),
       v.literal("weekly"),
@@ -2595,7 +2601,7 @@ export default defineSchema({
     organizationId: v.string(),
     createdBy: v.string(), // User ID or email
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_category", ["category"])
     .index("by_team", ["teamId"])
@@ -2614,18 +2620,22 @@ export default defineSchema({
     organizationId: v.string(),
 
     // Question responses for residents
-    responses: v.array(v.object({
-      residentId: v.string(), // Resident ID
-      residentName: v.string(), // Denormalized for display
-      roomNumber: v.optional(v.string()),
-      answers: v.array(v.object({
-        questionId: v.string(),
-        value: v.optional(v.string()), // "compliant", "non-compliant", "not-applicable", "yes", "no"
-        notes: v.optional(v.string()),
-      })),
-      date: v.optional(v.string()), // Date reviewed for this resident
-      comment: v.optional(v.string()), // Comment for this resident
-    })),
+    responses: v.array(
+      v.object({
+        residentId: v.string(), // Resident ID
+        residentName: v.string(), // Denormalized for display
+        roomNumber: v.optional(v.string()),
+        answers: v.array(
+          v.object({
+            questionId: v.string(),
+            value: v.optional(v.string()), // "compliant", "non-compliant", "not-applicable", "yes", "no"
+            notes: v.optional(v.string())
+          })
+        ),
+        date: v.optional(v.string()), // Date reviewed for this resident
+        comment: v.optional(v.string()) // Comment for this resident
+      })
+    ),
 
     // Audit metadata
     status: v.union(
@@ -2644,7 +2654,7 @@ export default defineSchema({
     nextAuditDue: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_template", ["templateId"])
     .index("by_team", ["teamId"])
@@ -2663,11 +2673,7 @@ export default defineSchema({
     description: v.string(),
     assignedTo: v.string(), // User email or ID
     assignedToName: v.optional(v.string()), // Display name
-    priority: v.union(
-      v.literal("Low"),
-      v.literal("Medium"),
-      v.literal("High")
-    ),
+    priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
 
     dueDate: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -2680,13 +2686,17 @@ export default defineSchema({
     ),
 
     // Status updates and comments
-    statusHistory: v.optional(v.array(v.object({
-      status: v.string(),
-      comment: v.optional(v.string()),
-      updatedBy: v.string(), // User email
-      updatedByName: v.optional(v.string()),
-      updatedAt: v.number(),
-    }))),
+    statusHistory: v.optional(
+      v.array(
+        v.object({
+          status: v.string(),
+          comment: v.optional(v.string()),
+          updatedBy: v.string(), // User email
+          updatedByName: v.optional(v.string()),
+          updatedAt: v.number()
+        })
+      )
+    ),
     latestComment: v.optional(v.string()), // Quick access to latest comment
 
     // Link to specific care file or resident (for care file audits)
@@ -2702,7 +2712,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdByName: v.optional(v.string()),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_audit_response", ["auditResponseId"])
     .index("by_template", ["templateId"])
@@ -2718,15 +2728,17 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     category: v.literal("carefile"), // Fixed category for care file audits
-    items: v.array(v.object({
-      id: v.string(),
-      name: v.string(), // Item/section name (e.g., "Pre-Admission Assessment")
-      type: v.union(
-        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
-        v.literal("checkbox"),    // Checked/Unchecked
-        v.literal("notes")        // Free text notes
-      ),
-    })),
+    items: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(), // Item/section name (e.g., "Pre-Admission Assessment")
+        type: v.union(
+          v.literal("compliance"), // Compliant/Non-Compliant/N/A
+          v.literal("checkbox"), // Checked/Unchecked
+          v.literal("notes") // Free text notes
+        )
+      })
+    ),
     frequency: v.union(
       v.literal("3months"),
       v.literal("6months"),
@@ -2737,7 +2749,7 @@ export default defineSchema({
     organizationId: v.string(),
     createdBy: v.string(), // User ID or email
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"])
@@ -2759,19 +2771,23 @@ export default defineSchema({
     organizationId: v.string(),
 
     // Item responses
-    items: v.array(v.object({
-      itemId: v.string(),
-      itemName: v.string(),
-      status: v.optional(v.union(
-        v.literal("compliant"),
-        v.literal("non-compliant"),
-        v.literal("not-applicable"),
-        v.literal("checked"),
-        v.literal("unchecked")
-      )),
-      notes: v.optional(v.string()),
-      date: v.optional(v.string()), // Date for this specific item
-    })),
+    items: v.array(
+      v.object({
+        itemId: v.string(),
+        itemName: v.string(),
+        status: v.optional(
+          v.union(
+            v.literal("compliant"),
+            v.literal("non-compliant"),
+            v.literal("not-applicable"),
+            v.literal("checked"),
+            v.literal("unchecked")
+          )
+        ),
+        notes: v.optional(v.string()),
+        date: v.optional(v.string()) // Date for this specific item
+      })
+    ),
 
     overallNotes: v.optional(v.string()), // General notes for this audit
 
@@ -2792,7 +2808,7 @@ export default defineSchema({
     nextAuditDue: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_template", ["templateId"])
     .index("by_resident", ["residentId"])
@@ -2813,11 +2829,7 @@ export default defineSchema({
     description: v.string(),
     assignedTo: v.string(), // User email or ID
     assignedToName: v.optional(v.string()), // Display name
-    priority: v.union(
-      v.literal("Low"),
-      v.literal("Medium"),
-      v.literal("High")
-    ),
+    priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
 
     dueDate: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -2830,13 +2842,17 @@ export default defineSchema({
     ),
 
     // Status updates and comments
-    statusHistory: v.optional(v.array(v.object({
-      status: v.string(),
-      comment: v.optional(v.string()),
-      updatedBy: v.string(), // User email
-      updatedByName: v.optional(v.string()),
-      updatedAt: v.number(),
-    }))),
+    statusHistory: v.optional(
+      v.array(
+        v.object({
+          status: v.string(),
+          comment: v.optional(v.string()),
+          updatedBy: v.string(), // User email
+          updatedByName: v.optional(v.string()),
+          updatedAt: v.number()
+        })
+      )
+    ),
     latestComment: v.optional(v.string()), // Quick access to latest comment
 
     // Link to resident and care file
@@ -2852,7 +2868,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdByName: v.optional(v.string()),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_audit_response", ["auditResponseId"])
     .index("by_template", ["templateId"])
@@ -2903,7 +2919,7 @@ export default defineSchema({
     organizationId: v.string(),
     teamId: v.optional(v.string()),
 
-    createdAt: v.number(),
+    createdAt: v.number()
   })
     .index("by_user", ["userId"])
     .index("by_user_and_read", ["userId", "isRead"])
@@ -2930,7 +2946,7 @@ export default defineSchema({
     createdAt: v.number(),
     createdBy: v.string(), // User ID who created the note
     updatedAt: v.optional(v.number()),
-    updatedBy: v.optional(v.string()),
+    updatedBy: v.optional(v.string())
   })
     .index("by_resident", ["residentId"])
     .index("by_resident_and_date", ["residentId", "noteDate"])
@@ -2943,15 +2959,17 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     category: v.literal("governance"), // Fixed category for governance audits
-    items: v.array(v.object({
-      id: v.string(),
-      name: v.string(), // Question/item name
-      type: v.union(
-        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
-        v.literal("checkbox"),    // Checked/Unchecked
-        v.literal("notes")        // Free text notes
-      ),
-    })),
+    items: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(), // Question/item name
+        type: v.union(
+          v.literal("compliance"), // Compliant/Non-Compliant/N/A
+          v.literal("checkbox"), // Checked/Unchecked
+          v.literal("notes") // Free text notes
+        )
+      })
+    ),
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
@@ -2962,7 +2980,7 @@ export default defineSchema({
     organizationId: v.string(), // Organization-wide, no teamId
     createdBy: v.string(), // User ID or email
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_organization", ["organizationId"])
     .index("by_active", ["isActive"])
@@ -2977,19 +2995,23 @@ export default defineSchema({
     organizationId: v.string(),
 
     // Item responses
-    items: v.array(v.object({
-      itemId: v.string(),
-      itemName: v.string(),
-      status: v.optional(v.union(
-        v.literal("compliant"),
-        v.literal("non-compliant"),
-        v.literal("not-applicable"),
-        v.literal("checked"),
-        v.literal("unchecked")
-      )),
-      notes: v.optional(v.string()),
-      date: v.optional(v.string()), // Date for this specific item
-    })),
+    items: v.array(
+      v.object({
+        itemId: v.string(),
+        itemName: v.string(),
+        status: v.optional(
+          v.union(
+            v.literal("compliant"),
+            v.literal("non-compliant"),
+            v.literal("not-applicable"),
+            v.literal("checked"),
+            v.literal("unchecked")
+          )
+        ),
+        notes: v.optional(v.string()),
+        date: v.optional(v.string()) // Date for this specific item
+      })
+    ),
 
     overallNotes: v.optional(v.string()), // General notes for this audit
 
@@ -3011,7 +3033,7 @@ export default defineSchema({
     nextAuditDue: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_template", ["templateId"])
     .index("by_organization", ["organizationId"])
@@ -3029,11 +3051,7 @@ export default defineSchema({
     description: v.string(),
     assignedTo: v.string(), // User email or ID
     assignedToName: v.optional(v.string()), // Display name
-    priority: v.union(
-      v.literal("Low"),
-      v.literal("Medium"),
-      v.literal("High")
-    ),
+    priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
 
     dueDate: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -3046,13 +3064,17 @@ export default defineSchema({
     ),
 
     // Status updates and comments
-    statusHistory: v.optional(v.array(v.object({
-      status: v.string(),
-      comment: v.optional(v.string()),
-      updatedBy: v.string(), // User email
-      updatedByName: v.optional(v.string()),
-      updatedAt: v.number(),
-    }))),
+    statusHistory: v.optional(
+      v.array(
+        v.object({
+          status: v.string(),
+          comment: v.optional(v.string()),
+          updatedBy: v.string(), // User email
+          updatedByName: v.optional(v.string()),
+          updatedAt: v.number()
+        })
+      )
+    ),
     latestComment: v.optional(v.string()), // Quick access to latest comment
 
     // Track if action plan is new (unviewed by assignee)
@@ -3063,7 +3085,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdByName: v.optional(v.string()),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_audit_response", ["auditResponseId"])
     .index("by_template", ["templateId"])
@@ -3077,15 +3099,17 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     category: v.literal("clinical"), // Fixed category for clinical audits
-    items: v.array(v.object({
-      id: v.string(),
-      name: v.string(), // Question/item name
-      type: v.union(
-        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
-        v.literal("checkbox"),    // Checked/Unchecked
-        v.literal("notes")        // Free text notes
-      ),
-    })),
+    items: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(), // Question/item name
+        type: v.union(
+          v.literal("compliance"), // Compliant/Non-Compliant/N/A
+          v.literal("checkbox"), // Checked/Unchecked
+          v.literal("notes") // Free text notes
+        )
+      })
+    ),
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
@@ -3096,7 +3120,7 @@ export default defineSchema({
     organizationId: v.string(), // Organization-wide, no teamId
     createdBy: v.string(), // User ID or email
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_organization", ["organizationId"])
     .index("by_active", ["isActive"])
@@ -3111,20 +3135,24 @@ export default defineSchema({
     organizationId: v.string(),
 
     // Item responses
-    items: v.array(v.object({
-      itemId: v.string(),
-      itemName: v.string(),
-      status: v.optional(v.union(
-        v.literal("compliant"),
-        v.literal("non-compliant"),
-        v.literal("not-applicable"),
-        v.literal("checked"),
-        v.literal("unchecked"),
-        v.literal("") // Allow empty string as initial state
-      )),
-      notes: v.optional(v.string()),
-      date: v.optional(v.string()), // Date for this specific item
-    })),
+    items: v.array(
+      v.object({
+        itemId: v.string(),
+        itemName: v.string(),
+        status: v.optional(
+          v.union(
+            v.literal("compliant"),
+            v.literal("non-compliant"),
+            v.literal("not-applicable"),
+            v.literal("checked"),
+            v.literal("unchecked"),
+            v.literal("") // Allow empty string as initial state
+          )
+        ),
+        notes: v.optional(v.string()),
+        date: v.optional(v.string()) // Date for this specific item
+      })
+    ),
 
     overallNotes: v.optional(v.string()), // General notes for this audit
 
@@ -3146,7 +3174,7 @@ export default defineSchema({
     nextAuditDue: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_template", ["templateId"])
     .index("by_organization", ["organizationId"])
@@ -3164,11 +3192,7 @@ export default defineSchema({
     description: v.string(),
     assignedTo: v.string(), // User email or ID
     assignedToName: v.optional(v.string()), // Display name
-    priority: v.union(
-      v.literal("Low"),
-      v.literal("Medium"),
-      v.literal("High")
-    ),
+    priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
 
     dueDate: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -3181,13 +3205,17 @@ export default defineSchema({
     ),
 
     // Status updates and comments
-    statusHistory: v.optional(v.array(v.object({
-      status: v.string(),
-      comment: v.optional(v.string()),
-      updatedBy: v.string(), // User email
-      updatedByName: v.optional(v.string()),
-      updatedAt: v.number(),
-    }))),
+    statusHistory: v.optional(
+      v.array(
+        v.object({
+          status: v.string(),
+          comment: v.optional(v.string()),
+          updatedBy: v.string(), // User email
+          updatedByName: v.optional(v.string()),
+          updatedAt: v.number()
+        })
+      )
+    ),
     latestComment: v.optional(v.string()), // Quick access to latest comment
 
     // Track if action plan is new (unviewed by assignee)
@@ -3198,7 +3226,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdByName: v.optional(v.string()),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_audit_response", ["auditResponseId"])
     .index("by_template", ["templateId"])
@@ -3212,15 +3240,17 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     category: v.literal("environment"), // Fixed category for environment audits
-    items: v.array(v.object({
-      id: v.string(),
-      name: v.string(), // Question/item name
-      type: v.union(
-        v.literal("compliance"),  // Compliant/Non-Compliant/N/A
-        v.literal("checkbox"),    // Checked/Unchecked
-        v.literal("notes")        // Free text notes
-      ),
-    })),
+    items: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(), // Question/item name
+        type: v.union(
+          v.literal("compliance"), // Compliant/Non-Compliant/N/A
+          v.literal("checkbox"), // Checked/Unchecked
+          v.literal("notes") // Free text notes
+        )
+      })
+    ),
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
@@ -3231,7 +3261,7 @@ export default defineSchema({
     organizationId: v.string(), // Organization-wide, no teamId
     createdBy: v.string(), // User ID or email
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_organization", ["organizationId"])
     .index("by_active", ["isActive"])
@@ -3246,19 +3276,23 @@ export default defineSchema({
     organizationId: v.string(),
 
     // Item responses
-    items: v.array(v.object({
-      itemId: v.string(),
-      itemName: v.string(),
-      status: v.optional(v.union(
-        v.literal("compliant"),
-        v.literal("non-compliant"),
-        v.literal("not-applicable"),
-        v.literal("checked"),
-        v.literal("unchecked")
-      )),
-      notes: v.optional(v.string()),
-      date: v.optional(v.string()), // Date for this specific item
-    })),
+    items: v.array(
+      v.object({
+        itemId: v.string(),
+        itemName: v.string(),
+        status: v.optional(
+          v.union(
+            v.literal("compliant"),
+            v.literal("non-compliant"),
+            v.literal("not-applicable"),
+            v.literal("checked"),
+            v.literal("unchecked")
+          )
+        ),
+        notes: v.optional(v.string()),
+        date: v.optional(v.string()) // Date for this specific item
+      })
+    ),
 
     overallNotes: v.optional(v.string()), // General notes for this audit
 
@@ -3280,7 +3314,7 @@ export default defineSchema({
     nextAuditDue: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_template", ["templateId"])
     .index("by_organization", ["organizationId"])
@@ -3298,11 +3332,7 @@ export default defineSchema({
     description: v.string(),
     assignedTo: v.string(), // User email or ID
     assignedToName: v.optional(v.string()), // Display name
-    priority: v.union(
-      v.literal("Low"),
-      v.literal("Medium"),
-      v.literal("High")
-    ),
+    priority: v.union(v.literal("Low"), v.literal("Medium"), v.literal("High")),
 
     dueDate: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -3315,13 +3345,17 @@ export default defineSchema({
     ),
 
     // Status updates and comments
-    statusHistory: v.optional(v.array(v.object({
-      status: v.string(),
-      comment: v.optional(v.string()),
-      updatedBy: v.string(), // User email
-      updatedByName: v.optional(v.string()),
-      updatedAt: v.number(),
-    }))),
+    statusHistory: v.optional(
+      v.array(
+        v.object({
+          status: v.string(),
+          comment: v.optional(v.string()),
+          updatedBy: v.string(), // User email
+          updatedByName: v.optional(v.string()),
+          updatedAt: v.number()
+        })
+      )
+    ),
     latestComment: v.optional(v.string()), // Quick access to latest comment
 
     // Track if action plan is new (unviewed by assignee)
@@ -3332,7 +3366,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdByName: v.optional(v.string()),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_audit_response", ["auditResponseId"])
     .index("by_template", ["templateId"])
@@ -3406,7 +3440,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_incident", ["incidentId"])
     .index("by_resident", ["residentId"])
@@ -3541,7 +3575,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
 
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_incident", ["incidentId"])
     .index("by_resident", ["residentId"])
@@ -3619,7 +3653,7 @@ export default defineSchema({
       safeguardingReferenceNumber: v.optional(v.string()),
       gpName: v.optional(v.string()),
       gpPractice: v.optional(v.string()),
-      additionalNotes: v.optional(v.string()),
+      additionalNotes: v.optional(v.string())
     }),
 
     // Status tracking
@@ -3638,7 +3672,7 @@ export default defineSchema({
     // Metadata
     createdBy: v.string(),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number())
   })
     .index("by_incident", ["incidentId"])
     .index("by_resident", ["residentId"])
@@ -3661,20 +3695,22 @@ export default defineSchema({
     ),
     severity: v.union(
       v.literal("critical"), // Requires immediate attention
-      v.literal("warning"),  // Should be addressed soon
-      v.literal("info")      // Informational only
+      v.literal("warning"), // Should be addressed soon
+      v.literal("info") // Informational only
     ),
     title: v.string(), // Short title (e.g., "No food logged - Morning")
     message: v.string(), // Detailed message
     timestamp: v.number(), // When alert was created
 
     // Time period context (for food/fluid alerts)
-    timePeriod: v.optional(v.union(
-      v.literal("morning"),
-      v.literal("afternoon"),
-      v.literal("evening"),
-      v.literal("night")
-    )),
+    timePeriod: v.optional(
+      v.union(
+        v.literal("morning"),
+        v.literal("afternoon"),
+        v.literal("evening"),
+        v.literal("night")
+      )
+    ),
 
     // Resolution tracking
     isResolved: v.boolean(),
@@ -3694,7 +3730,7 @@ export default defineSchema({
 
     // Audit fields
     createdBy: v.optional(v.string()), // For manual alerts
-    createdAt: v.number(),
+    createdAt: v.number()
   })
     .index("byResidentId", ["residentId"])
     .index("byAlertType", ["alertType"])
@@ -3705,4 +3741,6 @@ export default defineSchema({
     .index("byResidentAndResolved", ["residentId", "isResolved"])
     .index("byOrganizationId", ["organizationId"])
     .index("byTeamId", ["teamId"]),
+
+  residentHandlingProfileForm
 });

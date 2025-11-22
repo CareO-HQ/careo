@@ -87,6 +87,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
   );
 
+  const handlingProfileForms = useQuery(
+    api.careFiles.handlingProfile.getHandlingProfilesByResident,
+    { residentId }
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -127,6 +132,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   )?.[0];
 
   const latestResidentValuablesAssessment = residentValuablesAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestHandlingProfileForm = handlingProfileForms?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -219,6 +228,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const handlingProfilePdfUrl = useQuery(
+    api.careFiles.handlingProfile.getPDFUrl,
+    latestHandlingProfileForm
+      ? { profileId: latestHandlingProfileForm._id }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -241,6 +257,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ids.push(latestSkinIntegrityAssessment._id);
     if (latestResidentValuablesAssessment)
       ids.push(latestResidentValuablesAssessment._id);
+    if (latestHandlingProfileForm) ids.push(latestHandlingProfileForm._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -255,7 +272,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestDependencyAssessment,
     latestTimlAssessment,
     latestSkinIntegrityAssessment,
-    latestResidentValuablesAssessment
+    latestResidentValuablesAssessment,
+    latestHandlingProfileForm
   ]);
 
   const auditStatus = useQuery(
@@ -737,6 +755,31 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: residentValuablesAudit?.auditedBy
     };
 
+    // Resident Handling Profile form
+    const hasHandlingProfileData = !!latestHandlingProfileForm;
+    const handlingProfileHasPdfFileId = !!(latestHandlingProfileForm as any)
+      ?.pdfFileId;
+    const handlingProfileAudit = latestHandlingProfileForm
+      ? auditStatus?.[latestHandlingProfileForm._id as string]
+      : undefined;
+
+    state["resident-handling-profile-form"] = {
+      status: getFormStatus(
+        hasHandlingProfileData,
+        false,
+        handlingProfileHasPdfFileId,
+        handlingProfilePdfUrl
+      ),
+      hasData: hasHandlingProfileData,
+      hasPdfFileId: handlingProfileHasPdfFileId,
+      pdfUrl: handlingProfilePdfUrl,
+      lastUpdated: latestHandlingProfileForm?._creationTime,
+      completedAt: latestHandlingProfileForm?._creationTime,
+      isAudited: handlingProfileAudit?.isAudited || false,
+      auditedAt: handlingProfileAudit?.auditedAt,
+      auditedBy: handlingProfileAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -755,6 +798,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestTimlAssessment,
     latestSkinIntegrityAssessment,
     latestResidentValuablesAssessment,
+    latestHandlingProfileForm,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
@@ -768,6 +812,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     timlPdfUrl,
     skinIntegrityPdfUrl,
     residentValuablesPdfUrl,
+    handlingProfilePdfUrl,
     auditStatus
   ]);
 
@@ -846,6 +891,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     dnacprForms,
     peepForms,
     skinIntegrityAssessments,
-    residentValuablesAssessments
+    residentValuablesAssessments,
+    handlingProfileForms,
+    latestHandlingProfileForm
   };
 }

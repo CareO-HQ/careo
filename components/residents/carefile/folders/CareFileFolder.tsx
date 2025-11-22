@@ -121,6 +121,7 @@ export default function CareFileFolder({
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
+    allHandlingProfileForms,
     latestCarePlanForm,
     getAllPdfFiles: folderPdfFiles
   } = useFolderForms({
@@ -426,6 +427,8 @@ export default function CareFileFolder({
               return `skin-integrity-assessment-${baseName}.pdf`;
             case "resident-valuables-form":
               return `resident-valuables-assessment-${baseName}.pdf`;
+            case "resident-handling-profile-form":
+              return `resident-handling-profile-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -723,6 +726,10 @@ export default function CareFileFolder({
                     {
                       key: "resident-valuables-form",
                       data: allResidentValuablesForms
+                    },
+                    {
+                      key: "resident-handling-profile-form",
+                      data: allHandlingProfileForms
                     }
                   ];
 

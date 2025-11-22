@@ -3,6 +3,7 @@ import * as bladderBowel from "./bladderBowel";
 import * as carePlan from "./carePlan";
 import * as dependency from "./dependency";
 import * as dnacpr from "./dnacpr";
+import * as handlingProfile from "./handlingProfile";
 import * as infectionPrevention from "./infectionPrevention";
 import * as longTermFalls from "./longTermFalls";
 import * as movingHandling from "./movingHandling";
@@ -19,6 +20,7 @@ export {
   carePlan,
   dependency,
   dnacpr,
+  handlingProfile,
   infectionPrevention,
   longTermFalls,
   movingHandling,
