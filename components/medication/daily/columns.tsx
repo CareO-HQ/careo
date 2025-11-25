@@ -31,18 +31,18 @@ import {
 } from "@/components/ui/tooltip";
 
 interface TeamMember {
-  id: string;
+  id?: string;
   userId: string;
-  email: string;
+  email?: string;
   name: string;
-  image: string | null;
-  role: string;
-  organizationId: string;
-  createdAt: string;
-  teamMembershipId: string;
-  teamRole: string | undefined;
-  addedToTeamAt: number;
-  addedBy: string;
+  image?: string | null;
+  role?: string;
+  organizationId?: string;
+  createdAt?: string;
+  teamMembershipId?: string;
+  teamRole?: string | undefined;
+  addedToTeamAt?: number;
+  addedBy?: string;
 }
 
 interface MedicationIntake {
@@ -93,7 +93,8 @@ export const createColumns = (
     intakeId: Id<"medicationIntake">;
     comment: string;
   }) => Promise<null>,
-  currentUser?: { name: string; userId: string }
+  currentUser?: { name: string; userId: string },
+  isRoundCompleted?: boolean
 ): ColumnDef<MedicationIntake>[] => [
   {
     id: "medication",
@@ -114,11 +115,14 @@ export const createColumns = (
       const dosageForm = medication.dosageForm;
 
       return (
-        <div className="flex flex-col">
+        <div className={`flex flex-col ${isRoundCompleted ? 'opacity-60' : ''}`}>
           <p className="font-medium">{medication.name}</p>
           <p className="text-xs text-muted-foreground">
             {strength} {strengthUnit} - {dosageForm}
           </p>
+          {isRoundCompleted && (
+            <p className="text-xs text-gray-500 italic mt-0.5">🔒 Locked</p>
+          )}
         </div>
       );
     }
@@ -157,9 +161,12 @@ export const createColumns = (
         return (
           <Tooltip>
             <TooltipTrigger>
-              <p className="font-medium text-primary text-sm">
-                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-              </p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <p className="font-medium text-green-700 text-sm">
+                  {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+                </p>
+              </div>
             </TooltipTrigger>
             <TooltipContent>
               {/* TODO: It would be nice to show the name of the user that marked it out */}
@@ -173,9 +180,17 @@ export const createColumns = (
       }
 
       return (
-        // If popped out, show the name of the user that marked it out and timestamp
-        <Button variant="outline" size="sm" onClick={markAsOut}>
-          Popped Out
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={markAsOut}
+          className={`${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-50'}`}
+          disabled={isRoundCompleted}
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-300" />
+            <span>Pop Out</span>
+          </div>
         </Button>
       );
     }
@@ -194,7 +209,7 @@ export const createColumns = (
     cell: () => {
       return (
         <Select disabled value={currentUser?.userId || ""}>
-          <SelectTrigger className="w-[180px] bg-white">
+          <SelectTrigger className={`w-[180px] ${isRoundCompleted ? 'bg-gray-100 opacity-60' : 'bg-white'}`}>
             <SelectValue placeholder={currentUser?.name || "N/A"} />
           </SelectTrigger>
           <SelectContent>
@@ -233,8 +248,9 @@ export const createColumns = (
         <Select
           onValueChange={setWitness}
           value={medicationIntake.witnessByUserId || undefined}
+          disabled={isRoundCompleted}
         >
-          <SelectTrigger className="w-[180px] bg-white">
+          <SelectTrigger className={`w-[180px] ${isRoundCompleted ? 'bg-gray-100 opacity-60 cursor-not-allowed' : 'bg-white'}`}>
             <SelectValue placeholder="Select witness" />
           </SelectTrigger>
           <SelectContent>
@@ -256,12 +272,9 @@ export const createColumns = (
 
       const handleStateChange = async (
         newState:
-          | "scheduled"
-          | "dispensed"
-          | "administered"
-          | "missed"
+          | "given"
           | "refused"
-          | "skipped"
+          | "missed"
       ) => {
         if (!updateMedicationIntakeStatus) {
           toast.error("Update function not available");
@@ -280,18 +293,68 @@ export const createColumns = (
         }
       };
 
+      // Get color based on state
+      const getStateColor = (state: string) => {
+        switch (state) {
+          case "given":
+            return "bg-green-100 border-green-300 text-green-800 hover:bg-green-200";
+          case "refused":
+            return "bg-orange-100 border-orange-300 text-orange-800 hover:bg-orange-200";
+          case "missed":
+            return "bg-red-100 border-red-300 text-red-800 hover:bg-red-200";
+          case "scheduled":
+            return "bg-blue-100 border-blue-300 text-blue-800 hover:bg-blue-200";
+          default:
+            return "bg-gray-100 border-gray-300 text-gray-800 hover:bg-gray-200";
+        }
+      };
+
+      const getStateDot = (state: string) => {
+        switch (state) {
+          case "given":
+            return "bg-green-500";
+          case "refused":
+            return "bg-orange-500";
+          case "missed":
+            return "bg-red-500";
+          case "scheduled":
+            return "bg-blue-500";
+          default:
+            return "bg-gray-500";
+        }
+      };
+
       return (
-        <Select onValueChange={handleStateChange} value={currentState}>
-          <SelectTrigger className="w-[180px] bg-white">
-            <SelectValue placeholder="Select state" />
+        <Select
+          onValueChange={handleStateChange}
+          value={currentState}
+          disabled={isRoundCompleted}
+        >
+          <SelectTrigger className={`w-[180px] ${getStateColor(currentState)} ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : ''}`}>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${getStateDot(currentState)}`} />
+              <SelectValue placeholder="Select state" />
+            </div>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="dispensed">Dispensed</SelectItem>
-            <SelectItem value="administered">Administered</SelectItem>
-            <SelectItem value="missed">Missed</SelectItem>
-            <SelectItem value="refused">Refused</SelectItem>
-            <SelectItem value="skipped">Skipped</SelectItem>
+            <SelectItem value="given">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span>Given</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="refused">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-orange-500" />
+                <span>Refused</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="missed">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span>Missed</span>
+              </div>
+            </SelectItem>
           </SelectContent>
         </Select>
       );
@@ -332,7 +395,8 @@ export const createColumns = (
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground hover:text-primary"
+                className={`text-muted-foreground ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : 'hover:text-primary'}`}
+                disabled={isRoundCompleted}
               >
                 <NotebookPenIcon className="w-4 h-4" />
               </Button>

@@ -72,7 +72,12 @@ export default function CreateMedicationForm({
       prescriberName: "",
       startDate: new Date(),
       endDate: undefined,
-      status: "active"
+      status: "active",
+      isControlledDrug: false,
+      controlledDrugSchedule: undefined,
+      minIntervalHours: undefined,
+      maxDailyDose: undefined,
+      maxDailyDoseUnit: undefined
     }
   });
 
@@ -423,71 +428,88 @@ export default function CreateMedicationForm({
               <FormField
                 control={form.control}
                 name="times"
-                render={() => (
-                  <FormItem>
-                    <div className="mb-4">
-                      <FormLabel className="text-base">
-                        Medication Times
-                      </FormLabel>
-                      <FormDescription>
-                        Select the times when this medication should be
-                        administered.
-                      </FormDescription>
-                    </div>
-                    {config.times.map((timeGroup) => (
-                      <div key={timeGroup.name} className="mb-6">
-                        <h4 className="mb-3 text-sm font-medium text-muted-foreground">
-                          {timeGroup.name}
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {timeGroup.values.map((time) => (
-                            <FormField
-                              key={time}
-                              control={form.control}
-                              name="times"
-                              render={({ field }) => {
-                                const isSelected = field.value?.includes(time);
-                                return (
-                                  <FormItem key={time} className="space-y-0">
-                                    <FormControl>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const checked = !isSelected;
-                                          return checked
-                                            ? field.onChange([
-                                                ...field.value,
-                                                time
-                                              ])
-                                            : field.onChange(
-                                                field.value?.filter(
-                                                  (value) => value !== time
-                                                )
-                                              );
-                                        }}
-                                        className={cn(
-                                          "w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors",
-                                          "hover:bg-accent hover:text-accent-foreground",
-                                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                                          isSelected
-                                            ? "bg-accent border-primary hover:bg-primary/10"
-                                            : "bg-background text-foreground border-input"
-                                        )}
-                                      >
-                                        {time}
-                                      </button>
-                                    </FormControl>
-                                  </FormItem>
-                                );
-                              }}
-                            />
-                          ))}
-                        </div>
+                render={() => {
+                  const frequency = form.watch("frequency");
+                  const getMaxTimes = () => {
+                    if (frequency?.includes("Once")) return 1;
+                    if (frequency?.includes("Twice")) return 2;
+                    if (frequency?.includes("Three")) return 3;
+                    if (frequency?.includes("Four")) return 4;
+                    return 99; // No limit for PRN, Weekly, Monthly, etc.
+                  };
+
+                  const maxTimes = getMaxTimes();
+
+                  return (
+                    <FormItem>
+                      <div className="mb-4">
+                        <FormLabel className="text-base">
+                          Medication Times
+                        </FormLabel>
+                        <FormDescription>
+                          Select the times when this medication should be
+                          administered. {maxTimes < 99 && `(Select up to ${maxTimes} time${maxTimes > 1 ? 's' : ''})`}
+                        </FormDescription>
                       </div>
-                    ))}
-                    <FormMessage />
-                  </FormItem>
-                )}
+                      {config.times.map((timeGroup) => (
+                        <div key={timeGroup.name} className="mb-6">
+                          <h4 className="mb-3 text-sm font-medium text-muted-foreground">
+                            {timeGroup.name}
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {timeGroup.values.map((time) => (
+                              <FormField
+                                key={time}
+                                control={form.control}
+                                name="times"
+                                render={({ field }) => {
+                                  const isSelected = field.value?.includes(time);
+                                  const isDisabled = !isSelected && field.value?.length >= maxTimes;
+
+                                  return (
+                                    <FormItem key={time} className="space-y-0">
+                                      <FormControl>
+                                        <button
+                                          type="button"
+                                          disabled={isDisabled}
+                                          onClick={() => {
+                                            const checked = !isSelected;
+                                            return checked
+                                              ? field.onChange([
+                                                  ...field.value,
+                                                  time
+                                                ])
+                                              : field.onChange(
+                                                  field.value?.filter(
+                                                    (value) => value !== time
+                                                  )
+                                                );
+                                          }}
+                                          className={cn(
+                                            "w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors",
+                                            "hover:bg-accent hover:text-accent-foreground",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
+                                            isSelected
+                                              ? "bg-accent border-primary hover:bg-primary/10"
+                                              : "bg-background text-foreground border-input"
+                                          )}
+                                        >
+                                          {time}
+                                        </button>
+                                      </FormControl>
+                                    </FormItem>
+                                  );
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <div className="flex justify-between items-center">

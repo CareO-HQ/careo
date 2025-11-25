@@ -379,6 +379,18 @@ export default defineSchema({
       v.literal("completed"),
       v.literal("cancelled")
     ),
+    // Controlled Drug fields
+    isControlledDrug: v.optional(v.boolean()),
+    controlledDrugSchedule: v.optional(v.union(
+      v.literal("2"),
+      v.literal("3"),
+      v.literal("4"),
+      v.literal("5")
+    )),
+    // PRN Safety Limits
+    minIntervalHours: v.optional(v.number()),
+    maxDailyDose: v.optional(v.number()),
+    maxDailyDoseUnit: v.optional(v.string()),
     createdByUserId: v.string(),
     teamId: v.string(),
     organizationId: v.string()
@@ -395,16 +407,28 @@ export default defineSchema({
     poppedOutByUserId: v.optional(v.string()),
     state: v.union(
       v.literal("scheduled"),
-      v.literal("dispensed"),
-      v.literal("administered"),
-      v.literal("missed"),
+      v.literal("dispensed"),      // Legacy - kept for existing records
+      v.literal("administered"),    // Legacy - kept for existing records
+      v.literal("given"),
       v.literal("refused"),
-      v.literal("skipped")
+      v.literal("missed"),
+      v.literal("skipped")          // Legacy - kept for existing records
     ),
     stateModifiedByUserId: v.optional(v.string()),
     stateModifiedAt: v.optional(v.number()),
     witnessByUserId: v.optional(v.string()),
     witnessAt: v.optional(v.number()),
+    // Second witness for controlled drugs
+    secondWitnessByUserId: v.optional(v.string()),
+    secondWitnessAt: v.optional(v.number()),
+    // Actual administrator (who gave the medication)
+    administratorUserId: v.optional(v.string()),
+    administratorAt: v.optional(v.number()),
+    // Destruction tracking for controlled drugs
+    isDestroyed: v.optional(v.boolean()),
+    destructionWitnessUserId: v.optional(v.string()),
+    destructionReason: v.optional(v.string()),
+    destructionAt: v.optional(v.number()),
     notes: v.optional(v.string()),
     teamId: v.string(),
     organizationId: v.string(),
@@ -419,6 +443,25 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byPoppedOutBy", ["poppedOutByUserId"])
     .index("byStateModifiedBy", ["stateModifiedByUserId"]),
+
+  // Medication round completion tracking
+  medicationRound: defineTable({
+    residentId: v.string(),
+    date: v.string(), // "YYYY-MM-DD"
+    time: v.string(), // "HH:MM" (e.g., "08:00")
+    teamId: v.string(),
+    organizationId: v.string(),
+    completedAt: v.number(),
+    completedByUserId: v.string(),
+    completedByName: v.string(),
+    totalMedications: v.number(),
+    givenCount: v.number(),
+    refusedCount: v.number(),
+    missedCount: v.number()
+  })
+    .index("byResidentAndDate", ["residentId", "date"])
+    .index("byResidentDateAndTime", ["residentId", "date", "time"])
+    .index("byTeamId", ["teamId"]),
 
   // Day-level document
   personalCareDaily: defineTable({

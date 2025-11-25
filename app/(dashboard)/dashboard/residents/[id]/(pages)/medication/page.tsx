@@ -12,11 +12,12 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { authClient } from "@/lib/auth-client";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, ClockIcon, Pill } from "lucide-react";
+import { ArrowLeft, ClockIcon, Pill, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { config } from "@/config";
+import { toast } from "sonner";
 
 type MedicationPageProps = {
   params: Promise<{ id: string }>;
@@ -59,10 +60,18 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     id ? { residentId: id } : "skip"
   );
 
+  const discontinuedMedications = useQuery(
+    api.medication.getDiscontinuedMedicationsByResidentId,
+    id ? { residentId: id } : "skip"
+  );
+
   const teamWithMembers = useQuery(
     api.teams.getTeam,
     activeTeamId ? { teamId: activeTeamId } : "skip"
   );
+
+  // Get all users for staff selection (same as daily-care page)
+  const allUsers = useQuery(api.user.getAllUsers);
 
   const markMedicationIntakeAsPoppedOut = useMutation(
     api.medication.markMedicationIntakeAsPoppedOut
@@ -79,13 +88,39 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const createAndAdministerMedicationIntake = useMutation(
     api.medication.createAndAdministerMedicationIntake
   );
+  const completeMedicationRound = useMutation(
+    api.medication.completeMedicationRound
+  );
+
+  // Get medication round status for the selected date and time
+  const selectedDateStr = selectedDate.toISOString().split("T")[0];
+  const medicationRoundStatus = useQuery(
+    api.medication.getMedicationRoundStatus,
+    id && selectedTime
+      ? {
+          residentId: id,
+          date: selectedDateStr,
+          time: selectedTime
+        }
+      : "skip"
+  );
 
   // Memoize columns to prevent recreation on every render
   // Must be before early returns to follow Rules of Hooks
+  // Map all users to the format expected by the columns (same as daily-care page)
+  const availableMembers = React.useMemo(() => {
+    if (!allUsers) return [];
+    return allUsers.map(u => ({
+      userId: u._id,
+      name: u.name || u.email?.split('@')[0] || "Unknown",
+      email: u.email
+    }));
+  }, [allUsers]);
+
   const dailyMedicationColumns = useMemo(
     () =>
       createColumns(
-        teamWithMembers?.members || [],
+        availableMembers,
         markMedicationIntakeAsPoppedOut,
         setWithnessForMedicationIntake,
         updateMedicationIntakeStatus,
@@ -95,15 +130,17 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               name: currentUser.user.name,
               userId: currentUser.user.id
             }
-          : undefined
+          : undefined,
+        medicationRoundStatus?.isCompleted || false
       ),
     [
-      teamWithMembers?.members,
+      availableMembers,
       markMedicationIntakeAsPoppedOut,
       setWithnessForMedicationIntake,
       updateMedicationIntakeStatus,
       saveMedicationIntakeComment,
-      currentUser?.user
+      currentUser?.user,
+      medicationRoundStatus?.isCompleted
     ]
   );
 
@@ -112,7 +149,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       createMedicationColumns(
         createAndAdministerMedicationIntake,
         true,
-        teamWithMembers?.members || [],
+        availableMembers,
         currentUser?.user
           ? {
               name: currentUser.user.name,
@@ -122,7 +159,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       ),
     [
       createAndAdministerMedicationIntake,
-      teamWithMembers?.members,
+      availableMembers,
       currentUser?.user
     ]
   );
@@ -132,7 +169,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       createMedicationColumns(
         createAndAdministerMedicationIntake,
         false,
-        teamWithMembers?.members || [],
+        availableMembers,
         currentUser?.user
           ? {
               name: currentUser.user.name,
@@ -142,7 +179,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       ),
     [
       createAndAdministerMedicationIntake,
-      teamWithMembers?.members,
+      availableMembers,
       currentUser?.user
     ]
   );
@@ -178,10 +215,61 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     }
   }, [selectedTime, selectedDate, selectedDateIntakes]);
 
+  // Handle completing medication round
+  const handleCompleteMedicationRound = async () => {
+    if (!id) {
+      toast.error("Missing resident information");
+      return;
+    }
+
+    if (!selectedTime) {
+      toast.error("Please select a medication time");
+      return;
+    }
+
+    // Use activeTeamId or fall back to resident's teamId
+    const teamId = activeTeamId || resident?.teamId;
+    if (!teamId) {
+      toast.error("No team found for this resident");
+      return;
+    }
+
+    const organizationId = teamWithMembers?.organizationId || resident?.organizationId;
+    if (!organizationId) {
+      toast.error("Missing organization information");
+      return;
+    }
+
+    try {
+      await completeMedicationRound({
+        residentId: id,
+        date: selectedDateStr,
+        time: selectedTime,
+        teamId: teamId,
+        organizationId: organizationId
+      });
+
+      toast.success("Medication round completed successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to complete medication round");
+    }
+  };
+
   console.log("All intakes", selectedDateIntakes);
   console.log("Active Team ID:", activeTeamId);
   console.log("Team with members:", teamWithMembers);
-  console.log("Organization ID:", teamWithMembers?.organizationId);
+  console.log("All Users:", allUsers);
+  console.log("Available Members:", availableMembers);
+  console.log("Available Members count:", availableMembers?.length);
+  console.log("Complete Round Debug:", {
+    id,
+    selectedTime,
+    selectedDateStr,
+    activeTeamId,
+    residentTeamId: resident?.teamId,
+    effectiveTeamId: activeTeamId || resident?.teamId,
+    organizationId: teamWithMembers?.organizationId || resident?.organizationId
+  });
 
   if (resident === undefined) {
     return (
@@ -272,6 +360,65 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <DataTable columns={dailyMedicationColumns} data={filteredIntakes} />
       </div>
 
+      {/* Complete Medication Round Section */}
+      {selectedTime && (
+        <div className="w-full mt-4">
+          {medicationRoundStatus?.isCompleted ? (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="font-semibold text-green-800">
+                      Medication Round Completed
+                    </p>
+                    <p className="text-sm text-green-700">
+                      Completed by {medicationRoundStatus.completedByName} on{" "}
+                      {new Date(medicationRoundStatus.completedAt).toLocaleString()}
+                    </p>
+                    <p className="text-sm text-green-600 mt-1">
+                      Given: {medicationRoundStatus.givenCount} | Refused:{" "}
+                      {medicationRoundStatus.refusedCount} | Missed:{" "}
+                      {medicationRoundStatus.missedCount}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-blue-800">
+                    Complete Medication Round
+                  </p>
+                  <p className="text-sm text-blue-700">
+                    {medicationRoundStatus?.pendingCount || 0} medication(s) still pending.
+                    All medications must be marked as given, refused, or missed before completing.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleCompleteMedicationRound}
+                  disabled={
+                    !medicationRoundStatus ||
+                    medicationRoundStatus.pendingCount > 0 ||
+                    medicationRoundStatus.totalMedications === 0 ||
+                    (!activeTeamId && !resident?.teamId) ||
+                    !id ||
+                    !selectedTime ||
+                    (!teamWithMembers?.organizationId && !resident?.organizationId)
+                  }
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Complete Round
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 mt-8">
         <div className="flex flex-col">
           <p className="font-semibold">PRN & Topical Medications</p>
@@ -295,6 +442,24 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           />
         </div>
       </div>
+
+      {/* Discontinued Medications Section */}
+      {discontinuedMedications && discontinuedMedications.length > 0 && (
+        <div className="flex flex-col gap-4 mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex flex-col">
+            <p className="font-semibold text-red-800">Discontinued Medications</p>
+            <p className="text-sm text-red-600">
+              Medications that have been discontinued for this resident
+            </p>
+          </div>
+          <div className="w-full">
+            <DataTable
+              columns={allActiveMedicationColumns}
+              data={discontinuedMedications}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

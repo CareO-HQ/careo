@@ -228,7 +228,19 @@ export const createMedication = mutation({
         v.literal("active"),
         v.literal("completed"),
         v.literal("cancelled")
-      )
+      ),
+      // Controlled Drug fields
+      isControlledDrug: v.optional(v.boolean()),
+      controlledDrugSchedule: v.optional(v.union(
+        v.literal("2"),
+        v.literal("3"),
+        v.literal("4"),
+        v.literal("5")
+      )),
+      // PRN Safety Limits
+      minIntervalHours: v.optional(v.number()),
+      maxDailyDose: v.optional(v.number()),
+      maxDailyDoseUnit: v.optional(v.string())
     })
   },
   returns: v.id("medication"),
@@ -368,7 +380,19 @@ export const updateMedication = mutation({
           v.literal("completed"),
           v.literal("cancelled")
         )
-      )
+      ),
+      // Controlled Drug fields
+      isControlledDrug: v.optional(v.boolean()),
+      controlledDrugSchedule: v.optional(v.union(
+        v.literal("2"),
+        v.literal("3"),
+        v.literal("4"),
+        v.literal("5")
+      )),
+      // PRN Safety Limits
+      minIntervalHours: v.optional(v.number()),
+      maxDailyDose: v.optional(v.number()),
+      maxDailyDoseUnit: v.optional(v.string())
     })
   },
   returns: v.null(),
@@ -502,11 +526,12 @@ export const getMedicationIntakesByTeamId = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -558,11 +583,9 @@ export const updateMedicationIntakeState = mutation({
     intakeId: v.id("medicationIntake"),
     state: v.union(
       v.literal("scheduled"),
-      v.literal("dispensed"),
-      v.literal("administered"),
-      v.literal("missed"),
+      v.literal("given"),
       v.literal("refused"),
-      v.literal("skipped")
+      v.literal("missed")
     ),
     notes: v.optional(v.string())
   },
@@ -597,8 +620,8 @@ export const updateMedicationIntakeState = mutation({
 
     await ctx.db.patch(args.intakeId, updateData);
 
-    // AUTO-RESOLVE MEDICATION ALERTS when administered, refused, or skipped
-    if (args.state === "administered" || args.state === "refused" || args.state === "skipped") {
+    // AUTO-RESOLVE MEDICATION ALERTS when given, refused, or missed
+    if (args.state === "given" || args.state === "refused" || args.state === "missed") {
       const intake = await ctx.db.get(args.intakeId);
       if (intake) {
         await ctx.runMutation(api.alerts.autoResolveMedicationAlerts, {
@@ -627,11 +650,12 @@ export const getTodaysMedicationIntakes = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -736,11 +760,12 @@ export const getMedicationIntakesByDate = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -845,11 +870,12 @@ export const getUpcomingMedicationIntakes = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -1416,12 +1442,9 @@ export const updateMedicationIntakeStatus = mutation({
   args: {
     intakeId: v.id("medicationIntake"),
     state: v.union(
-      v.literal("scheduled"),
-      v.literal("dispensed"),
-      v.literal("administered"),
-      v.literal("missed"),
+      v.literal("given"),
       v.literal("refused"),
-      v.literal("skipped")
+      v.literal("missed")
     )
   },
   returns: v.null(),
@@ -1495,11 +1518,12 @@ export const getNextMedicationIntakeByResidentId = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -1585,6 +1609,28 @@ export const getActiveMedicationsByResidentId = query({
   }
 });
 
+export const getDiscontinuedMedicationsByResidentId = query({
+  args: {
+    residentId: v.string()
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all discontinued medications for this resident (completed or cancelled)
+    const medications = await ctx.db
+      .query("medication")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "completed"),
+          q.eq(q.field("status"), "cancelled")
+        )
+      )
+      .collect();
+
+    return medications;
+  }
+});
+
 export const getAllMedicationIntakesByResidentId = query({
   args: {
     residentId: v.string()
@@ -1600,11 +1646,12 @@ export const getAllMedicationIntakesByResidentId = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -1657,11 +1704,12 @@ export const getMedicationIntakesByResidentAndDate = query({
       poppedOutByUserId: v.optional(v.string()),
       state: v.union(
         v.literal("scheduled"),
-        v.literal("dispensed"),
-        v.literal("administered"),
-        v.literal("missed"),
+        v.literal("dispensed"),      // Legacy
+        v.literal("administered"),    // Legacy
+        v.literal("given"),
         v.literal("refused"),
-        v.literal("skipped")
+        v.literal("missed"),
+        v.literal("skipped")          // Legacy
       ),
       stateModifiedByUserId: v.optional(v.string()),
       stateModifiedAt: v.optional(v.number()),
@@ -1797,7 +1845,7 @@ export const createAndAdministerMedicationIntake = mutation({
         medicationId: args.medicationId,
         residentId: medication.residentId,
         scheduledTime: args.time,
-        state: "administered",
+        state: "given",
         stateModifiedByUserId: userMetadata.userId,
         stateModifiedAt: now,
         poppedOutAt: args.time,
@@ -1823,5 +1871,221 @@ export const createAndAdministerMedicationIntake = mutation({
     );
 
     return null;
+  }
+});
+
+// Complete a medication round for a specific time
+export const completeMedicationRound = mutation({
+  args: {
+    residentId: v.string(),
+    date: v.string(), // "YYYY-MM-DD"
+    time: v.string(), // "HH:MM"
+    teamId: v.string(),
+    organizationId: v.string()
+  },
+  returns: v.id("medicationRound"),
+  handler: async (ctx, args) => {
+    // Get current session for authentication
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get current user information
+    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
+    if (!userMetadata) {
+      throw new Error("User not found");
+    }
+
+    // Check if this round is already completed
+    const existingRound = await ctx.db
+      .query("medicationRound")
+      .withIndex("byResidentDateAndTime", (q) =>
+        q
+          .eq("residentId", args.residentId)
+          .eq("date", args.date)
+          .eq("time", args.time)
+      )
+      .first();
+
+    if (existingRound) {
+      throw new Error(
+        `This medication round was already completed at ${new Date(
+          existingRound.completedAt
+        ).toLocaleString()} by ${existingRound.completedByName}`
+      );
+    }
+
+    // Get all medication intakes for this resident, date, and time
+    const intakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .collect();
+
+    // Filter intakes for the specific date and time
+    const targetIntakes = intakes.filter((intake) => {
+      const scheduledDate = new Date(intake.scheduledTime);
+      const scheduledTimeStr = scheduledDate.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+      const scheduledDateStr = scheduledDate.toISOString().split("T")[0];
+
+      return scheduledDateStr === args.date && scheduledTimeStr === args.time;
+    });
+
+    if (targetIntakes.length === 0) {
+      throw new Error("No medications found for this round");
+    }
+
+    // Check if any medications are still in "scheduled" state
+    const pendingIntakes = targetIntakes.filter(
+      (intake) => intake.state === "scheduled"
+    );
+
+    if (pendingIntakes.length > 0) {
+      throw new Error(
+        `Cannot complete round. ${pendingIntakes.length} medication(s) still pending. All medications must be marked as given, refused, or missed.`
+      );
+    }
+
+    // Count statuses
+    const givenCount = targetIntakes.filter(
+      (intake) => intake.state === "given"
+    ).length;
+    const refusedCount = targetIntakes.filter(
+      (intake) => intake.state === "refused"
+    ).length;
+    const missedCount = targetIntakes.filter(
+      (intake) => intake.state === "missed"
+    ).length;
+
+    // Create medication round completion record
+    const roundId = await ctx.db.insert("medicationRound", {
+      residentId: args.residentId,
+      date: args.date,
+      time: args.time,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      completedAt: Date.now(),
+      completedByUserId: userMetadata.userId,
+      completedByName: userMetadata.name,
+      totalMedications: targetIntakes.length,
+      givenCount,
+      refusedCount,
+      missedCount
+    });
+
+    console.log(
+      `Completed medication round for resident ${args.residentId} on ${args.date} at ${args.time} by ${userMetadata.name}`
+    );
+
+    return roundId;
+  }
+});
+
+// Get medication round status for a specific time
+export const getMedicationRoundStatus = query({
+  args: {
+    residentId: v.string(),
+    date: v.string(),
+    time: v.string()
+  },
+  returns: v.union(
+    v.object({
+      isCompleted: v.literal(true),
+      completedAt: v.number(),
+      completedByName: v.string(),
+      totalMedications: v.number(),
+      givenCount: v.number(),
+      refusedCount: v.number(),
+      missedCount: v.number()
+    }),
+    v.object({
+      isCompleted: v.literal(false),
+      pendingCount: v.number(),
+      totalMedications: v.number()
+    })
+  ),
+  handler: async (ctx, args) => {
+    // Check if this round is completed
+    const existingRound = await ctx.db
+      .query("medicationRound")
+      .withIndex("byResidentDateAndTime", (q) =>
+        q
+          .eq("residentId", args.residentId)
+          .eq("date", args.date)
+          .eq("time", args.time)
+      )
+      .first();
+
+    if (existingRound) {
+      return {
+        isCompleted: true as const,
+        completedAt: existingRound.completedAt,
+        completedByName: existingRound.completedByName,
+        totalMedications: existingRound.totalMedications,
+        givenCount: existingRound.givenCount,
+        refusedCount: existingRound.refusedCount,
+        missedCount: existingRound.missedCount
+      };
+    }
+
+    // Get all medication intakes for this resident
+    const intakes = await ctx.db
+      .query("medicationIntake")
+      .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
+      .collect();
+
+    // Filter intakes for the specific date and time
+    const targetIntakes = intakes.filter((intake) => {
+      const scheduledDate = new Date(intake.scheduledTime);
+      const scheduledTimeStr = scheduledDate.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+      const scheduledDateStr = scheduledDate.toISOString().split("T")[0];
+
+      const matches = scheduledDateStr === args.date && scheduledTimeStr === args.time;
+
+      // Debug logging
+      if (scheduledDateStr === args.date) {
+        console.log("getMedicationRoundStatus - Date match:", {
+          scheduledTimeStr,
+          argsTime: args.time,
+          timeMatches: scheduledTimeStr === args.time,
+          intakeState: intake.state,
+          medicationId: intake.medicationId
+        });
+      }
+
+      return matches;
+    });
+
+    // Count pending medications
+    const pendingCount = targetIntakes.filter(
+      (intake) => intake.state === "scheduled"
+    ).length;
+
+    console.log("getMedicationRoundStatus result:", {
+      residentId: args.residentId,
+      date: args.date,
+      time: args.time,
+      totalIntakes: intakes.length,
+      targetIntakes: targetIntakes.length,
+      pendingCount,
+      states: targetIntakes.map(i => i.state)
+    });
+
+    return {
+      isCompleted: false as const,
+      pendingCount,
+      totalMedications: targetIntakes.length
+    };
   }
 });

@@ -50,5 +50,17 @@ export const CreateMedicationSchema = z.object({
     z.literal("active"),
     z.literal("completed"),
     z.literal("cancelled")
-  ])
+  ]),
+  // Controlled Drug fields
+  isControlledDrug: z.boolean().optional(),
+  controlledDrugSchedule: z.union([
+    z.literal("2"),
+    z.literal("3"),
+    z.literal("4"),
+    z.literal("5")
+  ]).optional(),
+  // PRN Safety Limits
+  minIntervalHours: z.number().positive().optional(),
+  maxDailyDose: z.number().positive().optional(),
+  maxDailyDoseUnit: z.string().optional()
 });
