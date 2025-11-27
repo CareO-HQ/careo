@@ -25,8 +25,8 @@ export default function ShiftTimes({
                 className={cn(
                   "px-2 py-1 text-sm font-medium rounded-md border transition-colors cursor-pointer",
                   selectedTime === value
-                    ? "bg-secondary border-primary"
-                    : "bg-primary-foreground/10"
+                    ? "bg-green-100 border-green-500 text-green-800 hover:bg-green-200"
+                    : "bg-primary-foreground/10 hover:bg-primary-foreground/20"
                 )}
                 onClick={() => setSelectedTime(value)}
               >

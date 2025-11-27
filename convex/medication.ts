@@ -23,6 +23,7 @@ async function createMedicationIntakes(
     endDate?: number;
     scheduleType: string;
     residentId?: string;
+    timeQuantities?: Record<string, number>;
   },
   organizationId: string,
   teamId: string
@@ -144,19 +145,25 @@ async function createMedicationIntakes(
         `Timestamp being saved: ${correctScheduledDateTime.getTime()}`
       );
 
-      const intakeRecord = {
-        medicationId,
-        residentId: medication.residentId!!,
-        scheduledTime: correctScheduledDateTime.getTime(),
-        state: "scheduled" as const,
-        teamId,
-        organizationId,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
+      // Get quantity for this specific time (default to 1 if not specified)
+      const quantity = medication.timeQuantities?.[time] || 1;
 
-      const intakeId = await ctx.db.insert("medicationIntake", intakeRecord);
-      intakeRecords.push(intakeId);
+      // Create multiple intake records based on quantity for this time
+      for (let q = 0; q < quantity; q++) {
+        const intakeRecord = {
+          medicationId,
+          residentId: medication.residentId!!,
+          scheduledTime: correctScheduledDateTime.getTime(),
+          state: "scheduled" as const,
+          teamId,
+          organizationId,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        const intakeId = await ctx.db.insert("medicationIntake", intakeRecord);
+        intakeRecords.push(intakeId);
+      }
     }
 
     // Check if we've reached the end date AFTER creating intakes for this day
@@ -220,6 +227,7 @@ export const createMedication = mutation({
         v.literal("PRN (As Needed)")
       ),
       times: v.array(v.string()),
+      timeQuantities: v.optional(v.record(v.string(), v.number())),
       instructions: v.optional(v.string()),
       prescriberName: v.string(),
       startDate: v.number(),
@@ -990,6 +998,7 @@ export const getAllActiveMedications = internalQuery({
         v.literal("PRN (As Needed)")
       ),
       times: v.array(v.string()),
+      timeQuantities: v.optional(v.record(v.string(), v.number())),
       instructions: v.optional(v.string()),
       prescriberName: v.string(),
       startDate: v.number(),

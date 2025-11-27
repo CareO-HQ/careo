@@ -23,13 +23,43 @@ type MedicationPageProps = {
   params: Promise<{ id: string }>;
 };
 
+// Helper function to find the nearest medication time
+const getNearestMedicationTime = (): string | null => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+  // Flatten all times from config
+  const allTimes = config.times.flatMap(timeGroup => timeGroup.values);
+
+  if (allTimes.length === 0) return null;
+
+  // Convert time strings to minutes and find the nearest one
+  let nearestTime = allTimes[0];
+  let smallestDiff = Infinity;
+
+  allTimes.forEach(time => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const timeInMinutes = hours * 60 + minutes;
+    const diff = Math.abs(timeInMinutes - currentTimeInMinutes);
+
+    if (diff < smallestDiff) {
+      smallestDiff = diff;
+      nearestTime = time;
+    }
+  });
+
+  return nearestTime;
+};
+
 export default function MedicationPage({ params }: MedicationPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const { activeTeamId } = useActiveTeam();
   const { data: currentUser } = authClient.useSession();
   const [selectedTime, setSelectedTime] = useState<string | null>(
-    config.times[0]?.values[0] || null
+    getNearestMedicationTime() || config.times[0]?.values[0] || null
   );
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filteredIntakes, setFilteredIntakes] = useState<

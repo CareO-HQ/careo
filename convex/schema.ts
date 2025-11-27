@@ -370,6 +370,7 @@ export default defineSchema({
     ),
     scheduleType: v.union(v.literal("Scheduled"), v.literal("PRN (As Needed)")),
     times: v.array(v.string()),
+    timeQuantities: v.optional(v.record(v.string(), v.number())),
     instructions: v.optional(v.string()),
     prescriberName: v.string(),
     startDate: v.number(),

@@ -68,6 +68,7 @@ export default function CreateMedicationForm({
       frequency: undefined,
       scheduleType: undefined,
       times: [],
+      timeQuantities: {},
       instructions: undefined,
       prescriberName: "",
       startDate: new Date(),
@@ -456,7 +457,7 @@ export default function CreateMedicationForm({
                           <h4 className="mb-3 text-sm font-medium text-muted-foreground">
                             {timeGroup.name}
                           </h4>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 gap-3">
                             {timeGroup.values.map((time) => (
                               <FormField
                                 key={time}
@@ -465,38 +466,63 @@ export default function CreateMedicationForm({
                                 render={({ field }) => {
                                   const isSelected = field.value?.includes(time);
                                   const isDisabled = !isSelected && field.value?.length >= maxTimes;
+                                  const timeQuantities = form.watch("timeQuantities") || {};
 
                                   return (
                                     <FormItem key={time} className="space-y-0">
                                       <FormControl>
-                                        <button
-                                          type="button"
-                                          disabled={isDisabled}
-                                          onClick={() => {
-                                            const checked = !isSelected;
-                                            return checked
-                                              ? field.onChange([
-                                                  ...field.value,
-                                                  time
-                                                ])
-                                              : field.onChange(
-                                                  field.value?.filter(
-                                                    (value) => value !== time
-                                                  )
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={isDisabled}
+                                            onClick={() => {
+                                              const checked = !isSelected;
+                                              if (checked) {
+                                                field.onChange([...field.value, time]);
+                                                // Set default quantity to 1 when time is selected
+                                                form.setValue("timeQuantities", {
+                                                  ...timeQuantities,
+                                                  [time]: 1
+                                                });
+                                              } else {
+                                                field.onChange(
+                                                  field.value?.filter((value) => value !== time)
                                                 );
-                                          }}
-                                          className={cn(
-                                            "w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors",
-                                            "hover:bg-accent hover:text-accent-foreground",
-                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                                            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
-                                            isSelected
-                                              ? "bg-accent border-primary hover:bg-primary/10"
-                                              : "bg-background text-foreground border-input"
+                                                // Remove quantity when time is deselected
+                                                const newQuantities = { ...timeQuantities };
+                                                delete newQuantities[time];
+                                                form.setValue("timeQuantities", newQuantities);
+                                              }
+                                            }}
+                                            className={cn(
+                                              "flex-1 px-3 py-2 text-sm font-medium rounded-md border transition-colors",
+                                              "hover:bg-accent hover:text-accent-foreground",
+                                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                              "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
+                                              isSelected
+                                                ? "bg-accent border-primary hover:bg-primary/10"
+                                                : "bg-background text-foreground border-input"
+                                            )}
+                                          >
+                                            {time}
+                                          </button>
+                                          {isSelected && (
+                                            <Input
+                                              type="number"
+                                              min="1"
+                                              placeholder="Qty"
+                                              className="w-20"
+                                              value={timeQuantities[time] || 1}
+                                              onChange={(e) => {
+                                                const qty = parseInt(e.target.value) || 1;
+                                                form.setValue("timeQuantities", {
+                                                  ...timeQuantities,
+                                                  [time]: qty
+                                                });
+                                              }}
+                                            />
                                           )}
-                                        >
-                                          {time}
-                                        </button>
+                                        </div>
                                       </FormControl>
                                     </FormItem>
                                   );

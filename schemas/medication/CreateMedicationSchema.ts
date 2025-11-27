@@ -40,6 +40,7 @@ export const CreateMedicationSchema = z.object({
   times: z.array(z.string()).min(1, {
     message: "At least one time is required"
   }),
+  timeQuantities: z.record(z.string(), z.number().min(1)).optional(),
   prescriberName: z.string().min(1, {
     message: "Prescriber name is required"
   }),
