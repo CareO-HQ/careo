@@ -10,7 +10,7 @@ import { components } from "../convex/_generated/api";
 import { passkey } from "better-auth/plugins/passkey";
 import { admin } from "better-auth/plugins";
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL;
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 export const createAuth = (ctx: GenericCtx) =>
   betterAuth({
@@ -24,7 +24,7 @@ export const createAuth = (ctx: GenericCtx) =>
     ],
     advanced: {
       crossSubDomainCookies: {
-        enabled: true,
+        enabled: process.env.NODE_ENV === "production",
       },
       useSecureCookies: process.env.NODE_ENV === "production",
     },
@@ -56,6 +56,10 @@ export const createAuth = (ctx: GenericCtx) =>
       autoSignIn: true,
       sendResetPassword: async ({ user, url }) => {
         console.log("sendResetPassword", user.email, url);
+        if (!resend) {
+          console.log("Resend disabled. Mock sending reset password email to:", user.email);
+          return;
+        }
         await resend.emails.send({
           from: "Uprio <uprio@auth.tryuprio.com>",
           to: [user.email],
@@ -69,12 +73,16 @@ export const createAuth = (ctx: GenericCtx) =>
       }
     },
     plugins: [
-      nextCookies(),
+      // nextCookies(), // Removed as it causes issues in Convex runtime
       convex(),
       twoFactor({
         skipVerificationOnEnable: true,
         otpOptions: {
           async sendOTP({ user, otp }) {
+            if (!resend) {
+              console.log("Resend disabled. Mock sending 2FA OTP to:", user.email);
+              return;
+            }
             await resend.emails.send({
               from: "Uprio <uprio@auth.tryuprio.com>",
               to: [user.email],
@@ -97,6 +105,10 @@ export const createAuth = (ctx: GenericCtx) =>
         async sendInvitationEmail(data) {
           const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}&email=${data.email}`;
           console.log("sendInvitationEmail", inviteLink);
+          if (!resend) {
+            console.log("Resend disabled. Mock sending invitation email to:", data.email);
+            return;
+          }
           await resend.emails.send({
             from: "Uprio <uprio@auth.tryuprio.com>",
             to: [data.email],

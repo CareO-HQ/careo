@@ -6,7 +6,10 @@ import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const isResendEnabled = process.env.RESEND_ENABLED === "true";
+const apiKey = process.env.RESEND_API_KEY;
+
+const resend = (isResendEnabled && apiKey) ? new Resend(apiKey) : null;
 
 export const sendEmailWithPDFAttachment = action({
   args: {
@@ -54,6 +57,14 @@ export const sendEmailWithPDFAttachment = action({
       };
 
       // Send email with attachment
+      if (!resend) {
+        console.log("Resend is disabled. Email would have been sent to:", args.to);
+        return {
+          success: true,
+          messageId: "mock-id-resend-disabled"
+        };
+      }
+
       const result = await resend.emails.send({
         from: args.from || "Careo <noreply@auth.tryuprio.com>",
         to: [args.to],
@@ -123,6 +134,14 @@ export const sendEmailWithMultiplePDFs = action({
       }
 
       // Send email with attachments
+      if (!resend) {
+        console.log("Resend is disabled. Email would have been sent to:", args.to);
+        return {
+          success: true,
+          messageId: "mock-id-resend-disabled"
+        };
+      }
+
       const result = await resend.emails.send({
         from: args.from || "Careo <noreply@auth.tryuprio.com>",
         to: [args.to],

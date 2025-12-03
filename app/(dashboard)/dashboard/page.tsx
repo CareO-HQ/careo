@@ -38,21 +38,23 @@ export default function DashboardPage() {
     isLoading: isTeamLoading,
   } = useActiveTeam();
 
+  const shouldFetchDashboard = !!(activeTeamId || activeOrganizationId);
+
   // Fetch dashboard data based on team or organization
   const dashboardData = useQuery(
     activeTeamId
       ? api.dashboard.getDashboardStatsByTeam
       : activeOrganizationId
-      ? api.dashboard.getDashboardStatsByOrganization
-      : "skip",
+        ? api.dashboard.getDashboardStatsByOrganization
+        : "skip",
     activeTeamId
       ? { teamId: activeTeamId }
       : activeOrganizationId
-      ? { organizationId: activeOrganizationId }
-      : "skip"
+        ? { organizationId: activeOrganizationId }
+        : "skip"
   );
 
-  const isLoading = isTeamLoading || dashboardData === undefined;
+  const isLoading = isTeamLoading || (shouldFetchDashboard && dashboardData === undefined);
 
   // Get user's first name
   const userName = session?.user?.name?.split(" ")[0] || "User";
@@ -298,7 +300,7 @@ export default function DashboardPage() {
           </div>
 
           {dashboardData?.recentHospitalTransfers &&
-          dashboardData.recentHospitalTransfers.length > 0 ? (
+            dashboardData.recentHospitalTransfers.length > 0 ? (
             <div className="overflow-hidden">
               <Table>
                 <TableHeader>

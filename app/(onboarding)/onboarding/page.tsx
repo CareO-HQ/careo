@@ -26,8 +26,8 @@ export default function OnboardingPage() {
     return <div>Loading...</div>;
   }
 
-  // OWNER ONBOARDING
-  if (activeMember?.role === "owner") {
+  // OWNER ONBOARDING (or new user)
+  if (!activeMember || activeMember?.role === "owner") {
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
