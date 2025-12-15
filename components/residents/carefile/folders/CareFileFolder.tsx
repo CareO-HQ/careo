@@ -32,6 +32,7 @@ import JSZip from "jszip";
 import {
   DownloadIcon,
   Edit2,
+  Eye,
   FileIcon,
   FolderIcon,
   Trash2
@@ -154,19 +155,9 @@ export default function CareFileFolder({
 
     if (!pdfUrl) return null;
 
-    const handleCarePlanClick = () => {
-      if (isCarePlan) {
-        setSelectedCarePlan(file);
-        setCarePlanDialogOpen(true);
-      }
-    };
-
     return (
       <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
-        <div
-          className={`flex-1 flex items-center gap-2 ${isCarePlan ? "cursor-pointer" : ""}`}
-          onClick={handleCarePlanClick}
-        >
+        <div className="flex-1 flex items-center gap-2">
           <div className="bg-red-50 rounded-md">
             <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
           </div>
@@ -197,7 +188,24 @@ export default function CareFileFolder({
         </div>
 
         <div className="flex items-center gap-2">
-          {isCarePlan && <CarePlanEvaluationDialog />}
+          {isCarePlan && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedCarePlan(file);
+                  setCarePlanDialogOpen(true);
+                }}
+                title="View Care Plan"
+              >
+                <Eye className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+              </Button>
+              <CarePlanEvaluationDialog />
+            </>
+          )}
           <EmailPDFWithStorageId
             formKey={file.formKey}
             formId={file.formId}
