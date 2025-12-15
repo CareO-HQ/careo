@@ -190,6 +190,7 @@ export default function CareFileFolder({
         <div className="flex items-center gap-2">
           {isCarePlan && (
             <>
+              <CarePlanEvaluationDialog />
               <Button
                 variant="ghost"
                 size="icon"
@@ -203,17 +204,12 @@ export default function CareFileFolder({
               >
                 <Eye className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
               </Button>
-              <CarePlanEvaluationDialog />
             </>
           )}
-          <EmailPDFWithStorageId
-            formKey={file.formKey}
-            formId={file.formId}
-            filename={`${file.name}.pdf`}
-            residentName={resident?.fullName}
-          />
-          <DownloadIcon
-            className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
             onClick={async (e) => {
               e.stopPropagation();
               try {
@@ -224,7 +220,10 @@ export default function CareFileFolder({
                 toast.error("Failed to download PDF");
               }
             }}
-          />
+            title="Download PDF"
+          >
+            <DownloadIcon className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+          </Button>
         </div>
       </div>
     );
