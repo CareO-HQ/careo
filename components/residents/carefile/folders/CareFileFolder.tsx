@@ -39,7 +39,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import EmailPDFWithStorageId from "../EmailPDFWithStorageId";
-import CarePlanSheetContent from "./CarePlanSheet";
+import CarePlanViewDialog from "./CarePlanViewDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -76,7 +76,7 @@ export default function CareFileFolder({
   } | null>(null);
   const [editingPdfId, setEditingPdfId] = useState<string | null>(null);
   const [editingPdfName, setEditingPdfName] = useState("");
-  const [carePlanSheetOpen, setCarePlanSheetOpen] = useState(false);
+  const [carePlanDialogOpen, setCarePlanDialogOpen] = useState(false);
   const [selectedCarePlan, setSelectedCarePlan] = useState<{
     formKey: string;
     formId: string;
@@ -157,7 +157,7 @@ export default function CareFileFolder({
     const handleCarePlanClick = () => {
       if (isCarePlan) {
         setSelectedCarePlan(file);
-        setCarePlanSheetOpen(true);
+        setCarePlanDialogOpen(true);
       }
     };
 
@@ -821,11 +821,11 @@ export default function CareFileFolder({
         </DialogContent>
       </Dialog>
 
-      {/* Care Plan Sheet on the left side */}
+      {/* Care Plan View Dialog */}
       {selectedCarePlan && (
-        <CarePlanSheetContent
-          open={carePlanSheetOpen}
-          onOpenChange={setCarePlanSheetOpen}
+        <CarePlanViewDialog
+          open={carePlanDialogOpen}
+          onOpenChange={setCarePlanDialogOpen}
           carePlan={selectedCarePlan}
         />
       )}
