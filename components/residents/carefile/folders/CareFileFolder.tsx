@@ -190,7 +190,7 @@ export default function CareFileFolder({
         <div className="flex items-center gap-2">
           {isCarePlan && (
             <>
-              <CarePlanEvaluationDialog />
+              <CarePlanEvaluationDialog carePlan={file} />
               <Button
                 variant="ghost"
                 size="icon"

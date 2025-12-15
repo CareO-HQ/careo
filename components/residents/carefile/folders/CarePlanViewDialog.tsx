@@ -80,9 +80,8 @@ export default function CarePlanViewDialog({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
-            <div className="px-6 py-6 pr-8 space-y-6 pb-8">
+        <ScrollArea className="flex-1">
+          <div className="px-6 py-6 space-y-6 pb-8 pr-4">
             {/* Resident Information */}
             <section className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Resident Information</h3>
@@ -187,9 +186,8 @@ export default function CarePlanViewDialog({
                 </div>
               )}
             </section>
-            </div>
-          </ScrollArea>
-        </div>
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
