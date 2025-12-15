@@ -615,3 +615,36 @@ export const checkCarePlanReminders = internalMutation({
     return null;
   }
 });
+
+// Delete a care plan assessment
+export const deleteCarePlanAssessment = mutation({
+  args: {
+    assessmentId: v.id("carePlanAssessments")
+  },
+  handler: async (ctx, args) => {
+    // Delete the care plan assessment
+    await ctx.db.delete(args.assessmentId);
+
+    // Optionally delete associated evaluations
+    const evaluations = await ctx.db
+      .query("carePlanEvaluations")
+      .withIndex("by_care_plan", (q) => q.eq("carePlanId", args.assessmentId))
+      .collect();
+
+    for (const evaluation of evaluations) {
+      await ctx.db.delete(evaluation._id);
+    }
+
+    // Optionally delete associated reminders
+    const reminders = await ctx.db
+      .query("carePlanReminders")
+      .withIndex("by_care_plan", (q) => q.eq("carePlanId", args.assessmentId))
+      .collect();
+
+    for (const reminder of reminders) {
+      await ctx.db.delete(reminder._id);
+    }
+
+    return { success: true };
+  }
+});

@@ -17,7 +17,7 @@ const eslintConfig = [
     }
   },
   {
-    ignores: ["convex/**/*"]
+    ignores: ["convex/**/*", ".next/**/*", "node_modules/**/*"]
   }
 ];
 

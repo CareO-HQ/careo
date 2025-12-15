@@ -224,6 +224,30 @@ export default function CareFileFolder({
           >
             <DownloadIcon className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
           </Button>
+          {isCarePlan && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (window.confirm("Are you sure you want to delete this care plan? This action cannot be undone.")) {
+                  try {
+                    await deleteCarePlanMutation({
+                      assessmentId: file.formId as Id<"carePlanAssessments">
+                    });
+                    toast.success("Care plan deleted successfully");
+                  } catch (error) {
+                    console.error("Error deleting care plan:", error);
+                    toast.error("Failed to delete care plan");
+                  }
+                }
+              }}
+              title="Delete Care Plan"
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-destructive" />
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -232,6 +256,7 @@ export default function CareFileFolder({
   // Mutations for PDF management
   const renamePdf = useMutation(api.careFilePdfs.renamePdf);
   const deletePdf = useMutation(api.careFilePdfs.deletePdf);
+  const deleteCarePlanMutation = useMutation(api.careFiles.carePlan.deleteCarePlanAssessment);
   const getAllFilesForDownload = useAction(
     api.careFilePdfs.getAllFilesForFolderDownload
   );

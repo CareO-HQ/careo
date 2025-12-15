@@ -67,20 +67,22 @@ export default function CarePlanViewDialog({
                 Care Plan #{carePlanData.carePlanNumber} • {carePlanData.writtenBy} • {format(new Date(carePlanData.dateWritten), "dd MMM yyyy")}
               </DialogDescription>
             </div>
-            <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full shrink-0">
-              Read-only
-            </span>
           </div>
-          {carePlanData.previousCarePlanId && (
-            <div className="text-xs text-orange-700 bg-orange-50 px-3 py-1.5 rounded mt-3">
+          {!carePlan.isLatest && (
+            <div className="text-xs text-blue-700 bg-blue-50 px-3 py-1.5 rounded mt-3">
+              This is an archived version of the care plan.
+            </div>
+          )}
+          {carePlan.isLatest && carePlanData.previousCarePlanId && (
+            <div className="text-xs text-green-700 bg-green-50 px-3 py-1.5 rounded mt-3">
               This is an updated version. Previous versions available in documentation.
             </div>
           )}
         </div>
 
         {/* Content */}
-        <ScrollArea className="flex-1">
-          <div className="px-6 py-6 space-y-6 pb-8 pr-4">
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="px-6 py-6 space-y-6 pb-8">
             {/* Resident Information */}
             <section className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Resident Information</h3>

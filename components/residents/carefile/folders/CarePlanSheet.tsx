@@ -253,8 +253,8 @@ export default function CarePlanSheetContent({
           <div className="flex items-start justify-between">
             <div>
               <SheetTitle>{carePlanData.nameOfCarePlan}</SheetTitle>
-              <SheetDescription className="w-full">
-                <div>
+              <SheetDescription className="w-full flex flex-col gap-1">
+                <span>
                   Care Plan{" "}
                   <span className="font-medium text-primary">
                     #{carePlanData.carePlanNumber}
@@ -267,12 +267,12 @@ export default function CarePlanSheetContent({
                   <span className="font-medium text-primary">
                     {format(new Date(carePlanData.dateWritten), "dd MMM yyyy")}
                   </span>
-                </div>
+                </span>
                 {carePlanData.previousCarePlanId && (
-                  <div className="text-orange-500 text-xs italic w-full bg-orange-50 px-2 py-1 rounded-md mt-1">
+                  <span className="text-orange-500 text-xs italic w-full bg-orange-50 px-2 py-1 rounded-md mt-1 inline-block">
                     Previous versions of this care plan can be found under
                     documentation.
-                  </div>
+                  </span>
                 )}
               </SheetDescription>
             </div>
