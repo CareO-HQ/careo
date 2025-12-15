@@ -124,7 +124,10 @@ export default function CareFilePage() {
       {/* Additional Folders Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* All Care Plans */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans`)}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <FolderIcon className="w-5 h-5 text-blue-600" />
@@ -148,10 +151,13 @@ export default function CareFilePage() {
         </Card>
 
         {/* Archived Care Plans */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <FolderIcon className="w-5 h-5 text-red-600" />
+              <FolderIcon className="w-5 h-5 text-orange-600" />
               <div>
                 <h3 className="text-sm font-medium">Archived Care Plans</h3>
               </div>

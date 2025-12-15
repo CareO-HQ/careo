@@ -803,7 +803,7 @@ export default function CareFileFolder({
         </SheetContent>
       </Sheet>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <CareFileDialogRenderer
             formKey={activeDialogKey as CareFileFormKey}
             residentId={residentId}

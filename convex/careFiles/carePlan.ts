@@ -112,6 +112,97 @@ export const getCarePlanAssessmentsByResident = query({
   }
 });
 
+export const getAllCarePlansForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const assessments = await ctx.db
+      .query("carePlanAssessments")
+      .withIndex("by_residentId", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    return assessments;
+  }
+});
+
+/**
+ * Get only the latest care plan from each folder for a resident
+ */
+export const getLatestCarePlansForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all care plans for this resident
+    const allAssessments = await ctx.db
+      .query("carePlanAssessments")
+      .withIndex("by_residentId", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Group by folderKey and keep only the latest from each folder
+    const latestByFolder = new Map();
+
+    for (const assessment of allAssessments) {
+      const folderKey = assessment.folderKey || "default";
+
+      // Only keep the first (latest) assessment for each folder
+      if (!latestByFolder.has(folderKey)) {
+        latestByFolder.set(folderKey, assessment);
+      }
+    }
+
+    // Convert map values to array
+    return Array.from(latestByFolder.values());
+  }
+});
+
+/**
+ * Get archived (non-latest) care plans for a resident
+ */
+export const getArchivedCarePlansForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all care plans for this resident
+    const allAssessments = await ctx.db
+      .query("carePlanAssessments")
+      .withIndex("by_residentId", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Group by folderKey
+    const groupedByFolder = new Map<string, any[]>();
+
+    for (const assessment of allAssessments) {
+      const folderKey = assessment.folderKey || "default";
+
+      if (!groupedByFolder.has(folderKey)) {
+        groupedByFolder.set(folderKey, []);
+      }
+      groupedByFolder.get(folderKey)!.push(assessment);
+    }
+
+    // Collect all non-latest care plans (archived)
+    const archivedPlans = [];
+
+    for (const [folderKey, plans] of groupedByFolder.entries()) {
+      // Skip the first one (latest) and add the rest to archived
+      if (plans.length > 1) {
+        archivedPlans.push(...plans.slice(1));
+      }
+    }
+
+    return archivedPlans;
+  }
+});
+
 export const getCarePlanAssessmentsByResidentAndFolder = query({
   args: {
     residentId: v.id("residents"),
