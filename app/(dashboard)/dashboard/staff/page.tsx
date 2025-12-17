@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Mail, Phone, Plus, X } from "lucide-react";
+import { Search, Mail, Phone, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface TeamStaffMember {
@@ -154,10 +154,6 @@ export default function StaffPage() {
             <div className="text-sm text-muted-foreground">
               {filteredStaff.length} of {staff?.length || 0} staff member(s)
             </div>
-            <Button variant="outline" disabled>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Staff Member
-            </Button>
           </div>
         </div>
 

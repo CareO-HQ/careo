@@ -7,11 +7,56 @@ import { Button } from "@/components/ui/button";
 import InviteActions from "@/components/settings/InviteActions";
 import SendInvitationModal from "@/components/settings/SendInvitationModal";
 import MemberActions from "@/components/settings/members/MemberActions";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const { data: member } = authClient.useActiveMember();
+  const { activeTeamId, activeTeam, isLoading } = useActiveTeam();
+  const allTeams = useQuery(api.auth.getTeamsWithMembers, {});
+  const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
+
+  // Filter teams to only show those belonging to the active organization
+  // and exclude default teams (teams with the same name as the organization)
+  const teams = allTeams?.filter((team) => {
+    // Only show teams that belong to the active organization
+    const belongsToOrg = team.organizationId === activeOrganization?.id;
+    // Exclude default teams (teams with the same name as the organization)
+    const isNotDefaultTeam = team.name !== activeOrganization?.name;
+    return belongsToOrg && isNotDefaultTeam;
+  }) || [];
+
+  // Check if the active team belongs to the current organization
+  const isValidActiveTeam = activeTeam && 
+    activeTeam.organizationId === activeOrganization?.id &&
+    activeTeam.name !== activeOrganization?.name;
+
+  // Check if the active team ID exists in the filtered teams list
+  const activeTeamInList = activeTeamId && teams.some(team => team.id === activeTeamId);
+  
+  // Determine the value to show in the Select component
+  const selectValue = activeTeamInList ? activeTeamId : "";
+
+  const handleTeamChange = async (teamId: string) => {
+    try {
+      await updateActiveTeam({ teamId });
+      toast.success("Team selected successfully");
+    } catch (error) {
+      console.error("Error selecting team:", error);
+      toast.error("Failed to select team");
+    }
+  };
 
   const invitations = activeOrganization?.invitations.filter(
     (invitation) => invitation.status === "pending"
@@ -30,7 +75,30 @@ export default function MembersPage() {
 
   return (
     <div className="flex flex-col justify-start items-start gap-8">
-      <p className="font-semibold text-xl">Members</p>
+      <div className="flex items-center justify-between w-full">
+        <h1 className="font-semibold text-xl">
+          {activeTeamId && isValidActiveTeam && !isLoading
+            ? `${activeTeam.name} - Members`
+            : "Members"}
+        </h1>
+        {teams && teams.length > 0 && (
+          <Select
+            value={selectValue}
+            onValueChange={handleTeamChange}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select a team" />
+            </SelectTrigger>
+            <SelectContent>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
       <div className="flex flex-col justify-start items-start gap-4 w-full">
         <p className="font-medium">Current members</p>
         {activeOrganization?.members.map((member) => (
