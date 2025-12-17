@@ -125,7 +125,7 @@ export default function CareFilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* All Care Plans */}
         <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+          className="cursor-pointer"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans`)}
         >
           <CardContent className="p-4">
@@ -140,7 +140,7 @@ export default function CareFilePage() {
 
         {/* All Risk Assessments */}
         <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+          className="cursor-pointer"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments`)}
         >
           <CardContent className="p-4">
@@ -155,7 +155,7 @@ export default function CareFilePage() {
 
         {/* Archived Care Plans */}
         <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+          className="cursor-pointer"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
         >
           <CardContent className="p-4">

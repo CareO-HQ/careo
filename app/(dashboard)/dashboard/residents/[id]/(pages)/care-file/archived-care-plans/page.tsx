@@ -182,7 +182,7 @@ export default function ArchivedCarePlansPage() {
 
       {/* Care Plan View Dialog */}
       {viewingCarePlan && (
-        <CarePlanViewDialog
+      <CarePlanViewDialog
           open={isDialogOpen}
           onOpenChange={setIsDialogOpen}
           carePlan={viewingCarePlan}

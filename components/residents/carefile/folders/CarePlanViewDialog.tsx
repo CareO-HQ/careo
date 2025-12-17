@@ -13,7 +13,7 @@ import { format } from "date-fns";
 import { FileText } from "lucide-react";
 
 export default function CarePlanViewDialog({
-  open,
+open,
   onOpenChange,
   carePlan
 }: {

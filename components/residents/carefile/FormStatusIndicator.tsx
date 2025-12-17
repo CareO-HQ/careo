@@ -13,13 +13,10 @@ export default function FormStatusIndicator({
   switch (status) {
     case "completed":
       return <CircleCheckIcon className={`${className} text-emerald-500`} />;
-    case "pdf-generating":
     case "in-progress":
       return (
-        <Loader2Icon className={`${className} text-yellow-500 animate-spin`} />
+        <Loader2Icon className={`${className} text-blue-500 animate-spin`} />
       );
-    case "pdf-ready":
-      return <CircleDashedIcon className={`${className} text-yellow-500`} />;
     case "not-started":
     default:
       return (
@@ -49,16 +46,6 @@ export function FormStatusBadge({ status, isAudited }: FormStatusBadgeProps) {
         return {
           text: "Completed",
           className: "text-emerald-500 bg-emerald-50"
-        };
-      case "pdf-generating":
-        return {
-          text: "Generating PDF...",
-          className: "text-yellow-600 bg-yellow-50"
-        };
-      case "pdf-ready":
-        return {
-          text: "PDF Ready (reloading...)",
-          className: "text-yellow-600 bg-yellow-50"
         };
       case "in-progress":
         return {

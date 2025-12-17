@@ -485,7 +485,8 @@ export const getPDFUrl = query({
     // Verify assessment exists
     const assessment = await ctx.db.get(args.assessmentId);
     if (!assessment) {
-      throw new Error("Assessment not found");
+      // Return null if assessment was deleted instead of throwing error
+      return null;
     }
 
     // Verify user has access to this assessment's organization

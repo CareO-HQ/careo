@@ -47,7 +47,7 @@ import {
   FolderIcon,
   Trash2
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import EmailPDFWithStorageId from "../EmailPDFWithStorageId";
 import CarePlanViewDialog from "./CarePlanViewDialog";
@@ -79,6 +79,8 @@ export default function CareFileFolder({
   forms,
   residentId
 }: CareFileFolderProps) {
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
   const [reviewFormData, setReviewFormData] = useState<{
@@ -105,6 +107,18 @@ export default function CareFileFolder({
     carePlanId: "",
     carePlanName: ""
   });
+  const [deleteFormDialog, setDeleteFormDialog] = useState<{
+    open: boolean;
+    formId: string;
+    formKey: string;
+    formName: string;
+  }>({
+    open: false,
+    formId: "",
+    formKey: "",
+    formName: ""
+  });
+  const [isDeletingForm, setIsDeletingForm] = useState(false);
   const [riskAssessmentDialogOpen, setRiskAssessmentDialogOpen] =
     useState(false);
   const [selectedRiskAssessment, setSelectedRiskAssessment] = useState<{
@@ -117,6 +131,25 @@ export default function CareFileFolder({
   const { activeTeamId } = useActiveTeam();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: currentUser } = authClient.useSession();
+
+  // Cleanup effect to prevent state leaks
+  useEffect(() => {
+    return () => {
+      // Clean up delete dialogs when component unmounts
+      setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+      setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" });
+      setIsDeletingForm(false);
+      setIsDeleting(false);
+    };
+  }, []);
+
+  // Reset deleting flags when dialogs close
+  useEffect(() => {
+    if (!deleteFormDialog.open) {
+      setIsDeletingForm(false);
+      setIsDeleting(false);
+    }
+  }, [deleteFormDialog.open]);
 
   const { getFormState, canDownloadPdf, getCompletedFormsCount } =
     useCareFileForms({ residentId });
@@ -176,13 +209,39 @@ export default function CareFileFolder({
       isLatest: boolean;
     };
   }) => {
+    // Don't render if this is the form being deleted
+    if (deleteFormDialog.formId === file.formId && deleteFormDialog.open) {
+      return null;
+    }
+
     const pdfUrl = usePdfUrl({
       formKey: file.formKey as CareFileFormKey,
       formId: file.formId,
       organizationId: activeOrg?.id
     });
 
-    if (!pdfUrl) return null;
+    // Show the file even if PDF is still being generated
+    const isPdfGenerating = pdfUrl === undefined || pdfUrl === null;
+
+    // Determine if this is a viewable/editable form
+    const viewableEditableForms = [
+      { key: "infection-prevention", name: "Infection Prevention Assessment", category: "Infection Control", canDelete: true, canView: true, canEdit: true },
+      { key: "moving-handling-form", name: "Moving & Handling Assessment", category: "Moving & Handling", canDelete: true, canView: true, canEdit: true },
+      { key: "blader-bowel-form", name: "Continence Assessment", category: "Continence", canDelete: true, canView: true, canEdit: true },
+      { key: "long-term-fall-risk-form", name: "Fall Risk Assessment", category: "Fall Risk", canDelete: true, canView: true, canEdit: true },
+      { key: "preAdmission-form", name: "Pre-Admission Form", category: "Pre-Admission", canDelete: true, canView: true, canEdit: true },
+      { key: "admission-form", name: "Admission Form", category: "Admission", canDelete: true, canView: true, canEdit: true },
+      { key: "photography-consent", name: "Photography Consent", category: "Consent", canDelete: true, canView: true, canEdit: true },
+      { key: "dnacpr", name: "DNACPR", category: "Medical", canDelete: true, canView: true, canEdit: true },
+      { key: "peep", name: "PEEP Assessment", category: "Emergency", canDelete: true, canView: true, canEdit: true },
+      { key: "dependency-assessment", name: "Dependency Assessment", category: "Care Assessment", canDelete: true, canView: true, canEdit: true },
+      { key: "timl", name: "This Is My Life", category: "Personal", canDelete: true, canView: true, canEdit: true },
+      { key: "skin-integrity-form", name: "Skin Integrity Assessment", category: "Clinical", canDelete: true, canView: true, canEdit: true },
+      { key: "resident-valuables-form", name: "Resident Valuables", category: "Property", canDelete: true, canView: true, canEdit: true },
+      { key: "resident-handling-profile-form", name: "Resident Handling Profile", category: "Handling", canDelete: true, canView: true, canEdit: true }
+    ];
+    const isViewableForm = viewableEditableForms.some(f => f.key === file.formKey);
+    const formConfig = viewableEditableForms.find(f => f.key === file.formKey);
 
     return (
       <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
@@ -235,12 +294,74 @@ export default function CareFileFolder({
               </Button>
             </>
           )}
+          {isViewableForm && formConfig && formConfig.canView && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedRiskAssessment({
+                  formKey: file.formKey,
+                  formId: file.formId,
+                  name: formConfig.name,
+                  completedAt: file.completedAt,
+                  category: formConfig.category
+                });
+                setRiskAssessmentDialogOpen(true);
+              }}
+              title="View Form"
+            >
+              <Eye className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+            </Button>
+          )}
+          {isViewableForm && formConfig && formConfig.canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                const formTypeMap: Record<string, string> = {
+                  "infection-prevention": "infectionPreventionAssessment",
+                  "moving-handling-form": "movingHandlingAssessment",
+                  "blader-bowel-form": "bladderBowelAssessment",
+                  "long-term-fall-risk-form": "longTermFallsRiskAssessment",
+                  "preAdmission-form": "preAdmissionCareFile",
+                  "admission-form": "admissionAssesment",
+                  "photography-consent": "photographyConsent",
+                  "dnacpr": "dnacpr",
+                  "peep": "peep",
+                  "dependency-assessment": "dependencyAssessment",
+                  "timl": "timlAssessment",
+                  "skin-integrity-form": "skinIntegrityAssessment",
+                  "resident-valuables-form": "residentValuablesAssessment",
+                  "resident-handling-profile-form": "residentHandlingProfileForm"
+                };
+                setReviewFormData({
+                  formType: formTypeMap[file.formKey] || file.formKey,
+                  formId: file.formId,
+                  formDisplayName: formConfig.name
+                });
+                setActiveDialogKey(file.formKey);
+                setIsDialogOpen(true);
+              }}
+              title="Edit Form"
+            >
+              <Edit2 className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            disabled={isPdfGenerating}
             onClick={async (e) => {
               e.stopPropagation();
+              if (!pdfUrl) {
+                toast.info("PDF is still being generated. Please wait a moment and try again.");
+                return;
+              }
               try {
                 await downloadFromUrl(pdfUrl, `${file.name}.pdf`);
                 toast.success("PDF downloaded successfully");
@@ -249,9 +370,9 @@ export default function CareFileFolder({
                 toast.error("Failed to download PDF");
               }
             }}
-            title="Download PDF"
+            title={isPdfGenerating ? "PDF will be ready shortly" : "Download PDF"}
           >
-            <DownloadIcon className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+            <DownloadIcon className={`h-4 w-4 ${isPdfGenerating ? 'text-muted-foreground/40' : 'text-muted-foreground/70 hover:text-primary'}`} />
           </Button>
           {isCarePlan && (
             <Button
@@ -271,6 +392,25 @@ export default function CareFileFolder({
               <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-destructive" />
             </Button>
           )}
+          {isViewableForm && formConfig && formConfig.canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteFormDialog({
+                  open: true,
+                  formId: file.formId,
+                  formKey: file.formKey,
+                  formName: file.name
+                });
+              }}
+              title="Delete Form"
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-destructive" />
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -280,6 +420,20 @@ export default function CareFileFolder({
   const renamePdf = useMutation(api.careFilePdfs.renamePdf);
   const deletePdf = useMutation(api.careFilePdfs.deletePdf);
   const deleteCarePlanMutation = useMutation(api.careFiles.carePlan.deleteCarePlanAssessment);
+  const deleteInfectionPreventionMutation = useMutation(api.careFiles.infectionPrevention.deleteInfectionPreventionAssessment);
+  const deleteMovingHandlingMutation = useMutation(api.careFiles.movingHandling.deleteMovingHandlingAssessment);
+  const deleteBladderBowelMutation = useMutation(api.careFiles.bladderBowel.deleteBladderBowelAssessment);
+  const deleteAdmissionMutation = useMutation(api.careFiles.admission.deleteAdmissionAssessment);
+  const deleteDependencyMutation = useMutation(api.careFiles.dependency.deleteDependencyAssessment);
+  const deleteSkinIntegrityMutation = useMutation(api.careFiles.skinIntegrity.deleteSkinIntegrityAssessment);
+  const deleteTimlMutation = useMutation(api.careFiles.timl.deleteTimlAssessment);
+  const deleteLongTermFallsMutation = useMutation(api.careFiles.longTermFalls.deleteLongTermFallsAssessment);
+  const deletePreAdmissionMutation = useMutation(api.careFiles.preadmission.deletePreAdmissionForm);
+  const deletePhotographyConsentMutation = useMutation(api.careFiles.photographyConsent.deletePhotographyConsent);
+  const deleteDnacprMutation = useMutation(api.careFiles.dnacpr.deleteDnacpr);
+  const deletePeepMutation = useMutation(api.careFiles.peep.deletePeep);
+  const deleteResidentValuablesMutation = useMutation(api.careFiles.residentValuables.deleteResidentValuables);
+  const deleteHandlingProfileMutation = useMutation(api.careFiles.handlingProfile.deleteHandlingProfileAssessment);
   const getAllFilesForDownload = useAction(
     api.careFilePdfs.getAllFilesForFolderDownload
   );
@@ -304,6 +458,7 @@ export default function CareFileFolder({
 
   // Handler for deleting care plans
   const handleDeleteCarePlan = async () => {
+    setIsDeleting(true);
     try {
       await deleteCarePlanMutation({
         assessmentId: deleteCarePlanDialog.carePlanId as Id<"carePlanAssessments">
@@ -313,6 +468,116 @@ export default function CareFileFolder({
     } catch (error) {
       console.error("Error deleting care plan:", error);
       toast.error("Failed to delete care plan");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handler for deleting forms
+  const handleDeleteForm = async () => {
+    if (isDeletingForm) return;
+
+    setIsDeletingForm(true);
+    setIsDeleting(true);
+    try {
+      const { formKey, formId } = deleteFormDialog;
+
+      switch (formKey) {
+        case "infection-prevention":
+          await deleteInfectionPreventionMutation({
+            id: formId as Id<"infectionPreventionAssessments">
+          });
+          break;
+        case "moving-handling-form":
+          await deleteMovingHandlingMutation({
+            id: formId as Id<"movingHandlingAssessments">
+          });
+          break;
+        case "blader-bowel-form":
+          await deleteBladderBowelMutation({
+            id: formId as Id<"bladderBowelAssessments">
+          });
+          break;
+        case "long-term-fall-risk-form":
+          await deleteLongTermFallsMutation({
+            assessmentId: formId as Id<"longTermFallsRiskAssessments">
+          });
+          break;
+        case "preAdmission-form":
+          await deletePreAdmissionMutation({
+            id: formId as Id<"preAdmissionCareFiles">
+          });
+          break;
+        case "admission-form":
+          await deleteAdmissionMutation({
+            assessmentId: formId as Id<"admissionAssesments">
+          });
+          break;
+        case "photography-consent":
+          await deletePhotographyConsentMutation({
+            consentId: formId as Id<"photographyConsents">
+          });
+          break;
+        case "dnacpr":
+          await deleteDnacprMutation({
+            dnacprId: formId as Id<"dnacprs">
+          });
+          break;
+        case "peep":
+          await deletePeepMutation({
+            peepId: formId as Id<"peeps">
+          });
+          break;
+        case "dependency-assessment":
+          await deleteDependencyMutation({
+            assessmentId: formId as Id<"dependencyAssessments">
+          });
+          break;
+        case "timl":
+          await deleteTimlMutation({
+            assessmentId: formId as Id<"timlAssessments">
+          });
+          break;
+        case "skin-integrity-form":
+          await deleteSkinIntegrityMutation({
+            assessmentId: formId as Id<"skinIntegrityAssessments">,
+            organizationId: activeOrg?.id ?? ""
+          });
+          break;
+        case "resident-valuables-form":
+          await deleteResidentValuablesMutation({
+            assessmentId: formId as Id<"residentValuablesAssessments">
+          });
+          break;
+        case "resident-handling-profile-form":
+          await deleteHandlingProfileMutation({
+            assessmentId: formId as Id<"residentHandlingProfileForms">
+          });
+          break;
+        default:
+          toast.error("Delete not supported for this form type");
+          setIsDeletingForm(false);
+          setIsDeleting(false);
+          return;
+      }
+
+      toast.success("Form deleted successfully");
+      // Use setTimeout to ensure state updates happen after mutation completes
+      setTimeout(() => {
+        setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+      }, 100);
+    } catch (error) {
+      console.error("Error deleting form:", error);
+      toast.error("Failed to delete form");
+      setTimeout(() => {
+        setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+      }, 100);
+    } finally {
+      // Delay clearing the deleting flags to keep the sheet locked
+      setTimeout(() => {
+        setIsDeletingForm(false);
+        setIsDeleting(false);
+      }, 200);
     }
   };
 
@@ -322,12 +587,15 @@ export default function CareFileFolder({
       return;
     }
 
+    setIsDeleting(true);
     try {
       await deletePdf({ pdfId: pdfId as any });
       toast.success("PDF deleted successfully");
     } catch (error) {
       console.error("Error deleting PDF:", error);
       toast.error("Failed to delete PDF");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -655,7 +923,14 @@ export default function CareFileFolder({
 
   return (
     <div>
-      <Sheet>
+      <Sheet open={isSheetOpen} onOpenChange={(open) => {
+        // Absolutely prevent closing while any operation is in progress
+        if (!open && (isDeleting || isDeletingForm || deleteFormDialog.open || deleteCarePlanDialog.open)) {
+          console.log('Prevented sheet close during operation');
+          return;
+        }
+        setIsSheetOpen(open);
+      }}>
         <SheetTrigger asChild>
           <div className="w-full flex flex-row justify-between items-center gap-3 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-2 py-2 group">
             <div className="flex flex-row items-center gap-3">
@@ -938,7 +1213,14 @@ export default function CareFileFolder({
           setDeleteCarePlanDialog({ ...deleteCarePlanDialog, open })
         }
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(e) => {
+            e.stopPropagation();
+          }}
+          onPointerDownOutside={(e) => {
+            e.stopPropagation();
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Care Plan</AlertDialogTitle>
             <AlertDialogDescription>
@@ -949,17 +1231,70 @@ export default function CareFileFolder({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
-              onClick={() =>
-                setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" })
-              }
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" });
+              }}
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteCarePlan}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteCarePlan();
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Form Confirmation Dialog */}
+      <AlertDialog
+        open={deleteFormDialog.open}
+        onOpenChange={(open) => {
+          if (!isDeletingForm) {
+            setDeleteFormDialog({ ...deleteFormDialog, open });
+          }
+        }}
+      >
+        <AlertDialogContent
+          onEscapeKeyDown={(e) => {
+            e.stopPropagation();
+          }}
+          onPointerDownOutside={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{deleteFormDialog.formName}&quot;?
+              This action cannot be undone and will permanently delete the assessment
+              and its associated PDF file.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+              }}
+              disabled={isDeletingForm}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteForm();
+              }}
+              disabled={isDeletingForm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingForm ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

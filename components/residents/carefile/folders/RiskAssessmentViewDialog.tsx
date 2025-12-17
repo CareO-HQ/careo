@@ -32,26 +32,58 @@ export default function RiskAssessmentViewDialog({
   assessment
 }: RiskAssessmentViewDialogProps) {
   // Fetch the assessment data based on the form key
-  const assessmentData = useQuery(
-    assessment.formKey === "infection-prevention"
-      ? api.careFiles.infectionPrevention.getInfectionPreventionAssessment
-      : assessment.formKey === "moving-handling-form"
-      ? api.careFiles.movingHandling.getMovingHandlingAssessment
-      : assessment.formKey === "long-term-fall-risk-form"
-      ? api.careFiles.longTermFalls.getLongTermFallsAssessment
-      : assessment.formKey === "blader-bowel-form"
-      ? api.careFiles.bladderBowel.getBladderBowelAssessment
-      : "skip",
-    assessment.formKey === "infection-prevention"
-      ? { id: assessment.formId as Id<"infectionPreventionAssessments"> }
-      : assessment.formKey === "moving-handling-form"
-      ? { id: assessment.formId as Id<"movingHandlingAssessments"> }
-      : assessment.formKey === "long-term-fall-risk-form"
-      ? { id: assessment.formId as Id<"longTermFallsAssessments"> }
-      : assessment.formKey === "blader-bowel-form"
-      ? { id: assessment.formId as Id<"bladderBowelAssessments"> }
-      : "skip"
-  );
+  const getQueryFunction = () => {
+    switch (assessment.formKey) {
+      case "infection-prevention":
+        return api.careFiles.infectionPrevention.getInfectionPreventionAssessment;
+      case "moving-handling-form":
+        return api.careFiles.movingHandling.getMovingHandlingAssessment;
+      case "long-term-fall-risk-form":
+        return api.careFiles.longTermFalls.getLongTermFallsAssessment;
+      case "blader-bowel-form":
+        return api.careFiles.bladderBowel.getBladderBowelAssessment;
+      case "preAdmission-form":
+        return api.careFiles.preadmission.getPreAdmissionForm;
+      case "admission-form":
+        return api.careFiles.admission.getAdmissionAssessmentById;
+      case "dnacpr":
+        return api.careFiles.dnacpr.getDnacprById;
+      case "peep":
+        return api.careFiles.peep.getPeepById;
+      case "dependency-assessment":
+        return api.careFiles.dependency.getDependencyAssessmentById;
+      case "timl":
+        return api.careFiles.timl.getTimlAssessmentById;
+      case "skin-integrity-form":
+        return api.careFiles.skinIntegrity.getSkinIntegrityAssessment;
+      case "resident-valuables-form":
+        return api.careFiles.residentValuables.getResidentValuablesById;
+      case "photography-consent":
+        return api.careFiles.photographyConsent.getPhotographyConsentById;
+      default:
+        return "skip";
+    }
+  };
+
+  const getQueryParams = () => {
+    const formKey = assessment.formKey;
+    if (formKey === "infection-prevention") return { id: assessment.formId as Id<"infectionPreventionAssessments"> };
+    if (formKey === "moving-handling-form") return { id: assessment.formId as Id<"movingHandlingAssessments"> };
+    if (formKey === "long-term-fall-risk-form") return { id: assessment.formId as Id<"longTermFallsAssessments"> };
+    if (formKey === "blader-bowel-form") return { id: assessment.formId as Id<"bladderBowelAssessments"> };
+    if (formKey === "preAdmission-form") return { formId: assessment.formId as Id<"preAdmissionAssessments"> };
+    if (formKey === "admission-form") return { id: assessment.formId as Id<"admissionAssessments"> };
+    if (formKey === "dnacpr") return { dnacprId: assessment.formId as Id<"dnacprs"> };
+    if (formKey === "peep") return { peepId: assessment.formId as Id<"peeps"> };
+    if (formKey === "dependency-assessment") return { id: assessment.formId as Id<"dependencyAssessments"> };
+    if (formKey === "timl") return { id: assessment.formId as Id<"timlAssessments"> };
+    if (formKey === "skin-integrity-form") return { id: assessment.formId as Id<"skinIntegrityAssessments"> };
+    if (formKey === "resident-valuables-form") return { assessmentId: assessment.formId as Id<"residentValuablesAssessments"> };
+    if (formKey === "photography-consent") return { consentId: assessment.formId as Id<"photographyConsents"> };
+    return "skip";
+  };
+
+  const assessmentData = useQuery(getQueryFunction(), getQueryParams());
 
   if (!assessmentData) {
     return (

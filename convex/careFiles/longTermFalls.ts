@@ -349,6 +349,25 @@ export const getLatestAssessmentByResident = query({
 });
 
 /**
+ * Delete a long term falls assessment
+ */
+export const deleteLongTermFallsAssessment = mutation({
+  args: {
+    assessmentId: v.id("longTermFallsRiskAssessments")
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const assessment = await ctx.db.get(args.assessmentId);
+    if (!assessment) {
+      throw new Error("Assessment not found");
+    }
+
+    await ctx.db.delete(args.assessmentId);
+    return null;
+  }
+});
+
+/**
  * Get PDF URL for a long term falls assessment
  */
 export const getPDFUrl = query({

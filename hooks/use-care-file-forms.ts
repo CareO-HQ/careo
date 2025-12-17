@@ -337,9 +337,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   ): CareFileFormStatus => {
     if (!hasData) return "not-started";
     if (savedAsDraft) return "in-progress";
-    // If we have a valid PDF URL, consider it completed even if pdfFileId isn't synced yet
-    if (pdfUrl) return "completed";
-    if (!hasPdfFileId) return "pdf-generating";
+    // Once form is submitted (not draft), it's completed regardless of PDF generation status
+    // PDF generation happens in background and doesn't affect form completion status
     return "completed";
   };
 
