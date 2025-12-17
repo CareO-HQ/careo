@@ -48,7 +48,7 @@ interface InfectionPreventionDialogProps {
   organizationId: string;
   resident: Resident;
   userName: string;
-  onClose?: () => void;
+  onClose?: (assessmentId?: Id<"infectionPreventionAssessments">) => void;
   initialData?: any; // Data from existing assessment for editing
   isEditMode?: boolean; // Whether this is an edit/review mode
 }
@@ -319,20 +319,19 @@ export default function InfectionPreventionDialog({
           } else {
             toast.success("Form reviewed and approved without changes!");
           }
+          // Close dialog without opening view (review mode)
+          onClose?.();
         } else {
           // Normal submission for new forms
-          const data =
+          const assessmentId =
             await submitInfectionPreventionAssessmentMutation(formattedValues);
-          console.log("Assessment submitted successfully:", data);
+          console.log("Assessment submitted successfully:", assessmentId);
           toast.success(
             "Infection Prevention Assessment submitted successfully!"
           );
+          // Close dialog immediately and pass assessment ID to parent
+          onClose?.(assessmentId);
         }
-
-        // Close the dialog after successful submission with slight delay to allow data refresh
-        setTimeout(() => {
-          onClose?.();
-        }, 500);
       } catch (error) {
         console.error("Error submitting form:", error);
         toast.error("Failed to submit assessment. Please try again.");

@@ -139,7 +139,10 @@ export default function CareFilePage() {
         </Card>
 
         {/* All Risk Assessments */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments`)}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <FolderIcon className="w-5 h-5 text-yellow-600" />

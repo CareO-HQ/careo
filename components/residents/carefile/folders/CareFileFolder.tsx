@@ -12,6 +12,16 @@ import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -41,6 +51,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import EmailPDFWithStorageId from "../EmailPDFWithStorageId";
 import CarePlanViewDialog from "./CarePlanViewDialog";
+import RiskAssessmentViewDialog from "./RiskAssessmentViewDialog";
 
 interface CareFileFolderProps {
   index: number;
@@ -84,6 +95,24 @@ export default function CareFileFolder({
     name: string;
     completedAt: number;
     isLatest: boolean;
+  } | null>(null);
+  const [deleteCarePlanDialog, setDeleteCarePlanDialog] = useState<{
+    open: boolean;
+    carePlanId: string;
+    carePlanName: string;
+  }>({
+    open: false,
+    carePlanId: "",
+    carePlanName: ""
+  });
+  const [riskAssessmentDialogOpen, setRiskAssessmentDialogOpen] =
+    useState(false);
+  const [selectedRiskAssessment, setSelectedRiskAssessment] = useState<{
+    formKey: string;
+    formId: string;
+    name: string;
+    completedAt: number;
+    category: string;
   } | null>(null);
   const { activeTeamId } = useActiveTeam();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -229,19 +258,13 @@ export default function CareFileFolder({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={async (e) => {
+              onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm("Are you sure you want to delete this care plan? This action cannot be undone.")) {
-                  try {
-                    await deleteCarePlanMutation({
-                      assessmentId: file.formId as Id<"carePlanAssessments">
-                    });
-                    toast.success("Care plan deleted successfully");
-                  } catch (error) {
-                    console.error("Error deleting care plan:", error);
-                    toast.error("Failed to delete care plan");
-                  }
-                }
+                setDeleteCarePlanDialog({
+                  open: true,
+                  carePlanId: file.formId,
+                  carePlanName: file.name
+                });
               }}
               title="Delete Care Plan"
             >
@@ -276,6 +299,20 @@ export default function CareFileFolder({
     } catch (error) {
       console.error("Error renaming PDF:", error);
       toast.error("Failed to rename PDF");
+    }
+  };
+
+  // Handler for deleting care plans
+  const handleDeleteCarePlan = async () => {
+    try {
+      await deleteCarePlanMutation({
+        assessmentId: deleteCarePlanDialog.carePlanId as Id<"carePlanAssessments">
+      });
+      toast.success("Care plan deleted successfully");
+      setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" });
+    } catch (error) {
+      console.error("Error deleting care plan:", error);
+      toast.error("Failed to delete care plan");
     }
   };
 
@@ -589,9 +626,31 @@ export default function CareFileFolder({
   };
 
   // Handler to close dialog and reset state
-  const handleCloseDialog = () => {
+  const handleCloseDialog = (assessmentId?: string) => {
     setIsDialogOpen(false);
     setReviewFormData(null);
+
+    // If an assessment ID is provided, open the view dialog immediately
+    if (assessmentId && activeDialogKey) {
+      const riskAssessmentForms = [
+        { key: "infection-prevention", name: "Infection Prevention Assessment", category: "Infection Control" },
+        { key: "moving-handling-form", name: "Moving & Handling Assessment", category: "Moving & Handling" },
+        { key: "blader-bowel-form", name: "Continence Assessment", category: "Continence" },
+        { key: "long-term-fall-risk-form", name: "Fall Risk Assessment", category: "Fall Risk" }
+      ];
+
+      const formConfig = riskAssessmentForms.find(f => f.key === activeDialogKey);
+      if (formConfig) {
+        setSelectedRiskAssessment({
+          formKey: activeDialogKey,
+          formId: assessmentId,
+          name: formConfig.name,
+          completedAt: Date.now(),
+          category: formConfig.category
+        });
+        setRiskAssessmentDialogOpen(true);
+      }
+    }
   };
 
   return (
@@ -622,7 +681,7 @@ export default function CareFileFolder({
         </SheetTrigger>
         <SheetContent size="lg">
           <SheetHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pr-10">
               <SheetTitle>{folderName}</SheetTitle>
               <UploadFileModal
                 folderName={folderName}
@@ -861,6 +920,50 @@ export default function CareFileFolder({
           carePlan={selectedCarePlan}
         />
       )}
+
+
+      {/* Risk Assessment View Dialog */}
+      {selectedRiskAssessment && (
+        <RiskAssessmentViewDialog
+          open={riskAssessmentDialogOpen}
+          onOpenChange={setRiskAssessmentDialogOpen}
+          assessment={selectedRiskAssessment}
+        />
+      )}
+
+      {/* Delete Care Plan Confirmation Dialog */}
+      <AlertDialog
+        open={deleteCarePlanDialog.open}
+        onOpenChange={(open) =>
+          setDeleteCarePlanDialog({ ...deleteCarePlanDialog, open })
+        }
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Care Plan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{deleteCarePlanDialog.carePlanName}&quot;?
+              This action cannot be undone and will permanently delete the care plan
+              along with all associated evaluations and reminders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() =>
+                setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" })
+              }
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCarePlan}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
