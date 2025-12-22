@@ -10,7 +10,11 @@ import { components } from "../convex/_generated/api";
 import { passkey } from "better-auth/plugins/passkey";
 import { admin } from "better-auth/plugins";
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL;
+// Get base URL with fallback for development
+// Better Auth requires baseURL when crossSubDomainCookies is enabled
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 
+                process.env.BETTER_AUTH_URL || 
+                "http://localhost:3000";
 
 export const createAuth = (ctx: GenericCtx) =>
   betterAuth({
@@ -24,7 +28,7 @@ export const createAuth = (ctx: GenericCtx) =>
     ],
     advanced: {
       crossSubDomainCookies: {
-        enabled: true,
+        enabled: true, // baseURL is always set with fallback
       },
       useSecureCookies: process.env.NODE_ENV === "production",
     },

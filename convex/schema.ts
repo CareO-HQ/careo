@@ -79,6 +79,7 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     isOnboardingComplete: v.optional(v.boolean()),
     activeTeamId: v.optional(v.string()),
+    isSaasAdmin: v.optional(v.boolean()),
 
     // Staff details
     address: v.optional(v.string()),

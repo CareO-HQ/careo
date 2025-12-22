@@ -60,10 +60,21 @@ export async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
 }
 
 /**
+ * Check if user is SaaS admin
+ */
+export async function isSaasAdmin(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">
+): Promise<boolean> {
+  const user = await ctx.db.get(userId);
+  return user?.isSaasAdmin === true;
+}
+
+/**
  * Check if user has access to a specific resident
  *
- * TODO: Currently allows any authenticated user to access resident data.
- * Role-based authorization will be implemented later.
+ * SaaS admin has access to all residents.
+ * Role-based authorization will be implemented for other users.
  *
  * @param ctx - Query or Mutation context
  * @param userId - ID of the user requesting access (Convex document ID)
@@ -76,6 +87,7 @@ export async function canAccessResident(
   userId: Id<"users">,
   residentId: Id<"residents">
 ) {
+  const user = await ctx.db.get(userId);
   const resident = await ctx.db.get(residentId);
 
   if (!resident) {
@@ -88,7 +100,12 @@ export async function canAccessResident(
     throw new Error("Not authenticated");
   }
 
-  // TODO: Add role-based authorization checks here
+  // SaaS admin has access to everything
+  if (user?.isSaasAdmin) {
+    return resident;
+  }
+
+  // TODO: Add role-based authorization checks here for non-SaaS admins
   // For now, any authenticated user can access resident data
   return resident;
 }
@@ -96,10 +113,11 @@ export async function canAccessResident(
 /**
  * Check if user has permission for specific action
  *
- * TODO: Currently allows any authenticated user to perform any action.
- * Role-based permissions will be implemented later.
+ * SaaS admin has all permissions.
+ * Role-based permissions will be implemented for other users.
  *
  * Planned RBAC:
+ * - SaaS Admin: Full access to everything
  * - Owner: Full access (create, view, edit, delete)
  * - Admin: Create, view, edit (no delete)
  * - Member: Create and view only
@@ -127,7 +145,12 @@ export async function checkPermission(
     throw new Error("Not authenticated");
   }
 
-  // TODO: Implement role-based permission checks here
+  // SaaS admin has all permissions
+  if (user.isSaasAdmin) {
+    return true;
+  }
+
+  // TODO: Implement role-based permission checks here for non-SaaS admins
   // For now, any authenticated user can perform any action
   return true;
 }

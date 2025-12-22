@@ -29,11 +29,16 @@ export const {
   // Must create a user and return the user id
   onCreateUser: async (ctx, user) => {
     console.log("Creating user in Convex:", user);
+    
+    // Check if this is the superadmin email
+    const isSuperAdmin = user.email === "jhonsonashik@gmail.com";
+    
     return ctx.db.insert("users", {
       email: user.email,
       name: user.name || undefined,
       image: user.image || undefined,
-      isOnboardingComplete: false
+      isOnboardingComplete: isSuperAdmin, // Superadmin skips onboarding
+      isSaasAdmin: isSuperAdmin, // Automatically mark as SaaS admin
     });
   },
 

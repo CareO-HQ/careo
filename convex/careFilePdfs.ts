@@ -284,7 +284,7 @@ export const getAllFilesForFolderDownload = action({
             );
             if (forms && forms.length > 0) {
               const latestForm = forms.sort(
-                (a, b) => b._creationTime - a._creationTime
+                (a: { _creationTime: number }, b: { _creationTime: number }) => b._creationTime - a._creationTime
               )[0];
               url = await ctx.runQuery(api.careFiles.preadmission.getPDFUrl, {
                 formId: latestForm._id
@@ -301,7 +301,7 @@ export const getAllFilesForFolderDownload = action({
             );
             if (forms && forms.length > 0) {
               const latestForm = forms.sort(
-                (a, b) => b._creationTime - a._creationTime
+                (a: { _creationTime: number }, b: { _creationTime: number }) => b._creationTime - a._creationTime
               )[0];
               url = await ctx.runQuery(
                 api.careFiles.infectionPrevention.getPDFUrl,
@@ -320,7 +320,7 @@ export const getAllFilesForFolderDownload = action({
             );
             if (forms && forms.length > 0) {
               const latestForm = forms.sort(
-                (a, b) => b._creationTime - a._creationTime
+                (a: { _creationTime: number }, b: { _creationTime: number }) => b._creationTime - a._creationTime
               )[0];
               url = await ctx.runQuery(api.careFiles.bladderBowel.getPDFUrl, {
                 assessmentId: latestForm._id
@@ -337,7 +337,7 @@ export const getAllFilesForFolderDownload = action({
             );
             if (forms && forms.length > 0) {
               const latestForm = forms.sort(
-                (a, b) => b._creationTime - a._creationTime
+                (a: { _creationTime: number }, b: { _creationTime: number }) => b._creationTime - a._creationTime
               )[0];
               url = await ctx.runQuery(api.careFiles.movingHandling.getPDFUrl, {
                 assessmentId: latestForm._id
