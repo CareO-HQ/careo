@@ -13,29 +13,43 @@ const statement = {
 
 const ac = createAccessControl(statement);
 
-const member = ac.newRole({
-  project: ["create"],
-  ...memberAc.statements // Include default member permissions
-});
-
-const admin = ac.newRole({
-  project: ["create", "update", "share"],
-  ...adminAc.statements // Include default admin permissions
-});
-
+// Map better-auth roles to our custom roles
+// Owner role - full access
 const owner = ac.newRole({
   project: ["create", "update", "delete"],
   ...ownerAc.statements // Include default owner permissions
 });
 
-export { member, admin, owner, ac, statement };
+// Manager role - replaces admin, high-level access
+const manager = ac.newRole({
+  project: ["create", "update", "share"],
+  ...adminAc.statements // Include default admin permissions
+});
+
+// Nurse role - medical access
+const nurse = ac.newRole({
+  project: ["create", "update"],
+  ...memberAc.statements // Include default member permissions
+});
+
+// Care Assistant role - basic care access
+const careAssistant = ac.newRole({
+  project: ["create"],
+  ...memberAc.statements // Include default member permissions
+});
+
+// Export for backward compatibility and better-auth integration
+export { owner, manager, nurse, careAssistant, ac, statement };
+// Legacy exports mapped to new roles
+export const admin = manager;
+export const member = careAssistant;
 
 /**
  * Healthcare-specific field-level permissions and access control
  * Implements role-based access control (RBAC) for sensitive resident information
  */
 
-export type UserRole = "owner" | "admin" | "nurse" | "carer" | "member" | "viewer";
+export type UserRole = "owner" | "manager" | "nurse" | "care_assistant";
 
 export interface PermissionConfig {
   canView: boolean;
@@ -47,14 +61,14 @@ export interface PermissionConfig {
  * Define which fields require elevated permissions
  */
 export const SENSITIVE_FIELDS = {
-  nhsHealthNumber: ["owner", "admin", "nurse"],
-  medicalConditions: ["owner", "admin", "nurse"],
-  medications: ["owner", "admin", "nurse"],
-  allergies: ["owner", "admin", "nurse", "carer"],
-  risks: ["owner", "admin", "nurse", "carer"],
-  emergencyContacts: ["owner", "admin", "nurse", "carer"],
-  gpDetails: ["owner", "admin", "nurse"],
-  careManagerDetails: ["owner", "admin", "nurse", "carer"],
+  nhsHealthNumber: ["owner", "manager", "nurse"],
+  medicalConditions: ["owner", "manager", "nurse"],
+  medications: ["owner", "manager", "nurse"],
+  allergies: ["owner", "manager", "nurse", "care_assistant"],
+  risks: ["owner", "manager", "nurse", "care_assistant"],
+  emergencyContacts: ["owner", "manager", "nurse", "care_assistant"],
+  gpDetails: ["owner", "manager", "nurse"],
+  careManagerDetails: ["owner", "manager", "nurse", "care_assistant"],
 } as const;
 
 /**
@@ -69,21 +83,21 @@ export function canViewField(field: keyof typeof SENSITIVE_FIELDS, userRole: Use
  * Check if user can edit resident data
  */
 export function canEditResident(userRole: UserRole): boolean {
-  return ["owner", "admin", "nurse"].includes(userRole);
+  return ["owner", "manager", "nurse"].includes(userRole);
 }
 
 /**
  * Check if user can discharge a resident
  */
 export function canDischargeResident(userRole: UserRole): boolean {
-  return ["owner", "admin"].includes(userRole);
+  return ["owner", "manager"].includes(userRole);
 }
 
 /**
  * Check if user can view audit logs
  */
 export function canViewAuditLogs(userRole: UserRole): boolean {
-  return ["owner", "admin"].includes(userRole);
+  return ["owner", "manager"].includes(userRole);
 }
 
 /**
@@ -129,16 +143,16 @@ export function filterResidentData<T extends Record<string, any>>(
 export function getPermissionSummary(userRole: UserRole) {
   return {
     role: userRole,
-    canViewSensitiveData: ["owner", "admin", "nurse"].includes(userRole),
+    canViewSensitiveData: ["owner", "manager", "nurse"].includes(userRole),
     canEditResidents: canEditResident(userRole),
     canDischarge: canDischargeResident(userRole),
     canViewAuditLogs: canViewAuditLogs(userRole),
     canDeleteData: canDeleteData(userRole),
     accessLevel:
       userRole === "owner" ? "full" :
-      userRole === "admin" ? "high" :
+      userRole === "manager" ? "high" :
       userRole === "nurse" ? "medical" :
-      userRole === "carer" ? "care" :
+      userRole === "care_assistant" ? "care" :
       "read-only",
   };
 }

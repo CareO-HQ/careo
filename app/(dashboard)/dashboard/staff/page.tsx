@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Search, Mail, Phone, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { formatRoleName } from "@/lib/utils";
 
 interface TeamStaffMember {
   _id: string;
@@ -236,7 +237,7 @@ export default function StaffPage() {
                       <TableCell>
                         {role ? (
                           <Badge variant="secondary">
-                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                            {formatRoleName(role)}
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">No role</span>

@@ -11,6 +11,7 @@ import { api } from "@/convex/_generated/api";
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
 import { EllipsisIcon, UserMinusIcon } from "lucide-react";
+import { formatRoleName } from "@/lib/utils";
 
 interface Member {
   id: string;
@@ -81,8 +82,7 @@ export const columns: ColumnDef<Member>[] = [
 
       return (
         <div className="text-left text-sm">
-          {member.role.slice(0, 1).toUpperCase() +
-            member.role.slice(1).toLowerCase()}
+          {formatRoleName(member.role)}
         </div>
       );
     }

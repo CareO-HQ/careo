@@ -86,7 +86,7 @@ function SessionPageContent() {
     return <div>Loading...</div>;
   }
 
-  if (member?.role !== "owner" && member?.role !== "admin") {
+  if (member?.role !== "owner" && member?.role !== "manager") {
     return <div>You are not authorized to access this page</div>;
   }
 

@@ -20,7 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, formatRoleName } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -416,7 +416,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
               <h2 className="text-2xl font-bold">{fullName}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary">
-                  {staffMember.role.charAt(0).toUpperCase() + staffMember.role.slice(1)}
+                  {formatRoleName(staffMember.role)}
                 </Badge>
                 <Badge variant="outline" className={getRightToWorkStatusColor(formData.rightToWorkStatus)}>
                   {getRightToWorkStatusText(formData.rightToWorkStatus)}
@@ -489,7 +489,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Role</p>
                   <p className="font-medium">
-                    {staffMember.role.charAt(0).toUpperCase() + staffMember.role.slice(1)}
+                    {formatRoleName(staffMember.role)}
                   </p>
                 </div>
               </div>

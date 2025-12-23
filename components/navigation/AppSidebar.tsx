@@ -42,6 +42,10 @@ export function AppSidebar() {
   const { data: user } = authClient.useSession();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
 
+  // Extract email to a stable variable - always compute this before any conditional logic
+  // This ensures React sees consistent hook call patterns across renders
+  const userEmail = user?.user?.email || null;
+
   // Get unread notification count - dynamic based on selection
   const unreadCount = useQuery(
     api.notifications.getUnreadCount,
@@ -65,37 +69,37 @@ export function AppSidebar() {
   // Get unread notification count for current user
   const unreadNotificationCount = useQuery(
     api.notifications.getNotificationCount,
-    user?.user?.email ? { userId: user.user.email } : "skip"
+    userEmail ? { userId: userEmail } : "skip"
   );
 
   // Get new action plans count for current user (Resident Audits)
   const newResidentActionPlansCount = useQuery(
     api.auditActionPlans.getNewActionPlansCount,
-    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+    userEmail ? { assignedTo: userEmail } : "skip"
   );
 
   // Get new action plans count for current user (Care File Audits)
   const newCareFileActionPlansCount = useQuery(
     api.careFileAuditActionPlans.getNewActionPlansCount,
-    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+    userEmail ? { assignedTo: userEmail } : "skip"
   );
 
   // Get new action plans count for current user (Governance Audits)
   const newGovernanceActionPlansCount = useQuery(
     api.governanceAuditActionPlans.getNewActionPlansCount,
-    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+    userEmail ? { assignedTo: userEmail } : "skip"
   );
 
   // Get new action plans count for current user (Clinical Audits)
   const newClinicalActionPlansCount = useQuery(
     api.clinicalAuditActionPlans.getNewActionPlansCount,
-    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+    userEmail ? { assignedTo: userEmail } : "skip"
   );
 
   // Get new action plans count for current user (Environment Audits)
   const newEnvironmentActionPlansCount = useQuery(
     api.environmentAuditActionPlans.getNewActionPlansCount,
-    user?.user?.email ? { assignedTo: user.user.email } : "skip"
+    userEmail ? { assignedTo: userEmail } : "skip"
   );
 
   // Combine all action plan counts
