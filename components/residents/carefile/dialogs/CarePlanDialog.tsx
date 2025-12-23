@@ -25,13 +25,21 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { carePlanAssessmentSchema } from "@/schemas/residents/care-file/carePlanSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, Pen, Plus, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -39,6 +47,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 interface CarePlanDialogProps {
   teamId: string;
@@ -52,6 +61,20 @@ interface CarePlanDialogProps {
   isEditMode?: boolean;
   onClose?: () => void; // For review mode only
 }
+
+// Generate time options in 30-minute intervals
+const generateTimeOptions = () => {
+  <Button> new  dsf </Button>
+  const times: string[] = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const hourStr = hour.toString().padStart(2, "0");
+      const minuteStr = minute.toString().padStart(2, "0");
+      times.push(`${hourStr}:${minuteStr}`);
+    }
+  }
+  return times;
+};
 
 export default function CarePlanDialog({
   teamId,
@@ -74,6 +97,8 @@ export default function CarePlanDialog({
   const [plannedCareDatePopovers, setPlannedCareDatePopovers] = useState<
     Record<number, boolean>
   >({});
+
+  const timeOptions = generateTimeOptions();
 
   const submitAssessment = useMutation(
     api.careFiles.carePlan.submitCarePlanAssessment
@@ -112,13 +137,13 @@ export default function CarePlanDialog({
               date: Date.now(),
               time: "",
               details: "",
-              signature: ""
+              signature: userName
             }
           ],
           discussedWith: initialData.discussedWith || "",
-          signature: initialData.signature || "",
+          signature: initialData.signature || userName,
           date: initialData.date || Date.now(),
-          staffSignature: initialData.staffSignature || ""
+          staffSignature: initialData.staffSignature || userName
         }
       : {
           residentId: residentId as Id<"residents">,
@@ -145,13 +170,13 @@ export default function CarePlanDialog({
               date: Date.now(),
               time: "",
               details: "",
-              signature: ""
+              signature: userName
             }
           ],
           discussedWith: "",
-          signature: "",
+          signature: userName,
           date: Date.now(),
-          staffSignature: ""
+          staffSignature: userName
         }
   });
 
@@ -418,7 +443,7 @@ export default function CarePlanDialog({
                   <FormItem>
                     <FormLabel required>Written By</FormLabel>
                     <FormControl>
-                      <Input placeholder="Written By" {...field} />
+                      <Input placeholder="Written By" {...field} readOnly disabled className="bg-muted" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -538,24 +563,25 @@ export default function CarePlanDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={field.id} className="border rounded-lg p-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-medium">
-                      Planned Care Entry {index + 1}
-                    </h4>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => remove(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-4">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="border rounded-lg p-4 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">
+                        Planned Care Entry {index + 1}
+                      </h4>
+                      {fields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => remove(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -630,9 +656,23 @@ export default function CarePlanDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Time</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., 09:00 AM" {...field} />
-                          </FormControl>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select time" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[300px]">
+                              {timeOptions.map((time) => (
+                                <SelectItem key={time} value={time}>
+                                  {time}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -663,7 +703,7 @@ export default function CarePlanDialog({
                       <FormItem>
                         <FormLabel required>Signature</FormLabel>
                         <FormControl>
-                          <Input placeholder="Staff signature" {...field} />
+                          <Input placeholder="Staff signature" {...field} readOnly disabled className="bg-muted" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -672,23 +712,24 @@ export default function CarePlanDialog({
                 </div>
               ))}
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  append({
-                    date: Date.now(),
-                    time: "",
-                    details: "",
-                    signature: ""
-                  })
-                }
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Another Planned Care Entry
-              </Button>
-            </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    append({
+                      date: Date.now(),
+                      time: "",
+                      details: "",
+                      signature: userName
+                    })
+                  }
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Planned Care Entry
+                </Button>
+              </div>
+            </ScrollArea>
           </>
         );
 
@@ -728,7 +769,7 @@ export default function CarePlanDialog({
                 <FormItem>
                   <FormLabel>Patient/Representative Signature</FormLabel>
                   <FormControl>
-                    <Input placeholder="Signature" {...field} />
+                    <Input placeholder="Signature" {...field} readOnly disabled className="bg-muted" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -793,7 +834,7 @@ export default function CarePlanDialog({
                 <FormItem>
                   <FormLabel>Staff Signature</FormLabel>
                   <FormControl>
-                    <Input placeholder="Staff signature" {...field} />
+                    <Input placeholder="Staff signature" {...field} readOnly disabled className="bg-muted" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -842,9 +883,12 @@ export default function CarePlanDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
+        <Badge
+          className="bg-green-100 hover:bg-green-200 text-green-800 border-green-300 rounded-md"
+        >
+          <Pen className="h-1 w-1" />
           Create Care Plan
-        </p>
+        </Badge>
       </DialogTrigger>
 
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">

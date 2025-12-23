@@ -64,6 +64,9 @@ export default function PhotographyConsentDialog({
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [loadingState, setLoadingState] = useState<string>("");
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [representativeDatePopoverOpen, setRepresentativeDatePopoverOpen] = useState(false);
+  const [dateCompletedPopoverOpen, setDateCompletedPopoverOpen] = useState(false);
 
   const submitPhotographyConsent = useMutation(
     api.careFiles.photographyConsent.submitPhotographyConsent
@@ -304,7 +307,7 @@ export default function PhotographyConsentDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date of Birth</FormLabel>
-                    <Popover>
+                    <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -326,10 +329,14 @@ export default function PhotographyConsentDialog({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
+                          captionLayout="dropdown"
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          onSelect={(date) => {
+                            field.onChange(date?.getTime());
+                            setDobPopoverOpen(false);
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -527,7 +534,7 @@ export default function PhotographyConsentDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date Signed by Representative</FormLabel>
-                    <Popover>
+                    <Popover modal open={representativeDatePopoverOpen} onOpenChange={setRepresentativeDatePopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -549,10 +556,14 @@ export default function PhotographyConsentDialog({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
+                          captionLayout="dropdown"
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          onSelect={(date) => {
+                            field.onChange(date?.getTime());
+                            setRepresentativeDatePopoverOpen(false);
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -585,7 +596,7 @@ export default function PhotographyConsentDialog({
                   <FormItem>
                     <FormLabel required>Staff Name</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Full name" />
+                      <Input {...field} placeholder="Full name" readOnly disabled className="bg-muted" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -598,7 +609,7 @@ export default function PhotographyConsentDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date Completed</FormLabel>
-                    <Popover>
+                    <Popover modal open={dateCompletedPopoverOpen} onOpenChange={setDateCompletedPopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -620,10 +631,14 @@ export default function PhotographyConsentDialog({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
+                          captionLayout="dropdown"
                           selected={
                             field.value ? new Date(field.value) : undefined
                           }
-                          onSelect={(date) => field.onChange(date?.getTime())}
+                          onSelect={(date) => {
+                            field.onChange(date?.getTime());
+                            setDateCompletedPopoverOpen(false);
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }
@@ -647,6 +662,9 @@ export default function PhotographyConsentDialog({
                       {...field}
                       placeholder="Staff member signature..."
                       rows={2}
+                      readOnly
+                      disabled
+                      className="bg-muted"
                     />
                   </FormControl>
                   <FormMessage />

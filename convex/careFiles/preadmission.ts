@@ -278,89 +278,168 @@ export const getPreAdmissionFormsByResident = query({
 export const updatePreAdmissionForm = mutation({
   args: {
     id: v.id("preAdmissionCareFiles"),
-    updates: v.object({
-      savedAsDraft: v.optional(v.boolean()),
-      // Header information
-      consentAcceptedAt: v.optional(v.number()),
-      careHomeName: v.optional(v.string()),
-      nhsHealthCareNumber: v.optional(v.string()),
-      userName: v.optional(v.string()),
-      jobRole: v.optional(v.string()),
-      date: v.optional(v.number()),
-      // Resident information
-      firstName: v.optional(v.string()),
-      lastName: v.optional(v.string()),
-      address: v.optional(v.string()),
-      phoneNumber: v.optional(v.string()),
-      ethnicity: v.optional(v.string()),
-      gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
-      religion: v.optional(v.string()),
-      dateOfBirth: v.optional(v.string()),
-      // Next of kin
-      kinFirstName: v.optional(v.string()),
-      kinLastName: v.optional(v.string()),
-      kinRelationship: v.optional(v.string()),
-      kinPhoneNumber: v.optional(v.string()),
-      // Professional contacts
-      careManagerName: v.optional(v.string()),
-      careManagerPhoneNumber: v.optional(v.string()),
-      districtNurseName: v.optional(v.string()),
-      districtNursePhoneNumber: v.optional(v.string()),
-      generalPractitionerName: v.optional(v.string()),
-      generalPractitionerPhoneNumber: v.optional(v.string()),
-      providerHealthcareInfoName: v.optional(v.string()),
-      providerHealthcareInfoDesignation: v.optional(v.string()),
-      // Medical information
-      allergies: v.optional(v.string()),
-      medicalHistory: v.optional(v.string()),
-      medicationPrescribed: v.optional(v.string()),
-      // Assessment
-      consentCapacityRights: v.optional(v.string()),
-      medication: v.optional(v.string()),
-      mobility: v.optional(v.string()),
-      nutrition: v.optional(v.string()),
-      continence: v.optional(v.string()),
-      hygieneDressing: v.optional(v.string()),
-      skin: v.optional(v.string()),
-      cognition: v.optional(v.string()),
-      infection: v.optional(v.string()),
-      breathing: v.optional(v.string()),
-      alteredStateOfConsciousness: v.optional(v.string()),
-      // Palliative and End of life care
-      dnacpr: v.optional(v.boolean()),
-      advancedDecision: v.optional(v.boolean()),
-      capacity: v.optional(v.boolean()),
-      advancedCarePlan: v.optional(v.boolean()),
-      comments: v.optional(v.string()),
-      // Preferences
-      roomPreferences: v.optional(v.string()),
-      admissionContact: v.optional(v.string()),
-      foodPreferences: v.optional(v.string()),
-      preferedName: v.optional(v.string()),
-      familyConcerns: v.optional(v.string()),
-      // Other information
-      otherHealthCareProfessional: v.optional(v.string()),
-      equipment: v.optional(v.string()),
-      // Financial
-      attendFinances: v.optional(v.boolean()),
-      // Additional considerations
-      additionalConsiderations: v.optional(v.string()),
-      // Outcome
-      outcome: v.optional(v.string()),
-      plannedAdmissionDate: v.optional(v.number())
-    })
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    savedAsDraft: v.boolean(),
+    // Header information
+    consentAcceptedAt: v.number(),
+    careHomeName: v.string(),
+    nhsHealthCareNumber: v.string(),
+    userName: v.string(),
+    jobRole: v.string(),
+    date: v.number(),
+    // Resident information
+    firstName: v.string(),
+    lastName: v.string(),
+    address: v.string(),
+    phoneNumber: v.string(),
+    ethnicity: v.string(),
+    gender: v.union(v.literal("male"), v.literal("female")),
+    religion: v.string(),
+    dateOfBirth: v.string(),
+    // Next of kin
+    kinFirstName: v.string(),
+    kinLastName: v.string(),
+    kinRelationship: v.string(),
+    kinPhoneNumber: v.string(),
+    // Professional contacts
+    careManagerName: v.string(),
+    careManagerPhoneNumber: v.string(),
+    districtNurseName: v.string(),
+    districtNursePhoneNumber: v.string(),
+    generalPractitionerName: v.string(),
+    generalPractitionerPhoneNumber: v.string(),
+    providerHealthcareInfoName: v.string(),
+    providerHealthcareInfoDesignation: v.string(),
+    // Medical information
+    allergies: v.string(),
+    medicalHistory: v.string(),
+    medicationPrescribed: v.string(),
+    // Assessment
+    consentCapacityRights: v.string(),
+    medication: v.string(),
+    mobility: v.string(),
+    nutrition: v.string(),
+    continence: v.string(),
+    hygieneDressing: v.string(),
+    skin: v.string(),
+    cognition: v.string(),
+    infection: v.string(),
+    breathing: v.string(),
+    alteredStateOfConsciousness: v.string(),
+    // Palliative and End of life care
+    dnacpr: v.boolean(),
+    advancedDecision: v.boolean(),
+    capacity: v.boolean(),
+    advancedCarePlan: v.boolean(),
+    comments: v.string(),
+    // Preferences
+    roomPreferences: v.string(),
+    admissionContact: v.string(),
+    foodPreferences: v.string(),
+    preferedName: v.string(),
+    familyConcerns: v.string(),
+    // Other information
+    otherHealthCareProfessional: v.string(),
+    equipment: v.string(),
+    // Financial
+    attendFinances: v.boolean(),
+    // Additional considerations
+    additionalConsiderations: v.string(),
+    // Outcome
+    outcome: v.string(),
+    plannedAdmissionDate: v.optional(v.number()),
+    userId: v.string()
   },
-  returns: v.null(),
+  returns: v.id("preAdmissionCareFiles"),
   handler: async (ctx, args) => {
+    const now = Date.now();
+
     // Verify the form exists
     const existingForm = await ctx.db.get(args.id);
     if (!existingForm) {
       throw new Error("Pre-admission form not found");
     }
 
-    // Update the form
-    await ctx.db.patch(args.id, args.updates);
-    return null;
+    // Create a NEW version instead of patching the old one
+    const newFormId = await ctx.db.insert("preAdmissionCareFiles", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      savedAsDraft: args.savedAsDraft,
+      consentAcceptedAt: args.consentAcceptedAt,
+      careHomeName: args.careHomeName,
+      nhsHealthCareNumber: args.nhsHealthCareNumber,
+      userName: args.userName,
+      jobRole: args.jobRole,
+      date: args.date,
+      firstName: args.firstName,
+      lastName: args.lastName,
+      address: args.address,
+      phoneNumber: args.phoneNumber,
+      ethnicity: args.ethnicity,
+      gender: args.gender,
+      religion: args.religion,
+      dateOfBirth: args.dateOfBirth,
+      kinFirstName: args.kinFirstName,
+      kinLastName: args.kinLastName,
+      kinRelationship: args.kinRelationship,
+      kinPhoneNumber: args.kinPhoneNumber,
+      careManagerName: args.careManagerName,
+      careManagerPhoneNumber: args.careManagerPhoneNumber,
+      districtNurseName: args.districtNurseName,
+      districtNursePhoneNumber: args.districtNursePhoneNumber,
+      generalPractitionerName: args.generalPractitionerName,
+      generalPractitionerPhoneNumber: args.generalPractitionerPhoneNumber,
+      providerHealthcareInfoName: args.providerHealthcareInfoName,
+      providerHealthcareInfoDesignation: args.providerHealthcareInfoDesignation,
+      allergies: args.allergies,
+      medicalHistory: args.medicalHistory,
+      medicationPrescribed: args.medicationPrescribed,
+      consentCapacityRights: args.consentCapacityRights,
+      medication: args.medication,
+      mobility: args.mobility,
+      nutrition: args.nutrition,
+      continence: args.continence,
+      hygieneDressing: args.hygieneDressing,
+      skin: args.skin,
+      cognition: args.cognition,
+      infection: args.infection,
+      breathing: args.breathing,
+      alteredStateOfConsciousness: args.alteredStateOfConsciousness,
+      dnacpr: args.dnacpr,
+      advancedDecision: args.advancedDecision,
+      capacity: args.capacity,
+      advancedCarePlan: args.advancedCarePlan,
+      comments: args.comments,
+      roomPreferences: args.roomPreferences,
+      admissionContact: args.admissionContact,
+      foodPreferences: args.foodPreferences,
+      preferedName: args.preferedName,
+      familyConcerns: args.familyConcerns,
+      otherHealthCareProfessional: args.otherHealthCareProfessional,
+      equipment: args.equipment,
+      attendFinances: args.attendFinances,
+      additionalConsiderations: args.additionalConsiderations,
+      outcome: args.outcome,
+      plannedAdmissionDate: args.plannedAdmissionDate,
+      createdAt: now,
+      createdBy: existingForm.createdBy
+    });
+
+    // Schedule PDF generation after successful save if not a draft
+    if (!args.savedAsDraft) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.careFiles.preadmission.generatePDFAndUpdateRecord,
+        {
+          formId: newFormId
+        }
+      );
+    }
+
+    return newFormId;
   }
 });
 
@@ -514,5 +593,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(form.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) pre-admission forms for a resident
+ * Returns all forms except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all forms for this resident, ordered by creation time (newest first)
+    const allForms = await ctx.db
+      .query("preAdmissionCareFiles")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allForms.length > 1 ? allForms.slice(1) : [];
   }
 });

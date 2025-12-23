@@ -681,7 +681,11 @@ export const submitReviewedForm = mutation({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("residentHandlingProfileForm")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -772,6 +776,30 @@ export const submitReviewedForm = mutation({
         case "dependencyAssessment":
           newFormId = await ctx.runMutation(
             api.careFiles.dependency.submitDependencyAssessment,
+            args.formData
+          );
+          break;
+        case "timlAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.timl.submitTimlAssessment,
+            args.formData
+          );
+          break;
+        case "skinIntegrityAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.skinIntegrity.submitSkinIntegrityAssessment,
+            args.formData
+          );
+          break;
+        case "residentValuablesAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.residentValuables.submitResidentValuables,
+            args.formData
+          );
+          break;
+        case "residentHandlingProfileForm":
+          newFormId = await ctx.runMutation(
+            api.careFiles.handlingProfile.submitHandlingProfile,
             args.formData
           );
           break;

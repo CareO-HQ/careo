@@ -52,7 +52,8 @@ export const submitHandlingProfile = mutation({
       toileting: args.toileting,
       movementInBed: args.movementInBed,
       bath: args.bath,
-      outdoorMobility: args.outdoorMobility
+      outdoorMobility: args.outdoorMobility,
+      createdBy: args.completedBy
     });
 
     // Schedule PDF generation
@@ -86,20 +87,54 @@ export const updateHandlingProfile = mutation({
     toileting: activitySchema,
     movementInBed: activitySchema,
     bath: activitySchema,
-    outdoorMobility: activitySchema
+    outdoorMobility: activitySchema,
+    userId: v.string(),
+    savedAsDraft: v.optional(v.boolean())
   },
-  returns: v.null(),
+  returns: v.id("residentHandlingProfileForm"),
   handler: async (ctx, args) => {
-    const { profileId, ...updateData } = args;
+    const now = Date.now();
 
-    await ctx.db.patch(profileId, updateData);
+    // Verify profile exists
+    const existingProfile = await ctx.db.get(args.profileId);
+    if (!existingProfile) {
+      throw new Error("Handling profile not found");
+    }
 
-    // Regenerate PDF
-    await ctx.scheduler.runAfter(0, internal.careFiles.handlingProfile.generatePDFAndUpdateRecord, {
-      profileId
+    // Create a NEW version instead of patching the old one
+    const newProfileId = await ctx.db.insert("residentHandlingProfileForm", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      completedBy: args.completedBy,
+      jobRole: args.jobRole,
+      date: args.date,
+      residentName: args.residentName,
+      bedroomNumber: args.bedroomNumber,
+      weight: args.weight,
+      weightBearing: args.weightBearing,
+      transferBed: args.transferBed,
+      transferChair: args.transferChair,
+      walking: args.walking,
+      toileting: args.toileting,
+      movementInBed: args.movementInBed,
+      bath: args.bath,
+      outdoorMobility: args.outdoorMobility,
+
+      // Metadata
+      status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
     });
 
-    return null;
+    // Regenerate PDF
+    if (!args.savedAsDraft) {
+      await ctx.scheduler.runAfter(0, internal.careFiles.handlingProfile.generatePDFAndUpdateRecord, {
+        profileId: newProfileId
+      });
+    }
+
+    return newProfileId;
   }
 });
 
@@ -266,5 +301,27 @@ export const getPDFUrl = query({
     }
 
     return await ctx.storage.getUrl(profile.pdfFileId);
+  }
+});
+
+/**
+ * Get archived (non-latest) handling profile assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("residentHandlingProfileForm")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

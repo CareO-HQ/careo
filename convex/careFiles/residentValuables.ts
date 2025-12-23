@@ -76,7 +76,8 @@ export const submitResidentValuables = mutation({
       p1: args.p1,
       total: args.total,
       clothing: args.clothing,
-      other: args.other
+      other: args.other,
+      createdBy: args.userId
     });
 
     return assessmentId;
@@ -121,18 +122,25 @@ export const updateResidentValuables = mutation({
         date: v.number(),
         time: v.string()
       })
-    )
+    ),
+    savedAsDraft: v.optional(v.boolean())
   },
   returns: v.id("residentValuablesAssessments"),
   handler: async (ctx, args) => {
+    const now = Date.now();
+
     // Verify assessment exists
     const assessment = await ctx.db.get(args.assessmentId);
     if (!assessment) {
       throw new Error("Assessment not found");
     }
 
-    // Update the assessment
-    await ctx.db.patch(args.assessmentId, {
+    // Create a NEW version instead of patching the old one
+    const newAssessmentId = await ctx.db.insert("residentValuablesAssessments", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      userId: args.userId,
       residentName: args.residentName,
       bedroomNumber: args.bedroomNumber,
       date: args.date,
@@ -153,10 +161,15 @@ export const updateResidentValuables = mutation({
       p1: args.p1,
       total: args.total,
       clothing: args.clothing,
-      other: args.other
+      other: args.other,
+
+      // Metadata
+      status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
     });
 
-    return args.assessmentId;
+    return newAssessmentId;
   }
 });
 
@@ -268,5 +281,27 @@ export const getPDFUrl = query({
     }
 
     return null;
+  }
+});
+
+/**
+ * Get archived (non-latest) resident valuables assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("residentValuablesAssessments")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

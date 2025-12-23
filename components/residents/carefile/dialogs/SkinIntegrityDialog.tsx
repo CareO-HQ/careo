@@ -48,6 +48,7 @@ interface SkinIntegrityDialogProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -59,6 +60,7 @@ export default function SkinIntegrityDialog({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -72,6 +74,9 @@ export default function SkinIntegrityDialog({
   );
   const updateAssessment = useMutation(
     api.careFiles.skinIntegrity.updateSkinIntegrityAssessment
+  );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
   );
 
   const form = useForm<z.infer<typeof skinIntegrityAssessmentSchema>>({
@@ -159,13 +164,27 @@ export default function SkinIntegrityDialog({
         const formData = form.getValues();
 
         if (isEditMode && initialData) {
-          await updateAssessment({
-            assessmentId: initialData._id,
-            ...formData,
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "skinIntegrityAssessment",
+            formData: {
+              ...formData,
+              residentId: residentId as Id<"residents">,
+              savedAsDraft: false
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
             residentId: residentId as Id<"residents">,
-            savedAsDraft: false
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
           });
-          toast.success("Skin integrity assessment updated successfully");
+          if (data.hasChanges) {
+            toast.success("Skin integrity assessment updated successfully!");
+          } else {
+            toast.success("Skin integrity assessment reviewed and approved without changes!");
+          }
         } else {
           await submitAssessment({
             ...formData,

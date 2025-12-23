@@ -7,8 +7,7 @@ import { config } from "@/config";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
-import { ArrowLeft, FolderIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, FolderIcon, Archive } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 export default function CareFilePage() {
@@ -122,51 +121,42 @@ export default function CareFilePage() {
       </div>
 
       {/* Additional Folders Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* All Care Plans */}
-        <Card
-          className="cursor-pointer"
+        <div
+          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans`)}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <FolderIcon className="w-5 h-5 text-blue-600" />
-              <div>
-                <h3 className="text-sm font-medium">All Care Plans</h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <FolderIcon className="size-12 text-muted-foreground/70 group-hover:text-primary" />
+          <p className="text-primary text-2xl font-semibold">All Care Plans</p>
+        </div>
 
-        {/* All Risk Assessments */}
-        <Card
-          className="cursor-pointer"
+        {/* All Assessments */}
+        <div
+          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments`)}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <FolderIcon className="w-5 h-5 text-yellow-600" />
-              <div>
-                <h3 className="text-sm font-medium">All Risk Assessments</h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <FolderIcon className="size-12 text-muted-foreground/70 group-hover:text-primary" />
+          <p className="text-primary text-2xl font-semibold">All Assessments</p>
+        </div>
 
         {/* Archived Care Plans */}
-        <Card
-          className="cursor-pointer"
+        <div
+          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <FolderIcon className="w-5 h-5 text-orange-600" />
-              <div>
-                <h3 className="text-sm font-medium">Archived Care Plans</h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
+          <p className="text-primary text-2xl font-semibold">Archived Care Plans</p>
+        </div>
+
+        {/* Archived Assessments */}
+        <div
+          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
+          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments`)}
+        >
+          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
+          <p className="text-primary text-2xl font-semibold">Archived Assessments</p>
+        </div>
       </div>
     </div>
   );

@@ -43,6 +43,7 @@ interface TimlDialogProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -54,6 +55,7 @@ export default function TimlDialog({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -68,6 +70,9 @@ export default function TimlDialog({
   // TODO: Replace with actual Convex mutations once they're created
   const submitAssessment = useMutation(api.careFiles.timl.submitTimlAssessment);
   const updateAssessment = useMutation(api.careFiles.timl.updateTimlAssessment);
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof CreateTimlAssessmentSchema>>({
     resolver: zodResolver(CreateTimlAssessmentSchema),
@@ -124,9 +129,9 @@ export default function TimlDialog({
           whatEnjoyNow: initialData.whatEnjoyNow ?? "",
           whatLikeRead: initialData.whatLikeRead ?? "",
           // Completion
-          completedBy: initialData.completedBy ?? "",
+          completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
           completedByJobRole: initialData.completedByJobRole ?? "",
-          completedBySignature: initialData.completedBySignature ?? "",
+          completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
           date: initialData.date ?? Date.now()
         }
       : {
@@ -178,9 +183,9 @@ export default function TimlDialog({
           whatEnjoyNow: "",
           whatLikeRead: "",
           // Completion
-          completedBy: "",
+          completedBy: userName,
           completedByJobRole: "",
-          completedBySignature: "",
+          completedBySignature: userName,
           date: Date.now()
         }
   });
@@ -285,11 +290,23 @@ export default function TimlDialog({
         const formData = form.getValues();
 
         if (isEditMode && initialData) {
-          await updateAssessment({
-            assessmentId: initialData._id,
-            ...formData
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "timlAssessment",
+            formData: formData,
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
           });
-          toast.success("TIML assessment updated successfully");
+          if (data.hasChanges) {
+            toast.success("TIML assessment updated successfully!");
+          } else {
+            toast.success("TIML assessment reviewed and approved without changes!");
+          }
         } else {
           await submitAssessment({
             ...formData,
@@ -1061,6 +1078,9 @@ export default function TimlDialog({
                         {...field}
                         placeholder="Name of person completing assessment"
                         autoComplete="off"
+                        readOnly
+                        disabled
+                        className="bg-muted"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1095,6 +1115,9 @@ export default function TimlDialog({
                         {...field}
                         placeholder="Digital signature"
                         autoComplete="off"
+                        readOnly
+                        disabled
+                        className="bg-muted"
                       />
                     </FormControl>
                     <FormMessage />

@@ -70,6 +70,10 @@ export default function BladderBowelDialog({
 }: BladderBowelDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [dateOfBirthPopoverOpen, setDateOfBirthPopoverOpen] = useState(false);
+  const [mssuDatePopoverOpen, setMssuDatePopoverOpen] = useState(false);
+  const [nextReviewDatePopoverOpen, setNextReviewDatePopoverOpen] = useState(false);
+
   const submitAssessment = useMutation(
     api.careFiles.bladderBowel.submitBladderBowelAssessment
   );
@@ -486,6 +490,10 @@ export default function BladderBowelDialog({
         console.log(form.getValues());
         form.handleSubmit(onSubmit)();
       } else {
+        // Close all popovers when navigating to next step
+        setDateOfBirthPopoverOpen(false);
+        setMssuDatePopoverOpen(false);
+        setNextReviewDatePopoverOpen(false);
         setStep(step + 1);
       }
     } else {
@@ -497,6 +505,10 @@ export default function BladderBowelDialog({
     if (step === 1) {
       return;
     }
+    // Close all popovers when navigating to previous step
+    setDateOfBirthPopoverOpen(false);
+    setMssuDatePopoverOpen(false);
+    setNextReviewDatePopoverOpen(false);
     setStep(step - 1);
   };
 
@@ -575,7 +587,7 @@ export default function BladderBowelDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel required>Date of Birth</FormLabel>
-                        <Popover>
+                        <Popover modal open={dateOfBirthPopoverOpen} onOpenChange={setDateOfBirthPopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -595,16 +607,21 @@ export default function BladderBowelDialog({
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
+                          <PopoverContent
+                            className="w-auto p-0"
+                            align="start"
+                            onInteractOutside={(e) => e.preventDefault()}
+                          >
                             <Calendar
                               mode="single"
                               captionLayout="dropdown"
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setDateOfBirthPopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -835,7 +852,7 @@ export default function BladderBowelDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>MSSU Date (if applicable)</FormLabel>
-                      <Popover>
+                      <Popover modal open={mssuDatePopoverOpen} onOpenChange={setMssuDatePopoverOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -855,14 +872,21 @@ export default function BladderBowelDialog({
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent
+                          className="w-auto p-0"
+                          align="start"
+                          onInteractOutside={(e) => e.preventDefault()}
+                        >
                           <Calendar
                             mode="single"
                             captionLayout="dropdown"
                             selected={
                               field.value ? new Date(field.value) : undefined
                             }
-                            onSelect={(date) => field.onChange(date?.getTime())}
+                            onSelect={(date) => {
+                              field.onChange(date?.getTime());
+                              setMssuDatePopoverOpen(false);
+                            }}
                           />
                         </PopoverContent>
                       </Popover>
@@ -2436,6 +2460,8 @@ export default function BladderBowelDialog({
                           <Input
                             placeholder="Staff member signature"
                             {...field}
+                            readOnly
+                            className="bg-muted cursor-not-allowed"
                           />
                         </FormControl>
                         <FormMessage />
@@ -2468,7 +2494,7 @@ export default function BladderBowelDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel required>Date of Next Review</FormLabel>
-                      <Popover>
+                      <Popover modal open={nextReviewDatePopoverOpen} onOpenChange={setNextReviewDatePopoverOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -2488,14 +2514,21 @@ export default function BladderBowelDialog({
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent
+                          className="w-auto p-0"
+                          align="start"
+                          onInteractOutside={(e) => e.preventDefault()}
+                        >
                           <Calendar
                             mode="single"
                             captionLayout="dropdown"
                             selected={
                               field.value ? new Date(field.value) : undefined
                             }
-                            onSelect={(date) => field.onChange(date?.getTime())}
+                            onSelect={(date) => {
+                              field.onChange(date?.getTime());
+                              setNextReviewDatePopoverOpen(false);
+                            }}
                           />
                         </PopoverContent>
                       </Popover>

@@ -600,6 +600,11 @@ export const residentValuablesAssessments = defineTable({
   ),
 
   // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.optional(v.string()),
   pdfFileId: v.optional(v.id("_storage"))
 }).index("by_resident", ["residentId"]);
 
@@ -674,6 +679,13 @@ export const residentHandlingProfileForm = defineTable({
     handlingPlan: v.string(),
     dateForReview: v.number()
   }),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.optional(v.string()),
 
   // PDF file ID
   pdfFileId: v.optional(v.id("_storage"))

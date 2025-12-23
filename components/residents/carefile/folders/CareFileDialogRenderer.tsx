@@ -146,25 +146,25 @@ export function CareFileDialogRenderer({
       return <DnacprDialog {...commonProps} initialData={editData} />;
 
     case "peep":
-      return <PeepDialog {...commonProps} initialData={editData} />;
+      return <PeepDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "dependency-assessment":
-      return <DependencyDialog {...commonProps} initialData={editData} />;
+      return <DependencyDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "timl":
-      return <TimlDialog {...commonProps} initialData={editData} />;
+      return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "skin-integrity-form":
-      return <SkinIntegrityDialog {...commonProps} initialData={editData} />;
+      return <SkinIntegrityDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "resident-valuables-form":
       return (
-        <ResidentValuablesDialog {...commonProps} initialData={editData} />
+        <ResidentValuablesDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
       );
 
     case "resident-handling-profile-form":
       return (
-        <ResidentHandlingProfileDialog {...commonProps} initialData={editData} />
+        <ResidentHandlingProfileDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
       );
 
     default:

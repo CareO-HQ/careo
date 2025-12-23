@@ -13,14 +13,13 @@ import {
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
-import { ArrowLeft, Eye, FileText } from "lucide-react";
+import { ArrowLeft, Eye, Archive } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { useFolderForms } from "@/hooks/use-folder-forms";
 import { useState } from "react";
 import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
 
-export default function AllRiskAssessmentsPage() {
+export default function ArchivedRiskAssessmentsPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
@@ -39,41 +38,75 @@ export default function AllRiskAssessmentsPage() {
     residentId: residentId as Id<"residents">
   });
 
-  // Fetch all assessment forms (excluding risk assessments and care plans)
-  const {
-    allPreAdmissionForms,
-    allAdmissionForms,
-    allPhotographyConsentForms,
-    allDnacprForms,
-    allPeepForms,
-    allDependencyAssessmentForms,
-    allTimlAssessmentForms,
-    allSkinIntegrityForms,
-    allResidentValuablesForms,
-    allHandlingProfileForms
-  } = useFolderForms({
-    residentId,
-    folderFormKeys: [
-      "preAdmission-form",
-      "admission-form",
-      "photography-consent",
-      "dnacpr",
-      "peep",
-      "dependency-assessment",
-      "timl",
-      "skin-integrity-form",
-      "resident-valuables-form",
-      "resident-handling-profile-form"
-    ],
-    organizationId: resident?.organizationId
-  });
+  // Fetch archived assessments for this resident from all 10 assessment types
+  const archivedPreAdmission = useQuery(
+    api.careFiles.preadmission.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
 
-  if (resident === undefined) {
+  const archivedAdmission = useQuery(
+    api.careFiles.admission.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedPhotographyConsent = useQuery(
+    api.careFiles.photographyConsent.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedDnacpr = useQuery(
+    api.careFiles.dnacpr.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedPeep = useQuery(
+    api.careFiles.peep.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedDependency = useQuery(
+    api.careFiles.dependency.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedTiml = useQuery(
+    api.careFiles.timl.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedSkinIntegrity = useQuery(
+    api.careFiles.skinIntegrity.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedResidentValuables = useQuery(
+    api.careFiles.residentValuables.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedHandlingProfile = useQuery(
+    api.careFiles.handlingProfile.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  if (
+    resident === undefined ||
+    archivedPreAdmission === undefined ||
+    archivedAdmission === undefined ||
+    archivedPhotographyConsent === undefined ||
+    archivedDnacpr === undefined ||
+    archivedPeep === undefined ||
+    archivedDependency === undefined ||
+    archivedTiml === undefined ||
+    archivedSkinIntegrity === undefined ||
+    archivedResidentValuables === undefined ||
+    archivedHandlingProfile === undefined
+  ) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading assessments...</p>
+          <p className="mt-2 text-muted-foreground">Loading archived assessments...</p>
         </div>
       </div>
     );
@@ -100,118 +133,92 @@ export default function AllRiskAssessmentsPage() {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
-  // Helper function to get only the latest form from an array
-  const getLatestForm = (forms: any[] | undefined | null) => {
-    if (!forms || forms.length === 0) return null;
-    // Forms are already sorted by creation time (newest first) from the hook
-    return forms[0];
-  };
-
-  // Collect all assessments (excluding risk assessments and care plans)
-  const assessments = [
-    // Pre-Admission Form
-    ...(allPreAdmissionForms && allPreAdmissionForms.length > 0 ? [{
-      _id: getLatestForm(allPreAdmissionForms)?._id,
+  // Collect all archived assessments from all 10 assessment types
+  const archivedAssessments = [
+    ...(archivedPreAdmission?.map(form => ({
+      _id: form._id,
       key: "preAdmission-form",
       name: "Pre-Admission Assessment",
-      completedAt: getLatestForm(allPreAdmissionForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Pre-Admission",
       category: "Pre-Admission"
-    }] : []),
-
-    // Admission Form
-    ...(allAdmissionForms && allAdmissionForms.length > 0 ? [{
-      _id: getLatestForm(allAdmissionForms)?._id,
+    })) || []),
+    ...(archivedAdmission?.map(form => ({
+      _id: form._id,
       key: "admission-form",
       name: "Admission Assessment",
-      completedAt: getLatestForm(allAdmissionForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Admission",
       category: "Admission"
-    }] : []),
-
-    // Photography Consent
-    ...(allPhotographyConsentForms && allPhotographyConsentForms.length > 0 ? [{
-      _id: getLatestForm(allPhotographyConsentForms)?._id,
+    })) || []),
+    ...(archivedPhotographyConsent?.map(form => ({
+      _id: form._id,
       key: "photography-consent",
       name: "Photography Consent",
-      completedAt: getLatestForm(allPhotographyConsentForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Admission",
       category: "Consent"
-    }] : []),
-
-    // DNACPR
-    ...(allDnacprForms && allDnacprForms.length > 0 ? [{
-      _id: getLatestForm(allDnacprForms)?._id,
+    })) || []),
+    ...(archivedDnacpr?.map(form => ({
+      _id: form._id,
       key: "dnacpr",
       name: "DNACPR",
-      completedAt: getLatestForm(allDnacprForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "DNACPR",
       category: "Medical"
-    }] : []),
-
-    // PEEP
-    ...(allPeepForms && allPeepForms.length > 0 ? [{
-      _id: getLatestForm(allPeepForms)?._id,
+    })) || []),
+    ...(archivedPeep?.map(form => ({
+      _id: form._id,
       key: "peep",
       name: "PEEP Assessment",
-      completedAt: getLatestForm(allPeepForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "PEEP",
       category: "Emergency"
-    }] : []),
-
-    // Dependency Assessment
-    ...(allDependencyAssessmentForms && allDependencyAssessmentForms.length > 0 ? [{
-      _id: getLatestForm(allDependencyAssessmentForms)?._id,
+    })) || []),
+    ...(archivedDependency?.map(form => ({
+      _id: form._id,
       key: "dependency-assessment",
       name: "Dependency Assessment",
-      completedAt: getLatestForm(allDependencyAssessmentForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Dependency",
       category: "Care Assessment"
-    }] : []),
-
-    // This Is My Life
-    ...(allTimlAssessmentForms && allTimlAssessmentForms.length > 0 ? [{
-      _id: getLatestForm(allTimlAssessmentForms)?._id,
+    })) || []),
+    ...(archivedTiml?.map(form => ({
+      _id: form._id,
       key: "timl",
       name: "This Is My Life",
-      completedAt: getLatestForm(allTimlAssessmentForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "My Life",
       category: "Personal"
-    }] : []),
-
-    // Skin Integrity
-    ...(allSkinIntegrityForms && allSkinIntegrityForms.length > 0 ? [{
-      _id: getLatestForm(allSkinIntegrityForms)?._id,
+    })) || []),
+    ...(archivedSkinIntegrity?.map(form => ({
+      _id: form._id,
       key: "skin-integrity-form",
       name: "Skin Integrity Assessment",
-      completedAt: getLatestForm(allSkinIntegrityForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Skin Integrity",
       category: "Clinical"
-    }] : []),
-
-    // Resident Valuables
-    ...(allResidentValuablesForms && allResidentValuablesForms.length > 0 ? [{
-      _id: getLatestForm(allResidentValuablesForms)?._id,
+    })) || []),
+    ...(archivedResidentValuables?.map(form => ({
+      _id: form._id,
       key: "resident-valuables-form",
       name: "Resident Valuables",
-      completedAt: getLatestForm(allResidentValuablesForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Resident Valuables",
       category: "Property"
-    }] : []),
-
-    // Resident Handling Profile
-    ...(allHandlingProfileForms && allHandlingProfileForms.length > 0 ? [{
-      _id: getLatestForm(allHandlingProfileForms)?._id,
+    })) || []),
+    ...(archivedHandlingProfile?.map(form => ({
+      _id: form._id,
       key: "resident-handling-profile-form",
       name: "Resident Handling Profile",
-      completedAt: getLatestForm(allHandlingProfileForms)?._creationTime,
+      completedAt: form._creationTime,
       folderName: "Mobility & Fall",
       category: "Handling"
-    }] : [])
-  ].filter(assessment => assessment._id); // Remove any null entries
+    })) || [])
+  ];
 
   // Sort by completion date (most recent first)
-  const sortedAssessments = assessments.sort((a, b) => {
+  const sortedAssessments = archivedAssessments.sort((a, b) => {
     const aDate = a.completedAt || 0;
     const bDate = b.completedAt || 0;
     return bDate - aDate;
@@ -273,21 +280,24 @@ export default function AllRiskAssessmentsPage() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">All Assessments</h1>
+          <div className="flex items-center gap-2">
+            <Archive className="w-5 h-5 text-red-600" />
+            <h1 className="text-xl sm:text-2xl font-bold">Archived Assessments</h1>
+          </div>
           <p className="text-muted-foreground text-sm">
-            View all assessments for {resident.firstName} {resident.lastName}
+            View previous versions of assessments for {resident.firstName} {resident.lastName}
           </p>
         </div>
       </div>
 
-      {/* Assessments Table */}
+      {/* Archived Assessments Table */}
       <div className="rounded-lg border bg-card">
         {sortedAssessments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4">
-            <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-semibold mb-2">No Assessments Found</p>
+            <Archive className="w-12 h-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-semibold mb-2">No Archived Assessments</p>
             <p className="text-sm text-muted-foreground text-center max-w-md">
-              No assessments have been completed for this resident yet. Assessments will appear here once they are created from the care file folders.
+              No archived assessments found. When an assessment is updated, the previous version will appear here.
             </p>
           </div>
         ) : (
@@ -298,12 +308,13 @@ export default function AllRiskAssessmentsPage() {
                 <TableHead>Category</TableHead>
                 <TableHead>Folder</TableHead>
                 <TableHead>Completed At</TableHead>
+                <TableHead>Version</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedAssessments.map((assessment) => (
-                <TableRow key={assessment._id}>
+                <TableRow key={assessment._id} className="bg-muted/20">
                   <TableCell className="font-medium">
                     {assessment.name}
                   </TableCell>
@@ -313,12 +324,17 @@ export default function AllRiskAssessmentsPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
+                    <span className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded-full">
                       {assessment.folderName}
                     </span>
                   </TableCell>
                   <TableCell>
                     {format(new Date(assessment.completedAt), "dd MMM yyyy, HH:mm")}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
+                      Archived
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

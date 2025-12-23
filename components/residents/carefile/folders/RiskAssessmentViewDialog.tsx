@@ -71,13 +71,13 @@ export default function RiskAssessmentViewDialog({
     if (formKey === "moving-handling-form") return { id: assessment.formId as Id<"movingHandlingAssessments"> };
     if (formKey === "long-term-fall-risk-form") return { id: assessment.formId as Id<"longTermFallsAssessments"> };
     if (formKey === "blader-bowel-form") return { id: assessment.formId as Id<"bladderBowelAssessments"> };
-    if (formKey === "preAdmission-form") return { formId: assessment.formId as Id<"preAdmissionAssessments"> };
-    if (formKey === "admission-form") return { id: assessment.formId as Id<"admissionAssessments"> };
+    if (formKey === "preAdmission-form") return { id: assessment.formId as Id<"preAdmissionCareFiles"> };
+    if (formKey === "admission-form") return { assessmentId: assessment.formId as Id<"admissionAssesments"> };
     if (formKey === "dnacpr") return { dnacprId: assessment.formId as Id<"dnacprs"> };
     if (formKey === "peep") return { peepId: assessment.formId as Id<"peeps"> };
     if (formKey === "dependency-assessment") return { id: assessment.formId as Id<"dependencyAssessments"> };
-    if (formKey === "timl") return { id: assessment.formId as Id<"timlAssessments"> };
-    if (formKey === "skin-integrity-form") return { id: assessment.formId as Id<"skinIntegrityAssessments"> };
+    if (formKey === "timl") return { assessmentId: assessment.formId as Id<"timlAssessments"> };
+    if (formKey === "skin-integrity-form") return { assessmentId: assessment.formId as Id<"skinIntegrityAssessments"> };
     if (formKey === "resident-valuables-form") return { assessmentId: assessment.formId as Id<"residentValuablesAssessments"> };
     if (formKey === "photography-consent") return { consentId: assessment.formId as Id<"photographyConsents"> };
     return "skip";
@@ -129,7 +129,9 @@ export default function RiskAssessmentViewDialog({
             key === "residentId" ||
             key === "userId" ||
             key === "organizationId" ||
-            key === "teamId"
+            key === "teamId" ||
+            key === "createdBy" || // Skip createdBy ID, we show createdByName instead
+            key === "updatedBy"
           ) {
             return null;
           }
@@ -145,10 +147,37 @@ export default function RiskAssessmentViewDialog({
           if (typeof value === "number" && value > 1000000000000) {
             // Likely a timestamp
             displayValue = format(new Date(value), "dd MMM yyyy");
+          } else if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+            // ISO date string
+            try {
+              displayValue = format(new Date(value), "dd MMM yyyy");
+            } catch {
+              displayValue = value;
+            }
           } else if (typeof value === "boolean") {
             displayValue = value ? "Yes" : "No";
           } else if (Array.isArray(value)) {
-            displayValue = value.length > 0 ? value.join(", ") : "None";
+            // Handle arrays of objects
+            if (value.length === 0) {
+              displayValue = "None";
+            } else if (typeof value[0] === "object" && value[0] !== null) {
+              // Check if it's a simple {value: string} structure
+              if ("value" in value[0]) {
+                displayValue = value.map((item: any) => item.value).join(", ");
+              } else if ("details" in value[0]) {
+                // Handle "other" array with detailed structure
+                displayValue = value
+                  .map(
+                    (item: any, index: number) =>
+                      `${index + 1}. ${item.details}\n   Received by: ${item.receivedBy} | Witnessed by: ${item.witnessedBy}\n   Date: ${format(new Date(item.date), "dd MMM yyyy")} at ${item.time}`
+                  )
+                  .join("\n\n");
+              } else {
+                displayValue = JSON.stringify(value, null, 2);
+              }
+            } else {
+              displayValue = value.join(", ");
+            }
           } else if (typeof value === "object" && value !== null) {
             displayValue = JSON.stringify(value, null, 2);
           }

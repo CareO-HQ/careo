@@ -317,15 +317,21 @@ export const updateDnacpr = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Verify DNACPR exists
+    // Verify old DNACPR exists
     const existingDnacpr = await ctx.db.get(args.dnacprId);
     if (!existingDnacpr) {
       throw new Error("DNACPR form not found");
     }
 
-    // Update the DNACPR form
-    await ctx.db.patch(args.dnacprId, {
+    // Create a NEW version instead of patching the old one
+    // This automatically archives the old version
+    const newDnacprId = await ctx.db.insert("dnacprs", {
       // Resident information
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      userId: args.userId,
+
       residentName: args.residentName,
       bedroomNumber: args.bedroomNumber,
       dateOfBirth: args.dateOfBirth,
@@ -356,23 +362,22 @@ export const updateDnacpr = mutation({
 
       // Metadata
       status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
-      submittedAt: args.savedAsDraft
-        ? existingDnacpr.submittedAt
-        : (existingDnacpr.submittedAt ?? now),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId,
       lastModifiedAt: now,
       lastModifiedBy: args.userId
     });
 
-    // Schedule PDF regeneration if not a draft
+    // Schedule PDF generation for the new version if not a draft
     if (!args.savedAsDraft) {
       await ctx.scheduler.runAfter(
         1000, // 1 second delay
         internal.careFiles.dnacpr.generatePDFAndUpdateRecord,
-        { dnacprId: args.dnacprId }
+        { dnacprId: newDnacprId }
       );
     }
 
-    return args.dnacprId;
+    return newDnacprId;
   }
 });
 
@@ -613,5 +618,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(dnacpr.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) DNACPR forms for a resident
+ * Returns all forms except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all forms for this resident, ordered by creation time (newest first)
+    const allForms = await ctx.db
+      .query("dnacprs")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allForms.length > 1 ? allForms.slice(1) : [];
   }
 });

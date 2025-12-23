@@ -272,14 +272,21 @@ export const updatePhotographyConsent = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Verify consent exists
+    // Verify old consent exists
     const existingConsent = await ctx.db.get(args.consentId);
     if (!existingConsent) {
       throw new Error("Photography consent not found");
     }
 
-    // Update the photography consent
-    await ctx.db.patch(args.consentId, {
+    // Create a NEW version instead of patching the old one
+    // This automatically archives the old version
+    const newConsentId = await ctx.db.insert("photographyConsents", {
+      // Metadata
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      userId: args.userId,
+
       // Resident information
       residentName: args.residentName,
       bedroomNumber: args.bedroomNumber,
@@ -306,23 +313,22 @@ export const updatePhotographyConsent = mutation({
 
       // Metadata
       status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
-      submittedAt: args.savedAsDraft
-        ? existingConsent.submittedAt
-        : (existingConsent.submittedAt ?? now),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId,
       lastModifiedAt: now,
       lastModifiedBy: args.userId
     });
 
-    // Schedule PDF regeneration if not a draft
+    // Schedule PDF generation for the new version if not a draft
     if (!args.savedAsDraft) {
       await ctx.scheduler.runAfter(
         1000, // 1 second delay
         internal.careFiles.photographyConsent.generatePDFAndUpdateRecord,
-        { consentId: args.consentId }
+        { consentId: newConsentId }
       );
     }
 
-    return args.consentId;
+    return newConsentId;
   }
 });
 
@@ -570,5 +576,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(consent.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) photography consents for a resident
+ * Returns all consents except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all consents for this resident, ordered by creation time (newest first)
+    const allConsents = await ctx.db
+      .query("photographyConsents")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allConsents.length > 1 ? allConsents.slice(1) : [];
   }
 });

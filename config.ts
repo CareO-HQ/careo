@@ -111,14 +111,6 @@ export const config = {
     },
     {
       type: "folder",
-      key: "progress-notes",
-      value: "Progress Notes",
-      description: "Progress Notes",
-      carePlan: true,
-      forms: []
-    },
-    {
-      type: "folder",
       key: "my-life",
       value: "This is my life",
       description: "This is my life",
@@ -234,14 +226,6 @@ export const config = {
       key: "additional-care-plans",
       value: "Additional Care Plans",
       description: "Additional Care Plans",
-      carePlan: true,
-      forms: []
-    },
-    {
-      type: "folder",
-      key: "multidisciplinary",
-      value: "Multidisciplinary and Relative communication notes",
-      description: "Multidisciplinary and Relative communication notes",
       carePlan: true,
       forms: []
     },

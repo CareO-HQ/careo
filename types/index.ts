@@ -33,6 +33,15 @@ export type Resident = {
   dateOfBirth: string;
   admissionDate: string;
   imageUrl: string;
+  nhsHealthNumber?: string;
+  // GP Details
+  gpName?: string;
+  gpAddress?: string;
+  gpPhone?: string;
+  // Care Manager Details
+  careManagerName?: string;
+  careManagerAddress?: string;
+  careManagerPhone?: string;
   emergencyContacts: {
     name: string;
     phoneNumber: string;

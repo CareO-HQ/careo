@@ -120,8 +120,10 @@ export const updateSkinIntegrityAssessment = mutation({
     // Metadata
     savedAsDraft: v.optional(v.boolean())
   },
-  returns: v.null(),
+  returns: v.id("skinIntegrityAssessments"),
   handler: async (ctx, args) => {
+    const now = Date.now();
+
     // Verify assessment exists
     const assessment = await ctx.db.get(args.assessmentId);
     if (!assessment) {
@@ -139,8 +141,8 @@ export const updateSkinIntegrityAssessment = mutation({
       throw new Error("Unauthorized access to resident");
     }
 
-    // Update the assessment
-    await ctx.db.patch(args.assessmentId, {
+    // Create a NEW version instead of patching the old one
+    const newAssessmentId = await ctx.db.insert("skinIntegrityAssessments", {
       residentId: args.residentId,
       teamId: args.teamId,
       organizationId: args.organizationId,
@@ -157,7 +159,12 @@ export const updateSkinIntegrityAssessment = mutation({
       activity: args.activity,
       mobility: args.mobility,
       nutrition: args.nutrition,
-      frictionShear: args.frictionShear
+      frictionShear: args.frictionShear,
+
+      // Metadata
+      status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
     });
 
     // If not saved as draft, schedule PDF generation
@@ -166,12 +173,12 @@ export const updateSkinIntegrityAssessment = mutation({
         0,
         internal.careFiles.skinIntegrity.generatePDFAndUpdateRecord,
         {
-          assessmentId: args.assessmentId
+          assessmentId: newAssessmentId
         }
       );
     }
 
-    return null;
+    return newAssessmentId;
   }
 });
 
@@ -500,5 +507,27 @@ export const getPDFUrl = query({
     }
 
     return assessment.pdfUrl || null;
+  }
+});
+
+/**
+ * Get archived (non-latest) skin integrity assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("skinIntegrityAssessments")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

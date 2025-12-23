@@ -64,6 +64,14 @@ export default function InfectionPreventionDialog({
 }: InfectionPreventionDialogProps) {
   const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [dateOfAdmissionPopoverOpen, setDateOfAdmissionPopoverOpen] = useState(false);
+  const [clostridiumDatePopoverOpen, setClostridiumDatePopoverOpen] = useState(false);
+  const [ongoingDatePopoverOpen, setOngoingDatePopoverOpen] = useState(false);
+  const [mrsaSwabDatePopoverOpen, setMrsaSwabDatePopoverOpen] = useState(false);
+  const [mrsaDateCommencedPopoverOpen, setMrsaDateCommencedPopoverOpen] = useState(false);
+  const [fluVaccinationDatePopoverOpen, setFluVaccinationDatePopoverOpen] = useState(false);
+  const [completionDatePopoverOpen, setCompletionDatePopoverOpen] = useState(false);
   const submitInfectionPreventionAssessmentMutation = useMutation(
     api.careFiles.infectionPrevention.submitInfectionPreventionAssessment
   );
@@ -92,7 +100,11 @@ export default function InfectionPreventionDialog({
           admittedFrom: initialData.admittedFrom ?? "",
           consultantGP: initialData.consultantGP ?? "",
           reasonForAdmission: initialData.reasonForAdmission ?? "",
-          dateOfAdmission: initialData.dateOfAdmission ?? undefined,
+          dateOfAdmission: initialData.dateOfAdmission
+            ? (typeof initialData.dateOfAdmission === 'string'
+                ? new Date(initialData.dateOfAdmission).getTime()
+                : initialData.dateOfAdmission)
+            : undefined,
 
           // 2. Acute Respiratory Illness (ARI)
           newContinuousCough: initialData.newContinuousCough ?? undefined,
@@ -128,31 +140,44 @@ export default function InfectionPreventionDialog({
           clostridiumActive: initialData.clostridiumActive ?? undefined,
           clostridiumHistory: initialData.clostridiumHistory ?? undefined,
           clostridiumStoolCount72h: initialData.clostridiumStoolCount72h ?? "",
-          clostridiumLastPositiveSpecimenDate:
-            initialData.clostridiumLastPositiveSpecimenDate ?? undefined,
+          clostridiumLastPositiveSpecimenDate: initialData.clostridiumLastPositiveSpecimenDate
+            ? (typeof initialData.clostridiumLastPositiveSpecimenDate === 'string'
+                ? new Date(initialData.clostridiumLastPositiveSpecimenDate).getTime()
+                : initialData.clostridiumLastPositiveSpecimenDate)
+            : undefined,
           clostridiumResult: initialData.clostridiumResult ?? "",
           clostridiumTreatmentReceived:
             initialData.clostridiumTreatmentReceived ?? "",
           clostridiumTreatmentComplete:
             initialData.clostridiumTreatmentComplete ?? undefined,
           ongoingDetails: initialData.ongoingDetails ?? "",
-          ongoingDateCommenced: initialData.ongoingDateCommenced ?? "",
+          ongoingDateCommenced: initialData.ongoingDateCommenced
+            ? (typeof initialData.ongoingDateCommenced === 'string'
+                ? new Date(initialData.ongoingDateCommenced).getTime()
+                : initialData.ongoingDateCommenced)
+            : undefined,
           ongoingLengthOfCourse: initialData.ongoingLengthOfCourse ?? "",
-          ongoingFollowUpRequired: initialData.ongoingFollowUpRequired ?? "",
+          ongoingFollowUpRequired: initialData.ongoingFollowUpRequired ?? undefined,
 
           // 6. MRSA / MSSA
           mrsaMssaColonised: initialData.mrsaMssaColonised ?? undefined,
           mrsaMssaInfected: initialData.mrsaMssaInfected ?? undefined,
-          mrsaMssaLastPositiveSwabDate:
-            initialData.mrsaMssaLastPositiveSwabDate ?? "",
+          mrsaMssaLastPositiveSwabDate: initialData.mrsaMssaLastPositiveSwabDate
+            ? (typeof initialData.mrsaMssaLastPositiveSwabDate === 'string'
+                ? new Date(initialData.mrsaMssaLastPositiveSwabDate).getTime()
+                : initialData.mrsaMssaLastPositiveSwabDate)
+            : undefined,
           mrsaMssaSitesPositive: initialData.mrsaMssaSitesPositive ?? "",
           mrsaMssaTreatmentReceived:
             initialData.mrsaMssaTreatmentReceived ?? "",
           mrsaMssaTreatmentComplete:
             initialData.mrsaMssaTreatmentComplete ?? undefined,
           mrsaMssaDetails: initialData.mrsaMssaDetails ?? "",
-          mrsaMssaDateCommenced:
-            initialData.mrsaMssaDateCommenced ?? new Date().getTime(),
+          mrsaMssaDateCommenced: initialData.mrsaMssaDateCommenced
+            ? (typeof initialData.mrsaMssaDateCommenced === 'string'
+                ? new Date(initialData.mrsaMssaDateCommenced).getTime()
+                : initialData.mrsaMssaDateCommenced)
+            : new Date().getTime(),
           mrsaMssaLengthOfCourse: initialData.mrsaMssaLengthOfCourse ?? "",
           mrsaMssaFollowUpRequired: initialData.mrsaMssaFollowUpRequired ?? "",
 
@@ -166,8 +191,11 @@ export default function InfectionPreventionDialog({
 
           // 8. Other Information
           awarenessOfInfection: initialData.awarenessOfInfection ?? undefined,
-          lastFluVaccinationDate:
-            initialData.lastFluVaccinationDate ?? new Date().getTime(),
+          lastFluVaccinationDate: initialData.lastFluVaccinationDate
+            ? (typeof initialData.lastFluVaccinationDate === 'string'
+                ? new Date(initialData.lastFluVaccinationDate).getTime()
+                : initialData.lastFluVaccinationDate)
+            : new Date().getTime(),
 
           // 9. Assessment Completion
           completedBy: isEditMode
@@ -179,7 +207,11 @@ export default function InfectionPreventionDialog({
             : (initialData.signature ?? userName),
           completionDate: isEditMode
             ? new Date().getTime()
-            : (initialData.completionDate ?? new Date().getTime())
+            : (initialData.completionDate
+                ? (typeof initialData.completionDate === 'string'
+                    ? new Date(initialData.completionDate).getTime()
+                    : initialData.completionDate)
+                : new Date().getTime())
         }
       : {
           // Default values for new forms
@@ -232,14 +264,14 @@ export default function InfectionPreventionDialog({
           clostridiumTreatmentReceived: "",
           clostridiumTreatmentComplete: undefined,
           ongoingDetails: "",
-          ongoingDateCommenced: "",
+          ongoingDateCommenced: undefined,
           ongoingLengthOfCourse: "",
-          ongoingFollowUpRequired: "",
+          ongoingFollowUpRequired: undefined,
 
           // 6. MRSA / MSSA
           mrsaMssaColonised: undefined,
           mrsaMssaInfected: undefined,
-          mrsaMssaLastPositiveSwabDate: "",
+          mrsaMssaLastPositiveSwabDate: undefined,
           mrsaMssaSitesPositive: "",
           mrsaMssaTreatmentReceived: "",
           mrsaMssaTreatmentComplete: undefined,
@@ -291,6 +323,12 @@ export default function InfectionPreventionDialog({
                   values.clostridiumLastPositiveSpecimenDate
                 ).toISOString()
               : undefined,
+          ongoingDateCommenced: values.ongoingDateCommenced
+            ? new Date(values.ongoingDateCommenced).toISOString()
+            : undefined,
+          mrsaMssaLastPositiveSwabDate: values.mrsaMssaLastPositiveSwabDate
+            ? new Date(values.mrsaMssaLastPositiveSwabDate).toISOString()
+            : undefined,
           mrsaMssaDateCommenced: values.mrsaMssaDateCommenced
             ? new Date(values.mrsaMssaDateCommenced).toISOString()
             : undefined,
@@ -502,7 +540,7 @@ export default function InfectionPreventionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel required>Date of Birth</FormLabel>
-                        <Popover>
+                        <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -529,9 +567,10 @@ export default function InfectionPreventionDialog({
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setDobPopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -651,7 +690,7 @@ export default function InfectionPreventionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date of Admission</FormLabel>
-                        <Popover>
+                        <Popover modal open={dateOfAdmissionPopoverOpen} onOpenChange={setDateOfAdmissionPopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -678,9 +717,10 @@ export default function InfectionPreventionDialog({
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setDateOfAdmissionPopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -1202,7 +1242,7 @@ export default function InfectionPreventionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date of Last Positive Specimen</FormLabel>
-                        <Popover>
+                        <Popover modal open={clostridiumDatePopoverOpen} onOpenChange={setClostridiumDatePopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -1229,9 +1269,10 @@ export default function InfectionPreventionDialog({
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setClostridiumDatePopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -1322,7 +1363,7 @@ export default function InfectionPreventionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date commenced</FormLabel>
-                        <Popover>
+                        <Popover modal open={ongoingDatePopoverOpen} onOpenChange={setOngoingDatePopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -1349,9 +1390,10 @@ export default function InfectionPreventionDialog({
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setOngoingDatePopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -1377,7 +1419,20 @@ export default function InfectionPreventionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Follow up required</FormLabel>
-                      <Input placeholder="Follow up required" {...field} />
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1445,7 +1500,7 @@ export default function InfectionPreventionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date of Last Positive Swab</FormLabel>
-                        <Popover>
+                        <Popover modal open={mrsaSwabDatePopoverOpen} onOpenChange={setMrsaSwabDatePopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -1472,9 +1527,10 @@ export default function InfectionPreventionDialog({
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setMrsaSwabDatePopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -1537,7 +1593,7 @@ export default function InfectionPreventionDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date commenced</FormLabel>
-                        <Popover>
+                        <Popover modal open={mrsaDateCommencedPopoverOpen} onOpenChange={setMrsaDateCommencedPopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -1564,9 +1620,10 @@ export default function InfectionPreventionDialog({
                               selected={
                                 field.value ? new Date(field.value) : undefined
                               }
-                              onSelect={(date) =>
-                                field.onChange(date?.getTime())
-                              }
+                              onSelect={(date) => {
+                                field.onChange(date?.getTime());
+                                setMrsaDateCommencedPopoverOpen(false);
+                              }}
                             />
                           </PopoverContent>
                         </Popover>
@@ -1753,7 +1810,7 @@ export default function InfectionPreventionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Date of last flu vaccination</FormLabel>
-                      <Popover>
+                      <Popover modal open={fluVaccinationDatePopoverOpen} onOpenChange={setFluVaccinationDatePopoverOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -1780,7 +1837,10 @@ export default function InfectionPreventionDialog({
                             selected={
                               field.value ? new Date(field.value) : undefined
                             }
-                            onSelect={(date) => field.onChange(date?.getTime())}
+                            onSelect={(date) => {
+                              field.onChange(date?.getTime());
+                              setFluVaccinationDatePopoverOpen(false);
+                            }}
                           />
                         </PopoverContent>
                       </Popover>
@@ -1798,7 +1858,7 @@ export default function InfectionPreventionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel required>Completed by</FormLabel>
-                      <Input placeholder="Full name" {...field} />
+                      <Input placeholder="Full name" {...field} readOnly disabled className="bg-muted" />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1820,7 +1880,7 @@ export default function InfectionPreventionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel required>Signature</FormLabel>
-                      <Input placeholder="Signature" {...field} />
+                      <Input placeholder="Signature" {...field} readOnly disabled className="bg-muted" />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1831,7 +1891,7 @@ export default function InfectionPreventionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel required>Completion date</FormLabel>
-                      <Popover>
+                      <Popover modal open={completionDatePopoverOpen} onOpenChange={setCompletionDatePopoverOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -1858,7 +1918,10 @@ export default function InfectionPreventionDialog({
                             selected={
                               field.value ? new Date(field.value) : undefined
                             }
-                            onSelect={(date) => field.onChange(date?.getTime())}
+                            onSelect={(date) => {
+                              field.onChange(date?.getTime());
+                              setCompletionDatePopoverOpen(false);
+                            }}
                           />
                         </PopoverContent>
                       </Popover>

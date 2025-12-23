@@ -254,7 +254,7 @@ function generateInfectionPreventionHTML(data: any): string {
             <div class="grid grid-cols-3" style="margin-top: 8px;">
               <p><strong>Date Commenced:</strong> ${data.ongoingDateCommenced || "Not specified"}</p>
               <p><strong>Length of Course:</strong> ${data.ongoingLengthOfCourse || "Not specified"}</p>
-              <p><strong>Follow-up Required:</strong> ${data.ongoingFollowUpRequired || "Not specified"}</p>
+              <p><strong>Follow-up Required:</strong> ${data.ongoingFollowUpRequired ? data.ongoingFollowUpRequired.charAt(0).toUpperCase() + data.ongoingFollowUpRequired.slice(1) : "Not specified"}</p>
             </div>
           </div>
         `

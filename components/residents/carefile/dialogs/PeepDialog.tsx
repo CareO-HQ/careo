@@ -48,6 +48,7 @@ interface PeepDialogProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -59,6 +60,7 @@ export default function PeepDialog({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -104,8 +106,8 @@ export default function PeepDialog({
           furnitureFireRetardant: initialData.furnitureFireRetardant ?? false,
           furnitureFireRetardantComments:
             initialData.furnitureFireRetardantComments ?? "",
-          completedBy: initialData.completedBy ?? "",
-          completedBySignature: initialData.completedBySignature ?? "",
+          completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
+          completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
           date:
             typeof initialData.date === "number"
               ? initialData.date
@@ -135,8 +137,8 @@ export default function PeepDialog({
           residentSmokesComments: "",
           furnitureFireRetardant: false,
           furnitureFireRetardantComments: "",
-          completedBy: "",
-          completedBySignature: "",
+          completedBy: userName,
+          completedBySignature: userName,
           date: Date.now(),
           status: "draft"
         }
@@ -637,7 +639,7 @@ export default function PeepDialog({
                 <FormItem>
                   <FormLabel required>Completed By</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Staff member name" />
+                    <Input {...field} placeholder="Staff member name" readOnly disabled className="bg-muted" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -654,6 +656,9 @@ export default function PeepDialog({
                     <Input
                       {...field}
                       placeholder="Digital signature or staff initials"
+                      readOnly
+                      disabled
+                      className="bg-muted"
                     />
                   </FormControl>
                   <FormMessage />

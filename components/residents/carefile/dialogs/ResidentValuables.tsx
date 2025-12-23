@@ -42,6 +42,7 @@ interface ResidentValuablesProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -53,6 +54,7 @@ export default function ResidentValuables({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -67,6 +69,9 @@ export default function ResidentValuables({
   const updateValuables = useMutation(
     api.careFiles.residentValuables.updateResidentValuables
   );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const form = useForm<z.infer<typeof residentValuablesSchema>>({
     resolver: zodResolver(residentValuablesSchema),
@@ -74,10 +79,10 @@ export default function ResidentValuables({
     defaultValues: initialData
       ? {
           // Use existing data for editing
-          residentName: initialData.residentName ?? "",
+          residentName: initialData.residentName ?? `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "",
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
           date: initialData.date ?? Date.now(),
-          completedBy: initialData.completedBy ?? "",
+          completedBy: initialData.completedBy ?? userName,
           witnessedBy: initialData.witnessedBy ?? "",
           valuables: initialData.valuables ?? [],
           n50: initialData.n50 ?? undefined,
@@ -98,10 +103,10 @@ export default function ResidentValuables({
         }
       : {
           // Default values for new forms
-          residentName: "",
+          residentName: `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "",
           bedroomNumber: resident.roomNumber ?? "",
           date: Date.now(),
-          completedBy: "",
+          completedBy: userName,
           witnessedBy: "",
           valuables: [],
           n50: undefined,
@@ -223,15 +228,29 @@ export default function ResidentValuables({
         calculateTotal();
 
         if (isEditMode && initialData) {
-          await updateValuables({
-            assessmentId: initialData._id,
-            ...formData,
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "residentValuablesAssessment",
+            formData: {
+              ...formData,
+              residentId: residentId as Id<"residents">,
+              teamId,
+              organizationId,
+              userId
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
             residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
             teamId,
-            organizationId,
-            userId
+            organizationId
           });
-          toast.success("Resident valuables updated successfully");
+          if (data.hasChanges) {
+            toast.success("Resident valuables updated successfully!");
+          } else {
+            toast.success("Resident valuables reviewed and approved without changes!");
+          }
         } else {
           await submitValuables({
             ...formData,

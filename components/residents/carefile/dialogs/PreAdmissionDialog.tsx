@@ -101,7 +101,7 @@ export default function PreAdmissionDialog({
           savedAsDraft: false,
           consentAcceptedAt: initialData.consentAcceptedAt || 0,
           careHomeName: initialData.careHomeName ?? careHomeName,
-          nhsHealthCareNumber: initialData.nhsHealthCareNumber ?? "",
+          nhsHealthCareNumber: initialData.nhsHealthCareNumber ?? resident.nhsHealthNumber ?? "",
           userName: initialData.userName ?? currentUserName,
           jobRole: initialData.jobRole ?? "",
           date: initialData.date ?? undefined,
@@ -120,13 +120,13 @@ export default function PreAdmissionDialog({
           kinPhoneNumber:
             initialData.kinPhoneNumber ?? firstKin?.phoneNumber ?? "",
           // Professional contacts
-          careManagerName: initialData.careManagerName ?? "",
-          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? "",
+          careManagerName: initialData.careManagerName ?? resident.careManagerName ?? "",
+          careManagerPhoneNumber: initialData.careManagerPhoneNumber ?? resident.careManagerPhone ?? "",
           districtNurseName: initialData.districtNurseName ?? "",
           districtNursePhoneNumber: initialData.districtNursePhoneNumber ?? "",
-          generalPractitionerName: initialData.generalPractitionerName ?? "",
+          generalPractitionerName: initialData.generalPractitionerName ?? resident.gpName ?? "",
           generalPractitionerPhoneNumber:
-            initialData.generalPractitionerPhoneNumber ?? "",
+            initialData.generalPractitionerPhoneNumber ?? resident.gpPhone ?? "",
           providerHealthcareInfoName:
             initialData.providerHealthcareInfoName ?? "",
           providerHealthcareInfoDesignation:
@@ -180,7 +180,7 @@ export default function PreAdmissionDialog({
           savedAsDraft: false,
           consentAcceptedAt: 0,
           careHomeName,
-          nhsHealthCareNumber: "",
+          nhsHealthCareNumber: resident.nhsHealthNumber ?? "",
           userName: currentUserName,
           jobRole: "",
           date: undefined,
@@ -197,12 +197,12 @@ export default function PreAdmissionDialog({
           kinRelationship: firstKin?.relationship ?? "",
           kinPhoneNumber: firstKin?.phoneNumber ?? "",
           // Professional contacts
-          careManagerName: "",
-          careManagerPhoneNumber: "",
+          careManagerName: resident.careManagerName ?? "",
+          careManagerPhoneNumber: resident.careManagerPhone ?? "",
           districtNurseName: "",
           districtNursePhoneNumber: "",
-          generalPractitionerName: "",
-          generalPractitionerPhoneNumber: "",
+          generalPractitionerName: resident.gpName ?? "",
+          generalPractitionerPhoneNumber: resident.gpPhone ?? "",
           providerHealthcareInfoName: "",
           providerHealthcareInfoDesignation: "",
           // Medical information

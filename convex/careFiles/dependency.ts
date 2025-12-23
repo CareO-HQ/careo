@@ -192,9 +192,10 @@ export const updateDependencyAssessment = mutation({
     date: v.number(),
 
     // Metadata
-    savedAsDraft: v.optional(v.boolean())
+    savedAsDraft: v.optional(v.boolean()),
+    userId: v.string()
   },
-  returns: v.null(),
+  returns: v.id("dependencyAssessments"),
   handler: async (ctx, args) => {
     const now = Date.now();
 
@@ -204,18 +205,25 @@ export const updateDependencyAssessment = mutation({
       throw new Error("Assessment not found");
     }
 
-    // Update the assessment
-    await ctx.db.patch(args.assessmentId, {
+    // Create a NEW version instead of patching the old one
+    const newAssessmentId = await ctx.db.insert("dependencyAssessments", {
+      residentId: existingAssessment.residentId,
+      teamId: existingAssessment.teamId,
+      organizationId: existingAssessment.organizationId,
+      userId: args.userId,
+
+      // Assessment data
       dependencyLevel: args.dependencyLevel,
+
+      // Completed by
       completedBy: args.completedBy,
       completedBySignature: args.completedBySignature,
       date: args.date,
+
+      // Metadata
       status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
-      submittedAt: args.savedAsDraft
-        ? undefined
-        : existingAssessment.submittedAt || now,
-      lastModifiedAt: now,
-      lastModifiedBy: existingAssessment.userId
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
     });
 
     // Schedule PDF generation if not saving as draft
@@ -223,11 +231,11 @@ export const updateDependencyAssessment = mutation({
       await ctx.scheduler.runAfter(
         1000, // 1 second delay
         internal.careFiles.dependency.generatePDFAndUpdateRecord,
-        { assessmentId: args.assessmentId }
+        { assessmentId: newAssessmentId }
       );
     }
 
-    return null;
+    return newAssessmentId;
   }
 });
 
@@ -514,5 +522,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(assessment.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) dependency assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("dependencyAssessments")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

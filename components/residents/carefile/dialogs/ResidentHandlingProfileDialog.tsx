@@ -42,6 +42,7 @@ interface ResidentHandlingProfileProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -52,6 +53,7 @@ export default function ResidentHandlingProfile({
   teamId,
   residentId,
   organizationId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -69,6 +71,9 @@ export default function ResidentHandlingProfile({
   );
   const updateProfile = useMutation(
     api.careFiles.handlingProfile.updateHandlingProfile
+  );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
   );
 
   const getDefaultActivityValues = () => ({
@@ -195,12 +200,26 @@ export default function ResidentHandlingProfile({
         const formData = form.getValues();
 
         if (isEditMode && initialData) {
-          await updateProfile({
-            profileId: initialData._id,
-            ...formData,
-            residentId: residentId as Id<"residents">
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "residentHandlingProfileForm",
+            formData: {
+              ...formData,
+              residentId: residentId as Id<"residents">
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
           });
-          toast.success("Handling profile updated successfully");
+          if (data.hasChanges) {
+            toast.success("Handling profile updated successfully!");
+          } else {
+            toast.success("Handling profile reviewed and approved without changes!");
+          }
         } else {
           await submitProfile({
             ...formData,

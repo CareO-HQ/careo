@@ -325,8 +325,13 @@ export const updatePeep = mutation({
       throw new Error("PEEP form not found");
     }
 
-    // Update the PEEP form
-    await ctx.db.patch(args.peepId, {
+    // Create a NEW version instead of patching the old one
+    const newPeepId = await ctx.db.insert("peeps", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      userId: args.userId,
+
       // Resident information
       residentName: args.residentName,
       residentDateOfBirth: args.residentDateOfBirth,
@@ -356,11 +361,8 @@ export const updatePeep = mutation({
 
       // Metadata
       status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
-      submittedAt: args.savedAsDraft
-        ? existingPeep.submittedAt
-        : (existingPeep.submittedAt ?? now),
-      lastModifiedAt: now,
-      lastModifiedBy: args.userId
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
     });
 
     // Schedule PDF regeneration if not a draft
@@ -368,11 +370,11 @@ export const updatePeep = mutation({
       await ctx.scheduler.runAfter(
         1000, // 1 second delay
         internal.careFiles.peep.generatePDFAndUpdateRecord,
-        { peepId: args.peepId }
+        { peepId: newPeepId }
       );
     }
 
-    return args.peepId;
+    return newPeepId;
   }
 });
 
@@ -610,5 +612,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(peep.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) PEEP assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("peeps")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

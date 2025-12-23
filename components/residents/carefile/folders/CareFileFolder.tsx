@@ -40,6 +40,7 @@ import { CareFileFormKey } from "@/types/care-files";
 import { useAction, useMutation, useQuery } from "convex/react";
 import JSZip from "jszip";
 import {
+  Archive,
   DownloadIcon,
   Edit2,
   Eye,
@@ -194,6 +195,64 @@ export default function CareFileFolder({
     folderKey,
     includeCarePlans: carePlan
   });
+
+  // Query for archived assessments
+  const archivedPreAdmission = useQuery(
+    api.careFiles.preadmission.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedAdmission = useQuery(
+    api.careFiles.admission.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedPhotographyConsent = useQuery(
+    api.careFiles.photographyConsent.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedDnacpr = useQuery(
+    api.careFiles.dnacpr.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedPeep = useQuery(
+    api.careFiles.peep.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedDependency = useQuery(
+    api.careFiles.dependency.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedTiml = useQuery(
+    api.careFiles.timl.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedSkinIntegrity = useQuery(
+    api.careFiles.skinIntegrity.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedResidentValuables = useQuery(
+    api.careFiles.residentValuables.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedHandlingProfile = useQuery(
+    api.careFiles.handlingProfile.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+
+  // Combine all archived items into a single array
+  const allArchivedItems = [
+    ...(archivedPreAdmission?.map((item: any) => ({ ...item, formKey: "preAdmission-form", formType: "Pre-Admission Form" })) || []),
+    ...(archivedAdmission?.map((item: any) => ({ ...item, formKey: "admission-form", formType: "Admission Form" })) || []),
+    ...(archivedPhotographyConsent?.map((item: any) => ({ ...item, formKey: "photography-consent", formType: "Photography Consent" })) || []),
+    ...(archivedDnacpr?.map((item: any) => ({ ...item, formKey: "dnacpr", formType: "DNACPR" })) || []),
+    ...(archivedPeep?.map((item: any) => ({ ...item, formKey: "peep", formType: "PEEP Assessment" })) || []),
+    ...(archivedDependency?.map((item: any) => ({ ...item, formKey: "dependency-assessment", formType: "Dependency Assessment" })) || []),
+    ...(archivedTiml?.map((item: any) => ({ ...item, formKey: "timl", formType: "This Is My Life" })) || []),
+    ...(archivedSkinIntegrity?.map((item: any) => ({ ...item, formKey: "skin-integrity-form", formType: "Skin Integrity Assessment" })) || []),
+    ...(archivedResidentValuables?.map((item: any) => ({ ...item, formKey: "resident-valuables-form", formType: "Resident Valuables" })) || []),
+    ...(archivedHandlingProfile?.map((item: any) => ({ ...item, formKey: "resident-handling-profile-form", formType: "Resident Handling Profile" })) || [])
+  ].sort((a, b) => b.archivedAt - a.archivedAt); // Sort by most recently archived first
+
+  const totalArchivedCount = allArchivedItems.length;
 
   // Component to handle individual PDF file with URL fetching
   const PdfFileItem = ({
@@ -411,6 +470,111 @@ export default function CareFileFolder({
               <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-destructive" />
             </Button>
           )}
+        </div>
+      </div>
+    );
+  };
+
+  // Component for archived assessment items
+  const ArchivedFileItem = ({ item }: { item: any }) => {
+    const pdfUrl = usePdfUrl({
+      formKey: item.formKey as CareFileFormKey,
+      formId: item._id,
+      organizationId: activeOrg?.id
+    });
+
+    const isPdfGenerating = pdfUrl === undefined || pdfUrl === null;
+
+    return (
+      <div className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+        <div className="flex-1 flex items-center gap-2">
+          <div className="bg-amber-50 rounded-md">
+            <Archive className="w-4 h-4 text-amber-600 m-1.5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-primary">
+                {item.formType}
+              </p>
+              <span className="text-xs px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded-full">
+                Archived
+              </span>
+            </div>
+            <div className="flex flex-row items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Archived:{" "}
+                {new Date(item.archivedAt || item._creationTime).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedRiskAssessment({
+                formKey: item.formKey,
+                formId: item._id,
+                name: item.formType,
+                completedAt: item._creationTime,
+                category: "Archived"
+              });
+              setRiskAssessmentDialogOpen(true);
+            }}
+            title="View Archived Form"
+          >
+            <Eye className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={isPdfGenerating}
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!pdfUrl) {
+                toast.info("PDF is still being generated. Please wait a moment and try again.");
+                return;
+              }
+              try {
+                await downloadFromUrl(pdfUrl, `${item.formType}-archived.pdf`);
+                toast.success("PDF downloaded successfully");
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                toast.error("Failed to download PDF");
+              }
+            }}
+            title={isPdfGenerating ? "PDF will be ready shortly" : "Download PDF"}
+          >
+            <DownloadIcon className={`h-4 w-4 ${isPdfGenerating ? 'text-muted-foreground/40' : 'text-muted-foreground/70 hover:text-primary'}`} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteFormDialog({
+                open: true,
+                formId: item._id,
+                formKey: item.formKey,
+                formName: item.formType
+              });
+            }}
+            title="Delete Archived Form"
+          >
+            <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-destructive" />
+          </Button>
         </div>
       </div>
     );
@@ -973,12 +1137,26 @@ export default function CareFileFolder({
                 const formKey = form.key as CareFileFormKey;
                 const formState = getFormState(formKey);
                 const showDownload = canDownloadPdf(formKey);
+                const isFormDisabled = formState.hasData; // Disable if form has been completed
 
                 return (
                   <div
                     key={form.key}
-                    className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 cursor-pointer hover:bg-muted/50 hover:text-primary rounded-md group"
-                    onClick={() => handleCareFileClick(form.key)}
+                    className={`text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group ${
+                      isFormDisabled
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:bg-muted/50 hover:text-primary"
+                    }`}
+                    onClick={() => {
+                      if (!isFormDisabled) {
+                        handleCareFileClick(form.key);
+                      }
+                    }}
+                    title={
+                      isFormDisabled
+                        ? "Form already completed. Use the edit button in the Files section below to modify."
+                        : "Click to create a new form"
+                    }
                   >
                     <div className="flex flex-row items-center gap-2">
                       <FormStatusIndicator
@@ -1153,6 +1331,49 @@ export default function CareFileFolder({
                   );
                 })()}
               </div>
+
+              {/* Archive Section */}
+              <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Archive
+                </p>
+              </div>
+              <div className="space-y-2">
+                {(() => {
+                  // Check if archived queries are still loading
+                  const isLoadingArchived =
+                    archivedPreAdmission === undefined ||
+                    archivedAdmission === undefined;
+
+                  if (isLoadingArchived) {
+                    return (
+                      <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-muted-foreground"></div>
+                          Loading archived assessments...
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (allArchivedItems.length > 0) {
+                    return (
+                      <>
+                        {allArchivedItems.map((item) => (
+                          <ArchivedFileItem key={item._id} item={item} />
+                        ))}
+                      </>
+                    );
+                  }
+
+                  return (
+                    <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                      No archived assessments yet. Edit and submit forms to
+                      archive previous versions.
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
               <Button
@@ -1243,7 +1464,7 @@ export default function CareFileFolder({
                 e.stopPropagation();
                 handleDeleteCarePlan();
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
             >
               Delete
             </AlertDialogAction>
@@ -1292,7 +1513,7 @@ export default function CareFileFolder({
                 handleDeleteForm();
               }}
               disabled={isDeletingForm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50"
             >
               {isDeletingForm ? "Deleting..." : "Delete"}
             </AlertDialogAction>
