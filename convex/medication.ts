@@ -1691,11 +1691,11 @@ export const getAllMedicationIntakesByResidentId = query({
         const medication = await ctx.db.get(intake.medicationId);
         const resident = await ctx.db.get(intake.residentId as Id<"residents">);
 
-        // Fetch the name of the person who gave the medication
+        // Fetch the name of the person who dispensed the medication
         let givenByName = undefined;
-        if (intake.stateModifiedByUserId) {
+        if (intake.poppedOutByUserId) {
           const givenByUser = await ctx.db.get(
-            intake.stateModifiedByUserId as Id<"users">
+            intake.poppedOutByUserId as Id<"users">
           );
           givenByName = givenByUser?.name;
         }
