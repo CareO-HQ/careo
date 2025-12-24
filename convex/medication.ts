@@ -1672,7 +1672,9 @@ export const getAllMedicationIntakesByResidentId = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       medication: v.optional(v.any()),
-      resident: v.optional(v.any())
+      resident: v.optional(v.any()),
+      givenByName: v.optional(v.string()),
+      witnessedByName: v.optional(v.string())
     })
   ),
   handler: async (ctx, args): Promise<any[]> => {
@@ -1683,13 +1685,31 @@ export const getAllMedicationIntakesByResidentId = query({
       .order("desc") // Most recent first
       .collect();
 
-    // Include medication and resident details
+    // Include medication, resident, and staff names
     const intakesWithDetails = await Promise.all(
       intakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
         const resident = await ctx.db.get(intake.residentId as Id<"residents">);
 
-        return { ...intake, medication, resident };
+        // Fetch the name of the person who gave the medication
+        let givenByName = undefined;
+        if (intake.stateModifiedByUserId) {
+          const givenByUser = await ctx.db.get(
+            intake.stateModifiedByUserId as Id<"users">
+          );
+          givenByName = givenByUser?.name;
+        }
+
+        // Fetch the name of the witness
+        let witnessedByName = undefined;
+        if (intake.witnessByUserId) {
+          const witnessUser = await ctx.db.get(
+            intake.witnessByUserId as Id<"users">
+          );
+          witnessedByName = witnessUser?.name;
+        }
+
+        return { ...intake, medication, resident, givenByName, witnessedByName };
       })
     );
 
