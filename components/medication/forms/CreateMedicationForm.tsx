@@ -82,6 +82,9 @@ export default function CreateMedicationForm({
     }
   });
 
+  // Watch schedule type to disable frequency field for PRN medications
+  const scheduleType = form.watch("scheduleType");
+
   async function onSubmit(values: z.infer<typeof CreateMedicationSchema>) {
     console.log("Form submitted with values:", values);
 
@@ -353,6 +356,32 @@ export default function CreateMedicationForm({
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
+                  name="scheduleType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Schedule Type</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a schedule type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Scheduled">Scheduled</SelectItem>
+                          <SelectItem value="PRN (As Needed)">
+                            PRN (As Needed)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="frequency"
                   render={({ field }) => (
                     <FormItem>
@@ -360,6 +389,7 @@ export default function CreateMedicationForm({
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={scheduleType === "PRN (As Needed)"}
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
@@ -390,32 +420,6 @@ export default function CreateMedicationForm({
                           </SelectItem>
                           <SelectItem value="Weekly">Weekly</SelectItem>
                           <SelectItem value="Monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="scheduleType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Schedule Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a schedule type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Scheduled">Scheduled</SelectItem>
-                          <SelectItem value="PRN (As Needed)">
-                            PRN (As Needed)
-                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -692,7 +696,11 @@ export default function CreateMedicationForm({
               <div className="flex justify-between items-center">
                 <Button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={() => {
+                    // If PRN, go back to step 1; otherwise go to step 2
+                    const scheduleType = form.getValues("scheduleType");
+                    setStep(scheduleType === "PRN (As Needed)" ? 1 : 2);
+                  }}
                   variant="outline"
                 >
                   Back
