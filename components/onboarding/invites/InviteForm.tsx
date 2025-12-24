@@ -42,11 +42,11 @@ export default function InviteForm() {
       users: [
         {
           email: "",
-          role: "member"
+          role: "care_assistant"
         },
         {
           email: "",
-          role: "member"
+          role: "care_assistant"
         }
       ]
     }
@@ -88,7 +88,7 @@ export default function InviteForm() {
     if (currentUsers.length < MAX_INVITATIONS) {
       form.setValue("users", [
         ...currentUsers,
-        { email: "", role: "member" as const }
+        { email: "", role: "care_assistant" as const }
       ]);
     }
   };
@@ -165,11 +165,12 @@ export default function InviteForm() {
                           disabled={isLoading}
                         >
                           <SelectTrigger className="w-32">
-                            <SelectValue placeholder="Member" />
+                            <SelectValue placeholder="Care Assistant" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="member">Member</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="nurse">Nurse</SelectItem>
+                            <SelectItem value="care_assistant">Care Assistant</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>

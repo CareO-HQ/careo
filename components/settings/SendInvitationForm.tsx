@@ -15,21 +15,28 @@ import {
   SelectValue
 } from "../ui/select";
 import { Button } from "../ui/button";
-import { useTransition } from "react";
+import { useTransition, useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 
 export default function SendInvitationForm() {
+  const { data: member } = authClient.useActiveMember();
   const [isLoading, startTransition] = useTransition();
   const form = useForm<z.infer<typeof inviteMemberSchema>>({
     resolver: zodResolver(inviteMemberSchema),
     defaultValues: {
       email: "",
-      role: "member"
+      role: "care_assistant"
     }
   });
 
   const onSubmit = (values: z.infer<typeof inviteMemberSchema>) => {
+    // Check if user has permission to invite members
+    if (member?.role !== "owner" && member?.role !== "manager") {
+      toast.error("You don't have permission to invite members");
+      return;
+    }
+
     startTransition(async () => {
       const { data, error } = await authClient.organization.inviteMember(
         {
@@ -39,6 +46,7 @@ export default function SendInvitationForm() {
         {
           onSuccess: () => {
             toast.success("Invitation sent successfully");
+            form.reset();
           },
           onError: (error) => {
             console.log(error);
@@ -92,8 +100,9 @@ export default function SendInvitationForm() {
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="nurse">Nurse</SelectItem>
+                      <SelectItem value="care_assistant">Care Assistant</SelectItem>
                     </SelectContent>
                   </Select>
                 </FormControl>

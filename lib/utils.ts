@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Format a role name for display (e.g., "care_assistant" -> "Care Assistant")
+ */
+export function formatRoleName(role: string): string {
+  return role
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 // dateOfBirth is like 2025-08-15
 export function getAge(dateOfBirth: string) {
   const today = new Date();

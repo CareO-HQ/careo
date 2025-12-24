@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import InviteActions from "@/components/settings/InviteActions";
 import SendInvitationModal from "@/components/settings/SendInvitationModal";
 import MemberActions from "@/components/settings/members/MemberActions";
+import { formatRoleName } from "@/lib/utils";
 
 export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
@@ -22,11 +23,15 @@ export default function MembersPage() {
   };
 
   function showRemoveButton() {
-    return member?.role === "owner" || member?.role === "admin";
+    return member?.role === "owner" || member?.role === "manager";
+  }
+
+  function canInviteMembers() {
+    return member?.role === "owner" || member?.role === "manager";
   }
 
   const isOwner = member?.role === "owner";
-  const isAdmin = member?.role === "admin";
+  const isManager = member?.role === "manager";
 
   return (
     <div className="flex flex-col justify-start items-start gap-8">
@@ -59,7 +64,7 @@ export default function MembersPage() {
             </div>
             <div className="flex flex-row justify-end items-center gap-2">
               <p className="text-xs text-muted-foreground mr-2">
-                {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                {formatRoleName(member.role)}
               </p>
               {showRemoveButton() && (
                 <>
@@ -78,7 +83,7 @@ export default function MembersPage() {
                     memberName={member.user.name || member.user.email}
                     userId={member.userId}
                     email={member.user.email}
-                    isOwner={isOwner || isAdmin}
+                    isOwner={isOwner || isManager}
                   />
                 </>
               )}
@@ -90,7 +95,7 @@ export default function MembersPage() {
       <div className="flex flex-col justify-start items-start gap-4 w-full">
         <div className="flex flex-row justify-between items-center w-full">
           <p className="font-medium">Pending invitations</p>
-          <SendInvitationModal />
+          {canInviteMembers() && <SendInvitationModal />}
         </div>
         {invitations?.length ? (
           invitations?.map((invitation) => (
@@ -103,8 +108,7 @@ export default function MembersPage() {
               </p>
               <div className="flex flex-row justify-end items-center gap-2">
                 <p className="text-xs text-muted-foreground">
-                  {invitation.role.charAt(0).toUpperCase() +
-                    invitation.role.slice(1)}
+                  {formatRoleName(invitation.role)}
                 </p>
                 <InviteActions invitationId={invitation.id} />
               </div>

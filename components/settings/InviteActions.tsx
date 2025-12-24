@@ -15,7 +15,17 @@ export default function InviteActions({
 }: {
   invitationId: string;
 }) {
+  const { data: member } = authClient.useActiveMember();
+  
+  // Only owners and managers can manage invitations
+  const canManageInvitations = member?.role === "owner" || member?.role === "manager";
+  
   const handleRevoke = async () => {
+    if (!canManageInvitations) {
+      toast.error("You don't have permission to revoke invitations");
+      return;
+    }
+    
     await authClient.organization.cancelInvitation({
       invitationId
     });
@@ -23,8 +33,17 @@ export default function InviteActions({
   };
 
   const handleResend = async () => {
+    if (!canManageInvitations) {
+      toast.error("You don't have permission to resend invitations");
+      return;
+    }
     toast.success("Invitation resent");
   };
+
+  // Don't show actions if user doesn't have permission
+  if (!canManageInvitations) {
+    return null;
+  }
 
   return (
     <DropdownMenu>

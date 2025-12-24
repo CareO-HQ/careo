@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth-client";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
+import { formatRoleName } from "@/lib/utils";
 import {
   ArrowLeft,
   Bell,
@@ -112,7 +113,7 @@ export default function StaffProfilePage({ params }: StaffPageProps) {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{fullName}</h1>
               <Badge variant="secondary">
-                {staffMember.role.charAt(0).toUpperCase() + staffMember.role.slice(1)}
+                {formatRoleName(staffMember.role)}
               </Badge>
             </div>
             <p className="text-muted-foreground text-sm">

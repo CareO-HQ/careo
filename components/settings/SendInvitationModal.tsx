@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Dialog,
   DialogContent,
@@ -9,8 +11,18 @@ import {
 import { Button } from "../ui/button";
 import { PlusIcon } from "lucide-react";
 import SendInvitationForm from "./SendInvitationForm";
+import { authClient } from "@/lib/auth-client";
 
 export default function SendInvitationModal() {
+  const { data: member } = authClient.useActiveMember();
+  
+  // Only show invitation button if user has permission
+  const canInvite = member?.role === "owner" || member?.role === "manager";
+  
+  if (!canInvite) {
+    return null;
+  }
+
   return (
     <Dialog>
       <DialogTrigger asChild>

@@ -197,7 +197,7 @@ export const getOrganizationMembers = query({
               email: user.email || "",
               name: user.name || "",
               image: user.image || null,
-              role: member.role || "member",
+              role: member.role || "care_assistant",
               createdAt: member.createdAt,
             };
           } catch (error) {
