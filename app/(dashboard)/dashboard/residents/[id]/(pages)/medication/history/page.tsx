@@ -4,6 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger
@@ -48,6 +53,7 @@ import {
   ArrowLeft,
   ArrowUpDown,
   CalendarIcon,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -805,62 +811,67 @@ export default function MedicationHistoryPage({
                     </div>
                   )}
 
-                  {/* Topical Medications */}
+                  {/* Topical Medications - Collapsible */}
                   {topical.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 rounded-md">
-                        <Droplet className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        <h3 className="font-semibold text-sm">Topical Medications</h3>
-                        <Badge variant="secondary" className="ml-auto">
-                          {topical.length}
-                        </Badge>
-                      </div>
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Time</TableHead>
-                              <TableHead>Medication</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Notes</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {topical.map((intake) => {
-                              const medication = intake.medication;
-                              return (
-                                <TableRow key={intake._id}>
-                                  <TableCell className="text-sm">
-                                    {format(new Date(intake.scheduledTime), "HH:mm")}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex flex-col">
-                                      <p className="font-medium text-sm">
-                                        {medication?.name || "N/A"}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {medication
-                                          ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
-                                          : ""}
-                                      </p>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant={getStateBadgeVariant(intake.state)}>
-                                      {intake.state.charAt(0).toUpperCase() +
-                                        intake.state.slice(1)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-sm max-w-xs truncate">
-                                    {intake.notes || "-"}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
+                    <Collapsible>
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 rounded-md hover:bg-green-100 dark:hover:bg-green-950/30 transition-colors">
+                          <Droplet className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <h3 className="font-semibold text-sm">Topical Medications</h3>
+                          <Badge variant="secondary" className="ml-auto">
+                            {topical.length}
+                          </Badge>
+                          <ChevronDown className="h-4 w-4 text-green-600 dark:text-green-400 transition-transform duration-200" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2">
+                        <div className="rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Time</TableHead>
+                                <TableHead>Medication</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Notes</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {topical.map((intake) => {
+                                const medication = intake.medication;
+                                return (
+                                  <TableRow key={intake._id}>
+                                    <TableCell className="text-sm">
+                                      {format(new Date(intake.scheduledTime), "HH:mm")}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-col">
+                                        <p className="font-medium text-sm">
+                                          {medication?.name || "N/A"}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {medication
+                                            ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
+                                            : ""}
+                                        </p>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant={getStateBadgeVariant(intake.state)}>
+                                        {intake.state.charAt(0).toUpperCase() +
+                                          intake.state.slice(1)}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-sm max-w-xs truncate">
+                                      {intake.notes || "-"}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   )}
 
                   {/* Empty state */}
