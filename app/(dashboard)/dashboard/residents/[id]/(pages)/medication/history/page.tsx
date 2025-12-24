@@ -182,7 +182,7 @@ export default function MedicationHistoryPage({
   }, [allIntakes, dateRange]);
 
   // Organize intakes by time slots, PRN, and Topical
-  // Only show rounds that have been completed (past times)
+  // Show rounds that are completed/locked or have passed their scheduled time
   const organizeIntakesByCategory = (intakes: any[], selectedDate: Date) => {
     const scheduled: Record<string, any[]> = {};
     const prn: any[] = [];
@@ -191,6 +191,9 @@ export default function MedicationHistoryPage({
     const now = new Date();
     const isToday = format(selectedDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
     const currentTime = format(now, "HH:mm");
+
+    // First, group all intakes by time
+    const groupedByTime: Record<string, any[]> = {};
 
     intakes.forEach((intake) => {
       const medication = intake.medication;
@@ -203,14 +206,25 @@ export default function MedicationHistoryPage({
       } else {
         // Group by scheduled time
         const time = format(new Date(intake.scheduledTime), "HH:mm");
-
-        // Only show if it's a past date OR if it's today and the time has passed
-        if (!isToday || time <= currentTime) {
-          if (!scheduled[time]) {
-            scheduled[time] = [];
-          }
-          scheduled[time].push(intake);
+        if (!groupedByTime[time]) {
+          groupedByTime[time] = [];
         }
+        groupedByTime[time].push(intake);
+      }
+    });
+
+    // Now filter which time slots to show
+    Object.entries(groupedByTime).forEach(([time, timeIntakes]) => {
+      // Check if round is completed (all medications are not in "scheduled" state)
+      const isRoundCompleted = timeIntakes.every(
+        (intake) => intake.state !== "scheduled"
+      );
+
+      // Show if:
+      // 1. It's a past date (show all), OR
+      // 2. It's today and (time has passed OR round is completed/locked)
+      if (!isToday || time <= currentTime || isRoundCompleted) {
+        scheduled[time] = timeIntakes;
       }
     });
 
