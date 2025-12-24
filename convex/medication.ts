@@ -18,7 +18,7 @@ async function createMedicationIntakes(
   medication: {
     name: string;
     frequency: string;
-    times: string[];
+    times?: string[];
     startDate: number;
     endDate?: number;
     scheduleType: string;
@@ -58,7 +58,7 @@ async function createMedicationIntakes(
   );
 
   console.log(`Corrected start date: ${startDate.toLocaleDateString()}`);
-  const medicationTimes = medication.times;
+  const medicationTimes = medication.times || [];
 
   console.log(
     `Creating medication intake records for "${medication.name}" (${medication.frequency})`
@@ -226,7 +226,7 @@ export const createMedication = mutation({
         v.literal("Scheduled"),
         v.literal("PRN (As Needed)")
       ),
-      times: v.array(v.string()),
+      times: v.optional(v.array(v.string())),
       timeQuantities: v.optional(v.record(v.string(), v.number())),
       instructions: v.optional(v.string()),
       prescriberName: v.string(),
@@ -997,7 +997,7 @@ export const getAllActiveMedications = internalQuery({
         v.literal("Scheduled"),
         v.literal("PRN (As Needed)")
       ),
-      times: v.array(v.string()),
+      times: v.optional(v.array(v.string())),
       timeQuantities: v.optional(v.record(v.string(), v.number())),
       instructions: v.optional(v.string()),
       prescriberName: v.string(),
@@ -1174,12 +1174,12 @@ export const createNextDayMedicationIntakes = internalMutation({
     console.log(
       `Creating intakes for ${medication.name} on ${nextDate.toLocaleDateString()}`
     );
-    console.log(`Medication times: ${medication.times.join(", ")}`);
+    console.log(`Medication times: ${medication.times?.join(", ") || "No times scheduled"}`);
 
     const intakeRecords: any[] = [];
 
     // Create intake record for each scheduled time on the next day
-    for (const time of medication.times) {
+    for (const time of (medication.times || [])) {
       const [hours, minutes] = time.split(":");
       const scheduledDateTime: Date = new Date(
         nextDate.getFullYear(),

@@ -163,7 +163,13 @@ export default function CreateMedicationForm({
       return;
     }
 
-    setStep(step + 1);
+    // Skip time selection step if medication is PRN
+    const scheduleType = form.getValues("scheduleType");
+    if (scheduleType === "PRN (As Needed)") {
+      setStep(3); // Skip to step 3
+    } else {
+      setStep(2); // Go to time selection
+    }
   };
 
   const handleSecondStep = async () => {

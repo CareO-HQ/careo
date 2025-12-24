@@ -79,7 +79,7 @@ export default function ResidentValuables({
     defaultValues: initialData
       ? {
           // Use existing data for editing
-          residentName: initialData.residentName ?? `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "",
+          residentName: initialData.residentName ?? (`${resident.firstName || ""} ${resident.lastName || ""}`.trim() || ""),
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
           date: initialData.date ?? Date.now(),
           completedBy: initialData.completedBy ?? userName,
