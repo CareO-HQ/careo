@@ -30,8 +30,6 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -681,170 +679,188 @@ export default function MedicationHistoryPage({
             </div>
           </SheetHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="mt-4 space-y-6">
             {selectedDate && (() => {
               const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDate.intakes);
 
               return (
                 <>
                   {/* Scheduled Medications by Time */}
-                  {scheduled.length > 0 && scheduled.map((timeGroup) => (
-                    <Card key={timeGroup.time} className="border-l-4 border-l-blue-500">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-blue-500" />
-                          {timeGroup.time}
-                          <Badge variant="secondary" className="ml-2">
-                            {timeGroup.intakes.length} {timeGroup.intakes.length === 1 ? 'medication' : 'medications'}
-                          </Badge>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {timeGroup.intakes.map((intake) => {
-                          const medication = intake.medication;
-                          return (
-                            <div
-                              key={intake._id}
-                              className="p-3 rounded-lg bg-muted/50 space-y-2"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1">
-                                  <p className="font-semibold text-sm">
-                                    {medication?.name || "N/A"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {medication
-                                      ? `${medication.strength} ${medication.strengthUnit} • ${medication.dosageForm} • ${medication.route}`
-                                      : ""}
-                                  </p>
-                                </div>
-                                <Badge variant={getStateBadgeVariant(intake.state)} className="shrink-0">
-                                  {intake.state === "given" || intake.state === "administered" ? "✓ " : ""}
-                                  {intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
-                                </Badge>
-                              </div>
-                              {intake.notes && (
-                                <p className="text-xs text-muted-foreground border-t pt-2">
-                                  <span className="font-medium">Note:</span> {intake.notes}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </CardContent>
-                    </Card>
+                  {scheduled.map((timeGroup) => (
+                    <div key={timeGroup.time} className="space-y-2">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="font-semibold text-sm">{timeGroup.time}</h3>
+                        <Badge variant="secondary" className="ml-auto">
+                          {timeGroup.intakes.length}
+                        </Badge>
+                      </div>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Medication</TableHead>
+                              <TableHead>Route</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Notes</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {timeGroup.intakes.map((intake) => {
+                              const medication = intake.medication;
+                              return (
+                                <TableRow key={intake._id}>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <p className="font-medium text-sm">
+                                        {medication?.name || "N/A"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {medication
+                                          ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
+                                          : ""}
+                                      </p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {medication?.route || "N/A"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={getStateBadgeVariant(intake.state)}>
+                                      {intake.state.charAt(0).toUpperCase() +
+                                        intake.state.slice(1)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm max-w-xs truncate">
+                                    {intake.notes || "-"}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
                   ))}
 
                   {/* PRN Medications */}
                   {prn.length > 0 && (
-                    <>
-                      <Separator className="my-6" />
-                      <Card className="border-l-4 border-l-purple-500">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Pill className="h-4 w-4 text-purple-500" />
-                            PRN (As Needed)
-                            <Badge variant="secondary" className="ml-2">
-                              {prn.length} {prn.length === 1 ? 'medication' : 'medications'}
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {prn.map((intake) => {
-                            const medication = intake.medication;
-                            return (
-                              <div
-                                key={intake._id}
-                                className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 space-y-2"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-semibold text-sm">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-950/20 rounded-md">
+                        <Pill className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <h3 className="font-semibold text-sm">PRN (As Needed)</h3>
+                        <Badge variant="secondary" className="ml-auto">
+                          {prn.length}
+                        </Badge>
+                      </div>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Time</TableHead>
+                              <TableHead>Medication</TableHead>
+                              <TableHead>Route</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Notes</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {prn.map((intake) => {
+                              const medication = intake.medication;
+                              return (
+                                <TableRow key={intake._id}>
+                                  <TableCell className="text-sm">
+                                    {format(new Date(intake.scheduledTime), "HH:mm")}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <p className="font-medium text-sm">
                                         {medication?.name || "N/A"}
                                       </p>
-                                      <span className="text-xs text-muted-foreground">
-                                        {format(new Date(intake.scheduledTime), "HH:mm")}
-                                      </span>
+                                      <p className="text-xs text-muted-foreground">
+                                        {medication
+                                          ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
+                                          : ""}
+                                      </p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      {medication
-                                        ? `${medication.strength} ${medication.strengthUnit} • ${medication.dosageForm} • ${medication.route}`
-                                        : ""}
-                                    </p>
-                                  </div>
-                                  <Badge variant={getStateBadgeVariant(intake.state)} className="shrink-0">
-                                    {intake.state === "given" || intake.state === "administered" ? "✓ " : ""}
-                                    {intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
-                                  </Badge>
-                                </div>
-                                {intake.notes && (
-                                  <p className="text-xs text-muted-foreground border-t border-purple-200 dark:border-purple-800 pt-2">
-                                    <span className="font-medium">Note:</span> {intake.notes}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </CardContent>
-                      </Card>
-                    </>
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {medication?.route || "N/A"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={getStateBadgeVariant(intake.state)}>
+                                      {intake.state.charAt(0).toUpperCase() +
+                                        intake.state.slice(1)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm max-w-xs truncate">
+                                    {intake.notes || "-"}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
                   )}
 
                   {/* Topical Medications */}
                   {topical.length > 0 && (
-                    <>
-                      <Separator className="my-6" />
-                      <Card className="border-l-4 border-l-green-500">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Droplet className="h-4 w-4 text-green-500" />
-                            Topical Medications
-                            <Badge variant="secondary" className="ml-2">
-                              {topical.length} {topical.length === 1 ? 'medication' : 'medications'}
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {topical.map((intake) => {
-                            const medication = intake.medication;
-                            return (
-                              <div
-                                key={intake._id}
-                                className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 space-y-2"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-semibold text-sm">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 rounded-md">
+                        <Droplet className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <h3 className="font-semibold text-sm">Topical Medications</h3>
+                        <Badge variant="secondary" className="ml-auto">
+                          {topical.length}
+                        </Badge>
+                      </div>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Time</TableHead>
+                              <TableHead>Medication</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Notes</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {topical.map((intake) => {
+                              const medication = intake.medication;
+                              return (
+                                <TableRow key={intake._id}>
+                                  <TableCell className="text-sm">
+                                    {format(new Date(intake.scheduledTime), "HH:mm")}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <p className="font-medium text-sm">
                                         {medication?.name || "N/A"}
                                       </p>
-                                      <span className="text-xs text-muted-foreground">
-                                        {format(new Date(intake.scheduledTime), "HH:mm")}
-                                      </span>
+                                      <p className="text-xs text-muted-foreground">
+                                        {medication
+                                          ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
+                                          : ""}
+                                      </p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      {medication
-                                        ? `${medication.strength} ${medication.strengthUnit} • ${medication.dosageForm}`
-                                        : ""}
-                                    </p>
-                                  </div>
-                                  <Badge variant={getStateBadgeVariant(intake.state)} className="shrink-0">
-                                    {intake.state === "given" || intake.state === "administered" ? "✓ " : ""}
-                                    {intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
-                                  </Badge>
-                                </div>
-                                {intake.notes && (
-                                  <p className="text-xs text-muted-foreground border-t border-green-200 dark:border-green-800 pt-2">
-                                    <span className="font-medium">Note:</span> {intake.notes}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </CardContent>
-                      </Card>
-                    </>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={getStateBadgeVariant(intake.state)}>
+                                      {intake.state.charAt(0).toUpperCase() +
+                                        intake.state.slice(1)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm max-w-xs truncate">
+                                    {intake.notes || "-"}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
                   )}
 
                   {/* Empty state */}
