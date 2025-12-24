@@ -30,6 +30,8 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -50,7 +52,10 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  Download
+  Clock,
+  Download,
+  Pill,
+  Droplet
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useMemo, useState } from "react";
@@ -69,6 +74,12 @@ type GroupedIntake = {
   missedCount: number;
   refusedCount: number;
   skippedCount: number;
+  givenCount: number;
+};
+
+type GroupedByTime = {
+  time: string;
+  intakes: any[];
 };
 
 export default function MedicationHistoryPage({
@@ -96,7 +107,16 @@ export default function MedicationHistoryPage({
 
     let filtered = [...allIntakes];
 
-    // Filter by date range
+    // Filter out future dates - only show dates up to today
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    filtered = filtered.filter((intake) => {
+      const intakeDate = new Date(intake.scheduledTime);
+      return intakeDate <= today;
+    });
+
+    // Filter by date range if specified
     if (dateRange?.from) {
       const fromDate = new Date(dateRange.from);
       fromDate.setHours(0, 0, 0, 0);
@@ -142,6 +162,7 @@ export default function MedicationHistoryPage({
           administeredCount: intakesArray.filter(
             (i) => i.state === "administered"
           ).length,
+          givenCount: intakesArray.filter((i) => i.state === "given").length,
           missedCount: intakesArray.filter((i) => i.state === "missed").length,
           refusedCount: intakesArray.filter((i) => i.state === "refused")
             .length,
@@ -155,6 +176,38 @@ export default function MedicationHistoryPage({
       (a, b) => b.dateObj.getTime() - a.dateObj.getTime()
     );
   }, [allIntakes, dateRange]);
+
+  // Organize intakes by time slots, PRN, and Topical
+  const organizeIntakesByCategory = (intakes: any[]) => {
+    const scheduled: Record<string, any[]> = {};
+    const prn: any[] = [];
+    const topical: any[] = [];
+
+    intakes.forEach((intake) => {
+      const medication = intake.medication;
+
+      // Check if it's PRN or Topical
+      if (medication?.scheduleType === "PRN (As Needed)") {
+        prn.push(intake);
+      } else if (medication?.route === "Topical") {
+        topical.push(intake);
+      } else {
+        // Group by scheduled time
+        const time = format(new Date(intake.scheduledTime), "HH:mm");
+        if (!scheduled[time]) {
+          scheduled[time] = [];
+        }
+        scheduled[time].push(intake);
+      }
+    });
+
+    // Convert scheduled object to sorted array
+    const scheduledArray: GroupedByTime[] = Object.entries(scheduled)
+      .map(([time, intakes]) => ({ time, intakes }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+
+    return { scheduled: scheduledArray, prn, topical };
+  };
 
   // Grouped columns
   const groupedColumns: ColumnDef<GroupedIntake>[] = [
@@ -173,7 +226,37 @@ export default function MedicationHistoryPage({
       },
       cell: ({ row }) => {
         const dateObj = row.original.dateObj;
-        return <p className="font-medium">{format(dateObj, "MMM dd, yyyy")}</p>;
+        const isToday = format(dateObj, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+        return (
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{format(dateObj, "MMM dd, yyyy")}</p>
+            {isToday && (
+              <Badge variant="secondary" className="text-xs">Today</Badge>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      accessorKey: "stats",
+      header: "Summary",
+      cell: ({ row }) => {
+        const { totalCount, givenCount, administeredCount, missedCount, refusedCount } = row.original;
+        const successCount = givenCount + administeredCount;
+        return (
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">Total: {totalCount}</span>
+            {successCount > 0 && (
+              <span className="text-green-600 font-medium">✓ {successCount}</span>
+            )}
+            {missedCount > 0 && (
+              <span className="text-red-600 font-medium">✗ {missedCount}</span>
+            )}
+            {refusedCount > 0 && (
+              <span className="text-orange-600 font-medium">⊘ {refusedCount}</span>
+            )}
+          </div>
+        );
       }
     }
   ];
@@ -214,6 +297,7 @@ export default function MedicationHistoryPage({
           : "N/A",
         "Dosage Form": medication?.dosageForm || "N/A",
         Route: medication?.route || "N/A",
+        Type: medication?.scheduleType || "N/A",
         Status: intake.state,
         "Popped Out": intake.poppedOutAt
           ? format(new Date(intake.poppedOutAt), "HH:mm")
@@ -263,139 +347,6 @@ export default function MedicationHistoryPage({
     URL.revokeObjectURL(url);
   };
 
-  // Function to download a specific date's data as PDF
-  const downloadDatePDF = (groupedIntake: GroupedIntake) => {
-    // Create a printable HTML content
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Medication History - ${format(groupedIntake.dateObj, "MMM dd, yyyy")}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 20px;
-              max-width: 1200px;
-              margin: 0 auto;
-            }
-            h1 {
-              color: #333;
-              border-bottom: 2px solid #333;
-              padding-bottom: 10px;
-            }
-            .header-info {
-              margin: 20px 0;
-              color: #666;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 20px;
-            }
-            th, td {
-              border: 1px solid #ddd;
-              padding: 12px;
-              text-align: left;
-            }
-            th {
-              background-color: #f4f4f4;
-              font-weight: bold;
-            }
-            tr:nth-child(even) {
-              background-color: #f9f9f9;
-            }
-            .medication-name {
-              font-weight: 600;
-            }
-            .medication-details {
-              font-size: 0.9em;
-              color: #666;
-            }
-            .status-badge {
-              padding: 4px 8px;
-              border-radius: 4px;
-              font-size: 0.85em;
-              font-weight: 500;
-            }
-            .status-administered { background-color: #e8f5e9; color: #2e7d32; }
-            .status-scheduled { background-color: #f5f5f5; color: #616161; }
-            .status-missed { background-color: #ffebee; color: #c62828; }
-            .status-refused { background-color: #fff3e0; color: #e65100; }
-            .status-skipped { background-color: #e3f2fd; color: #1565c0; }
-            @media print {
-              body { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Medication History</h1>
-          <div class="header-info">
-            <p><strong>Resident:</strong> ${resident.firstName} ${resident.lastName}</p>
-            <p><strong>Date:</strong> ${format(groupedIntake.dateObj, "EEEE, MMMM dd, yyyy")}</p>
-            <p><strong>Total Medications:</strong> ${groupedIntake.totalCount}</p>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Medication</th>
-                <th>Route</th>
-                <th>Status</th>
-                <th>Popped Out</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${groupedIntake.intakes
-                .map((intake) => {
-                  const medication = intake.medication;
-                  const statusClass = `status-${intake.state}`;
-                  return `
-                    <tr>
-                      <td>${format(new Date(intake.scheduledTime), "HH:mm")}</td>
-                      <td>
-                        <div class="medication-name">${medication?.name || "N/A"}</div>
-                        <div class="medication-details">${
-                          medication
-                            ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
-                            : ""
-                        }</div>
-                      </td>
-                      <td>${medication?.route || "N/A"}</td>
-                      <td>
-                        <span class="status-badge ${statusClass}">
-                          ${intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
-                        </span>
-                      </td>
-                      <td>${
-                        intake.poppedOutAt
-                          ? format(new Date(intake.poppedOutAt), "HH:mm")
-                          : "-"
-                      }</td>
-                      <td>${intake.notes || "-"}</td>
-                    </tr>
-                  `;
-                })
-                .join("")}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
-
-    // Create a new window and print
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      // Small delay to ensure content is loaded
-      setTimeout(() => {
-        printWindow.print();
-      }, 250);
-    }
-  };
-
   // Function to download data as CSV
   const downloadCSV = () => {
     // Flatten grouped data back to individual intakes for CSV export
@@ -418,6 +369,7 @@ export default function MedicationHistoryPage({
           : "N/A",
         "Dosage Form": medication?.dosageForm || "N/A",
         Route: medication?.route || "N/A",
+        Type: medication?.scheduleType || "N/A",
         Status: intake.state,
         "Popped Out": intake.poppedOutAt
           ? format(new Date(intake.poppedOutAt), "HH:mm")
@@ -466,6 +418,25 @@ export default function MedicationHistoryPage({
     document.body.removeChild(link);
   };
 
+  // Helper function to render medication badge
+  const getStateBadgeVariant = (state: string) => {
+    switch (state) {
+      case "given":
+      case "administered":
+        return "default";
+      case "scheduled":
+        return "secondary";
+      case "missed":
+        return "destructive";
+      case "refused":
+        return "outline";
+      case "skipped":
+        return "outline";
+      default:
+        return "secondary";
+    }
+  };
+
   if (resident === undefined || allIntakes === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -511,7 +482,7 @@ export default function MedicationHistoryPage({
               <p className="font-semibold text-xl">Medication History</p>
               <p className="text-sm text-muted-foreground">
                 Complete medication intake history for {resident.firstName}{" "}
-                {resident.lastName}, including missed medications.
+                {resident.lastName}
               </p>
             </div>
           </div>
@@ -559,6 +530,7 @@ export default function MedicationHistoryPage({
               selected={dateRange}
               onSelect={setDateRange}
               numberOfMonths={2}
+              disabled={(date) => date > new Date()}
               initialFocus
             />
           </PopoverContent>
@@ -685,116 +657,205 @@ export default function MedicationHistoryPage({
         </div>
       </div>
 
-      {/* Details Sheet */}
+      {/* Details Sheet - Organized by Time */}
       <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <SheetContent size="lg">
-          <SheetHeader>
+        <SheetContent className="sm:max-w-2xl overflow-y-auto">
+          <SheetHeader className="pb-4">
             <div className="flex flex-col gap-2">
-              <SheetTitle>
-                Medication Details -{" "}
+              <SheetTitle className="text-xl">
                 {selectedDate &&
                   format(selectedDate.dateObj, "EEEE, MMMM dd, yyyy")}
               </SheetTitle>
               <SheetDescription>
-                Detailed view of all medication intakes for this date
+                Medications organized by scheduled time
               </SheetDescription>
-              <div className="flex items-center gap-2 pt-2">
-                <Select
-                  onValueChange={(value: "csv" | "pdf") => {
-                    if (selectedDate) {
-                      if (value === "csv") {
-                        downloadDateCSV(selectedDate);
-                      } else {
-                        downloadDatePDF(selectedDate);
-                      }
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-[200px]">
-                    <Download className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Download" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="csv">Download as CSV</SelectItem>
-                    <SelectItem value="pdf">Download as PDF</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => selectedDate && downloadDateCSV(selectedDate)}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download CSV
+              </Button>
             </div>
           </SheetHeader>
-          <div className="mt-4">
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Medication</TableHead>
-                    <TableHead>Route</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Popped Out</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedDate?.intakes.map((intake) => {
-                    const medication = intake.medication;
-                    const getStateBadgeVariant = (state: string) => {
-                      switch (state) {
-                        case "administered":
-                          return "default";
-                        case "scheduled":
-                          return "secondary";
-                        case "missed":
-                          return "destructive";
-                        case "refused":
-                          return "outline";
-                        case "skipped":
-                          return "outline";
-                        default:
-                          return "secondary";
-                      }
-                    };
 
-                    return (
-                      <TableRow key={intake._id}>
-                        <TableCell>
-                          {format(new Date(intake.scheduledTime), "HH:mm")}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <p className="font-medium">
-                              {medication?.name || "N/A"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {medication
-                                ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
-                                : ""}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {medication?.route || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStateBadgeVariant(intake.state)}>
-                            {intake.state.charAt(0).toUpperCase() +
-                              intake.state.slice(1)}
+          <div className="space-y-6 py-4">
+            {selectedDate && (() => {
+              const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDate.intakes);
+
+              return (
+                <>
+                  {/* Scheduled Medications by Time */}
+                  {scheduled.length > 0 && scheduled.map((timeGroup) => (
+                    <Card key={timeGroup.time} className="border-l-4 border-l-blue-500">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-blue-500" />
+                          {timeGroup.time}
+                          <Badge variant="secondary" className="ml-2">
+                            {timeGroup.intakes.length} {timeGroup.intakes.length === 1 ? 'medication' : 'medications'}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {intake.poppedOutAt
-                            ? format(new Date(intake.poppedOutAt), "HH:mm")
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="text-sm max-w-xs truncate">
-                          {intake.notes || "-"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {timeGroup.intakes.map((intake) => {
+                          const medication = intake.medication;
+                          return (
+                            <div
+                              key={intake._id}
+                              className="p-3 rounded-lg bg-muted/50 space-y-2"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="font-semibold text-sm">
+                                    {medication?.name || "N/A"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {medication
+                                      ? `${medication.strength} ${medication.strengthUnit} • ${medication.dosageForm} • ${medication.route}`
+                                      : ""}
+                                  </p>
+                                </div>
+                                <Badge variant={getStateBadgeVariant(intake.state)} className="shrink-0">
+                                  {intake.state === "given" || intake.state === "administered" ? "✓ " : ""}
+                                  {intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
+                                </Badge>
+                              </div>
+                              {intake.notes && (
+                                <p className="text-xs text-muted-foreground border-t pt-2">
+                                  <span className="font-medium">Note:</span> {intake.notes}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {/* PRN Medications */}
+                  {prn.length > 0 && (
+                    <>
+                      <Separator className="my-6" />
+                      <Card className="border-l-4 border-l-purple-500">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Pill className="h-4 w-4 text-purple-500" />
+                            PRN (As Needed)
+                            <Badge variant="secondary" className="ml-2">
+                              {prn.length} {prn.length === 1 ? 'medication' : 'medications'}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {prn.map((intake) => {
+                            const medication = intake.medication;
+                            return (
+                              <div
+                                key={intake._id}
+                                className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 space-y-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-sm">
+                                        {medication?.name || "N/A"}
+                                      </p>
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(new Date(intake.scheduledTime), "HH:mm")}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {medication
+                                        ? `${medication.strength} ${medication.strengthUnit} • ${medication.dosageForm} • ${medication.route}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                  <Badge variant={getStateBadgeVariant(intake.state)} className="shrink-0">
+                                    {intake.state === "given" || intake.state === "administered" ? "✓ " : ""}
+                                    {intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
+                                  </Badge>
+                                </div>
+                                {intake.notes && (
+                                  <p className="text-xs text-muted-foreground border-t border-purple-200 dark:border-purple-800 pt-2">
+                                    <span className="font-medium">Note:</span> {intake.notes}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+
+                  {/* Topical Medications */}
+                  {topical.length > 0 && (
+                    <>
+                      <Separator className="my-6" />
+                      <Card className="border-l-4 border-l-green-500">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Droplet className="h-4 w-4 text-green-500" />
+                            Topical Medications
+                            <Badge variant="secondary" className="ml-2">
+                              {topical.length} {topical.length === 1 ? 'medication' : 'medications'}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {topical.map((intake) => {
+                            const medication = intake.medication;
+                            return (
+                              <div
+                                key={intake._id}
+                                className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 space-y-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-sm">
+                                        {medication?.name || "N/A"}
+                                      </p>
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(new Date(intake.scheduledTime), "HH:mm")}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {medication
+                                        ? `${medication.strength} ${medication.strengthUnit} • ${medication.dosageForm}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                  <Badge variant={getStateBadgeVariant(intake.state)} className="shrink-0">
+                                    {intake.state === "given" || intake.state === "administered" ? "✓ " : ""}
+                                    {intake.state.charAt(0).toUpperCase() + intake.state.slice(1)}
+                                  </Badge>
+                                </div>
+                                {intake.notes && (
+                                  <p className="text-xs text-muted-foreground border-t border-green-200 dark:border-green-800 pt-2">
+                                    <span className="font-medium">Note:</span> {intake.notes}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+
+                  {/* Empty state */}
+                  {scheduled.length === 0 && prn.length === 0 && topical.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No medications recorded for this date
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </SheetContent>
       </Sheet>
