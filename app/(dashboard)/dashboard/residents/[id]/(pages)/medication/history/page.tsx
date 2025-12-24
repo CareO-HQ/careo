@@ -445,22 +445,44 @@ export default function MedicationHistoryPage({
     document.body.removeChild(link);
   };
 
-  // Helper function to render medication badge
-  const getStateBadgeVariant = (state: string) => {
+  // Helper function to render medication badge with custom colors
+  const getStateBadgeStyle = (state: string) => {
     switch (state) {
       case "given":
+        return {
+          variant: "default" as const,
+          className: "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400"
+        };
       case "administered":
-        return "default";
+        return {
+          variant: "default" as const,
+          className: ""
+        };
       case "scheduled":
-        return "secondary";
+        return {
+          variant: "secondary" as const,
+          className: ""
+        };
       case "missed":
-        return "destructive";
+        return {
+          variant: "destructive" as const,
+          className: ""
+        };
       case "refused":
-        return "outline";
+        return {
+          variant: "outline" as const,
+          className: "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+        };
       case "skipped":
-        return "outline";
+        return {
+          variant: "outline" as const,
+          className: ""
+        };
       default:
-        return "secondary";
+        return {
+          variant: "secondary" as const,
+          className: ""
+        };
     }
   };
 
@@ -731,12 +753,15 @@ export default function MedicationHistoryPage({
                               <TableHead>Medication</TableHead>
                               <TableHead>Route</TableHead>
                               <TableHead>Status</TableHead>
+                              <TableHead>Given By</TableHead>
+                              <TableHead>Witnessed By</TableHead>
                               <TableHead>Notes</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {timeGroup.intakes.map((intake) => {
                               const medication = intake.medication;
+                              const badgeStyle = getStateBadgeStyle(intake.state);
                               return (
                                 <TableRow key={intake._id}>
                                   <TableCell>
@@ -755,10 +780,16 @@ export default function MedicationHistoryPage({
                                     {medication?.route || "N/A"}
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant={getStateBadgeVariant(intake.state)}>
+                                    <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
                                       {intake.state.charAt(0).toUpperCase() +
                                         intake.state.slice(1)}
                                     </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {intake.givenByName || "-"}
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {intake.witnessedByName || "-"}
                                   </TableCell>
                                   <TableCell className="text-sm max-w-xs truncate">
                                     {intake.notes || "-"}
@@ -790,12 +821,15 @@ export default function MedicationHistoryPage({
                               <TableHead>Medication</TableHead>
                               <TableHead>Route</TableHead>
                               <TableHead>Status</TableHead>
+                              <TableHead>Given By</TableHead>
+                              <TableHead>Witnessed By</TableHead>
                               <TableHead>Notes</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {prn.map((intake) => {
                               const medication = intake.medication;
+                              const badgeStyle = getStateBadgeStyle(intake.state);
                               return (
                                 <TableRow key={intake._id}>
                                   <TableCell className="text-sm">
@@ -817,10 +851,16 @@ export default function MedicationHistoryPage({
                                     {medication?.route || "N/A"}
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant={getStateBadgeVariant(intake.state)}>
+                                    <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
                                       {intake.state.charAt(0).toUpperCase() +
                                         intake.state.slice(1)}
                                     </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {intake.givenByName || "-"}
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {intake.witnessedByName || "-"}
                                   </TableCell>
                                   <TableCell className="text-sm max-w-xs truncate">
                                     {intake.notes || "-"}
@@ -855,12 +895,15 @@ export default function MedicationHistoryPage({
                                 <TableHead>Time</TableHead>
                                 <TableHead>Medication</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead>Given By</TableHead>
+                                <TableHead>Witnessed By</TableHead>
                                 <TableHead>Notes</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {topical.map((intake) => {
                                 const medication = intake.medication;
+                                const badgeStyle = getStateBadgeStyle(intake.state);
                                 return (
                                   <TableRow key={intake._id}>
                                     <TableCell className="text-sm">
@@ -879,10 +922,16 @@ export default function MedicationHistoryPage({
                                       </div>
                                     </TableCell>
                                     <TableCell>
-                                      <Badge variant={getStateBadgeVariant(intake.state)}>
+                                      <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
                                         {intake.state.charAt(0).toUpperCase() +
                                           intake.state.slice(1)}
                                       </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                      {intake.givenByName || "-"}
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                      {intake.witnessedByName || "-"}
                                     </TableCell>
                                     <TableCell className="text-sm max-w-xs truncate">
                                       {intake.notes || "-"}
