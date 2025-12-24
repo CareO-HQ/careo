@@ -182,10 +182,15 @@ export default function MedicationHistoryPage({
   }, [allIntakes, dateRange]);
 
   // Organize intakes by time slots, PRN, and Topical
-  const organizeIntakesByCategory = (intakes: any[]) => {
+  // Only show rounds that have been completed (past times)
+  const organizeIntakesByCategory = (intakes: any[], selectedDate: Date) => {
     const scheduled: Record<string, any[]> = {};
     const prn: any[] = [];
     const topical: any[] = [];
+
+    const now = new Date();
+    const isToday = format(selectedDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
+    const currentTime = format(now, "HH:mm");
 
     intakes.forEach((intake) => {
       const medication = intake.medication;
@@ -198,10 +203,14 @@ export default function MedicationHistoryPage({
       } else {
         // Group by scheduled time
         const time = format(new Date(intake.scheduledTime), "HH:mm");
-        if (!scheduled[time]) {
-          scheduled[time] = [];
+
+        // Only show if it's a past date OR if it's today and the time has passed
+        if (!isToday || time <= currentTime) {
+          if (!scheduled[time]) {
+            scheduled[time] = [];
+          }
+          scheduled[time].push(intake);
         }
-        scheduled[time].push(intake);
       }
     });
 
@@ -687,7 +696,7 @@ export default function MedicationHistoryPage({
 
           <div className="mt-4 space-y-6">
             {selectedDate && (() => {
-              const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDate.intakes);
+              const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDate.intakes, selectedDate.dateObj);
 
               return (
                 <>
