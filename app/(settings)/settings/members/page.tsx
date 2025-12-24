@@ -13,6 +13,7 @@ export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const { data: member } = authClient.useActiveMember();
+  const activeMember = member;
 
   const invitations = activeOrganization?.invitations.filter(
     (invitation) => invitation.status === "pending"
@@ -23,15 +24,15 @@ export default function MembersPage() {
   };
 
   function showRemoveButton() {
-    return member?.role === "owner" || member?.role === "manager";
+    return activeMember?.role === "owner" || activeMember?.role === "manager";
   }
 
   function canInviteMembers() {
-    return member?.role === "owner" || member?.role === "manager";
+    return activeMember?.role === "owner" || activeMember?.role === "manager";
   }
 
-  const isOwner = member?.role === "owner";
-  const isManager = member?.role === "manager";
+  const isOwner = activeMember?.role === "owner";
+  const isManager = activeMember?.role === "manager";
 
   return (
     <div className="flex flex-col justify-start items-start gap-8">
@@ -83,7 +84,7 @@ export default function MembersPage() {
                     memberName={member.user.name || member.user.email}
                     userId={member.userId}
                     email={member.user.email}
-                    isOwner={isOwner || isManager}
+                    isOwner={isOwner}
                   />
                 </>
               )}

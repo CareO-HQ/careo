@@ -29,6 +29,7 @@ import { useEffect, useState, useTransition, useCallback } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { toast } from "sonner";
 import CreateOrgModal from "../organization/CreateOrgModal";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import OrganizationItem from "./OrganizationItem";
 import { config } from "@/config";
@@ -50,6 +51,8 @@ export function TeamSwitcher({
 
   // Debug: Log the structure of activeOrganization
   console.log("Active Organization:", activeOrganization);
+  const { data: activeMember } = authClient.useActiveMember();
+  const isOwner = activeMember?.role === "owner";
   const { activeTeamId, activeTeam } = useActiveTeam();
   const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
   const setActiveOrganization = useMutation(api.auth.setActiveOrganization);
@@ -154,16 +157,32 @@ export function TeamSwitcher({
           >
             <div className="flex flex-row items-center justify-between">
               <DropdownMenuLabel>Care homes</DropdownMenuLabel>
-              <CreateOrgModal>
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  disabled={
-                    (organizations?.length ?? 0) >= config.limits.organizations
-                  }
-                >
-                  <PlusIcon className="size-3 text-primary" />
-                </DropdownMenuItem>
-              </CreateOrgModal>
+              {isOwner ? (
+                <CreateOrgModal>
+                  <DropdownMenuItem
+                    onSelect={(e) => e.preventDefault()}
+                    disabled={
+                      (organizations?.length ?? 0) >=
+                      config.limits.organizations
+                    }
+                  >
+                    <PlusIcon className="size-3 text-primary" />
+                  </DropdownMenuItem>
+                </CreateOrgModal>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <DropdownMenuItem disabled>
+                        <PlusIcon className="size-3 text-muted-foreground" />
+                      </DropdownMenuItem>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={4}>
+                    Only owners can add care homes
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
             {organizations?.map((organization) => (
               <OrganizationItem
