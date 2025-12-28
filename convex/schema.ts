@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   dependencyAssessments,
   dnacprs,
+  painAssessments,
   peeps,
   photographyConsents,
   residentHandlingProfileForm,
@@ -574,6 +575,8 @@ export default defineSchema({
       )
     ),
     assistanceRequired: v.optional(v.union(v.literal("yes"), v.literal("no"))),
+    chefNotified: v.optional(v.union(v.literal("yes"), v.literal("no"))),
+    chefName: v.optional(v.string()),
     organizationId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
@@ -706,9 +709,10 @@ export default defineSchema({
     residentId: v.id("residents"),
     timestamp: v.number(), // exact time (Date.now())
     section: v.string(), // "midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"
+    exactTime: v.optional(v.string()), // "HH:MM" format for user-specified exact time
     typeOfFoodDrink: v.string(), // "Tea", "Toast", "Chicken"
     portionServed: v.string(), // "1 slice", "2 scoops"
-    amountEaten: v.string(), // "None", "1/4", "1/2", "3/4", "All"
+    amountEaten: v.optional(v.string()), // "None", "1/4", "1/2", "3/4", "All" (for food entries only)
     fluidConsumedMl: v.optional(v.number()), // e.g., 150
     signature: v.string(), // staff name/id
     date: v.string(), // "YYYY-MM-DD" for easier querying
@@ -745,6 +749,21 @@ export default defineSchema({
     .index("by_archived_date", ["isArchived", "archivedAt"]) // For auto-archive cleanup
     .index("by_scheduled_deletion", ["scheduledDeletionAt"]) // For retention enforcement
     .index("by_retention_period", ["retentionPeriodYears", "createdAt"]), // For retention queries
+
+  // Menu items for food logging
+  menuItems: defineTable({
+    name: v.string(), // "Sausage & Mash", "Chicken Curry", etc.
+    category: v.optional(v.string()), // "Main", "Dessert", "Snack", "Beverage"
+    teamId: v.string(), // Menu items are team/unit specific
+    organizationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("byTeamId", ["teamId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byCategory", ["teamId", "category"])
+    .index("byCreatedAt", ["teamId", "createdAt"]),
 
   // Audit log for food/fluid data access (GDPR Article 30 - Records of Processing)
   foodFluidAuditLog: defineTable({
@@ -1813,6 +1832,10 @@ export default defineSchema({
     .index("by_organization", ["organizationId"]),
 
   residentValuablesAssessments: residentValuablesAssessments,
+
+  painAssessments: painAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
 
   // Care file PDFs - for custom uploaded PDFs in specific folders
 

@@ -237,22 +237,50 @@ export default function CareFileFolder({
     api.careFiles.handlingProfile.getArchivedForResident,
     residentId ? { residentId } : "skip"
   );
+  const archivedPainAssessment = useQuery(
+    api.careFiles.painAssessment.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedInfectionPrevention = useQuery(
+    api.careFiles.infectionPrevention.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedBladderBowel = useQuery(
+    api.careFiles.bladderBowel.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedMovingHandling = useQuery(
+    api.careFiles.movingHandling.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedCarePlans = useQuery(
+    api.careFiles.carePlan.getArchivedCarePlansForResident,
+    residentId ? { residentId } : "skip"
+  );
 
   // Combine all archived items into a single array
   const allArchivedItems = [
-    ...(archivedPreAdmission?.map((item: any) => ({ ...item, formKey: "preAdmission-form", formType: "Pre-Admission Form" })) || []),
-    ...(archivedAdmission?.map((item: any) => ({ ...item, formKey: "admission-form", formType: "Admission Form" })) || []),
-    ...(archivedPhotographyConsent?.map((item: any) => ({ ...item, formKey: "photography-consent", formType: "Photography Consent" })) || []),
-    ...(archivedDnacpr?.map((item: any) => ({ ...item, formKey: "dnacpr", formType: "DNACPR" })) || []),
-    ...(archivedPeep?.map((item: any) => ({ ...item, formKey: "peep", formType: "PEEP Assessment" })) || []),
-    ...(archivedDependency?.map((item: any) => ({ ...item, formKey: "dependency-assessment", formType: "Dependency Assessment" })) || []),
-    ...(archivedTiml?.map((item: any) => ({ ...item, formKey: "timl", formType: "This Is My Life" })) || []),
-    ...(archivedSkinIntegrity?.map((item: any) => ({ ...item, formKey: "skin-integrity-form", formType: "Skin Integrity Assessment" })) || []),
-    ...(archivedResidentValuables?.map((item: any) => ({ ...item, formKey: "resident-valuables-form", formType: "Resident Valuables" })) || []),
-    ...(archivedHandlingProfile?.map((item: any) => ({ ...item, formKey: "resident-handling-profile-form", formType: "Resident Handling Profile" })) || [])
+    ...(archivedPreAdmission?.map((item: any) => ({ ...item, formKey: "preAdmission-form", formType: "Pre-Admission Form", folderKey: "preAdmission" })) || []),
+    ...(archivedInfectionPrevention?.map((item: any) => ({ ...item, formKey: "infection-prevention", formType: "Infection Prevention Assessment", folderKey: "preAdmission" })) || []),
+    ...(archivedAdmission?.map((item: any) => ({ ...item, formKey: "admission-form", formType: "Admission Form", folderKey: "admission" })) || []),
+    ...(archivedPhotographyConsent?.map((item: any) => ({ ...item, formKey: "photography-consent", formType: "Photography Consent", folderKey: "admission" })) || []),
+    ...(archivedDnacpr?.map((item: any) => ({ ...item, formKey: "dnacpr", formType: "DNACPR", folderKey: "dnacpr" })) || []),
+    ...(archivedPeep?.map((item: any) => ({ ...item, formKey: "peep", formType: "PEEP Assessment", folderKey: "peep" })) || []),
+    ...(archivedDependency?.map((item: any) => ({ ...item, formKey: "dependency-assessment", formType: "Dependency Assessment", folderKey: "depenency" })) || []),
+    ...(archivedTiml?.map((item: any) => ({ ...item, formKey: "timl", formType: "This Is My Life", folderKey: "my-life" })) || []),
+    ...(archivedSkinIntegrity?.map((item: any) => ({ ...item, formKey: "skin-integrity-form", formType: "Skin Integrity Assessment", folderKey: "skin integrity" })) || []),
+    ...(archivedResidentValuables?.map((item: any) => ({ ...item, formKey: "resident-valuables-form", formType: "Resident Valuables", folderKey: "resident-valuables" })) || []),
+    ...(archivedMovingHandling?.map((item: any) => ({ ...item, formKey: "moving-handling-form", formType: "Moving & Handling Assessment", folderKey: "mobility-fall" })) || []),
+    ...(archivedHandlingProfile?.map((item: any) => ({ ...item, formKey: "resident-handling-profile-form", formType: "Resident Handling Profile", folderKey: "mobility-fall" })) || []),
+    ...(archivedBladderBowel?.map((item: any) => ({ ...item, formKey: "blader-bowel-form", formType: "Bladder & Bowel Assessment", folderKey: "continence" })) || []),
+    ...(archivedPainAssessment?.map((item: any) => ({ ...item, formKey: "pain-assessment-form", formType: "Pain Assessment and Evaluation", folderKey: "medication" })) || []),
+    ...(archivedCarePlans?.map((item: any) => ({ ...item, formKey: "care-plan-form", formType: "Care Plan", folderKey: item.folderKey })) || [])
   ].sort((a, b) => b.archivedAt - a.archivedAt); // Sort by most recently archived first
 
-  const totalArchivedCount = allArchivedItems.length;
+  // Filter archived items by current folder
+  const filteredArchivedItems = allArchivedItems.filter(item => item.folderKey === folderKey);
+
+  const totalArchivedCount = filteredArchivedItems.length;
 
   // Component to handle individual PDF file with URL fetching
   const PdfFileItem = ({
@@ -297,7 +325,8 @@ export default function CareFileFolder({
       { key: "timl", name: "This Is My Life", category: "Personal", canDelete: true, canView: true, canEdit: true },
       { key: "skin-integrity-form", name: "Skin Integrity Assessment", category: "Clinical", canDelete: true, canView: true, canEdit: true },
       { key: "resident-valuables-form", name: "Resident Valuables", category: "Property", canDelete: true, canView: true, canEdit: true },
-      { key: "resident-handling-profile-form", name: "Resident Handling Profile", category: "Handling", canDelete: true, canView: true, canEdit: true }
+      { key: "resident-handling-profile-form", name: "Resident Handling Profile", category: "Handling", canDelete: true, canView: true, canEdit: true },
+      { key: "pain-assessment-form", name: "Pain Assessment and Evaluation", category: "Medication", canDelete: true, canView: true, canEdit: true }
     ];
     const isViewableForm = viewableEditableForms.some(f => f.key === file.formKey);
     const formConfig = viewableEditableForms.find(f => f.key === file.formKey);
@@ -395,7 +424,8 @@ export default function CareFileFolder({
                   "timl": "timlAssessment",
                   "skin-integrity-form": "skinIntegrityAssessment",
                   "resident-valuables-form": "residentValuablesAssessment",
-                  "resident-handling-profile-form": "residentHandlingProfileForm"
+                  "resident-handling-profile-form": "residentHandlingProfileForm",
+                  "pain-assessment-form": "painAssessment"
                 };
                 setReviewFormData({
                   formType: formTypeMap[file.formKey] || file.formKey,
@@ -1343,7 +1373,9 @@ export default function CareFileFolder({
                   // Check if archived queries are still loading
                   const isLoadingArchived =
                     archivedPreAdmission === undefined ||
-                    archivedAdmission === undefined;
+                    archivedAdmission === undefined ||
+                    archivedPainAssessment === undefined ||
+                    archivedCarePlans === undefined;
 
                   if (isLoadingArchived) {
                     return (
@@ -1356,10 +1388,10 @@ export default function CareFileFolder({
                     );
                   }
 
-                  if (allArchivedItems.length > 0) {
+                  if (filteredArchivedItems.length > 0) {
                     return (
                       <>
-                        {allArchivedItems.map((item) => (
+                        {filteredArchivedItems.map((item) => (
                           <ArchivedFileItem key={item._id} item={item} />
                         ))}
                       </>

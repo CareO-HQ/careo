@@ -690,3 +690,45 @@ export const residentHandlingProfileForm = defineTable({
   // PDF file ID
   pdfFileId: v.optional(v.id("_storage"))
 }).index("by_resident", ["residentId"]);
+
+export const painAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Resident information & header
+  residentName: v.string(),
+  dateOfBirth: v.string(),
+  roomNumber: v.string(),
+  nameOfHome: v.string(),
+  assessmentDate: v.number(),
+
+  // Array of assessment entries
+  assessmentEntries: v.array(
+    v.object({
+      dateTime: v.string(),
+      painLocation: v.string(),
+      descriptionOfPain: v.string(),
+      residentBehaviour: v.string(),
+      interventionType: v.string(),
+      interventionTime: v.string(),
+      painAfterIntervention: v.string(),
+      comments: v.optional(v.string()),
+      signature: v.string()
+    })
+  ),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);

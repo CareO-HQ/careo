@@ -187,6 +187,51 @@ export const getHandlingProfilesByResident = query({
 });
 
 /**
+ * Get a single handling profile by ID
+ */
+export const getHandlingProfileById = query({
+  args: {
+    profileId: v.id("residentHandlingProfileForm")
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("residentHandlingProfileForm"),
+      _creationTime: v.number(),
+      residentId: v.id("residents"),
+      teamId: v.string(),
+      organizationId: v.string(),
+      completedBy: v.string(),
+      jobRole: v.string(),
+      date: v.number(),
+      residentName: v.string(),
+      bedroomNumber: v.string(),
+      weight: v.number(),
+      weightBearing: v.string(),
+      transferBed: activitySchema,
+      transferChair: activitySchema,
+      walking: activitySchema,
+      toileting: activitySchema,
+      movementInBed: activitySchema,
+      bath: activitySchema,
+      outdoorMobility: activitySchema,
+      createdBy: v.optional(v.string()),
+      lastModifiedAt: v.optional(v.number()),
+      lastModifiedBy: v.optional(v.string()),
+      pdfFileId: v.optional(v.id("_storage")),
+      pdfUrl: v.optional(v.string())
+    })
+  ),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) {
+      return null;
+    }
+    return profile;
+  }
+});
+
+/**
  * Generate PDF and update the record with the file ID
  */
 export const generatePDFAndUpdateRecord = internalAction({

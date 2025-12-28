@@ -13,7 +13,8 @@ export type CareFileFormKey =
   | "timl"
   | "skin-integrity-form"
   | "resident-valuables-form"
-  | "resident-handling-profile-form";
+  | "resident-handling-profile-form"
+  | "pain-assessment-form";
 
 export type CareFileFormStatus =
   | "not-started"

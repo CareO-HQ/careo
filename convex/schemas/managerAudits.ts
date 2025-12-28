@@ -18,7 +18,8 @@ export const managerAuditsValidator = defineTable({
     v.literal("timlAssessment"),
     v.literal("skinIntegrityAssessment"),
     v.literal("residentValuablesAssessment"),
-    v.literal("residentHandlingProfileForm")
+    v.literal("residentHandlingProfileForm"),
+    v.literal("painAssessment")
   ),
   formId: v.string(), // ID of the specific form/assessment
   residentId: v.id("residents"),

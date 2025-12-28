@@ -313,6 +313,13 @@ export const updatePeep = mutation({
     date: v.number(),
 
     // Metadata
+    status: v.optional(
+      v.union(
+        v.literal("draft"),
+        v.literal("submitted"),
+        v.literal("reviewed")
+      )
+    ),
     savedAsDraft: v.optional(v.boolean())
   },
   returns: v.id("peeps"),

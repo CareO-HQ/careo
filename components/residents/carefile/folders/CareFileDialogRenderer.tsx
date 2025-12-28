@@ -8,6 +8,7 @@ import DnacprDialog from "@/components/residents/carefile/dialogs/DnarcpDialog";
 import InfectionPreventionDialog from "@/components/residents/carefile/dialogs/InfectionPreventionDialog";
 import LongTermFallRiskDialog from "@/components/residents/carefile/dialogs/LongTermFallRiskDialog";
 import MovingHandlingDialog from "@/components/residents/carefile/dialogs/MovingHandlingDialog";
+import PainAssessmentDialog from "@/components/residents/carefile/dialogs/PainAssessmentDialog";
 import PeepDialog from "@/components/residents/carefile/dialogs/PeepDialog";
 import PhotographyConsentDialog from "@/components/residents/carefile/dialogs/PhotographyConsentDialog";
 import PreAdmissionDialog from "@/components/residents/carefile/dialogs/PreAdmissionDialog";
@@ -120,7 +121,12 @@ export function CareFileDialogRenderer({
 
     case "long-term-fall-risk-form":
       return (
-        <LongTermFallRiskDialog {...commonProps} userName={userName ?? ""} />
+        <LongTermFallRiskDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+          isEditMode={!!editData}
+        />
       );
 
     case "care-plan-form":
@@ -165,6 +171,16 @@ export function CareFileDialogRenderer({
     case "resident-handling-profile-form":
       return (
         <ResidentHandlingProfileDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
+      );
+
+    case "pain-assessment-form":
+      return (
+        <PainAssessmentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          careHomeName={careHomeName ?? ""}
+          initialData={editData}
+        />
       );
 
     default:

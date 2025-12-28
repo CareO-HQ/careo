@@ -138,7 +138,14 @@ export const config = {
       value: "Medication",
       description: "Medication",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "pain-assessment-form",
+          value: "Pain Assessment and Evaluation",
+          description: "Pain Assessment and Evaluation"
+        }
+      ]
     },
     {
       type: "folder",

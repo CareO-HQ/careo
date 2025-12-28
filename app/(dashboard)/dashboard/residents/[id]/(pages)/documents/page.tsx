@@ -407,6 +407,16 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
         </div>
       </div>
 
+      {/* Quick Guide */}
+      <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-md p-3 -mt-2">
+        <p className="font-semibold text-blue-900 mb-1.5">Quick Guide:</p>
+        <ul className="space-y-0.5 ml-4 list-disc">
+          <li><span className="font-medium">Create folders</span> to organize documents by category (Medical Records, Care Plans, etc.)</li>
+          <li><span className="font-medium">Upload files:</span> PDF, JPG, JPEG, PNG, GIF (Max 10MB per file)</li>
+          <li><span className="font-medium">Limits:</span> Up to 10 folders, 50 files per folder</li>
+        </ul>
+      </div>
+
       {/* Folders List */}
       <div className="flex flex-wrap gap-3">
         {folders && folders.length > 0 ? (
@@ -653,28 +663,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
               </SheetContent>
             </Sheet>
           ))
-        ) : (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-gray-100 rounded-full">
-                  <Folder className="w-12 h-12 text-gray-400" />
-                </div>
-              </div>
-              <p className="text-gray-600 font-medium mb-2">No folders yet</p>
-              <p className="text-sm text-gray-500 mb-4">
-                Create a folder to organize your documents
-              </p>
-              <Button
-                onClick={() => setIsFolderDialogOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <FolderPlus className="w-4 h-4 mr-2" />
-                Create Your First Folder
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        ) : null}
       </div>
 
       {/* Create Folder Dialog */}

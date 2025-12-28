@@ -92,6 +92,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const painAssessmentForms = useQuery(
+    api.careFiles.painAssessment.getPainAssessmentsByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -136,6 +141,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   )?.[0];
 
   const latestHandlingProfileForm = handlingProfileForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestPainAssessmentForm = painAssessmentForms?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -235,6 +244,16 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const painAssessmentPdfUrl = useQuery(
+    api.careFiles.painAssessment.getPDFUrl,
+    latestPainAssessmentForm && activeOrg?.id
+      ? {
+          assessmentId: latestPainAssessmentForm._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -258,6 +277,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     if (latestResidentValuablesAssessment)
       ids.push(latestResidentValuablesAssessment._id);
     if (latestHandlingProfileForm) ids.push(latestHandlingProfileForm._id);
+    if (latestPainAssessmentForm) ids.push(latestPainAssessmentForm._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -273,7 +293,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestTimlAssessment,
     latestSkinIntegrityAssessment,
     latestResidentValuablesAssessment,
-    latestHandlingProfileForm
+    latestHandlingProfileForm,
+    latestPainAssessmentForm
   ]);
 
   const auditStatus = useQuery(
@@ -779,6 +800,34 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: handlingProfileAudit?.auditedBy
     };
 
+    // Pain Assessment
+    const hasPainAssessmentData = !!latestPainAssessmentForm;
+    const painAssessmentHasPdfFileId = !!(latestPainAssessmentForm as any)
+      ?.pdfFileId;
+    const painAssessmentAudit = latestPainAssessmentForm
+      ? auditStatus?.[latestPainAssessmentForm._id as string]
+      : undefined;
+
+    state["pain-assessment-form"] = {
+      status: getFormStatus(
+        hasPainAssessmentData,
+        latestPainAssessmentForm?.status === "draft",
+        painAssessmentHasPdfFileId,
+        painAssessmentPdfUrl
+      ),
+      hasData: hasPainAssessmentData,
+      hasPdfFileId: painAssessmentHasPdfFileId,
+      pdfUrl: painAssessmentPdfUrl,
+      lastUpdated: latestPainAssessmentForm?._creationTime,
+      completedAt:
+        latestPainAssessmentForm?.status !== "draft"
+          ? latestPainAssessmentForm?.submittedAt
+          : undefined,
+      isAudited: painAssessmentAudit?.isAudited || false,
+      auditedAt: painAssessmentAudit?.auditedAt,
+      auditedBy: painAssessmentAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -798,6 +847,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestSkinIntegrityAssessment,
     latestResidentValuablesAssessment,
     latestHandlingProfileForm,
+    latestPainAssessmentForm,
     preAdmissionPdfUrl,
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
@@ -812,6 +862,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     skinIntegrityPdfUrl,
     residentValuablesPdfUrl,
     handlingProfilePdfUrl,
+    painAssessmentPdfUrl,
     auditStatus
   ]);
 

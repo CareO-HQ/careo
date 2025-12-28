@@ -7,6 +7,7 @@ import * as handlingProfile from "./handlingProfile";
 import * as infectionPrevention from "./infectionPrevention";
 import * as longTermFalls from "./longTermFalls";
 import * as movingHandling from "./movingHandling";
+import * as painAssessment from "./painAssessment";
 import * as peep from "./peep";
 import * as photographyConsent from "./photographyConsent";
 import * as preadmission from "./preadmission";
@@ -24,6 +25,7 @@ export {
   infectionPrevention,
   longTermFalls,
   movingHandling,
+  painAssessment,
   peep,
   photographyConsent,
   preadmission,

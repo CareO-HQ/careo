@@ -200,13 +200,23 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   });
 
   // Daily Activity Record state variables
-  const [activityRecordTime, setActivityRecordTime] = React.useState("");
+  const [activityRecordTime, setActivityRecordTime] = React.useState(() => {
+    // Get current time in HH:MM format
+    return new Date().toTimeString().slice(0, 5);
+  });
   const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
 
   // Dialog state management
   const [isPersonalCareDialogOpen, setIsPersonalCareDialogOpen] = React.useState(false);
   const [isActivityRecordDialogOpen, setIsActivityRecordDialogOpen] = React.useState(false);
   const [activeLogTab, setActiveLogTab] = React.useState<string>("personal_care");
+
+  // Update activity record time to current time when dialog opens
+  React.useEffect(() => {
+    if (isActivityRecordDialogOpen) {
+      setActivityRecordTime(new Date().toTimeString().slice(0, 5));
+    }
+  }, [isActivityRecordDialogOpen]);
 
   // Update staff fields when user data loads or when dialog opens
   React.useEffect(() => {
@@ -310,7 +320,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       });
 
       // Clear form and close dialog (keep current user as staff)
-      setActivityRecordTime("");
+      setActivityRecordTime(new Date().toTimeString().slice(0, 5));
       setActivityRecordNotes("");
       setIsActivityRecordDialogOpen(false);
       toast.success("Daily activity record saved successfully");
@@ -1812,16 +1822,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Primary Staff</Label>
-              <Input
-                value={currentUserName}
-                disabled
-                className="h-9 bg-gray-50 text-gray-600"
-                placeholder="Current user"
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label className="text-sm font-medium">Time</Label>
               <Input
                 type="time"
@@ -1832,13 +1832,23 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Primary Staff</Label>
+              <Input
+                value={currentUserName}
+                disabled
+                className="h-9 bg-gray-50 text-gray-600"
+                placeholder="Current user"
+              />
+            </div>
+
             <div className="flex justify-end space-x-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
                   setIsActivityRecordDialogOpen(false);
-                  setActivityRecordTime("");
+                  setActivityRecordTime(new Date().toTimeString().slice(0, 5));
                   setActivityRecordNotes("");
                 }}
               >

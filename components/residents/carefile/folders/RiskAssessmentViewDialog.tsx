@@ -60,6 +60,10 @@ export default function RiskAssessmentViewDialog({
         return api.careFiles.residentValuables.getResidentValuablesById;
       case "photography-consent":
         return api.careFiles.photographyConsent.getPhotographyConsentById;
+      case "pain-assessment-form":
+        return api.careFiles.painAssessment.getPainAssessment;
+      case "resident-handling-profile-form":
+        return api.careFiles.handlingProfile.getHandlingProfileById;
       default:
         return "skip";
     }
@@ -75,11 +79,13 @@ export default function RiskAssessmentViewDialog({
     if (formKey === "admission-form") return { assessmentId: assessment.formId as Id<"admissionAssesments"> };
     if (formKey === "dnacpr") return { dnacprId: assessment.formId as Id<"dnacprs"> };
     if (formKey === "peep") return { peepId: assessment.formId as Id<"peeps"> };
-    if (formKey === "dependency-assessment") return { id: assessment.formId as Id<"dependencyAssessments"> };
+    if (formKey === "dependency-assessment") return { assessmentId: assessment.formId as Id<"dependencyAssessments"> };
     if (formKey === "timl") return { assessmentId: assessment.formId as Id<"timlAssessments"> };
     if (formKey === "skin-integrity-form") return { assessmentId: assessment.formId as Id<"skinIntegrityAssessments"> };
     if (formKey === "resident-valuables-form") return { assessmentId: assessment.formId as Id<"residentValuablesAssessments"> };
     if (formKey === "photography-consent") return { consentId: assessment.formId as Id<"photographyConsents"> };
+    if (formKey === "pain-assessment-form") return { assessmentId: assessment.formId as Id<"painAssessments"> };
+    if (formKey === "resident-handling-profile-form") return { profileId: assessment.formId as Id<"residentHandlingProfileForm"> };
     return "skip";
   };
 
@@ -111,6 +117,8 @@ export default function RiskAssessmentViewDialog({
         return "bg-red-50 text-red-700";
       case "Continence":
         return "bg-purple-50 text-purple-700";
+      case "Medication":
+        return "bg-green-50 text-green-700";
       default:
         return "bg-gray-50 text-gray-700";
     }
@@ -141,6 +149,84 @@ export default function RiskAssessmentViewDialog({
             .replace(/([A-Z])/g, " $1")
             .replace(/^./, (str) => str.toUpperCase())
             .trim();
+
+          // Special handling for Dependency Level
+          if (key === "dependencyLevel" && assessment.formKey === "dependency-assessment") {
+            const dependencyLevelMap: Record<string, string> = {
+              "A": "Level A - High Dependency",
+              "B": "Level B - Medium Dependency",
+              "C": "Level C - Low Dependency",
+              "D": "Level D - Independent"
+            };
+            return (
+              <div key={key} className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Dependency Level</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words font-medium">
+                  {dependencyLevelMap[value as string] || value}
+                </p>
+              </div>
+            );
+          }
+
+          // Special handling for Pain Assessment entries
+          if (key === "assessmentEntries" && assessment.formKey === "pain-assessment-form") {
+            return (
+              <div key={key} className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">Assessment Entries</p>
+                <div className="space-y-4">
+                  {(value as any[]).map((entry: any, index: number) => (
+                    <div key={index} className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold">Entry {index + 1}</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Date and Time</p>
+                          <p className="text-sm">{entry.dateTime}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Pain Location</p>
+                          <p className="text-sm">{entry.painLocation}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Description of Pain</p>
+                        <p className="text-sm">{entry.descriptionOfPain}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Resident Behaviour</p>
+                        <p className="text-sm">{entry.residentBehaviour}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Type of Intervention</p>
+                          <p className="text-sm">{entry.interventionType}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Intervention Time</p>
+                          <p className="text-sm">{entry.interventionTime}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Pain After Intervention</p>
+                        <p className="text-sm">{entry.painAfterIntervention}</p>
+                      </div>
+                      {entry.comments && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Comments</p>
+                          <p className="text-sm">{entry.comments}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Signature</p>
+                        <p className="text-sm font-medium">{entry.signature}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
 
           // Handle different value types
           let displayValue = value;
@@ -179,6 +265,40 @@ export default function RiskAssessmentViewDialog({
               displayValue = value.join(", ");
             }
           } else if (typeof value === "object" && value !== null) {
+            // Check if it's a handling profile activity object
+            if (
+              assessment.formKey === "resident-handling-profile-form" &&
+              "nStaff" in value &&
+              "equipment" in value &&
+              "handlingPlan" in value &&
+              "dateForReview" in value
+            ) {
+              return (
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
+                  <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Number of Staff</p>
+                        <p className="text-sm">{value.nStaff}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Date for Review</p>
+                        <p className="text-sm">{format(new Date(value.dateForReview), "dd MMM yyyy")}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Equipment</p>
+                      <p className="text-sm">{value.equipment}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Handling Plan</p>
+                      <p className="text-sm">{value.handlingPlan}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             displayValue = JSON.stringify(value, null, 2);
           }
 

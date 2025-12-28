@@ -247,6 +247,8 @@ export const getDnacprById = query({
       ),
       submittedAt: v.optional(v.number()),
       createdBy: v.string(),
+      lastModifiedAt: v.optional(v.number()),
+      lastModifiedBy: v.optional(v.string()),
       pdfUrl: v.optional(v.string()),
       pdfFileId: v.optional(v.id("_storage"))
     })

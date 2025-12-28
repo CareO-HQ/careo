@@ -135,7 +135,7 @@ export default function LongTermFallRiskDialog({
           await submitReviewedFormMutation({
             formType: "longTermFallsRiskAssessment",
             formData: data,
-            originalFormData: initialData,
+            originalFormData: initialData || {},
             originalFormId: initialData?._id || "",
             residentId: data.residentId as Id<"residents">,
             auditedBy: userName,

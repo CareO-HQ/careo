@@ -67,24 +67,27 @@ const DietFormSchema = z.object({
   foodConsistency: z.enum(["level7", "level6", "level5", "level4", "level3"]).optional(),
   fluidConsistency: z.enum(["level0", "level1", "level2", "level3", "level4"]).optional(),
   assistanceRequired: z.enum(["yes", "no"]).optional(),
+  chefNotified: z.enum(["yes", "no"]).optional(),
+  chefName: z.string().optional(),
 });
 
 // Food/Fluid Log Form Schema
 const FoodFluidLogSchema = z.object({
   section: z.enum(["midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"]),
+  exactTime: z.string().optional(),
   typeOfFoodDrink: z.string().min(1, "Please specify the food or drink").max(100, "Food/drink name too long"),
   portionServed: z.string().optional(),
-  amountEaten: z.enum(["None", "1/4", "1/2", "3/4", "All"]),
+  amountEaten: z.enum(["None", "1/4", "1/2", "3/4", "All"]).optional(),
   fluidConsumedMl: z.number().min(0, "Volume cannot be negative").max(2000, "Volume seems too high").optional().or(z.literal(0)),
   signature: z.string().min(1, "Signature is required").max(50, "Signature too long"),
-}).refine((data) => {
-  // If it's a food entry (not in fluid list), portionServed should be required
-  const fluidTypes = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk', 'Soup', 'Smoothie'];
-  const isFluid = fluidTypes.some(type => data.typeOfFoodDrink.toLowerCase().includes(type.toLowerCase()));
-  return isFluid || (data.portionServed && data.portionServed.length > 0);
-}, {
-  message: "Portion served is required for food entries",
-  path: ["portionServed"]
+});
+
+// Menu Item Form Schema
+const MenuItemFormSchema = z.object({
+  items: z.array(z.object({
+    name: z.string().min(1, "Menu item name is required").max(100, "Name too long"),
+    category: z.string().optional(),
+  })).min(1, "Add at least one menu item"),
 });
 
 export default function FoodFluidPage({ params }: { params: Promise<{ id: string }> }) {
@@ -127,11 +130,22 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   // Mutations
   const createOrUpdateDietMutation = useMutation(api.diet.createOrUpdateDiet);
   const createFoodFluidLogMutation = useMutation(api.foodFluidLogs.createFoodFluidLog);
+  const createMenuItemMutation = useMutation(api.menuItems.createMenuItem);
+
+  // Query menu items for the resident's team
+  const menuItems = useQuery(
+    api.menuItems.getMenuItemsByTeam,
+    resident?.teamId ? { teamId: resident.teamId } : "skip"
+  );
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
+
+  // Menu Dialog state
+  const [isMenuDialogOpen, setIsMenuDialogOpen] = React.useState(false);
+  const [isMenuLoading, setIsMenuLoading] = React.useState(false);
 
   // Food/Fluid Log Dialog state
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
@@ -155,6 +169,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
       foodConsistency: undefined,
       fluidConsistency: undefined,
       assistanceRequired: undefined,
+      chefNotified: undefined,
+      chefName: "",
     },
   });
 
@@ -163,12 +179,27 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     resolver: zodResolver(FoodFluidLogSchema),
     defaultValues: {
       section: "7am-12pm",
+      exactTime: new Date().toTimeString().slice(0, 5), // HH:MM format
       typeOfFoodDrink: "",
       portionServed: "",
-      amountEaten: "All",
+      amountEaten: undefined,
       fluidConsumedMl: undefined,
       signature: persistentStaffSignature,
     },
+  });
+
+  // Menu Item Form setup
+  const menuForm = useForm<z.infer<typeof MenuItemFormSchema>>({
+    resolver: zodResolver(MenuItemFormSchema),
+    defaultValues: {
+      items: [{ name: "", category: "Main" }],
+    },
+  });
+
+  // Field array for menu items
+  const { fields: menuItemFields, append: appendMenuItem, remove: removeMenuItem } = useFieldArray({
+    control: menuForm.control,
+    name: "items",
   });
 
   // Update persistent signature when user changes
@@ -194,6 +225,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         foodConsistency: existingDiet.foodConsistency,
         fluidConsistency: existingDiet.fluidConsistency,
         assistanceRequired: existingDiet.assistanceRequired,
+        chefNotified: existingDiet.chefNotified,
+        chefName: existingDiet.chefName || "",
       });
     }
   }, [existingDiet, form]);
@@ -307,6 +340,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         foodConsistency: values.foodConsistency,
         fluidConsistency: values.fluidConsistency,
         assistanceRequired: values.assistanceRequired,
+        chefNotified: values.chefNotified,
+        chefName: values.chefName,
         organizationId: activeOrganization.id,
         createdBy: user.user.id,
       });
@@ -332,6 +367,42 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     }
   };
 
+  // Menu Item submission
+  const onMenuItemSubmit = async (values: z.infer<typeof MenuItemFormSchema>) => {
+    setIsMenuLoading(true);
+    try {
+      if (!activeOrganization?.id || !user?.user?.id || !resident?.teamId) {
+        toast.error("Missing required information");
+        return;
+      }
+
+      // Create all menu items
+      const promises = values.items.map(item =>
+        createMenuItemMutation({
+          name: item.name,
+          category: item.category,
+          teamId: resident.teamId,
+          organizationId: activeOrganization.id,
+          createdBy: user.user.id,
+        })
+      );
+
+      await Promise.all(promises);
+
+      const itemCount = values.items.length;
+      toast.success(`${itemCount} menu item${itemCount > 1 ? 's' : ''} added successfully for your unit`);
+      menuForm.reset({
+        items: [{ name: "", category: "Main" }],
+      });
+      setIsMenuDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to add menu items");
+      console.error("Error adding menu items:", error);
+    } finally {
+      setIsMenuLoading(false);
+    }
+  };
+
   // Food/Fluid Log submission
   const onFoodFluidLogSubmit = async (values: z.infer<typeof FoodFluidLogSchema>) => {
     setIsLogLoading(true);
@@ -344,9 +415,10 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
       await createFoodFluidLogMutation({
         residentId: id as Id<"residents">,
         section: values.section,
+        exactTime: values.exactTime,
         typeOfFoodDrink: values.typeOfFoodDrink,
         portionServed: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
-        amountEaten: values.amountEaten,
+        amountEaten: entryType === "food" ? (values.amountEaten || "All") : undefined,
         fluidConsumedMl: values.fluidConsumedMl,
         signature: values.signature,
         organizationId: activeOrganization.id,
@@ -355,15 +427,16 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
       // Update persistent signature from form
       setPersistentStaffSignature(values.signature);
-      
+
       toast.success("Food/fluid entry logged successfully");
 
       // Reset form for next entry but preserve signature
       logForm.reset({
         section: getCurrentSection(),
+        exactTime: new Date().toTimeString().slice(0, 5),
         typeOfFoodDrink: "",
         portionServed: "",
-        amountEaten: "All",
+        amountEaten: undefined,
         fluidConsumedMl: undefined,
         signature: values.signature, // Keep the current signature
       });
@@ -385,6 +458,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const handleLogAnother = (type: "food" | "fluid") => {
     setEntryType(type);
     logForm.setValue("section", getCurrentSection());
+    logForm.setValue("exactTime", new Date().toTimeString().slice(0, 5));
     logForm.setValue("typeOfFoodDrink", type === "fluid" ? "Water" : "");
     logForm.setValue("fluidConsumedMl", undefined);
     setIsFoodFluidDialogOpen(true);
@@ -422,6 +496,13 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
             Add Diet
           </Button>
           <Button
+            onClick={() => setIsMenuDialogOpen(true)}
+            className="bg-black text-white hover:bg-gray-800"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Menu
+          </Button>
+          <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/food-fluid/documents`)}
           >
@@ -439,6 +520,11 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               <div className="flex items-center space-x-2">
                 <Utensils className="w-4 h-4 text-amber-600" />
                 <span className="text-sm font-medium">Diet Information</span>
+                {existingDiet.chefNotified === "yes" && existingDiet.chefName && (
+                  <Badge className="bg-black text-white text-xs ml-2">
+                    Chef Notified: {existingDiet.chefName}
+                  </Badge>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -590,6 +676,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               onClick={() => {
                 setEntryType("food");
                 logForm.setValue("section", getCurrentSection());
+                logForm.setValue("exactTime", new Date().toTimeString().slice(0, 5));
                 logForm.setValue("typeOfFoodDrink", "");
                 logForm.setValue("fluidConsumedMl", undefined);
                 setIsFoodFluidDialogOpen(true);
@@ -605,6 +692,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               onClick={() => {
                 setEntryType("fluid");
                 logForm.setValue("section", getCurrentSection());
+                logForm.setValue("exactTime", new Date().toTimeString().slice(0, 5));
                 logForm.setValue("typeOfFoodDrink", "Water");
                 setIsFoodFluidDialogOpen(true);
               }}
@@ -714,7 +802,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     {sortedFoodLogs.map((log) => (
                       <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
                         <span className="font-medium">
-                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                          {log.exactTime || new Date(log.timestamp).toLocaleTimeString('en-US', {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
@@ -755,7 +843,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     {sortedFluidLogs.map((log) => (
                       <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
                         <span className="font-medium">
-                          {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                          {log.exactTime || new Date(log.timestamp).toLocaleTimeString('en-US', {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
@@ -862,6 +950,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               foodConsistency: existingDiet.foodConsistency,
               fluidConsistency: existingDiet.fluidConsistency,
               assistanceRequired: existingDiet.assistanceRequired,
+              chefNotified: existingDiet.chefNotified,
+              chefName: existingDiet.chefName || "",
             });
           } else {
             form.reset({
@@ -873,6 +963,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               foodConsistency: undefined,
               fluidConsistency: undefined,
               assistanceRequired: undefined,
+              chefNotified: undefined,
+              chefName: "",
             });
           }
         }
@@ -1111,6 +1203,55 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     )}
                   />
 
+                  <FormField
+                    control={form.control}
+                    name="chefNotified"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Chef Notified</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="flex flex-col space-y-3"
+                          >
+                            <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                              <RadioGroupItem value="yes" id="chef-yes" />
+                              <div>
+                                <label htmlFor="chef-yes" className="text-sm font-medium cursor-pointer">Yes, chef notified</label>
+                                <p className="text-xs text-muted-foreground">Chef has been informed of dietary requirements</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                              <RadioGroupItem value="no" id="chef-no" />
+                              <div>
+                                <label htmlFor="chef-no" className="text-sm font-medium cursor-pointer">No, not notified</label>
+                                <p className="text-xs text-muted-foreground">Chef has not been notified yet</p>
+                              </div>
+                            </div>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch("chefNotified") === "yes" && (
+                    <FormField
+                      control={form.control}
+                      name="chefName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Chef Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter chef's name..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
                   {/* Summary */}
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="font-medium mb-2">Summary</h4>
@@ -1229,28 +1370,92 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 )}
               />
 
-              {/* Type of Food/Drink */}
+              {/* Exact Time */}
               <FormField
                 control={logForm.control}
-                name="typeOfFoodDrink"
+                name="exactTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      {entryType === "food" ? "Type of Food" : "Type of Fluid"}
-                    </FormLabel>
+                    <FormLabel>Exact Time</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={
-                          entryType === "food"
-                            ? "e.g., Chicken, Toast, Soup..."
-                            : "e.g., Water, Tea, Coffee, Juice..."
-                        }
+                        type="time"
                         {...field}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+
+              {/* Type of Food/Drink */}
+              <FormField
+                control={logForm.control}
+                name="typeOfFoodDrink"
+                render={({ field }) => {
+                  // Filter menu items based on entry type
+                  const filteredMenuItems = menuItems?.filter(item => {
+                    if (entryType === "food") {
+                      // For food, show all non-beverage items
+                      return item.category !== "Beverage";
+                    } else {
+                      // For fluid, show only beverage items
+                      return item.category === "Beverage";
+                    }
+                  }) || [];
+
+                  return (
+                    <FormItem>
+                      <FormLabel>
+                        {entryType === "food" ? "Type of Food" : "Type of Fluid"}
+                      </FormLabel>
+                      <div className="space-y-2">
+                        {filteredMenuItems.length > 0 && (
+                          <Select
+                            onValueChange={(value) => {
+                              if (value !== "custom") {
+                                field.onChange(value);
+                              }
+                            }}
+                            value={filteredMenuItems.some(item => item.name === field.value) ? field.value : "custom"}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select from menu or enter custom..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="custom">Custom Entry</SelectItem>
+                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                                {entryType === "food" ? "Menu Items" : "Beverage Menu"}
+                              </div>
+                              {filteredMenuItems
+                                .sort((a, b) => (a.category || "").localeCompare(b.category || ""))
+                                .map((item) => (
+                                  <SelectItem key={item._id} value={item.name}>
+                                    {item.name} {item.category && `(${item.category})`}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {(!filteredMenuItems.some(item => item.name === field.value) || filteredMenuItems.length === 0) && (
+                          <FormControl>
+                            <Input
+                              placeholder={
+                                entryType === "food"
+                                  ? "e.g., Chicken, Toast, Soup..."
+                                  : "e.g., Water, Tea, Coffee, Juice..."
+                              }
+                              {...field}
+                            />
+                          </FormControl>
+                        )}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Portion Served (Food only) */}
@@ -1288,31 +1493,33 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 />
               )}
 
-              {/* Amount Eaten/Consumed */}
-              <FormField
-                control={logForm.control}
-                name="amountEaten"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amount Consumed</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select amount consumed..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="None">None</SelectItem>
-                        <SelectItem value="1/4">1/4</SelectItem>
-                        <SelectItem value="1/2">1/2</SelectItem>
-                        <SelectItem value="3/4">3/4</SelectItem>
-                        <SelectItem value="All">All</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Amount Eaten (Food only) */}
+              {entryType === "food" && (
+                <FormField
+                  control={logForm.control}
+                  name="amountEaten"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount Consumed</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value || "All"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select amount consumed..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="None">None</SelectItem>
+                          <SelectItem value="1/4">1/4</SelectItem>
+                          <SelectItem value="1/2">1/2</SelectItem>
+                          <SelectItem value="3/4">3/4</SelectItem>
+                          <SelectItem value="All">All</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Fluid Volume (Fluid only) */}
               {entryType === "fluid" && (
@@ -1409,6 +1616,113 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 </Button>
                 <Button type="submit" disabled={isLogLoading}>
                   {isLogLoading ? "Saving..." : "Log Entry"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Menu Dialog */}
+      <Dialog open={isMenuDialogOpen} onOpenChange={setIsMenuDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Menu Item to {resident.teamName || "Your Unit"}</DialogTitle>
+            <DialogDescription>
+              Add a common food item to your unit's menu. This will be available for all residents in {resident.teamName || "your unit"}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...menuForm}>
+            <form onSubmit={menuForm.handleSubmit(onMenuItemSubmit)} className="space-y-4">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                <FormLabel>Menu Items</FormLabel>
+                {menuItemFields.map((field, index) => (
+                  <div key={field.id} className="flex gap-2 items-start p-3 border rounded-lg">
+                    <div className="flex-1 space-y-3">
+                      {/* Menu Item Name */}
+                      <FormField
+                        control={menuForm.control}
+                        name={`items.${index}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Sausage & Mash, Chicken Curry..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Category */}
+                      <FormField
+                        control={menuForm.control}
+                        name={`items.${index}.category`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <Select onValueChange={field.onChange} defaultValue={field.value || "Main"}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Category..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="Main">Main Course</SelectItem>
+                                <SelectItem value="Dessert">Dessert</SelectItem>
+                                <SelectItem value="Snack">Snack</SelectItem>
+                                <SelectItem value="Beverage">Beverage</SelectItem>
+                                <SelectItem value="Breakfast">Breakfast</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {menuItemFields.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeMenuItem(index)}
+                        className="mt-1"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendMenuItem({ name: "", category: "Main" })}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Another Item
+                </Button>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsMenuDialogOpen(false);
+                    menuForm.reset({ items: [{ name: "", category: "Main" }] });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isMenuLoading}>
+                  {isMenuLoading ? "Adding..." : `Add ${menuItemFields.length} Item${menuItemFields.length > 1 ? 's' : ''}`}
                 </Button>
               </div>
             </form>

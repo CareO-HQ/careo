@@ -86,7 +86,12 @@ export const createAudit = mutation({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("residentHandlingProfileForm"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("painAssessment")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -149,7 +154,12 @@ export const getAuditsByForm = query({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("residentHandlingProfileForm"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("painAssessment")
     ),
     formId: v.string()
   },
@@ -617,7 +627,8 @@ export const getFormDataForReview = query({
       v.literal("residentHandlingProfileForm"),
       v.literal("timlAssessment"),
       v.literal("skinIntegrityAssessment"),
-      v.literal("residentValuablesAssessment")
+      v.literal("residentValuablesAssessment"),
+      v.literal("painAssessment")
     ),
     formId: v.string()
   },
@@ -655,6 +666,8 @@ export const getFormDataForReview = query({
           return await ctx.db.get(args.formId as any);
         case "residentValuablesAssessment":
           return await ctx.db.get(args.formId as any);
+        case "painAssessment":
+          return await ctx.db.get(args.formId as any);
         default:
           return null;
       }
@@ -685,7 +698,8 @@ export const submitReviewedForm = mutation({
       v.literal("timlAssessment"),
       v.literal("skinIntegrityAssessment"),
       v.literal("residentValuablesAssessment"),
-      v.literal("residentHandlingProfileForm")
+      v.literal("residentHandlingProfileForm"),
+      v.literal("painAssessment")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -800,6 +814,12 @@ export const submitReviewedForm = mutation({
         case "residentHandlingProfileForm":
           newFormId = await ctx.runMutation(
             api.careFiles.handlingProfile.submitHandlingProfile,
+            args.formData
+          );
+          break;
+        case "painAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.painAssessment.submitPainAssessment,
             args.formData
           );
           break;

@@ -154,6 +154,7 @@ export default function DependencyDialog({
         if (isEditMode && initialData) {
           await updateAssessment({
             assessmentId: initialData._id,
+            userId,
             dependencyLevel: formData.dependencyLevel,
             completedBy: formData.completedBy,
             completedBySignature: formData.completedBySignature,

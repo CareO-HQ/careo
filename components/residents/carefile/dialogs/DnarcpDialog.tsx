@@ -77,6 +77,23 @@ export default function DnacprDialog({
   const submitDnacpr = useMutation(api.careFiles.dnacpr.submitDnacpr);
   const updateDnacpr = useMutation(api.careFiles.dnacpr.updateDnacpr);
 
+  // Helper function to safely convert date to timestamp
+  const getDateOfBirthTimestamp = (): number => {
+    if (typeof resident.dateOfBirth === "number") {
+      return resident.dateOfBirth;
+    }
+    if (resident.dateOfBirth && typeof resident.dateOfBirth === "string") {
+      const timestamp = new Date(resident.dateOfBirth).getTime();
+      // Check if the conversion resulted in a valid timestamp
+      if (!isNaN(timestamp) && timestamp > 0) {
+        return timestamp;
+      }
+    }
+    // Fallback: return current date minus 70 years as a reasonable default
+    const defaultAge = 70;
+    return Date.now() - (defaultAge * 365.25 * 24 * 60 * 60 * 1000);
+  };
+
   const form = useForm<z.infer<typeof DnacprSchema>>({
     resolver: zodResolver(DnacprSchema),
     mode: "onChange",
@@ -92,13 +109,9 @@ export default function DnacprDialog({
             `${resident.firstName} ${resident.lastName}`,
           bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
           dateOfBirth:
-            typeof initialData.dateOfBirth === "number"
+            typeof initialData.dateOfBirth === "number" && initialData.dateOfBirth > 0
               ? initialData.dateOfBirth
-              : typeof resident.dateOfBirth === "number"
-                ? resident.dateOfBirth
-                : resident.dateOfBirth
-                  ? new Date(resident.dateOfBirth).getTime()
-                  : Date.now(),
+              : getDateOfBirthTimestamp(),
           dnacpr: initialData.dnacpr ?? false,
           dnacprComments: initialData.dnacprComments ?? "",
           reason: initialData.reason ?? "TERMINAL-PROGRESSIVE",
@@ -128,12 +141,7 @@ export default function DnacprDialog({
           userId,
           residentName: `${resident.firstName} ${resident.lastName}`,
           bedroomNumber: resident.roomNumber ?? "",
-          dateOfBirth:
-            typeof resident.dateOfBirth === "number"
-              ? resident.dateOfBirth
-              : resident.dateOfBirth
-                ? new Date(resident.dateOfBirth).getTime()
-                : Date.now(),
+          dateOfBirth: getDateOfBirthTimestamp(),
           dnacpr: false,
           dnacprComments: "",
           reason: "TERMINAL-PROGRESSIVE",
