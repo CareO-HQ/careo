@@ -691,31 +691,145 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                 cleaning: "Cleaning"
               };
 
+              const positionLabels: Record<string, string> = {
+                left_side: "Left Side",
+                right_side: "Right Side",
+                back: "Back",
+                sitting_up: "Sitting Up"
+              };
+
+              const statusLabels: Record<string, string> = {
+                asleep: "Asleep",
+                awake: "Awake",
+                walking: "Walking",
+                sitting: "Sitting"
+              };
+
+              const skinConditionLabels: Record<string, string> = {
+                normal: "Normal",
+                dry: "Dry",
+                moist: "Moist",
+                clammy: "Clammy",
+                hot: "Hot",
+                cold: "Cold"
+              };
+
+              const equipmentLabels: Record<string, string> = {
+                bed_rails: "Bed Rails",
+                oxygen: "Oxygen Equipment",
+                air_bed: "Air Bed / Pressure Mattress",
+                call_bell: "Call Bell",
+                monitor: "Monitor/Sensors",
+                mobility_aids: "Mobility Aids"
+              };
+
+              const environmentalLabels: Record<string, string> = {
+                window: "Window",
+                curtains: "Curtains",
+                door: "Door",
+                temperature: "Temperature"
+              };
+
+              const cleaningLabels: Record<string, string> = {
+                bed: "Bed",
+                floor: "Floor",
+                bathroom: "Bathroom",
+                surfaces: "Surfaces",
+                bins: "Bins"
+              };
+
+              // Group recordings by check type
+              const groupedRecordings = recordings.reduce((acc: any, recording: any) => {
+                const type = recording.checkType;
+                if (!acc[type]) {
+                  acc[type] = [];
+                }
+                acc[type].push(recording);
+                return acc;
+              }, {});
+
+              // Define the order of sections
+              const sectionOrder = ["night_check", "positioning", "pad_change", "bed_rails", "environmental", "cleaning", "night_note"];
+
+              const renderRecordingDetails = (recording: any, index: number) => {
+                let summary = "";
+
+                // Build one-line summary based on check type
+                if (recording.checkType === "night_check" && recording.checkData) {
+                  const parts = [];
+                  if (recording.checkData.position) parts.push(positionLabels[recording.checkData.position]);
+                  if (recording.checkData.status) parts.push(statusLabels[recording.checkData.status]);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "positioning" && recording.checkData) {
+                  const parts = [];
+                  if (recording.checkData.position) parts.push(positionLabels[recording.checkData.position]);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "pad_change" && recording.checkData) {
+                  const parts = [];
+                  if (recording.checkData.pad_changed) parts.push("Pad Changed");
+                  if (recording.checkData.skin_condition) parts.push(`Skin: ${skinConditionLabels[recording.checkData.skin_condition]}`);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "bed_rails" && recording.checkData) {
+                  const items = recording.checkData.equipment_checked?.map((item: string) => equipmentLabels[item] || item).join(", ") || "";
+                  const parts = [];
+                  if (items) parts.push(items);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "environmental" && recording.checkData) {
+                  const items = recording.checkData.items_checked?.map((item: string) => environmentalLabels[item] || item).join(", ") || "";
+                  const parts = [];
+                  if (items) parts.push(items);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "cleaning" && recording.checkData) {
+                  const items = recording.checkData.items_cleaned?.map((item: string) => cleaningLabels[item] || item).join(", ") || "";
+                  const parts = [];
+                  if (items) parts.push(items);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "night_note" && recording.checkData) {
+                  summary = recording.checkData.notes || "";
+                } else if (recording.notes) {
+                  summary = recording.notes;
+                }
+
+                return (
+                  <div key={index} className="text-sm py-1.5 border-b border-gray-100 last:border-0">
+                    <span className="font-semibold text-gray-900">{recording.recordTime}</span>
+                    {summary && <span className="text-gray-600"> - {summary}</span>}
+                    <span className="text-xs text-gray-400 ml-2">({recording.recordedByName})</span>
+                  </div>
+                );
+              };
+
               return recordings.length > 0 ? (
-                recordings.map((recording: any, index: number) => (
-                  <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-sm">{typeLabels[recording.checkType] || recording.checkType}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {recording.recordTime}
-                          </Badge>
+                <div className="space-y-6">
+                  {sectionOrder.map((checkType) => {
+                    const typeRecordings = groupedRecordings[checkType];
+                    if (!typeRecordings || typeRecordings.length === 0) return null;
+
+                    return (
+                      <div key={checkType} className="space-y-3">
+                        <div className="bg-gray-100 px-3 py-2 rounded-md">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-base text-gray-900">{typeLabels[checkType]}</h3>
+                            <Badge variant="secondary" className="text-xs bg-gray-700 text-white">
+                              {typeRecordings.length} {typeRecordings.length === 1 ? 'check' : 'checks'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="space-y-2 pl-2">
+                          {typeRecordings.map((recording: any, index: number) =>
+                            renderRecordingDetails(recording, index)
+                          )}
                         </div>
                       </div>
-                    </div>
-
-                    {recording.notes && (
-                      <div className="text-xs text-muted-foreground mt-2">
-                        <span className="font-medium">Notes:</span> {recording.notes}
-                      </div>
-                    )}
-
-                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      Recorded by: {recording.recordedByName}
-                    </div>
-                  </div>
-                ))
+                    );
+                  })}
+                </div>
               ) : (
                 <p className="text-gray-500 py-8 text-center">
                   No night checks logged for this day

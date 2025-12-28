@@ -64,6 +64,7 @@ import {
   StickyNote,
   RotateCw,
   X,
+  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
@@ -175,6 +176,11 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   >("night_check");
   const [activeTab, setActiveTab] = React.useState<string>("all");
 
+  // State for tracking checked items during recording
+  const [checkedEquipmentItems, setCheckedEquipmentItems] = React.useState<string[]>([]);
+  const [checkedEnvironmentalItems, setCheckedEnvironmentalItems] = React.useState<string[]>([]);
+  const [checkedCleaningItems, setCheckedCleaningItems] = React.useState<string[]>([]);
+
   // State for resident's night check items
   const [nightCheckItems, setNightCheckItems] = React.useState<Array<{
     id: string;
@@ -192,6 +198,10 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     setDialogType(type);
     setCurrentRecordingItem(item || null);
     setIsNightCheckDialogOpen(true);
+    // Reset checked items
+    setCheckedEquipmentItems([]);
+    setCheckedEnvironmentalItems([]);
+    setCheckedCleaningItems([]);
   };
 
   // Check if an item type is already added
@@ -574,11 +584,15 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     }
   };
 
-  // Update staff field when session data loads or dialog opens
+  // Update staff field and time when session data loads or dialog opens
   React.useEffect(() => {
     if (session?.user && isNightCheckDialogOpen) {
       const staffName = session.user.name || session.user.email?.split('@')[0] || "";
       form.setValue('staff', staffName);
+
+      // Set current time
+      const currentTime = new Date().toTimeString().slice(0, 5);
+      form.setValue('checkTime', currentTime);
     }
   }, [session, form, isNightCheckDialogOpen]);
 
@@ -728,17 +742,17 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         };
       } else if (dialogType === "bed_rails") {
         checkData = {
-          equipment_checked: currentRecordingItem.equipment,
+          equipment_checked: checkedEquipmentItems,
           additional_notes: data.additional_notes,
         };
       } else if (dialogType === "environmental") {
         checkData = {
-          items_checked: currentRecordingItem.environmentalItems,
+          items_checked: checkedEnvironmentalItems,
           additional_notes: data.additional_notes,
         };
       } else if (dialogType === "cleaning") {
         checkData = {
-          items_cleaned: currentRecordingItem.cleaningItems,
+          items_cleaned: checkedCleaningItems,
           additional_notes: data.additional_notes,
         };
       } else if (dialogType === "night_note") {
@@ -771,6 +785,11 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         const staffName = session.user.name || session.user.email?.split('@')[0] || "";
         form.setValue('staff', staffName);
       }
+
+      // Reset checked items
+      setCheckedEquipmentItems([]);
+      setCheckedEnvironmentalItems([]);
+      setCheckedCleaningItems([]);
 
       setIsNightCheckDialogOpen(false);
       setCurrentRecordingItem(null);
@@ -899,84 +918,54 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Night Check Options</DropdownMenuLabel>
+              <DropdownMenuLabel>Select Check Type</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("night_check")) {
-                    setFrequencyDialogType("night_check");
-                    setPendingNightCheckAdd(true);
-                  }
-                }}
+                onClick={() => addNightCheckItem("night_check")}
                 disabled={isItemTypeAdded("night_check")}
               >
                 <Moon className="w-4 h-4 mr-2" />
                 Night Check
-                {isItemTypeAdded("night_check") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("positioning")) {
-                    setFrequencyDialogType("positioning");
-                    setPendingPositioningAdd(true);
-                  }
-                }}
+                onClick={() => addNightCheckItem("positioning")}
                 disabled={isItemTypeAdded("positioning")}
               >
                 <RotateCw className="w-4 h-4 mr-2" />
                 Positioning
-                {isItemTypeAdded("positioning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("pad_change")) {
-                    setFrequencyDialogType("pad_change");
-                    setPendingPadChangeAdd(true);
-                  }
-                }}
+                onClick={() => addNightCheckItem("pad_change")}
                 disabled={isItemTypeAdded("pad_change")}
               >
                 <ShieldCheck className="w-4 h-4 mr-2" />
                 Pad Change
-                {isItemTypeAdded("pad_change") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("bed_rails")) {
-                    setPendingBedRailsAdd(true);
-                  }
-                }}
+                onClick={() => addNightCheckItem("bed_rails")}
                 disabled={isItemTypeAdded("bed_rails")}
               >
                 <BedDouble className="w-4 h-4 mr-2" />
-                Bed Rails Check
-                {isItemTypeAdded("bed_rails") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                Bed Rails
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("environmental")) {
-                    setPendingEnvironmentalAdd(true);
-                  }
-                }}
+                onClick={() => addNightCheckItem("environmental")}
                 disabled={isItemTypeAdded("environmental")}
               >
                 <Home className="w-4 h-4 mr-2" />
-                Environmental Check
-                {isItemTypeAdded("environmental") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                Environmental
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("cleaning")) {
-                    setPendingCleaningAdd(true);
-                  }
-                }}
+                onClick={() => addNightCheckItem("cleaning")}
                 disabled={isItemTypeAdded("cleaning")}
               >
-                <ShieldCheck className="w-4 h-4 mr-2" />
+                <Sparkles className="w-4 h-4 mr-2" />
                 Cleaning
-                {isItemTypeAdded("cleaning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openDialog("night_note")}>
+              <DropdownMenuItem
+                onClick={() => addNightCheckItem("night_note")}
+                disabled={isItemTypeAdded("night_note")}
+              >
                 <StickyNote className="w-4 h-4 mr-2" />
                 Night Note
               </DropdownMenuItem>
@@ -1985,7 +1974,17 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
                     return (
                       <div key={equipmentItem} className="flex items-center space-x-2">
-                        <Checkbox id={equipmentItem} />
+                        <Checkbox
+                          id={equipmentItem}
+                          checked={checkedEquipmentItems.includes(equipmentItem)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setCheckedEquipmentItems(prev => [...prev, equipmentItem]);
+                            } else {
+                              setCheckedEquipmentItems(prev => prev.filter(item => item !== equipmentItem));
+                            }
+                          }}
+                        />
                         <label
                           htmlFor={equipmentItem}
                           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
@@ -2029,7 +2028,17 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
                     return (
                       <div key={envItem} className="flex items-center space-x-2">
-                        <Checkbox id={envItem} />
+                        <Checkbox
+                          id={envItem}
+                          checked={checkedEnvironmentalItems.includes(envItem)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setCheckedEnvironmentalItems(prev => [...prev, envItem]);
+                            } else {
+                              setCheckedEnvironmentalItems(prev => prev.filter(item => item !== envItem));
+                            }
+                          }}
+                        />
                         <label
                           htmlFor={envItem}
                           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
@@ -2097,7 +2106,17 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
                     return (
                       <div key={cleaningItem} className="flex items-center space-x-2">
-                        <Checkbox id={cleaningItem} />
+                        <Checkbox
+                          id={cleaningItem}
+                          checked={checkedCleaningItems.includes(cleaningItem)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setCheckedCleaningItems(prev => [...prev, cleaningItem]);
+                            } else {
+                              setCheckedCleaningItems(prev => prev.filter(item => item !== cleaningItem));
+                            }
+                          }}
+                        />
                         <label
                           htmlFor={cleaningItem}
                           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
@@ -2136,6 +2155,9 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                   onClick={() => {
                     setIsNightCheckDialogOpen(false);
                     form.reset();
+                    setCheckedEquipmentItems([]);
+                    setCheckedEnvironmentalItems([]);
+                    setCheckedCleaningItems([]);
                   }}
                 >
                   Cancel
