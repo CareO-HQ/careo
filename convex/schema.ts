@@ -84,6 +84,13 @@ export default defineSchema({
     // Staff details
     address: v.optional(v.string()),
     dateOfJoin: v.optional(v.string()), // ISO date string
+    workPermitStatus: v.optional(
+      v.union(
+        v.literal("citizen"),
+        v.literal("work_permit")
+      )
+    ),
+    visaExpiryDate: v.optional(v.string()), // ISO date string
     rightToWorkStatus: v.optional(
       v.union(
         v.literal("verified"),
@@ -92,6 +99,11 @@ export default defineSchema({
         v.literal("not_verified")
       )
     ),
+
+    // Professional Registration
+    nisccRegistrationNumber: v.optional(v.string()),
+    nisccExpiryDate: v.optional(v.string()), // ISO date string
+    rnNumber: v.optional(v.string()),
 
     // Next of Kin details
     nextOfKinName: v.optional(v.string()),

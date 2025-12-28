@@ -167,12 +167,20 @@ export const updateStaffDetails = mutation({
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
     dateOfJoin: v.optional(v.string()),
+    workPermitStatus: v.optional(v.union(
+      v.literal("citizen"),
+      v.literal("work_permit")
+    )),
+    visaExpiryDate: v.optional(v.string()),
     rightToWorkStatus: v.optional(v.union(
       v.literal("verified"),
       v.literal("pending"),
       v.literal("expired"),
       v.literal("not_verified")
     )),
+    nisccRegistrationNumber: v.optional(v.string()),
+    nisccExpiryDate: v.optional(v.string()),
+    rnNumber: v.optional(v.string()),
     nextOfKinName: v.optional(v.string()),
     nextOfKinRelationship: v.optional(v.string()),
     nextOfKinPhone: v.optional(v.string()),

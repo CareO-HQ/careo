@@ -105,7 +105,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             className="mt-4"
             onClick={() => router.back()}
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+        <ArrowLeft className="w-4 h-4 mr-2" />
             Go Back
           </Button>
         </div>

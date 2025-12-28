@@ -46,10 +46,12 @@ import {
   MapPin,
   UserCheck,
   Heart,
-  User2Icon
+  User2Icon,
+  ArrowLeft
 } from "lucide-react";
 import React from "react";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 
 type StaffOverviewProps = {
   params: Promise<{ id: string }>;
@@ -57,6 +59,7 @@ type StaffOverviewProps = {
 
 export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const { id } = React.use(params);
+  const router = useRouter();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { toast } = useToast();
 
@@ -83,11 +86,18 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
+  const [isVisaDatePickerOpen, setIsVisaDatePickerOpen] = React.useState(false);
+  const [isNisccDatePickerOpen, setIsNisccDatePickerOpen] = React.useState(false);
   const [formData, setFormData] = React.useState({
     phone: "",
     address: "",
     dateOfJoin: "",
+    workPermitStatus: "" as "citizen" | "work_permit" | "",
+    visaExpiryDate: "",
     rightToWorkStatus: "not_verified" as "verified" | "pending" | "expired" | "not_verified",
+    nisccRegistrationNumber: "",
+    nisccExpiryDate: "",
+    rnNumber: "",
     nextOfKinName: "",
     nextOfKinRelationship: "",
     nextOfKinPhone: "",
@@ -102,7 +112,12 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
         phone: staffDetails.phone || "",
         address: staffDetails.address || "",
         dateOfJoin: staffDetails.dateOfJoin || "",
+        workPermitStatus: staffDetails.workPermitStatus || "",
+        visaExpiryDate: staffDetails.visaExpiryDate || "",
         rightToWorkStatus: staffDetails.rightToWorkStatus || "not_verified",
+        nisccRegistrationNumber: staffDetails.nisccRegistrationNumber || "",
+        nisccExpiryDate: staffDetails.nisccExpiryDate || "",
+        rnNumber: staffDetails.rnNumber || "",
         nextOfKinName: staffDetails.nextOfKinName || "",
         nextOfKinRelationship: staffDetails.nextOfKinRelationship || "",
         nextOfKinPhone: staffDetails.nextOfKinPhone || "",
@@ -118,10 +133,16 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
     if (!staffMember) return;
 
     try {
+      // Prepare form data, converting empty strings to undefined for optional fields
+      const dataToSubmit = {
+        ...formData,
+        workPermitStatus: formData.workPermitStatus || undefined,
+      };
+
       // Update staff details
       await updateStaffDetails({
         userId: staffMember.userId,
-        ...formData,
+        ...dataToSubmit,
       });
 
       // Upload photo if selected
@@ -210,6 +231,17 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-4xl">
+      {/* Back Button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => router.back()}
+        className="mb-4"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back
+      </Button>
+
       {/* Profile Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -313,21 +345,145 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="rightToWorkStatus">Right to Work Status</Label>
+                    <Label htmlFor="workPermitStatus">Work Status</Label>
                     <Select
-                      value={formData.rightToWorkStatus}
-                      onValueChange={(value) => setFormData({ ...formData, rightToWorkStatus: value as typeof formData.rightToWorkStatus })}
+                      value={formData.workPermitStatus}
+                      onValueChange={(value) => setFormData({ ...formData, workPermitStatus: value as typeof formData.workPermitStatus })}
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select work status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="verified">Verified</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                        <SelectItem value="not_verified">Not Verified</SelectItem>
+                        <SelectItem value="citizen">Citizen</SelectItem>
+                        <SelectItem value="work_permit">Work Permit</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  {formData.workPermitStatus === "work_permit" && (
+                    <>
+                      <div>
+                        <Label htmlFor="rightToWorkStatus">Right to Work Status</Label>
+                        <Select
+                          value={formData.rightToWorkStatus}
+                          onValueChange={(value) => setFormData({ ...formData, rightToWorkStatus: value as typeof formData.rightToWorkStatus })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="verified">Verified</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="expired">Expired</SelectItem>
+                            <SelectItem value="not_verified">Not Verified</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="visaExpiryDate">Visa Expiry Date</Label>
+                    <Popover
+                      open={isVisaDatePickerOpen}
+                      onOpenChange={setIsVisaDatePickerOpen}
+                      modal
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !formData.visaExpiryDate && "text-muted-foreground"
+                          )}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {formData.visaExpiryDate ? (
+                            format(new Date(formData.visaExpiryDate), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={formData.visaExpiryDate ? new Date(formData.visaExpiryDate) : undefined}
+                          onSelect={(date) => {
+                            setFormData({
+                              ...formData,
+                              visaExpiryDate: date ? date.toISOString() : ""
+                            });
+                            setIsVisaDatePickerOpen(false);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Professional Registration */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="font-semibold">Professional Registration</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="nisccRegistrationNumber">NISCC Registration Number</Label>
+                      <Input
+                        id="nisccRegistrationNumber"
+                        value={formData.nisccRegistrationNumber}
+                        onChange={(e) => setFormData({ ...formData, nisccRegistrationNumber: e.target.value })}
+                        placeholder="Enter NISCC number"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="nisccExpiryDate">NISCC Expiry Date</Label>
+                      <Popover
+                        open={isNisccDatePickerOpen}
+                        onOpenChange={setIsNisccDatePickerOpen}
+                        modal
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            type="button"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formData.nisccExpiryDate && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {formData.nisccExpiryDate ? (
+                              format(new Date(formData.nisccExpiryDate), "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={formData.nisccExpiryDate ? new Date(formData.nisccExpiryDate) : undefined}
+                            onSelect={(date) => {
+                              setFormData({
+                                ...formData,
+                                nisccExpiryDate: date ? date.toISOString() : ""
+                              });
+                              setIsNisccDatePickerOpen(false);
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="rnNumber">RN Number (Optional)</Label>
+                    <Input
+                      id="rnNumber"
+                      value={formData.rnNumber}
+                      onChange={(e) => setFormData({ ...formData, rnNumber: e.target.value })}
+                      placeholder="Enter RN number (optional)"
+                    />
                   </div>
                 </div>
 
@@ -507,14 +663,86 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
               </div>
 
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-cyan-50 rounded-lg">
-                  <UserCheck className="w-5 h-5 text-cyan-600" />
+                <div className="p-2 bg-indigo-50 rounded-lg">
+                  <Shield className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Right to Work</p>
-                  <Badge variant="outline" className={getRightToWorkStatusColor(formData.rightToWorkStatus)}>
-                    {getRightToWorkStatusText(formData.rightToWorkStatus)}
-                  </Badge>
+                  <p className="text-sm text-muted-foreground">Work Status</p>
+                  <p className="font-medium">
+                    {formData.workPermitStatus === "citizen" ? "Citizen" :
+                     formData.workPermitStatus === "work_permit" ? "Work Permit" :
+                     <span className="text-muted-foreground">Not set</span>}
+                  </p>
+                </div>
+              </div>
+
+              {formData.workPermitStatus === "work_permit" && (
+                <>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-cyan-50 rounded-lg">
+                      <UserCheck className="w-5 h-5 text-cyan-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Right to Work</p>
+                      <Badge variant="outline" className={getRightToWorkStatusColor(formData.rightToWorkStatus)}>
+                        {getRightToWorkStatusText(formData.rightToWorkStatus)}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <Calendar className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Visa Expiry Date</p>
+                      <p className="font-medium">
+                        {formData.visaExpiryDate ? format(new Date(formData.visaExpiryDate), "PPP") : <span className="text-muted-foreground">Not set</span>}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Professional Registration */}
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="font-semibold text-lg">Professional Registration</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-teal-50 rounded-lg">
+                  <Shield className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">NISCC Registration Number</p>
+                  <p className="font-medium">
+                    {formData.nisccRegistrationNumber || <span className="text-muted-foreground">Not set</span>}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-pink-50 rounded-lg">
+                  <Calendar className="w-5 h-5 text-pink-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">NISCC Expiry Date</p>
+                  <p className="font-medium">
+                    {formData.nisccExpiryDate ? format(new Date(formData.nisccExpiryDate), "PPP") : <span className="text-muted-foreground">Not set</span>}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-amber-50 rounded-lg">
+                  <Shield className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">RN Number</p>
+                  <p className="font-medium">
+                    {formData.rnNumber || <span className="text-muted-foreground">Not set</span>}
+                  </p>
                 </div>
               </div>
             </div>

@@ -15,7 +15,8 @@ import {
   Calendar,
   ClipboardList,
   Users,
-  Shield
+  Shield,
+  GraduationCap
 } from "lucide-react";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -147,6 +148,28 @@ export default function StaffProfilePage({ params }: StaffPageProps) {
                     <h3 className="font-semibold">Overview</h3>
                     <p className="text-sm text-muted-foreground">
                       Basic information
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer shadow-none hover:shadow-sm transition-shadow"
+            onClick={() => handleCardClick("trainings")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                  <div className="p-2 bg-orange-50 rounded-lg">
+                    <GraduationCap className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Trainings</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Training & certifications
                     </p>
                   </div>
                 </div>
