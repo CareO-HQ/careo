@@ -65,6 +65,7 @@ import {
   RotateCw,
   X,
   Sparkles,
+  Bath,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
@@ -152,19 +153,25 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const [selectedEquipment, setSelectedEquipment] = React.useState<string[]>([]);
   const [selectedEnvironmentalItems, setSelectedEnvironmentalItems] = React.useState<string[]>([]);
   const [selectedCleaningItems, setSelectedCleaningItems] = React.useState<string[]>([]);
+  const [selectedPersonalCareItems, setSelectedPersonalCareItems] = React.useState<string[]>([]);
   const [bedRailsFrequency, setBedRailsFrequency] = React.useState<string>("60");
   const [customEquipmentInput, setCustomEquipmentInput] = React.useState<string>("");
   const [customEnvironmentalInput, setCustomEnvironmentalInput] = React.useState<string>("");
   const [customCleaningInput, setCustomCleaningInput] = React.useState<string>("");
+  const [customPersonalCareInput, setCustomPersonalCareInput] = React.useState<string>("");
   const [showCustomEquipmentInput, setShowCustomEquipmentInput] = React.useState<boolean>(false);
   const [showCustomEnvironmentalInput, setShowCustomEnvironmentalInput] = React.useState<boolean>(false);
   const [showCustomCleaningInput, setShowCustomCleaningInput] = React.useState<boolean>(false);
+  const [showCustomPersonalCareInput, setShowCustomPersonalCareInput] = React.useState<boolean>(false);
   const [customEquipmentList, setCustomEquipmentList] = React.useState<string[]>([]);
   const [customEnvironmentalList, setCustomEnvironmentalList] = React.useState<string[]>([]);
   const [customCleaningList, setCustomCleaningList] = React.useState<string[]>([]);
+  const [customPersonalCareList, setCustomPersonalCareList] = React.useState<string[]>([]);
   const [currentRecordingItem, setCurrentRecordingItem] = React.useState<typeof nightCheckItems[0] | null>(null);
   const [isCleaningConfigDialogOpen, setIsCleaningConfigDialogOpen] = React.useState(false);
+  const [isPersonalCareConfigDialogOpen, setIsPersonalCareConfigDialogOpen] = React.useState(false);
   const [pendingCleaningAdd, setPendingCleaningAdd] = React.useState(false);
+  const [pendingPersonalCareAdd, setPendingPersonalCareAdd] = React.useState(false);
   const [pendingNightCheckAdd, setPendingNightCheckAdd] = React.useState(false);
   const [pendingPositioningAdd, setPendingPositioningAdd] = React.useState(false);
   const [pendingPadChangeAdd, setPendingPadChangeAdd] = React.useState(false);
@@ -172,7 +179,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const [pendingEnvironmentalAdd, setPendingEnvironmentalAdd] = React.useState(false);
   const [frequencyDialogType, setFrequencyDialogType] = React.useState<"night_check" | "positioning" | "pad_change">("night_check");
   const [dialogType, setDialogType] = React.useState<
-    "night_check" | "positioning" | "pad_change" | "bed_rails" | "environmental" | "night_note" | "cleaning"
+    "night_check" | "positioning" | "pad_change" | "bed_rails" | "environmental" | "night_note" | "cleaning" | "personal_care"
   >("night_check");
   const [activeTab, setActiveTab] = React.useState<string>("all");
 
@@ -180,6 +187,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const [checkedEquipmentItems, setCheckedEquipmentItems] = React.useState<string[]>([]);
   const [checkedEnvironmentalItems, setCheckedEnvironmentalItems] = React.useState<string[]>([]);
   const [checkedCleaningItems, setCheckedCleaningItems] = React.useState<string[]>([]);
+  const [checkedPersonalCareItems, setCheckedPersonalCareItems] = React.useState<string[]>([]);
 
   // State for resident's night check items
   const [nightCheckItems, setNightCheckItems] = React.useState<Array<{
@@ -192,6 +200,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     equipment?: string[];
     environmentalItems?: string[];
     cleaningItems?: string[];
+    personalCareItems?: string[];
   }>>([]);
 
   const openDialog = (type: typeof dialogType, item?: typeof nightCheckItems[0]) => {
@@ -202,6 +211,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     setCheckedEquipmentItems([]);
     setCheckedEnvironmentalItems([]);
     setCheckedCleaningItems([]);
+    setCheckedPersonalCareItems([]);
   };
 
   // Check if an item type is already added
@@ -258,6 +268,13 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     // If it's cleaning, open configuration dialog
     if (type === "cleaning") {
       setPendingCleaningAdd(true);
+      // Dialog will open via useEffect when dropdown closes
+      return;
+    }
+
+    // If it's personal_care, open configuration dialog
+    if (type === "personal_care") {
+      setPendingPersonalCareAdd(true);
       // Dialog will open via useEffect when dropdown closes
       return;
     }
@@ -584,6 +601,67 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     }
   };
 
+  const confirmPersonalCareAndAdd = async () => {
+    if (selectedPersonalCareItems.length === 0) {
+      toast.error("Please select at least one personal care activity");
+      return;
+    }
+
+    if (!session?.user?.id || !resident?.teamId || !resident?.organizationId) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    try {
+      // Save to database
+      const configId = await createConfiguration({
+        residentId: id as Id<"residents">,
+        teamId: resident.teamId,
+        organizationId: resident.organizationId,
+        checkType: "personal_care",
+        selectedItems: selectedPersonalCareItems,
+        createdBy: session.user.id,
+      });
+
+      const newItem = {
+        id: configId,
+        type: "personal_care" as const,
+        title: "Personal Care Activities",
+        icon: "bath",
+        color: "bg-cyan-600 hover:bg-cyan-700",
+        personalCareItems: selectedPersonalCareItems,
+      };
+
+      setNightCheckItems(prev => [...prev, newItem]);
+      setIsPersonalCareConfigDialogOpen(false);
+      setSelectedPersonalCareItems([]);
+
+      toast.success(`Personal Care Activities added (${selectedPersonalCareItems.length} items)`);
+    } catch (error) {
+      toast.error("Failed to add personal care activities");
+      console.error(error);
+    }
+  };
+
+  const togglePersonalCareItem = (item: string) => {
+    setSelectedPersonalCareItems(prev =>
+      prev.includes(item)
+        ? prev.filter(e => e !== item)
+        : [...prev, item]
+    );
+  };
+
+  const addCustomPersonalCareItem = () => {
+    if (customPersonalCareInput.trim()) {
+      const newItem = customPersonalCareInput.trim();
+      setCustomPersonalCareList(prev => [...prev, newItem]);
+      setSelectedPersonalCareItems(prev => [...prev, newItem]); // Auto-select the newly added item
+      setCustomPersonalCareInput("");
+      setShowCustomPersonalCareInput(false);
+      toast.success("Custom personal care item added");
+    }
+  };
+
   // Update staff field and time when session data loads or dialog opens
   React.useEffect(() => {
     if (session?.user && isNightCheckDialogOpen) {
@@ -674,6 +752,19 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     }
   }, [pendingCleaningAdd]);
 
+  // Open configuration dialog for personal care
+  React.useEffect(() => {
+    if (pendingPersonalCareAdd) {
+      // Use timeout to ensure dropdown has fully closed
+      const timer = setTimeout(() => {
+        setIsPersonalCareConfigDialogOpen(true);
+        setPendingPersonalCareAdd(false);
+      }, 300); // 300ms delay to let dropdown close animation complete
+
+      return () => clearTimeout(timer);
+    }
+  }, [pendingPersonalCareAdd]);
+
   // Load configurations from database
   React.useEffect(() => {
     if (nightCheckConfigs) {
@@ -686,6 +777,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           environmental: { icon: "home", color: "bg-fuchsia-600 hover:bg-fuchsia-700", title: "Environmental Check" },
           night_note: { icon: "note", color: "bg-amber-600 hover:bg-amber-700", title: "Night Note" },
           cleaning: { icon: "sparkles", color: "bg-teal-600 hover:bg-teal-700", title: "Cleaning" },
+          personal_care: { icon: "bath", color: "bg-cyan-600 hover:bg-cyan-700", title: "Personal Care Activities" },
         };
 
         const typeInfo = typeIconMap[config.checkType] || { icon: "moon", color: "bg-gray-600", title: config.checkType };
@@ -700,6 +792,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           equipment: config.checkType === "bed_rails" ? config.selectedItems : undefined,
           environmentalItems: config.checkType === "environmental" ? config.selectedItems : undefined,
           cleaningItems: config.checkType === "cleaning" ? config.selectedItems : undefined,
+          personalCareItems: config.checkType === "personal_care" ? config.selectedItems : undefined,
         };
       });
 
@@ -755,6 +848,11 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           items_cleaned: checkedCleaningItems,
           additional_notes: data.additional_notes,
         };
+      } else if (dialogType === "personal_care") {
+        checkData = {
+          activities_performed: checkedPersonalCareItems,
+          additional_notes: data.additional_notes,
+        };
       } else if (dialogType === "night_note") {
         checkData = {
           notes: data.additional_notes,
@@ -790,6 +888,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
       setCheckedEquipmentItems([]);
       setCheckedEnvironmentalItems([]);
       setCheckedCleaningItems([]);
+      setCheckedPersonalCareItems([]);
 
       setIsNightCheckDialogOpen(false);
       setCurrentRecordingItem(null);
@@ -826,6 +925,8 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         return "Environmental Checks";
       case "cleaning":
         return "Record Cleaning";
+      case "personal_care":
+        return "Record Personal Care Activities";
       case "night_note":
         return "Night Note";
       default:
@@ -845,6 +946,8 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         return "Check and record bed rails and equipment safety status.";
       case "environmental":
         return "Record environmental safety checks for the resident's room.";
+      case "personal_care":
+        return "Record personal care and hygiene activities performed.";
       case "night_note":
         return "Add a general night shift note or observation.";
       default:
@@ -963,6 +1066,13 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                 Cleaning
               </DropdownMenuItem>
               <DropdownMenuItem
+                onClick={() => addNightCheckItem("personal_care")}
+                disabled={isItemTypeAdded("personal_care")}
+              >
+                <Bath className="w-4 h-4 mr-2" />
+                Personal Care Activities
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onClick={() => addNightCheckItem("night_note")}
                 disabled={isItemTypeAdded("night_note")}
               >
@@ -1065,7 +1175,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
               <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
               <TabsTrigger value="night_check" className="text-xs">Night Check</TabsTrigger>
               <TabsTrigger value="positioning" className="text-xs">Positioning</TabsTrigger>
@@ -1074,9 +1184,10 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
               <TabsTrigger value="environmental" className="text-xs">Environmental</TabsTrigger>
               <TabsTrigger value="night_note" className="text-xs">Night Note</TabsTrigger>
               <TabsTrigger value="cleaning" className="text-xs">Cleaning</TabsTrigger>
+              <TabsTrigger value="personal_care" className="text-xs">Personal Care</TabsTrigger>
             </TabsList>
 
-            {["all", "night_check", "positioning", "pad_change", "bed_rails", "environmental", "night_note", "cleaning"].map((tabValue) => {
+            {["all", "night_check", "positioning", "pad_change", "bed_rails", "environmental", "night_note", "cleaning", "personal_care"].map((tabValue) => {
               const filteredRecordings = tabValue === "all"
                 ? todayRecordings
                 : todayRecordings?.filter(r => r.checkType === tabValue);
@@ -1107,7 +1218,8 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                           bed_rails: "Bed Rails Check",
                           environmental: "Environmental Check",
                           night_note: "Night Note",
-                          cleaning: "Cleaning"
+                          cleaning: "Cleaning",
+                          personal_care: "Personal Care Activities"
                         };
 
                         // Get items based on check type
@@ -1118,6 +1230,8 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                           itemsList = recording.checkData.equipment_checked;
                         } else if (recording.checkType === "cleaning" && recording.checkData?.items_cleaned) {
                           itemsList = recording.checkData.items_cleaned;
+                        } else if (recording.checkType === "personal_care" && recording.checkData?.activities_performed) {
+                          itemsList = recording.checkData.activities_performed;
                         }
 
                         const itemLabels: Record<string, string> = {
@@ -1138,7 +1252,25 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                           floor: "Floor",
                           bathroom: "Bathroom",
                           surfaces: "Surfaces",
-                          bins: "Bins"
+                          bins: "Bins",
+                          // Personal Care items
+                          bed_bath: "Bed Bath",
+                          shampoo_in_bed: "Shampoo In Bed",
+                          shower_shampoo: "Shower + shampoo",
+                          wash_upper_body: "Wash Upper body",
+                          wash_lower_body: "Wash Lower Body",
+                          creams_applied: "Creams Applied",
+                          shaved: "Shaved",
+                          oral_care: "Oral Care",
+                          fingernails_trimmed: "Fingernails Trimmed",
+                          fingernails_cleaned: "Fingernails Cleaned",
+                          hair_brushed: "Hair Brushed",
+                          hair_washed_hairdresser: "Hair washed/set by hairdresser",
+                          clothing_changed: "Clothing Changed",
+                          bed_linens_changed: "Bed Linens Changed",
+                          bed_made: "Bed Made",
+                          eyeglasses_care: "Eyeglasses Care",
+                          footwear_care: "Foot Wear Care"
                         };
 
                         return (
@@ -1706,6 +1838,238 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Personal Care Configuration Dialog */}
+      <Dialog
+        open={isPersonalCareConfigDialogOpen}
+        onOpenChange={(open) => {
+          setIsPersonalCareConfigDialogOpen(open);
+          if (!open) {
+            setSelectedPersonalCareItems([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Configure Personal Care Activities</DialogTitle>
+            <DialogDescription>
+              Select personal care activities for {fullName} during night shift.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm">Select Activities</h4>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("bed_bath") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("bed_bath")}
+                >
+                  Bed Bath
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("shampoo_in_bed") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("shampoo_in_bed")}
+                >
+                  Shampoo In Bed
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("shower_shampoo") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("shower_shampoo")}
+                >
+                  Shower + shampoo
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("wash_upper_body") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("wash_upper_body")}
+                >
+                  Wash Upper body
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("wash_lower_body") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("wash_lower_body")}
+                >
+                  Wash Lower Body
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("creams_applied") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("creams_applied")}
+                >
+                  Creams Applied
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("shaved") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("shaved")}
+                >
+                  Shaved
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("oral_care") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("oral_care")}
+                >
+                  Oral Care
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("fingernails_trimmed") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("fingernails_trimmed")}
+                >
+                  Fingernails Trimmed
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("fingernails_cleaned") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("fingernails_cleaned")}
+                >
+                  Fingernails Cleaned
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("hair_brushed") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("hair_brushed")}
+                >
+                  Hair Brushed
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("hair_washed_hairdresser") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("hair_washed_hairdresser")}
+                >
+                  Hair washed/set by hairdresser
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("clothing_changed") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("clothing_changed")}
+                >
+                  Clothing Changed
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("bed_linens_changed") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("bed_linens_changed")}
+                >
+                  Bed Linens Changed
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("bed_made") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("bed_made")}
+                >
+                  Bed Made
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("eyeglasses_care") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("eyeglasses_care")}
+                >
+                  Eyeglasses Care
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={selectedPersonalCareItems.includes("footwear_care") ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                  onClick={() => togglePersonalCareItem("footwear_care")}
+                >
+                  Foot Wear Care
+                </Button>
+
+                {customPersonalCareList.map((item) => (
+                  <Button
+                    key={item}
+                    variant="outline"
+                    className={selectedPersonalCareItems.includes(item) ? "bg-black text-white hover:bg-gray-800 hover:text-white justify-start" : "justify-start"}
+                    onClick={() => togglePersonalCareItem(item)}
+                  >
+                    {item}
+                  </Button>
+                ))}
+
+                {showCustomPersonalCareInput ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter custom personal care item..."
+                      value={customPersonalCareInput}
+                      onChange={(e) => setCustomPersonalCareInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          addCustomPersonalCareItem();
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={addCustomPersonalCareItem}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setShowCustomPersonalCareInput(false);
+                        setCustomPersonalCareInput("");
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="justify-start text-muted-foreground"
+                    onClick={() => setShowCustomPersonalCareInput(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add More
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsPersonalCareConfigDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-black hover:bg-gray-800"
+              onClick={confirmPersonalCareAndAdd}
+              disabled={selectedPersonalCareItems.length === 0}
+            >
+              Add Personal Care Activities
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Night Check Dialog */}
       <Dialog open={isNightCheckDialogOpen} onOpenChange={setIsNightCheckDialogOpen}>
         <DialogContent className="sm:max-w-[450px]">
@@ -2147,6 +2511,73 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                 </div>
               )}
 
+              {/* Personal Care Form */}
+              {dialogType === "personal_care" && currentRecordingItem?.personalCareItems && (
+                <div className="space-y-3">
+                  {currentRecordingItem.personalCareItems.map((careItem) => {
+                    const personalCareLabels: Record<string, string> = {
+                      bed_bath: "Bed Bath",
+                      shampoo_in_bed: "Shampoo In Bed",
+                      shower_shampoo: "Shower + shampoo",
+                      wash_upper_body: "Wash Upper body",
+                      wash_lower_body: "Wash Lower Body",
+                      creams_applied: "Creams Applied",
+                      shaved: "Shaved",
+                      oral_care: "Oral Care",
+                      fingernails_trimmed: "Fingernails Trimmed",
+                      fingernails_cleaned: "Fingernails Cleaned",
+                      hair_brushed: "Hair Brushed",
+                      hair_washed_hairdresser: "Hair washed/set by hairdresser",
+                      clothing_changed: "Clothing Changed",
+                      bed_linens_changed: "Bed Linens Changed",
+                      bed_made: "Bed Made",
+                      eyeglasses_care: "Eyeglasses Care",
+                      footwear_care: "Foot Wear Care"
+                    };
+
+                    return (
+                      <div key={careItem} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={careItem}
+                          checked={checkedPersonalCareItems.includes(careItem)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setCheckedPersonalCareItems(prev => [...prev, careItem]);
+                            } else {
+                              setCheckedPersonalCareItems(prev => prev.filter(item => item !== careItem));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={careItem}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {personalCareLabels[careItem] || careItem}
+                        </label>
+                      </div>
+                    );
+                  })}
+
+                  <FormField
+                    control={form.control}
+                    name="additional_notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">Comments</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Note any additional care details..."
+                            className="min-h-[80px] resize-none"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
               {/* Form Actions */}
               <div className="flex justify-end gap-2 pt-2">
                 <Button
@@ -2158,6 +2589,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                     setCheckedEquipmentItems([]);
                     setCheckedEnvironmentalItems([]);
                     setCheckedCleaningItems([]);
+                    setCheckedPersonalCareItems([]);
                   }}
                 >
                   Cancel

@@ -688,7 +688,8 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                 bed_rails: "Bed Rails Check",
                 environmental: "Environmental Check",
                 night_note: "Night Note",
-                cleaning: "Cleaning"
+                cleaning: "Cleaning",
+                personal_care: "Personal Care Activities"
               };
 
               const positionLabels: Record<string, string> = {
@@ -738,6 +739,26 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                 bins: "Bins"
               };
 
+              const personalCareLabels: Record<string, string> = {
+                bed_bath: "Bed Bath",
+                shampoo_in_bed: "Shampoo In Bed",
+                shower_shampoo: "Shower + shampoo",
+                wash_upper_body: "Wash Upper body",
+                wash_lower_body: "Wash Lower Body",
+                creams_applied: "Creams Applied",
+                shaved: "Shaved",
+                oral_care: "Oral Care",
+                fingernails_trimmed: "Fingernails Trimmed",
+                fingernails_cleaned: "Fingernails Cleaned",
+                hair_brushed: "Hair Brushed",
+                hair_washed_hairdresser: "Hair washed/set by hairdresser",
+                clothing_changed: "Clothing Changed",
+                bed_linens_changed: "Bed Linens Changed",
+                bed_made: "Bed Made",
+                eyeglasses_care: "Eyeglasses Care",
+                footwear_care: "Foot Wear Care"
+              };
+
               // Group recordings by check type
               const groupedRecordings = recordings.reduce((acc: any, recording: any) => {
                 const type = recording.checkType;
@@ -749,7 +770,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
               }, {});
 
               // Define the order of sections
-              const sectionOrder = ["night_check", "positioning", "pad_change", "bed_rails", "environmental", "cleaning", "night_note"];
+              const sectionOrder = ["night_check", "positioning", "pad_change", "bed_rails", "environmental", "cleaning", "personal_care", "night_note"];
 
               const renderRecordingDetails = (recording: any, index: number) => {
                 let summary = "";
@@ -788,6 +809,12 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                   const items = recording.checkData.items_cleaned?.map((item: string) => cleaningLabels[item] || item).join(", ") || "";
                   const parts = [];
                   if (items) parts.push(items);
+                  if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
+                  summary = parts.join(" - ");
+                } else if (recording.checkType === "personal_care" && recording.checkData) {
+                  const activities = recording.checkData.activities_performed?.map((item: string) => personalCareLabels[item] || item).join(", ") || "";
+                  const parts = [];
+                  if (activities) parts.push(activities);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "night_note" && recording.checkData) {

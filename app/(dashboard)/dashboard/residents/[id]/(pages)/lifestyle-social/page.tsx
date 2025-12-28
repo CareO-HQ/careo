@@ -125,6 +125,12 @@ const SocialConnectionSchema = z.object({
 
 type SocialConnectionFormData = z.infer<typeof SocialConnectionSchema>;
 
+// Helper function to capitalize first letter
+const capitalizeFirstLetter = (str: string) => {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
 export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
@@ -468,7 +474,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                 {personalInterests?.mainInterests && personalInterests.mainInterests.length > 0 ? (
                   personalInterests.mainInterests.map((interest, index) => (
                     <Badge key={index} variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">
-                      {interest}
+                      {capitalizeFirstLetter(interest)}
                     </Badge>
                   ))
                 ) : (
@@ -482,7 +488,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                 {personalInterests?.hobbies && personalInterests.hobbies.length > 0 ? (
                   personalInterests.hobbies.map((hobby, index) => (
                     <Badge key={index} variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-                      {hobby}
+                      {capitalizeFirstLetter(hobby)}
                     </Badge>
                   ))
                 ) : (
@@ -496,7 +502,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                 {personalInterests?.socialPreferences && personalInterests.socialPreferences.length > 0 ? (
                   personalInterests.socialPreferences.map((pref, index) => (
                     <Badge key={index} variant="outline" className="bg-green-50 border-green-200 text-green-700">
-                      {pref}
+                      {capitalizeFirstLetter(pref)}
                     </Badge>
                   ))
                 ) : (
@@ -510,7 +516,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                 {personalInterests?.favoriteActivities && personalInterests.favoriteActivities.length > 0 ? (
                   personalInterests.favoriteActivities.map((activity, index) => (
                     <Badge key={index} variant="outline" className="bg-orange-50 border-orange-200 text-orange-700">
-                      {activity}
+                      {capitalizeFirstLetter(activity)}
                     </Badge>
                   ))
                 ) : (

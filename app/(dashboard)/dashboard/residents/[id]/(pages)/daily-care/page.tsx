@@ -218,11 +218,15 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   }, [isActivityRecordDialogOpen]);
 
-  // Update staff fields when user data loads or when dialog opens
+  // Update staff fields and time when user data loads or when dialog opens
   React.useEffect(() => {
     if (user?.user && isPersonalCareDialogOpen) {
       const staffName = user.user.name || user.user.email?.split('@')[0] || "";
       form.setValue('staff', staffName);
+
+      // Set current time
+      const currentTime = new Date().toTimeString().slice(0, 5);
+      form.setValue('time', currentTime);
     }
   }, [user, form, isPersonalCareDialogOpen]);
 
@@ -232,35 +236,25 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const createQuickCareNote = useMutation(api.quickCareNotes.createQuickCareNote);
   const deleteQuickCareNote = useMutation(api.quickCareNotes.deleteQuickCareNote);
 
-  // Define activity options in logical daily care routine order
+  // Personal Care Activities
   const activityOptions = [
-    // Morning routine - Hygiene & Grooming
-    { id: "mouth_care", label: "Oral Care", category: "Hygiene" },
-    { id: "brushed", label: "Teeth Brushed/Dentures Cleaned", category: "Hygiene" },
-    { id: "toileting", label: "Toileting", category: "Hygiene" },
-    { id: "continence", label: "Continence Support (Pad Change)", category: "Hygiene" },
-
-    // Washing & Bathing
-    { id: "shower", label: "Shower", category: "Washing" },
-    { id: "bath", label: "Bath", category: "Washing" },
-
-    // Grooming
-    { id: "shaved", label: "Shaved", category: "Grooming" },
-    { id: "hair_care", label: "Hair Combed", category: "Grooming" },
-    { id: "hair_dried", label: "Hair Dried", category: "Grooming" },
-    { id: "nails_care", label: "Nail Care", category: "Grooming" },
-
-    // Dressing
-    { id: "dressed", label: "Dressed", category: "Dressing" },
-    { id: "changed", label: "Changed Clothes", category: "Dressing" },
-
-    // Skin & Medical Care
-    { id: "skin_care", label: "Skin Care", category: "Medical" },
-    { id: "cream_applied", label: "Creams Applied", category: "Medical" },
-
-    // Positioning & Comfort
-    { id: "position_change", label: "Position Change", category: "Positioning" },
-    { id: "Bed_changed", label: "Bed Cover Changed", category: "Positioning" }
+    { id: "bed_bath", label: "Bed Bath", category: "Personal Care" },
+    { id: "shampoo_in_bed", label: "Shampoo In Bed", category: "Personal Care" },
+    { id: "shower_shampoo", label: "Shower + shampoo", category: "Personal Care" },
+    { id: "wash_upper_body", label: "Wash Upper body", category: "Personal Care" },
+    { id: "wash_lower_body", label: "Wash Lower Body", category: "Personal Care" },
+    { id: "creams_applied", label: "Creams Applied", category: "Personal Care" },
+    { id: "shaved", label: "Shaved", category: "Personal Care" },
+    { id: "oral_care", label: "Oral Care", category: "Personal Care" },
+    { id: "fingernails_trimmed", label: "Fingernails Trimmed", category: "Personal Care" },
+    { id: "fingernails_cleaned", label: "Fingernails Cleaned", category: "Personal Care" },
+    { id: "hair_brushed", label: "Hair Brushed", category: "Personal Care" },
+    { id: "hair_washed_hairdresser", label: "Hair washed/set by hairdresser", category: "Personal Care" },
+    { id: "clothing_changed", label: "Clothing Changed", category: "Personal Care" },
+    { id: "bed_linens_changed", label: "Bed Linens Changed", category: "Personal Care" },
+    { id: "bed_made", label: "Bed Made", category: "Personal Care" },
+    { id: "eyeglasses_care", label: "Eyeglasses Care", category: "Personal Care" },
+    { id: "footwear_care", label: "Foot Wear Care", category: "Personal Care" }
   ] as const;
 
 
