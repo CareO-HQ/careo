@@ -24,22 +24,22 @@ export const getCurrentUserContext = query({
     // Get the active team if set
     let team = null;
     let organization = null;
-    
+
     if (user.activeTeamId) {
       // Get team membership details
       const teamMember = await ctx.db
         .query("teamMembers")
-        .withIndex("byUserAndTeam", (q) => 
+        .withIndex("byUserAndTeam", (q) =>
           q.eq("userId", identity.subject).eq("teamId", user.activeTeamId!)
         )
         .first();
-      
+
       if (teamMember) {
         team = {
           id: teamMember.teamId,
           name: teamMember.teamId // Use the team ID as name for now
         };
-        
+
         organization = {
           id: teamMember.organizationId,
           name: teamMember.organizationId // Use organization ID as name for now
@@ -296,24 +296,30 @@ export const getByTeamId = query({
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     console.log("getByTeamId called with:", args.teamId);
 
-    // Get all team members for this team
+    // Get all team members for this team from local table
     const teamMembers = await ctx.db
       .query("teamMembers")
       .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
       .collect();
 
-    console.log("Found team members:", teamMembers.length);
+    console.log(`Found ${teamMembers.length} team members in local table for team ${args.teamId}`);
 
     // Fetch all users
     const results: Array<Record<string, unknown>> = [];
     for (const teamMember of teamMembers) {
       const userId = teamMember.userId;
 
+      console.log(`Processing team member with userId: ${userId}`);
+
       // Use better-auth to find user by ID
       const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "user",
         where: [{ field: "id", value: userId }]
       });
+
+      if (!authUser) {
+        console.log(`User not found in Better Auth for userId: ${userId}`);
+      }
 
       if (authUser) {
         // Get our local user record
@@ -345,5 +351,23 @@ export const getByTeamId = query({
 
     console.log("Returning results:", results.length);
     return results;
+  },
+});
+
+export const inspectData = query({
+  args: {},
+  handler: async (ctx) => {
+    const teamMembers = await ctx.db.query("teamMembers").collect();
+
+    // Check users with activeTeamId
+    const usersWithTeam = await ctx.db.query("users")
+      .filter(q => q.neq(q.field("activeTeamId"), undefined))
+      .collect();
+
+    return {
+      teamMembersCount: teamMembers.length,
+      usersWithTeamCount: usersWithTeam.length,
+      usersSample: usersWithTeam.slice(0, 5).map(u => ({ id: u._id, activeTeamId: u.activeTeamId })),
+    };
   },
 });

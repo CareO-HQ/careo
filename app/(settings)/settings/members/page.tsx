@@ -8,6 +8,7 @@ import InviteActions from "@/components/settings/InviteActions";
 import SendInvitationModal from "@/components/settings/SendInvitationModal";
 import MemberActions from "@/components/settings/members/MemberActions";
 import { formatRoleName } from "@/lib/utils";
+import { canInviteMembers, type UserRole } from "@/lib/permissions";
 
 export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
@@ -24,10 +25,6 @@ export default function MembersPage() {
   };
 
   function showRemoveButton() {
-    return activeMember?.role === "owner" || activeMember?.role === "manager";
-  }
-
-  function canInviteMembers() {
     return activeMember?.role === "owner" || activeMember?.role === "manager";
   }
 
@@ -93,32 +90,34 @@ export default function MembersPage() {
         ))}
       </div>
       <Separator />
-      <div className="flex flex-col justify-start items-start gap-4 w-full">
-        <div className="flex flex-row justify-between items-center w-full">
-          <p className="font-medium">Pending invitations</p>
-          {canInviteMembers() && <SendInvitationModal />}
-        </div>
-        {invitations?.length ? (
-          invitations?.map((invitation) => (
-            <div
-              key={invitation.id}
-              className="flex flex-row justify-between items-center w-full"
-            >
-              <p className="font-medium text-sm text-muted-foreground">
-                {invitation.email}
-              </p>
-              <div className="flex flex-row justify-end items-center gap-2">
-                <p className="text-xs text-muted-foreground">
-                  {formatRoleName(invitation.role)}
+      {activeMember?.role && canInviteMembers(activeMember.role as UserRole) && (
+        <div className="flex flex-col justify-start items-start gap-4 w-full">
+          <div className="flex flex-row justify-between items-center w-full">
+            <p className="font-medium">Pending invitations</p>
+            <SendInvitationModal />
+          </div>
+          {invitations?.length ? (
+            invitations?.map((invitation) => (
+              <div
+                key={invitation.id}
+                className="flex flex-row justify-between items-center w-full"
+              >
+                <p className="font-medium text-sm text-muted-foreground">
+                  {invitation.email}
                 </p>
-                <InviteActions invitationId={invitation.id} />
+                <div className="flex flex-row justify-end items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {formatRoleName(invitation.role)}
+                  </p>
+                  <InviteActions invitationId={invitation.id} />
+                </div>
               </div>
-            </div>
-          ))
-        ) : (
-          <p className="text-xs text-muted-foreground">No invitations sent</p>
-        )}
-      </div>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">No invitations sent</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

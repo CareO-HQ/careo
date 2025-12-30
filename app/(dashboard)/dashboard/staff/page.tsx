@@ -20,6 +20,8 @@ import {
 import { Search, Mail, Phone, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatRoleName } from "@/lib/utils";
+import { canViewStaffList, UserRole } from "@/lib/permissions";
+import { useEffect } from "react";
 
 interface TeamStaffMember {
   _id: string;
@@ -54,10 +56,15 @@ export default function StaffPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
-  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
 
-  console.log("Staff Page - activeTeamId:", activeTeamId);
-  console.log("Staff Page - activeOrganizationId:", activeOrganizationId);
+  useEffect(() => {
+    if (!isActiveMemberLoading && activeMember) {
+      if (!canViewStaffList(activeMember.role as UserRole)) {
+        router.push("/dashboard");
+      }
+    }
+  }, [activeMember, isActiveMemberLoading, router]);
 
   // Fetch staff by team if team is selected
   const teamStaff = useQuery(
@@ -71,6 +78,18 @@ export default function StaffPage() {
     !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   ) as OrgStaffMember[] | undefined;
 
+  if (isActiveMemberLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Checking permissions...</p>
+      </div>
+    );
+  }
+
+  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+    return null;
+  }
+
   console.log("Staff Page - teamStaff:", teamStaff);
   console.log("Staff Page - enrichedOrgStaff:", enrichedOrgStaff);
 
@@ -81,8 +100,8 @@ export default function StaffPage() {
   const displayName = activeTeamId
     ? activeTeam?.name || 'selected unit'
     : activeOrganizationId
-    ? `All units in ${activeOrganization?.name || 'care home'}`
-    : '';
+      ? `All units in ${activeOrganization?.name || 'care home'}`
+      : '';
 
   // Filter staff based on search term
   const filteredStaff = (staff || []).filter((member) => {

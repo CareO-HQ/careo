@@ -32,6 +32,7 @@ import { TeamSwitcher } from "./TeamSwitcher";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { canViewAuditLogs, canViewStaffList } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
 import HelpSupportDialog from "./HelpSupportDialog";
@@ -40,6 +41,7 @@ export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+  const { data: activeMember } = authClient.useActiveMember();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
 
   // Extract email to a stable variable - always compute this before any conditional logic
@@ -52,8 +54,8 @@ export function AppSidebar() {
     activeTeamId
       ? { teamId: activeTeamId, organizationId: undefined }
       : activeOrganizationId
-      ? { teamId: undefined, organizationId: activeOrganizationId }
-      : "skip"
+        ? { teamId: undefined, organizationId: activeOrganizationId }
+        : "skip"
   );
 
   // Get unread appointments count - dynamic based on selection
@@ -62,8 +64,8 @@ export function AppSidebar() {
     activeTeamId
       ? { teamId: activeTeamId, organizationId: undefined }
       : activeOrganizationId
-      ? { teamId: undefined, organizationId: activeOrganizationId }
-      : "skip"
+        ? { teamId: undefined, organizationId: activeOrganizationId }
+        : "skip"
   );
 
   // Get unread notification count for current user
@@ -148,14 +150,16 @@ export function AppSidebar() {
             </SidebarMenuItem>
 
             {/* Staff */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/staff">
-                  <UsersIcon />
-                  <span>Staff</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewStaffList((activeMember?.role ?? user?.user?.role) as any) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/staff">
+                    <UsersIcon />
+                    <span>Staff</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -244,20 +248,22 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* Audit Section */}
-        <SidebarGroup className="mt-0">
-          <SidebarGroupLabel>Audit</SidebarGroupLabel>
-          <SidebarGroupContent>
-            {/* CareO Audit */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/careo-audit">
-                  <ClipboardListIcon />
-                  <span>CareO Audit</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {canViewAuditLogs((activeMember?.role ?? user?.user?.role) as any) && (
+          <SidebarGroup className="mt-0">
+            <SidebarGroupLabel>Audit</SidebarGroupLabel>
+            <SidebarGroupContent>
+              {/* CareO Audit */}
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/careo-audit">
+                    <ClipboardListIcon />
+                    <span>CareO Audit</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <HelpSupportDialog>

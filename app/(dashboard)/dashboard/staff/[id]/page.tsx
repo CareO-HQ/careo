@@ -8,6 +8,8 @@ import { authClient } from "@/lib/auth-client";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { formatRoleName } from "@/lib/utils";
+import { canViewStaffList, UserRole } from "@/lib/permissions";
+import { useEffect } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -29,8 +31,31 @@ type StaffPageProps = {
 
 export default function StaffProfilePage({ params }: StaffPageProps) {
   const { id } = React.use(params);
-  const router = useRouter();
-  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { data: activeOrg, isPending: isActiveOrgLoading } = authClient.useActiveOrganization();
+  const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
+
+  useEffect(() => {
+    if (!isActiveMemberLoading && activeMember) {
+      if (!canViewStaffList(activeMember.role as UserRole)) {
+        router.push("/dashboard");
+      }
+    }
+  }, [activeMember, isActiveMemberLoading, router]);
+
+  if (isActiveOrgLoading || isActiveMemberLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+    return null;
+  }
 
   // Find the staff member from organization members
   const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);

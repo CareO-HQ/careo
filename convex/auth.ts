@@ -7,16 +7,34 @@ import { v } from "convex/values";
 import { api, components, internal } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import { action, mutation, query } from "./_generated/server";
+import {
+  adminAc,
+  memberAc,
+  ownerAc
+} from "better-auth/plugins/organization/access";
 
 // Typesafe way to pass Convex functions defined in this file
 const authFunctions: AuthFunctions = internal.auth;
 const publicAuthFunctions: PublicAuthFunctions = api.auth;
 
+// Role mapping for Better Auth organization plugin; managers inherit admin-like permissions
+export const organizationRoles = {
+  owner: ownerAc,
+  admin: adminAc,
+  manager: adminAc,
+  nurse: memberAc,
+  care_assistant: memberAc,
+  member: memberAc
+};
+
 // Initialize the component
 export const betterAuthComponent = new BetterAuth(components.betterAuth, {
   authFunctions,
-  publicAuthFunctions
-});
+  publicAuthFunctions,
+  organization: {
+    roles: organizationRoles
+  }
+} as any);
 
 // These are required named exports
 export const {
@@ -625,12 +643,12 @@ export const getMemberTeams = query({
 
           return team
             ? {
-                id: team.id,
-                name: team.name,
-                organizationId: team.organizationId,
-                createdAt: team.createdAt,
-                membershipId: membership._id
-              }
+              id: team.id,
+              name: team.name,
+              organizationId: team.organizationId,
+              createdAt: team.createdAt,
+              membershipId: membership._id
+            }
             : null;
         })
       );

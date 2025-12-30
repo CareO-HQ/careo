@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { components } from "./_generated/api";
 
 export const create = mutation({
   args: {
@@ -22,71 +23,71 @@ export const create = mutation({
     // Metadata for filtering
     teamId: v.optional(v.string()),
     organizationId: v.optional(v.string()),
-    
+
     // Section 3: Status of Injured Person
     injuredPersonStatus: v.optional(v.array(v.string())), // Array of status values
     contractorEmployer: v.optional(v.string()), // Only filled if "Contractor" is selected
-    
+
     // Section 4: Type of Incident
     incidentTypes: v.array(v.string()), // Required with at least one type for new records
     typeOtherDetails: v.optional(v.string()),
-    
+
     // Section 5-6: Fall-Specific Questions
     anticoagulantMedication: v.optional(v.string()),
     fallPathway: v.optional(v.string()),
-    
+
     // Section 7: Detailed Description
     detailedDescription: v.string(),
-    
+
     // Section 8: Incident Level
     incidentLevel: v.string(),
-    
+
     // Section 9: Details of Injury
     injuryDescription: v.optional(v.string()),
     bodyPartInjured: v.optional(v.string()),
-    
+
     // Section 10: Treatment Required
     treatmentTypes: v.optional(v.array(v.string())),
-    
+
     // Section 11: Details of Treatment Given
     treatmentDetails: v.optional(v.string()),
     vitalSigns: v.optional(v.string()),
     treatmentRefused: v.optional(v.boolean()),
-    
+
     // Section 12: Witnesses
     witness1Name: v.optional(v.string()),
     witness1Contact: v.optional(v.string()),
     witness2Name: v.optional(v.string()),
     witness2Contact: v.optional(v.string()),
-    
+
     // Section 13: Further Actions by Nurse
     nurseActions: v.optional(v.array(v.string())),
-    
+
     // Section 14: Further Actions Advised
     furtherActionsAdvised: v.optional(v.string()),
-    
+
     // Section 15: Prevention Measures
     preventionMeasures: v.optional(v.string()),
-    
+
     // Section 16: Home Manager Informed
     homeManagerInformedBy: v.optional(v.string()),
     homeManagerInformedDateTime: v.optional(v.string()),
-    
+
     // Section 17: Out of Hours On-Call
     onCallManagerName: v.optional(v.string()),
     onCallContactedDateTime: v.optional(v.string()),
-    
+
     // Section 18: Next of Kin Informed
     nokInformedWho: v.optional(v.string()),
     nokInformedBy: v.optional(v.string()),
     nokInformedDateTime: v.optional(v.string()),
-    
+
     // Section 19: Trust Incident Form Recipients
     careManagerName: v.optional(v.string()),
     careManagerEmail: v.optional(v.string()),
     keyWorkerName: v.optional(v.string()),
     keyWorkerEmail: v.optional(v.string()),
-    
+
     // Section 20: Form Completion Details
     completedByFullName: v.string(),
     completedByJobTitle: v.string(),
@@ -108,13 +109,33 @@ export const create = mutation({
       throw new Error("User not found");
     }
 
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.userId || !session.activeOrganizationId) {
+      throw new Error("Unauthorized: No active session or organization");
+    }
+
+    const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "member",
+      where: [
+        { field: "userId", value: session.userId },
+        { field: "organizationId", value: session.activeOrganizationId },
+      ],
+    });
+
+    if (!member || member.role === "care_assistant") {
+      throw new Error("Unauthorized: Care assistants cannot report incidents");
+    }
+
     const incident = await ctx.db.insert("incidents", {
       // Section 1
       date: args.date,
       time: args.time,
       homeName: args.homeName,
       unit: args.unit,
-      
+
       // Section 2
       injuredPersonFirstName: args.injuredPersonFirstName,
       injuredPersonSurname: args.injuredPersonSurname,
@@ -123,77 +144,77 @@ export const create = mutation({
       residentInternalId: args.residentInternalId,
       dateOfAdmission: args.dateOfAdmission,
       healthCareNumber: args.healthCareNumber,
-      
+
       // Section 3
       injuredPersonStatus: args.injuredPersonStatus,
       contractorEmployer: args.contractorEmployer,
-      
+
       // Section 4
       incidentTypes: args.incidentTypes,
       typeOtherDetails: args.typeOtherDetails,
-      
+
       // Section 5-6
       anticoagulantMedication: args.anticoagulantMedication,
       fallPathway: args.fallPathway,
-      
+
       // Section 7
       detailedDescription: args.detailedDescription,
-      
+
       // Section 8
       incidentLevel: args.incidentLevel,
-      
+
       // Section 9
       injuryDescription: args.injuryDescription,
       bodyPartInjured: args.bodyPartInjured,
-      
+
       // Section 10
       treatmentTypes: args.treatmentTypes,
-      
+
       // Section 11
       treatmentDetails: args.treatmentDetails,
       vitalSigns: args.vitalSigns,
       treatmentRefused: args.treatmentRefused,
-      
+
       // Section 12
       witness1Name: args.witness1Name,
       witness1Contact: args.witness1Contact,
       witness2Name: args.witness2Name,
       witness2Contact: args.witness2Contact,
-      
+
       // Section 13
       nurseActions: args.nurseActions,
-      
+
       // Section 14
       furtherActionsAdvised: args.furtherActionsAdvised,
-      
+
       // Section 15
       preventionMeasures: args.preventionMeasures,
-      
+
       // Section 16
       homeManagerInformedBy: args.homeManagerInformedBy,
       homeManagerInformedDateTime: args.homeManagerInformedDateTime,
-      
+
       // Section 17
       onCallManagerName: args.onCallManagerName,
       onCallContactedDateTime: args.onCallContactedDateTime,
-      
+
       // Section 18
       nokInformedWho: args.nokInformedWho,
       nokInformedBy: args.nokInformedBy,
       nokInformedDateTime: args.nokInformedDateTime,
-      
+
       // Section 19
       careManagerName: args.careManagerName,
       careManagerEmail: args.careManagerEmail,
       keyWorkerName: args.keyWorkerName,
       keyWorkerEmail: args.keyWorkerEmail,
-      
+
       // Section 20
       completedByFullName: args.completedByFullName,
       completedByJobTitle: args.completedByJobTitle,
       completedBySignature: args.completedBySignature,
       dateCompleted: args.dateCompleted,
-      
+
       // Metadata
       status: "reported",
       createdAt: Date.now(),
@@ -299,9 +320,24 @@ export const update = mutation({
     dateCompleted: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.userId || !session.activeOrganizationId) {
+      throw new Error("Unauthorized: No active session or organization");
+    }
+
+    const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "member",
+      where: [
+        { field: "userId", value: session.userId },
+        { field: "organizationId", value: session.activeOrganizationId },
+      ],
+    });
+
+    if (!member || (member.role !== "owner" && member.role !== "manager" && member.role !== "admin" && member.role !== "nurse")) {
+      throw new Error("Unauthorized: Only owners, managers, and nurses can edit incidents");
     }
 
     const { incidentId, ...updateData } = args;
@@ -326,13 +362,13 @@ export const getByResident = query({
 });
 
 export const getAll = query({
-  args: { 
+  args: {
     limit: v.optional(v.number()),
     homeName: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const limit = args.limit || 50;
-    
+
     if (args.homeName) {
       const incidents = await ctx.db
         .query("incidents")
@@ -684,9 +720,24 @@ export const remove = mutation({
     incidentId: v.id("incidents"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.userId || !session.activeOrganizationId) {
+      throw new Error("Unauthorized: No active session or organization");
+    }
+
+    const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "member",
+      where: [
+        { field: "userId", value: session.userId },
+        { field: "organizationId", value: session.activeOrganizationId },
+      ],
+    });
+
+    if (!member || (member.role !== "owner" && member.role !== "manager" && member.role !== "admin" && member.role !== "nurse")) {
+      throw new Error("Unauthorized: Only owners, managers, and nurses can delete incidents");
     }
 
     // Delete all related NHS reports (BHSCT)

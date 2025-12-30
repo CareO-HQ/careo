@@ -12,14 +12,13 @@ import { Button } from "../ui/button";
 import { PlusIcon } from "lucide-react";
 import SendInvitationForm from "./SendInvitationForm";
 import { authClient } from "@/lib/auth-client";
+import { canInviteMembers, type UserRole } from "@/lib/permissions";
 
 export default function SendInvitationModal() {
   const { data: member } = authClient.useActiveMember();
-  
+
   // Only show invitation button if user has permission
-  const canInvite = member?.role === "owner" || member?.role === "manager";
-  
-  if (!canInvite) {
+  if (!member?.role || !canInviteMembers(member.role as UserRole)) {
     return null;
   }
 

@@ -15,52 +15,60 @@ import {
   SelectValue
 } from "../ui/select";
 import { Button } from "../ui/button";
-import { useTransition, useEffect } from "react";
+import { useTransition } from "react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { canInviteMembers, getAllowedRolesToInvite, type UserRole } from "@/lib/permissions";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useRouter } from "next/navigation";
 
 export default function SendInvitationForm() {
   const { data: member } = authClient.useActiveMember();
   const [isLoading, startTransition] = useTransition();
+  const createInvitation = useMutation(api.customInvite.createInvitationForManager);
+  const router = useRouter();
+  
   const form = useForm<z.infer<typeof inviteMemberSchema>>({
     resolver: zodResolver(inviteMemberSchema),
     defaultValues: {
       email: "",
-      role: "care_assistant"
+      role: "manager"
     }
   });
 
   const onSubmit = (values: z.infer<typeof inviteMemberSchema>) => {
     // Check if user has permission to invite members
-    if (member?.role !== "owner" && member?.role !== "manager") {
+    if (!member?.role || !canInviteMembers(member.role as UserRole)) {
       toast.error("You don't have permission to invite members");
       return;
     }
 
     startTransition(async () => {
-      const { data, error } = await authClient.organization.inviteMember(
-        {
+      try {
+        const result = await createInvitation({
           email: values.email,
-          role: values.role
-        },
-        {
-          onSuccess: () => {
-            toast.success("Invitation sent successfully");
-            form.reset();
-          },
-          onError: (error) => {
-            console.log(error);
-            if (
-              error.error.code ===
-              "USER_IS_ALREADY_INVITED_TO_THIS_ORGANIZATION"
-            ) {
-              toast.error("User is already invited to this organization");
-              return;
-            }
-            toast.error("Failed to send invitation");
+          role: values.role as any
+        });
+
+        if (result.success) {
+          toast.success("Invitation sent successfully");
+          form.reset();
+          router.refresh();
+        } else {
+          // Handle specific error cases
+          if (result.error?.includes("already invited")) {
+            toast.error("User is already invited to this organization");
+          } else if (result.error?.includes("only invite")) {
+            toast.error(result.error);
+          } else {
+            toast.error(result.error || "Failed to send invitation");
           }
         }
-      );
+      } catch (error) {
+        console.error("Error sending invitation:", error);
+        toast.error("Failed to send invitation");
+      }
     });
   };
 
@@ -100,9 +108,15 @@ export default function SendInvitationForm() {
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="nurse">Nurse</SelectItem>
-                      <SelectItem value="care_assistant">Care Assistant</SelectItem>
+                      {getAllowedRolesToInvite(member?.role as UserRole || "care_assistant").includes("manager") && (
+                        <SelectItem value="manager">Manager</SelectItem>
+                      )}
+                      {getAllowedRolesToInvite(member?.role as UserRole || "care_assistant").includes("nurse") && (
+                        <SelectItem value="nurse">Nurse</SelectItem>
+                      )}
+                      {getAllowedRolesToInvite(member?.role as UserRole || "care_assistant").includes("care_assistant") && (
+                        <SelectItem value="care_assistant">Care Assistant</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </FormControl>
@@ -118,3 +132,4 @@ export default function SendInvitationForm() {
     </Form>
   );
 }
+
