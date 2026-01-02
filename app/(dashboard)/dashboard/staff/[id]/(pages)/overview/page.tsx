@@ -464,13 +464,18 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                             mode="single"
                             selected={formData.nisccExpiryDate ? new Date(formData.nisccExpiryDate) : undefined}
                             onSelect={(date) => {
-                              setFormData({
-                                ...formData,
-                                nisccExpiryDate: date ? date.toISOString() : ""
-                              });
-                              setIsNisccDatePickerOpen(false);
+                              if (date) {
+                                setFormData({
+                                  ...formData,
+                                  nisccExpiryDate: format(date, "yyyy-MM-dd")
+                                });
+                                setIsNisccDatePickerOpen(false);
+                              }
                             }}
-                            initialFocus
+                            captionLayout="dropdown"
+                            defaultMonth={formData.nisccExpiryDate ? new Date(formData.nisccExpiryDate) : new Date()}
+                            startMonth={new Date()}
+                            endMonth={new Date(new Date().getFullYear() + 10, 11)}
                           />
                         </PopoverContent>
                       </Popover>

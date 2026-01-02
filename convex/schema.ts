@@ -1,8 +1,13 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
+  chokingRiskAssessments,
+  cornellDepressionScales,
   dependencyAssessments,
+  dietNotifications,
   dnacprs,
+  nutritionalAssessments,
+  oralAssessments,
   painAssessments,
   peeps,
   photographyConsents,
@@ -1846,6 +1851,26 @@ export default defineSchema({
   residentValuablesAssessments: residentValuablesAssessments,
 
   painAssessments: painAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  nutritionalAssessments: nutritionalAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  oralAssessments: oralAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  dietNotifications: dietNotifications
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  chokingRiskAssessments: chokingRiskAssessments
+    .index("by_team", ["teamId"])
+    .index("by_organization", ["organizationId"]),
+
+  cornellDepressionScales: cornellDepressionScales
     .index("by_team", ["teamId"])
     .index("by_organization", ["organizationId"]),
 
@@ -3821,5 +3846,21 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byTeamId", ["teamId"]),
 
-  residentHandlingProfileForm
+  residentHandlingProfileForm,
+
+  todos: defineTable({
+    title: v.string(),
+    completed: v.boolean(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    dueDate: v.optional(v.string()), // ISO date string for simple date handling
+    userId: v.string(), // User who created the todo
+    teamId: v.optional(v.string()), // Associated team
+    organizationId: v.optional(v.string()), // Associated organization
+  })
+    .index("byUserId", ["userId"])
+    .index("byTeamId", ["teamId"])
+    .index("byOrganizationId", ["organizationId"])
+    .index("byCompleted", ["completed"])
+    .index("byUserAndCompleted", ["userId", "completed"])
 });

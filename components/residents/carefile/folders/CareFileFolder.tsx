@@ -241,6 +241,26 @@ export default function CareFileFolder({
     api.careFiles.painAssessment.getArchivedForResident,
     residentId ? { residentId } : "skip"
   );
+  const archivedNutritionalAssessment = useQuery(
+    api.careFiles.nutritionalAssessment.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedOralAssessment = useQuery(
+    api.careFiles.oralAssessment.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedDietNotification = useQuery(
+    api.careFiles.dietNotification.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedChokingRiskAssessment = useQuery(
+    api.careFiles.chokingRiskAssessment.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedCornellDepressionScale = useQuery(
+    api.careFiles.cornellDepressionScale.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
   const archivedInfectionPrevention = useQuery(
     api.careFiles.infectionPrevention.getArchivedForResident,
     residentId ? { residentId } : "skip"
@@ -274,6 +294,11 @@ export default function CareFileFolder({
     ...(archivedHandlingProfile?.map((item: any) => ({ ...item, formKey: "resident-handling-profile-form", formType: "Resident Handling Profile", folderKey: "mobility-fall" })) || []),
     ...(archivedBladderBowel?.map((item: any) => ({ ...item, formKey: "blader-bowel-form", formType: "Bladder & Bowel Assessment", folderKey: "continence" })) || []),
     ...(archivedPainAssessment?.map((item: any) => ({ ...item, formKey: "pain-assessment-form", formType: "Pain Assessment and Evaluation", folderKey: "medication" })) || []),
+    ...(archivedNutritionalAssessment?.map((item: any) => ({ ...item, formKey: "nutritional-assessment-form", formType: "Nutritional Assessment", folderKey: "nutrition-hydration" })) || []),
+    ...(archivedOralAssessment?.map((item: any) => ({ ...item, formKey: "oral-assessment-form", formType: "Oral Assessment", folderKey: "nutrition-hydration" })) || []),
+    ...(archivedDietNotification?.map((item: any) => ({ ...item, formKey: "diet-notification-form", formType: "Diet Notification", folderKey: "nutrition-hydration" })) || []),
+    ...(archivedChokingRiskAssessment?.map((item: any) => ({ ...item, formKey: "choking-risk-assessment-form", formType: "Choking Risk Assessment", folderKey: "nutrition-hydration" })) || []),
+    ...(archivedCornellDepressionScale?.map((item: any) => ({ ...item, formKey: "cornell-depression-scale-form", formType: "Cornell Scale for Depression in Dementia", folderKey: "psychological-emotional" })) || []),
     ...(archivedCarePlans?.map((item: any) => ({ ...item, formKey: "care-plan-form", formType: "Care Plan", folderKey: item.folderKey })) || [])
   ].sort((a, b) => b.archivedAt - a.archivedAt); // Sort by most recently archived first
 
@@ -326,7 +351,12 @@ export default function CareFileFolder({
       { key: "skin-integrity-form", name: "Skin Integrity Assessment", category: "Clinical", canDelete: true, canView: true, canEdit: true },
       { key: "resident-valuables-form", name: "Resident Valuables", category: "Property", canDelete: true, canView: true, canEdit: true },
       { key: "resident-handling-profile-form", name: "Resident Handling Profile", category: "Handling", canDelete: true, canView: true, canEdit: true },
-      { key: "pain-assessment-form", name: "Pain Assessment and Evaluation", category: "Medication", canDelete: true, canView: true, canEdit: true }
+      { key: "pain-assessment-form", name: "Pain Assessment and Evaluation", category: "Medication", canDelete: true, canView: true, canEdit: true },
+      { key: "nutritional-assessment-form", name: "Nutritional Assessment", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
+      { key: "oral-assessment-form", name: "Oral Assessment", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
+      { key: "diet-notification-form", name: "Diet Notification", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
+      { key: "choking-risk-assessment-form", name: "Choking Risk Assessment", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
+      { key: "cornell-depression-scale-form", name: "Cornell Scale for Depression in Dementia", category: "Psychological", canDelete: true, canView: true, canEdit: true }
     ];
     const isViewableForm = viewableEditableForms.some(f => f.key === file.formKey);
     const formConfig = viewableEditableForms.find(f => f.key === file.formKey);
@@ -425,7 +455,12 @@ export default function CareFileFolder({
                   "skin-integrity-form": "skinIntegrityAssessment",
                   "resident-valuables-form": "residentValuablesAssessment",
                   "resident-handling-profile-form": "residentHandlingProfileForm",
-                  "pain-assessment-form": "painAssessment"
+                  "pain-assessment-form": "painAssessment",
+                  "nutritional-assessment-form": "nutritionalAssessment",
+                  "oral-assessment-form": "oralAssessment",
+                  "diet-notification-form": "dietNotification",
+                  "choking-risk-assessment-form": "chokingRiskAssessment",
+                  "cornell-depression-scale-form": "cornellDepressionScale"
                 };
                 setReviewFormData({
                   formType: formTypeMap[file.formKey] || file.formKey,
@@ -628,6 +663,11 @@ export default function CareFileFolder({
   const deletePeepMutation = useMutation(api.careFiles.peep.deletePeep);
   const deleteResidentValuablesMutation = useMutation(api.careFiles.residentValuables.deleteResidentValuables);
   const deleteHandlingProfileMutation = useMutation(api.careFiles.handlingProfile.deleteHandlingProfileAssessment);
+  const deleteNutritionalAssessmentMutation = useMutation(api.careFiles.nutritionalAssessment.deleteNutritionalAssessment);
+  const deleteOralAssessmentMutation = useMutation(api.careFiles.oralAssessment.deleteOralAssessment);
+  const deleteDietNotificationMutation = useMutation(api.careFiles.dietNotification.deleteDietNotification);
+  const deleteChokingRiskAssessmentMutation = useMutation(api.careFiles.chokingRiskAssessment.deleteChokingRiskAssessment);
+  const deleteCornellDepressionScaleMutation = useMutation(api.careFiles.cornellDepressionScale.deleteCornellDepressionScale);
   const getAllFilesForDownload = useAction(
     api.careFilePdfs.getAllFilesForFolderDownload
   );
@@ -746,6 +786,36 @@ export default function CareFileFolder({
         case "resident-handling-profile-form":
           await deleteHandlingProfileMutation({
             assessmentId: formId as Id<"residentHandlingProfileForms">
+          });
+          break;
+        case "nutritional-assessment-form":
+          await deleteNutritionalAssessmentMutation({
+            assessmentId: formId as Id<"nutritionalAssessments">,
+            organizationId: activeOrg?.id ?? ""
+          });
+          break;
+        case "oral-assessment-form":
+          await deleteOralAssessmentMutation({
+            assessmentId: formId as Id<"oralAssessments">,
+            organizationId: activeOrg?.id ?? ""
+          });
+          break;
+        case "diet-notification-form":
+          await deleteDietNotificationMutation({
+            notificationId: formId as Id<"dietNotifications">,
+            organizationId: activeOrg?.id ?? ""
+          });
+          break;
+        case "choking-risk-assessment-form":
+          await deleteChokingRiskAssessmentMutation({
+            assessmentId: formId as Id<"chokingRiskAssessments">,
+            organizationId: activeOrg?.id ?? ""
+          });
+          break;
+        case "cornell-depression-scale-form":
+          await deleteCornellDepressionScaleMutation({
+            assessmentId: formId as Id<"cornellDepressionScales">,
+            organizationId: activeOrg?.id ?? ""
           });
           break;
         default:
@@ -960,6 +1030,16 @@ export default function CareFileFolder({
               return `resident-valuables-assessment-${baseName}.pdf`;
             case "resident-handling-profile-form":
               return `resident-handling-profile-${baseName}.pdf`;
+            case "nutritional-assessment-form":
+              return `nutritional-assessment-${baseName}.pdf`;
+            case "oral-assessment-form":
+              return `oral-assessment-${baseName}.pdf`;
+            case "diet-notification-form":
+              return `diet-notification-${baseName}.pdf`;
+            case "choking-risk-assessment-form":
+              return `choking-risk-assessment-${baseName}.pdf`;
+            case "cornell-depression-scale-form":
+              return `cornell-depression-scale-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -1375,6 +1455,11 @@ export default function CareFileFolder({
                     archivedPreAdmission === undefined ||
                     archivedAdmission === undefined ||
                     archivedPainAssessment === undefined ||
+                    archivedNutritionalAssessment === undefined ||
+                    archivedOralAssessment === undefined ||
+                    archivedDietNotification === undefined ||
+                    archivedChokingRiskAssessment === undefined ||
+                    archivedCornellDepressionScale === undefined ||
                     archivedCarePlans === undefined;
 
                   if (isLoadingArchived) {

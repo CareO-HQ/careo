@@ -89,6 +89,16 @@ export default function ArchivedRiskAssessmentsPage() {
     { residentId: residentId as Id<"residents"> }
   );
 
+  const archivedPainAssessment = useQuery(
+    api.careFiles.painAssessment.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedNutritionalAssessment = useQuery(
+    api.careFiles.nutritionalAssessment.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
   if (
     resident === undefined ||
     archivedPreAdmission === undefined ||
@@ -100,7 +110,9 @@ export default function ArchivedRiskAssessmentsPage() {
     archivedTiml === undefined ||
     archivedSkinIntegrity === undefined ||
     archivedResidentValuables === undefined ||
-    archivedHandlingProfile === undefined
+    archivedHandlingProfile === undefined ||
+    archivedPainAssessment === undefined ||
+    archivedNutritionalAssessment === undefined
   ) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -214,6 +226,22 @@ export default function ArchivedRiskAssessmentsPage() {
       completedAt: form._creationTime,
       folderName: "Mobility & Fall",
       category: "Handling"
+    })) || []),
+    ...(archivedPainAssessment?.map(form => ({
+      _id: form._id,
+      key: "pain-assessment-form",
+      name: "Pain Assessment and Evaluation",
+      completedAt: form._creationTime,
+      folderName: "Medication",
+      category: "Medication"
+    })) || []),
+    ...(archivedNutritionalAssessment?.map(form => ({
+      _id: form._id,
+      key: "nutritional-assessment-form",
+      name: "Nutritional Assessment",
+      completedAt: form._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Nutrition"
     })) || [])
   ];
 

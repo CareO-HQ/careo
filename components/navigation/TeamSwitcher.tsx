@@ -190,7 +190,7 @@ export function TeamSwitcher({
                 <DropdownMenuItem
                   key={team.id}
                   onClick={() => handleTeamClick(team.id)}
-                  className={activeTeamId === team.id ? "bg-accent" : ""}
+                  className={activeTeamId === team.id ? "bg-accent border-l-2 border-sky-400" : ""}
                 >
                   <div className="flex items-center justify-start gap-2 w-full">
                     <Avatar className="size-6 rounded">

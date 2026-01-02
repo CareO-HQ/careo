@@ -64,6 +64,16 @@ export default function RiskAssessmentViewDialog({
         return api.careFiles.painAssessment.getPainAssessment;
       case "resident-handling-profile-form":
         return api.careFiles.handlingProfile.getHandlingProfileById;
+      case "nutritional-assessment-form":
+        return api.careFiles.nutritionalAssessment.getNutritionalAssessment;
+      case "oral-assessment-form":
+        return api.careFiles.oralAssessment.getOralAssessment;
+      case "diet-notification-form":
+        return api.careFiles.dietNotification.getDietNotification;
+      case "choking-risk-assessment-form":
+        return api.careFiles.chokingRiskAssessment.getChokingRiskAssessment;
+      case "cornell-depression-scale-form":
+        return api.careFiles.cornellDepressionScale.getCornellDepressionScale;
       default:
         return "skip";
     }
@@ -86,6 +96,11 @@ export default function RiskAssessmentViewDialog({
     if (formKey === "photography-consent") return { consentId: assessment.formId as Id<"photographyConsents"> };
     if (formKey === "pain-assessment-form") return { assessmentId: assessment.formId as Id<"painAssessments"> };
     if (formKey === "resident-handling-profile-form") return { profileId: assessment.formId as Id<"residentHandlingProfileForm"> };
+    if (formKey === "nutritional-assessment-form") return { assessmentId: assessment.formId as Id<"nutritionalAssessments"> };
+    if (formKey === "oral-assessment-form") return { assessmentId: assessment.formId as Id<"oralAssessments"> };
+    if (formKey === "diet-notification-form") return { notificationId: assessment.formId as Id<"dietNotifications"> };
+    if (formKey === "choking-risk-assessment-form") return { assessmentId: assessment.formId as Id<"chokingRiskAssessments"> };
+    if (formKey === "cornell-depression-scale-form") return { assessmentId: assessment.formId as Id<"cornellDepressionScales"> };
     return "skip";
   };
 
@@ -119,6 +134,8 @@ export default function RiskAssessmentViewDialog({
         return "bg-purple-50 text-purple-700";
       case "Medication":
         return "bg-green-50 text-green-700";
+      case "Nutrition":
+        return "bg-emerald-50 text-emerald-700";
       default:
         return "bg-gray-50 text-gray-700";
     }
@@ -222,6 +239,37 @@ export default function RiskAssessmentViewDialog({
                         <p className="text-sm font-medium">{entry.signature}</p>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          // Special handling for Nutritional Assessment IDDSI consistency levels
+          if ((key === "foodConsistency" || key === "fluidConsistency") && assessment.formKey === "nutritional-assessment-form") {
+            const consistencyObj = value as any;
+            const selectedLevels = Object.entries(consistencyObj)
+              .filter(([_, isSelected]) => isSelected)
+              .map(([level]) => {
+                // Format the level name
+                return level
+                  .replace(/([A-Z])/g, " $1")
+                  .replace(/level(\d+)/, "Level $1: ")
+                  .trim();
+              });
+
+            if (selectedLevels.length === 0) return null;
+
+            return (
+              <div key={key} className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {key === "foodConsistency" ? "Food Consistency (IDDSI)" : "Fluid Consistency (IDDSI)"}
+                </p>
+                <div className="space-y-1">
+                  {selectedLevels.map((level, idx) => (
+                    <p key={idx} className="text-sm pl-2 border-l-2 border-primary/30">
+                      {level}
+                    </p>
                   ))}
                 </div>
               </div>

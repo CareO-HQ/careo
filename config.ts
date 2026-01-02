@@ -180,7 +180,32 @@ export const config = {
       value: "Nutrition & Hydration",
       description: "Nutrition & Hydration Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "nutritional-assessment-form",
+          value: "Nutritional Assessment",
+          description: "Nutritional Assessment"
+        },
+        {
+          type: "form",
+          key: "oral-assessment-form",
+          value: "Oral Assessment",
+          description: "Oral Assessment"
+        },
+        {
+          type: "form",
+          key: "diet-notification-form",
+          value: "Diet Notification",
+          description: "Resident Diet Notification"
+        },
+        {
+          type: "form",
+          key: "choking-risk-assessment-form",
+          value: "Choking Risk Assessment",
+          description: "Choking Risk Assessment"
+        }
+      ]
     },
     {
       type: "folder",
@@ -226,7 +251,14 @@ export const config = {
       value: "Psychological & Emotional needs",
       description: "Psychological & Emotional needs Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "cornell-depression-scale-form",
+          value: "Cornell Scale for Depression in Dementia",
+          description: "Cornell Scale for Depression in Dementia"
+        }
+      ]
     },
     {
       type: "folder",

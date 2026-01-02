@@ -97,6 +97,31 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
   );
 
+  const nutritionalAssessmentForms = useQuery(
+    api.careFiles.nutritionalAssessment.getNutritionalAssessmentsByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
+  const oralAssessmentForms = useQuery(
+    api.careFiles.oralAssessment.getOralAssessmentsByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
+  const dietNotificationForms = useQuery(
+    api.careFiles.dietNotification.getDietNotificationsByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
+  const chokingRiskAssessmentForms = useQuery(
+    api.careFiles.chokingRiskAssessment.getChokingRiskAssessmentsByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
+  const cornellDepressionScaleForms = useQuery(
+    api.careFiles.cornellDepressionScale.getCornellDepressionScalesByResident,
+    activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -145,6 +170,26 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   )?.[0];
 
   const latestPainAssessmentForm = painAssessmentForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestNutritionalAssessmentForm = nutritionalAssessmentForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestOralAssessmentForm = oralAssessmentForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestDietNotificationForm = dietNotificationForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestChokingRiskAssessmentForm = chokingRiskAssessmentForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
+  const latestCornellDepressionScaleForm = cornellDepressionScaleForms?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
@@ -254,6 +299,56 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const nutritionalAssessmentPdfUrl = useQuery(
+    api.careFiles.nutritionalAssessment.getPDFUrl,
+    latestNutritionalAssessmentForm && activeOrg?.id
+      ? {
+          assessmentId: latestNutritionalAssessmentForm._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
+  const oralAssessmentPdfUrl = useQuery(
+    api.careFiles.oralAssessment.getPDFUrl,
+    latestOralAssessmentForm && activeOrg?.id
+      ? {
+          assessmentId: latestOralAssessmentForm._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
+  const dietNotificationPdfUrl = useQuery(
+    api.careFiles.dietNotification.getPDFUrl,
+    latestDietNotificationForm && activeOrg?.id
+      ? {
+          notificationId: latestDietNotificationForm._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
+  const chokingRiskAssessmentPdfUrl = useQuery(
+    api.careFiles.chokingRiskAssessment.getPDFUrl,
+    latestChokingRiskAssessmentForm && activeOrg?.id
+      ? {
+          assessmentId: latestChokingRiskAssessmentForm._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
+  const cornellDepressionScalePdfUrl = useQuery(
+    api.careFiles.cornellDepressionScale.getPDFUrl,
+    latestCornellDepressionScaleForm && activeOrg?.id
+      ? {
+          assessmentId: latestCornellDepressionScaleForm._id,
+          organizationId: activeOrg.id
+        }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -278,6 +373,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ids.push(latestResidentValuablesAssessment._id);
     if (latestHandlingProfileForm) ids.push(latestHandlingProfileForm._id);
     if (latestPainAssessmentForm) ids.push(latestPainAssessmentForm._id);
+    if (latestNutritionalAssessmentForm) ids.push(latestNutritionalAssessmentForm._id);
+    if (latestOralAssessmentForm) ids.push(latestOralAssessmentForm._id);
+    if (latestDietNotificationForm) ids.push(latestDietNotificationForm._id);
+    if (latestChokingRiskAssessmentForm) ids.push(latestChokingRiskAssessmentForm._id);
+    if (latestCornellDepressionScaleForm) ids.push(latestCornellDepressionScaleForm._id);
     return ids;
   }, [
     latestPreAdmissionForm,
@@ -294,7 +394,12 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestSkinIntegrityAssessment,
     latestResidentValuablesAssessment,
     latestHandlingProfileForm,
-    latestPainAssessmentForm
+    latestPainAssessmentForm,
+    latestNutritionalAssessmentForm,
+    latestOralAssessmentForm,
+    latestDietNotificationForm,
+    latestChokingRiskAssessmentForm,
+    latestCornellDepressionScaleForm
   ]);
 
   const auditStatus = useQuery(
@@ -828,6 +933,146 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: painAssessmentAudit?.auditedBy
     };
 
+    // Nutritional Assessment
+    const hasNutritionalAssessmentData = !!latestNutritionalAssessmentForm;
+    const nutritionalAssessmentHasPdfFileId = !!(latestNutritionalAssessmentForm as any)
+      ?.pdfFileId;
+    const nutritionalAssessmentAudit = latestNutritionalAssessmentForm
+      ? auditStatus?.[latestNutritionalAssessmentForm._id as string]
+      : undefined;
+
+    state["nutritional-assessment-form"] = {
+      status: getFormStatus(
+        hasNutritionalAssessmentData,
+        latestNutritionalAssessmentForm?.status === "draft",
+        nutritionalAssessmentHasPdfFileId,
+        nutritionalAssessmentPdfUrl
+      ),
+      hasData: hasNutritionalAssessmentData,
+      hasPdfFileId: nutritionalAssessmentHasPdfFileId,
+      pdfUrl: nutritionalAssessmentPdfUrl,
+      lastUpdated: latestNutritionalAssessmentForm?._creationTime,
+      completedAt:
+        latestNutritionalAssessmentForm?.status !== "draft"
+          ? latestNutritionalAssessmentForm?.submittedAt
+          : undefined,
+      isAudited: nutritionalAssessmentAudit?.isAudited || false,
+      auditedAt: nutritionalAssessmentAudit?.auditedAt,
+      auditedBy: nutritionalAssessmentAudit?.auditedBy
+    };
+
+    // Oral Assessment
+    const hasOralAssessmentData = !!latestOralAssessmentForm;
+    const oralAssessmentHasPdfFileId = !!(latestOralAssessmentForm as any)
+      ?.pdfFileId;
+    const oralAssessmentAudit = latestOralAssessmentForm
+      ? auditStatus?.[latestOralAssessmentForm._id as string]
+      : undefined;
+
+    state["oral-assessment-form"] = {
+      status: getFormStatus(
+        hasOralAssessmentData,
+        latestOralAssessmentForm?.status === "draft",
+        oralAssessmentHasPdfFileId,
+        oralAssessmentPdfUrl
+      ),
+      hasData: hasOralAssessmentData,
+      hasPdfFileId: oralAssessmentHasPdfFileId,
+      pdfUrl: oralAssessmentPdfUrl,
+      lastUpdated: latestOralAssessmentForm?._creationTime,
+      completedAt:
+        latestOralAssessmentForm?.status !== "draft"
+          ? latestOralAssessmentForm?.submittedAt
+          : undefined,
+      isAudited: oralAssessmentAudit?.isAudited || false,
+      auditedAt: oralAssessmentAudit?.auditedAt,
+      auditedBy: oralAssessmentAudit?.auditedBy
+    };
+
+    // Diet Notification
+    const hasDietNotificationData = !!latestDietNotificationForm;
+    const dietNotificationHasPdfFileId = !!(latestDietNotificationForm as any)
+      ?.pdfFileId;
+    const dietNotificationAudit = latestDietNotificationForm
+      ? auditStatus?.[latestDietNotificationForm._id as string]
+      : undefined;
+
+    state["diet-notification-form"] = {
+      status: getFormStatus(
+        hasDietNotificationData,
+        latestDietNotificationForm?.status === "draft",
+        dietNotificationHasPdfFileId,
+        dietNotificationPdfUrl
+      ),
+      hasData: hasDietNotificationData,
+      hasPdfFileId: dietNotificationHasPdfFileId,
+      pdfUrl: dietNotificationPdfUrl,
+      lastUpdated: latestDietNotificationForm?._creationTime,
+      completedAt:
+        latestDietNotificationForm?.status !== "draft"
+          ? latestDietNotificationForm?.submittedAt
+          : undefined,
+      isAudited: dietNotificationAudit?.isAudited || false,
+      auditedAt: dietNotificationAudit?.auditedAt,
+      auditedBy: dietNotificationAudit?.auditedBy
+    };
+
+    // Choking Risk Assessment
+    const hasChokingRiskAssessmentData = !!latestChokingRiskAssessmentForm;
+    const chokingRiskAssessmentHasPdfFileId = !!(latestChokingRiskAssessmentForm as any)
+      ?.pdfFileId;
+    const chokingRiskAssessmentAudit = latestChokingRiskAssessmentForm
+      ? auditStatus?.[latestChokingRiskAssessmentForm._id as string]
+      : undefined;
+
+    state["choking-risk-assessment-form"] = {
+      status: getFormStatus(
+        hasChokingRiskAssessmentData,
+        latestChokingRiskAssessmentForm?.status === "draft",
+        chokingRiskAssessmentHasPdfFileId,
+        chokingRiskAssessmentPdfUrl
+      ),
+      hasData: hasChokingRiskAssessmentData,
+      hasPdfFileId: chokingRiskAssessmentHasPdfFileId,
+      pdfUrl: chokingRiskAssessmentPdfUrl,
+      lastUpdated: latestChokingRiskAssessmentForm?._creationTime,
+      completedAt:
+        latestChokingRiskAssessmentForm?.status !== "draft"
+          ? latestChokingRiskAssessmentForm?.submittedAt
+          : undefined,
+      isAudited: chokingRiskAssessmentAudit?.isAudited || false,
+      auditedAt: chokingRiskAssessmentAudit?.auditedAt,
+      auditedBy: chokingRiskAssessmentAudit?.auditedBy
+    };
+
+    // Cornell Depression Scale
+    const hasCornellDepressionScaleData = !!latestCornellDepressionScaleForm;
+    const cornellDepressionScaleHasPdfFileId = !!(latestCornellDepressionScaleForm as any)
+      ?.pdfFileId;
+    const cornellDepressionScaleAudit = latestCornellDepressionScaleForm
+      ? auditStatus?.[latestCornellDepressionScaleForm._id as string]
+      : undefined;
+
+    state["cornell-depression-scale-form"] = {
+      status: getFormStatus(
+        hasCornellDepressionScaleData,
+        latestCornellDepressionScaleForm?.status === "draft",
+        cornellDepressionScaleHasPdfFileId,
+        cornellDepressionScalePdfUrl
+      ),
+      hasData: hasCornellDepressionScaleData,
+      hasPdfFileId: cornellDepressionScaleHasPdfFileId,
+      pdfUrl: cornellDepressionScalePdfUrl,
+      lastUpdated: latestCornellDepressionScaleForm?._creationTime,
+      completedAt:
+        latestCornellDepressionScaleForm?.status !== "draft"
+          ? latestCornellDepressionScaleForm?._creationTime
+          : undefined,
+      isAudited: cornellDepressionScaleAudit?.isAudited || false,
+      auditedAt: cornellDepressionScaleAudit?.auditedAt,
+      auditedBy: cornellDepressionScaleAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -863,6 +1108,12 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     residentValuablesPdfUrl,
     handlingProfilePdfUrl,
     painAssessmentPdfUrl,
+    nutritionalAssessmentPdfUrl,
+    oralAssessmentPdfUrl,
+    dietNotificationPdfUrl,
+    chokingRiskAssessmentPdfUrl,
+    latestCornellDepressionScaleForm,
+    cornellDepressionScalePdfUrl,
     auditStatus
   ]);
 

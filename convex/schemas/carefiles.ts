@@ -732,3 +732,349 @@ export const painAssessments = defineTable({
   pdfFileId: v.optional(v.id("_storage")),
   pdfGeneratedAt: v.optional(v.number())
 }).index("by_resident", ["residentId"]);
+
+export const nutritionalAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Section 1: Resident Information
+  residentName: v.string(),
+  dateOfBirth: v.string(),
+  bedroomNumber: v.string(),
+  height: v.string(),
+  weight: v.string(),
+  mustScore: v.string(),
+
+  // Section 2: Clinical Involvement
+  hasSaltInvolvement: v.boolean(),
+  saltTherapistName: v.optional(v.string()),
+  saltContactDetails: v.optional(v.string()),
+  hasDietitianInvolvement: v.boolean(),
+  dietitianName: v.optional(v.string()),
+  dietitianContactDetails: v.optional(v.string()),
+
+  // Section 3: Dietary Requirements & Supplements
+  foodFortificationRequired: v.optional(v.string()),
+  supplementsPrescribed: v.optional(v.string()),
+
+  // Section 4: IDDSI Consistency Levels
+  foodConsistency: v.object({
+    level7EasyChew: v.optional(v.boolean()),
+    level6SoftBiteSized: v.optional(v.boolean()),
+    level5MincedMoist: v.optional(v.boolean()),
+    level4Pureed: v.optional(v.boolean()),
+    level3Liquidised: v.optional(v.boolean())
+  }),
+  fluidConsistency: v.object({
+    level4ExtremelyThick: v.optional(v.boolean()),
+    level3ModeratelyThick: v.optional(v.boolean()),
+    level2MildlyThick: v.optional(v.boolean()),
+    level1SlightlyThick: v.optional(v.boolean()),
+    level0Thin: v.optional(v.boolean())
+  }),
+
+  // Section 5: Assistance & Administration
+  assistanceRequired: v.string(),
+  completedBy: v.string(),
+  jobRole: v.string(),
+  signature: v.string(),
+  assessmentDate: v.number(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);
+
+export const oralAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Section 1: Basic Resident Information
+  residentName: v.string(),
+  dateOfBirth: v.string(),
+  weight: v.string(),
+  height: v.string(),
+  completedBy: v.string(),
+  signature: v.string(),
+  assessmentDate: v.number(),
+
+  // Section 2: Dental History and Registration
+  normalOralHygieneRoutine: v.string(),
+  isRegisteredWithDentist: v.boolean(),
+  lastSeenByDentist: v.optional(v.string()),
+  dentistName: v.optional(v.string()),
+  dentalPracticeAddress: v.optional(v.string()),
+  contactTelephone: v.optional(v.string()),
+
+  // Section 3: Physical Oral Examination
+  lipsDryCracked: v.boolean(),
+  lipsDryCrackedCare: v.optional(v.string()),
+  tongueDryCracked: v.boolean(),
+  tongueDryCrackedCare: v.optional(v.string()),
+  tongueUlceration: v.boolean(),
+  tongueUlcerationCare: v.optional(v.string()),
+  hasTopDenture: v.boolean(),
+  topDentureCare: v.optional(v.string()),
+  hasLowerDenture: v.boolean(),
+  lowerDentureCare: v.optional(v.string()),
+  hasDenturesAndNaturalTeeth: v.boolean(),
+  denturesAndNaturalTeethCare: v.optional(v.string()),
+  hasNaturalTeeth: v.boolean(),
+  naturalTeethCare: v.optional(v.string()),
+  evidencePlaqueDebris: v.boolean(),
+  plaqueDebrisCare: v.optional(v.string()),
+  dryMouth: v.boolean(),
+  dryMouthCare: v.optional(v.string()),
+
+  // Section 4: Symptoms and Functional Assessment
+  painWhenEating: v.boolean(),
+  painWhenEatingCare: v.optional(v.string()),
+  gumsUlceration: v.boolean(),
+  gumsUlcerationCare: v.optional(v.string()),
+  difficultySwallowing: v.boolean(),
+  difficultySwallowingCare: v.optional(v.string()),
+  poorFluidDietaryIntake: v.boolean(),
+  poorFluidDietaryIntakeCare: v.optional(v.string()),
+  dehydrated: v.boolean(),
+  dehydratedCare: v.optional(v.string()),
+  speechDifficultyDryMouth: v.boolean(),
+  speechDifficultyDryMouthCare: v.optional(v.string()),
+  speechDifficultyDenturesSlipping: v.boolean(),
+  speechDifficultyDenturesSlippingCare: v.optional(v.string()),
+  dexterityProblems: v.boolean(),
+  dexterityProblemsCare: v.optional(v.string()),
+  cognitiveImpairment: v.boolean(),
+  cognitiveImpairmentCare: v.optional(v.string()),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);
+
+export const dietNotifications = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Header & Administrative Information
+  residentName: v.string(),
+  roomNumber: v.string(),
+  completedBy: v.string(),
+  printName: v.string(),
+  jobRole: v.string(),
+  signature: v.string(),
+  dateCompleted: v.number(),
+  reviewDate: v.number(),
+
+  // Dietary Preferences & Risks
+  likesFavouriteFoods: v.optional(v.string()),
+  dislikes: v.optional(v.string()),
+  foodsToBeAvoided: v.optional(v.string()),
+  chokingRiskAssessment: v.union(
+    v.literal("Low Risk"),
+    v.literal("Medium Risk"),
+    v.literal("High Risk")
+  ),
+
+  // Meal & Fluid Specifications
+  preferredMealSize: v.union(
+    v.literal("Small"),
+    v.literal("Standard"),
+    v.literal("Large")
+  ),
+  assistanceRequired: v.optional(v.string()),
+  dietType: v.optional(v.string()),
+
+  // Food Consistency (IDDSI Levels)
+  foodConsistencyLevel7Regular: v.optional(v.boolean()),
+  foodConsistencyLevel7EasyChew: v.optional(v.boolean()),
+  foodConsistencyLevel6SoftBiteSized: v.optional(v.boolean()),
+  foodConsistencyLevel5MincedMoist: v.optional(v.boolean()),
+  foodConsistencyLevel4Pureed: v.optional(v.boolean()),
+  foodConsistencyLevel3Liquidised: v.optional(v.boolean()),
+
+  // Fluid Consistency (IDDSI Levels)
+  fluidConsistencyLevel4ExtremelyThick: v.optional(v.boolean()),
+  fluidConsistencyLevel3ModeratelyThick: v.optional(v.boolean()),
+  fluidConsistencyLevel2MildlyThick: v.optional(v.boolean()),
+  fluidConsistencyLevel1SlightlyThick: v.optional(v.boolean()),
+  fluidConsistencyLevel0Thin: v.optional(v.boolean()),
+
+  // Additional Requirements
+  fluidRequirements: v.optional(v.string()),
+  foodAllergyOrIntolerance: v.optional(v.string()),
+
+  // Kitchen Review
+  reviewedByCookChef: v.optional(v.string()),
+  reviewerPrintName: v.optional(v.string()),
+  reviewerJobTitle: v.optional(v.string()),
+  reviewDateKitchen: v.optional(v.number()),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);
+
+export const chokingRiskAssessments = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Administrative Information
+  residentName: v.string(),
+  dateOfBirth: v.string(),
+  dateOfAssessment: v.string(),
+  time: v.string(),
+
+  // Respiratory Risks (10 points each if YES)
+  weakCough: v.optional(v.boolean()),
+  chestInfections: v.optional(v.boolean()),
+  breathingDifficulties: v.optional(v.boolean()),
+  knownToAspirate: v.optional(v.boolean()),
+  chokingHistory: v.optional(v.boolean()),
+  gurgledVoice: v.optional(v.boolean()),
+
+  // At Risk Groups
+  epilepsy: v.optional(v.boolean()), // 4 points
+  cerebralPalsy: v.optional(v.boolean()), // 10 points
+  dementia: v.optional(v.boolean()), // 4 points
+  mentalHealth: v.optional(v.boolean()), // 4 points
+  neurologicalConditions: v.optional(v.boolean()), // 10 points
+  learningDisabilities: v.optional(v.boolean()), // 10 points
+
+  // Physical Risks
+  posturalProblems: v.optional(v.boolean()), // 10 points
+  poorHeadControl: v.optional(v.boolean()), // 10 points
+  tongueThrust: v.optional(v.boolean()), // 10 points
+  chewingDifficulties: v.optional(v.boolean()), // 10 points
+  slurredSpeech: v.optional(v.boolean()), // 8 points
+  neckTrauma: v.optional(v.boolean()), // 8 points
+  poorDentition: v.optional(v.boolean()), // 8 points
+
+  // Eating Behaviours
+  eatsRapidly: v.optional(v.boolean()), // 10 points
+  drinksRapidly: v.optional(v.boolean()), // 10 points
+  eatsWhileCoughing: v.optional(v.boolean()), // 10 points
+  drinksWhileCoughing: v.optional(v.boolean()), // 10 points
+  crammingFood: v.optional(v.boolean()), // 10 points
+  pocketingFood: v.optional(v.boolean()), // 8 points
+  swallowingWithoutChewing: v.optional(v.boolean()), // 8 points
+  wouldTakeFood: v.optional(v.boolean()), // 4 points
+
+  // Protective Factors (2 points if NO)
+  drinksIndependently: v.optional(v.boolean()),
+  eatsIndependently: v.optional(v.boolean()),
+
+  // Additional fields
+  completedBy: v.string(),
+  signature: v.optional(v.string()),
+
+  // Calculated fields
+  totalScore: v.number(),
+  riskLevel: v.string(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);
+
+export const cornellDepressionScales = defineTable({
+  // Metadata
+  residentId: v.id("residents"),
+  teamId: v.string(),
+  organizationId: v.string(),
+  userId: v.string(),
+
+  // Administrative Information
+  residentName: v.string(),
+  dateOfBirth: v.string(),
+  dateOfAssessment: v.string(),
+  assessedBy: v.string(),
+
+  // A. Mood-Related Signs (0=Absent, 1=Mild/Intermittent, 2=Severe)
+  anxiety: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  sadness: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  lackOfReactivity: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  irritability: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+
+  // B. Behavioral Disturbance
+  agitation: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  retardation: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  multiplePhysicalComplaints: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  lossOfInterest: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+
+  // C. Physical Signs
+  appetiteLoss: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  weightLoss: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+
+  // D. Cyclic Functions
+  diurnalVariation: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  sleepDisturbance: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+
+  // E. Ideational Disturbance
+  suicidalIdeation: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  lowSelfEsteem: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  pessimism: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+  moodCongruentDelusions: v.union(v.literal("0"), v.literal("1"), v.literal("2")),
+
+  // Completion fields
+  signature: v.optional(v.string()),
+
+  // Calculated fields
+  totalScore: v.number(),
+  severity: v.string(),
+
+  // Metadata
+  status: v.optional(
+    v.union(v.literal("draft"), v.literal("submitted"), v.literal("reviewed"))
+  ),
+  submittedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  lastModifiedAt: v.optional(v.number()),
+  lastModifiedBy: v.optional(v.string()),
+  pdfUrl: v.optional(v.string()),
+  pdfFileId: v.optional(v.id("_storage")),
+  pdfGeneratedAt: v.optional(v.number())
+}).index("by_resident", ["residentId"]);

@@ -287,6 +287,7 @@ export const getEnrichedOrgMembers = query({
           address: localUser?.address,
           dateOfJoin: localUser?.dateOfJoin,
           rightToWorkStatus: localUser?.rightToWorkStatus,
+          nisccExpiryDate: localUser?.nisccExpiryDate,
         });
       }
     }

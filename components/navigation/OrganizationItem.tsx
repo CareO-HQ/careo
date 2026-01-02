@@ -22,7 +22,7 @@ export default function OrganizationItem({
   return (
     <DropdownMenuItem
       onClick={() => onSelect(organization.id)}
-      className={isActive ? "bg-accent" : ""}
+      className={isActive ? "bg-accent border-l-2 border-sky-400" : ""}
     >
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-2">

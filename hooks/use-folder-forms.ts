@@ -129,6 +129,51 @@ export function useFolderForms({
       : "skip"
   );
 
+  const allNutritionalAssessmentForms = useQuery(
+    api.careFiles.nutritionalAssessment.getNutritionalAssessmentsByResident,
+    folderFormKeys.includes("nutritional-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allOralAssessmentForms = useQuery(
+    api.careFiles.oralAssessment.getOralAssessmentsByResident,
+    folderFormKeys.includes("oral-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allDietNotificationForms = useQuery(
+    api.careFiles.dietNotification.getDietNotificationsByResident,
+    folderFormKeys.includes("diet-notification-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allChokingRiskAssessmentForms = useQuery(
+    api.careFiles.chokingRiskAssessment.getChokingRiskAssessmentsByResident,
+    folderFormKeys.includes("choking-risk-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allCornellDepressionScaleForms = useQuery(
+    api.careFiles.cornellDepressionScale.getCornellDepressionScalesByResident,
+    folderFormKeys.includes("cornell-depression-scale-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
   const latestCarePlanForm = useQuery(
     api.careFiles.carePlan.getLatestCarePlanByResidentAndFolder,
     includeCarePlans && residentId && folderKey
@@ -412,6 +457,102 @@ export function useFolderForms({
       }
     }
 
+    // Process Nutritional Assessment forms (only show latest)
+    if (
+      allNutritionalAssessmentForms &&
+      folderFormKeys.includes("nutritional-assessment-form")
+    ) {
+      const sortedForms = [...allNutritionalAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "nutritional-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Nutritional Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Oral Assessment forms (only show latest)
+    if (
+      allOralAssessmentForms &&
+      folderFormKeys.includes("oral-assessment-form")
+    ) {
+      const sortedForms = [...allOralAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "oral-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Oral Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Diet Notification forms (only show latest)
+    if (
+      allDietNotificationForms &&
+      folderFormKeys.includes("diet-notification-form")
+    ) {
+      const sortedForms = [...allDietNotificationForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "diet-notification-form",
+          formId: sortedForms[0]._id,
+          name: "Diet Notification",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Choking Risk Assessment forms (only show latest)
+    if (
+      allChokingRiskAssessmentForms &&
+      folderFormKeys.includes("choking-risk-assessment-form")
+    ) {
+      const sortedForms = [...allChokingRiskAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "choking-risk-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Choking Risk Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Cornell Depression Scale forms (only show latest)
+    if (
+      allCornellDepressionScaleForms &&
+      folderFormKeys.includes("cornell-depression-scale-form")
+    ) {
+      const sortedForms = [...allCornellDepressionScaleForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "cornell-depression-scale-form",
+          formId: sortedForms[0]._id,
+          name: "Cornell Scale for Depression in Dementia",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
     // Sort all PDFs by completion date (newest first)
     const sortedPdfFiles = pdfFiles.sort(
       (a, b) => b.completedAt - a.completedAt
@@ -434,6 +575,11 @@ export function useFolderForms({
     allResidentValuablesForms,
     allHandlingProfileForms,
     allPainAssessmentForms,
+    allNutritionalAssessmentForms,
+    allOralAssessmentForms,
+    allDietNotificationForms,
+    allChokingRiskAssessmentForms,
+    allCornellDepressionScaleForms,
     folderFormKeys
   ]);
 
@@ -454,6 +600,11 @@ export function useFolderForms({
     allResidentValuablesForms,
     allHandlingProfileForms,
     allPainAssessmentForms,
+    allNutritionalAssessmentForms,
+    allOralAssessmentForms,
+    allDietNotificationForms,
+    allChokingRiskAssessmentForms,
+    allCornellDepressionScaleForms,
     latestCarePlanForm,
     // Computed data
     getAllPdfFiles

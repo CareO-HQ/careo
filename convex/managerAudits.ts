@@ -91,7 +91,12 @@ export const createAudit = mutation({
       v.literal("timlAssessment"),
       v.literal("skinIntegrityAssessment"),
       v.literal("residentValuablesAssessment"),
-      v.literal("painAssessment")
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -159,7 +164,12 @@ export const getAuditsByForm = query({
       v.literal("timlAssessment"),
       v.literal("skinIntegrityAssessment"),
       v.literal("residentValuablesAssessment"),
-      v.literal("painAssessment")
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale")
     ),
     formId: v.string()
   },
@@ -628,7 +638,12 @@ export const getFormDataForReview = query({
       v.literal("timlAssessment"),
       v.literal("skinIntegrityAssessment"),
       v.literal("residentValuablesAssessment"),
-      v.literal("painAssessment")
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale")
     ),
     formId: v.string()
   },
@@ -668,6 +683,16 @@ export const getFormDataForReview = query({
           return await ctx.db.get(args.formId as any);
         case "painAssessment":
           return await ctx.db.get(args.formId as any);
+        case "nutritionalAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "oralAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "dietNotification":
+          return await ctx.db.get(args.formId as any);
+        case "chokingRiskAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "cornellDepressionScale":
+          return await ctx.db.get(args.formId as any);
         default:
           return null;
       }
@@ -699,7 +724,12 @@ export const submitReviewedForm = mutation({
       v.literal("skinIntegrityAssessment"),
       v.literal("residentValuablesAssessment"),
       v.literal("residentHandlingProfileForm"),
-      v.literal("painAssessment")
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -820,6 +850,36 @@ export const submitReviewedForm = mutation({
         case "painAssessment":
           newFormId = await ctx.runMutation(
             api.careFiles.painAssessment.submitPainAssessment,
+            args.formData
+          );
+          break;
+        case "nutritionalAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.nutritionalAssessment.submitNutritionalAssessment,
+            args.formData
+          );
+          break;
+        case "oralAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.oralAssessment.submitOralAssessment,
+            args.formData
+          );
+          break;
+        case "dietNotification":
+          newFormId = await ctx.runMutation(
+            api.careFiles.dietNotification.submitDietNotification,
+            args.formData
+          );
+          break;
+        case "chokingRiskAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.chokingRiskAssessment.submitChokingRiskAssessment,
+            args.formData
+          );
+          break;
+        case "cornellDepressionScale":
+          newFormId = await ctx.runMutation(
+            api.careFiles.cornellDepressionScale.submitCornellDepressionScale,
             args.formData
           );
           break;

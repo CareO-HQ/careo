@@ -14,7 +14,12 @@ export type CareFileFormKey =
   | "skin-integrity-form"
   | "resident-valuables-form"
   | "resident-handling-profile-form"
-  | "pain-assessment-form";
+  | "pain-assessment-form"
+  | "nutritional-assessment-form"
+  | "oral-assessment-form"
+  | "diet-notification-form"
+  | "choking-risk-assessment-form"
+  | "cornell-depression-scale-form";
 
 export type CareFileFormStatus =
   | "not-started"

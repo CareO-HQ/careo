@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TodoList } from "@/components/dashboard/TodoList";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -120,7 +121,7 @@ export default function DashboardPage() {
         <Button
           variant="outline"
           onClick={handleSignOut}
-          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+          className="border-red-500 bg-red-50 text-black hover:text-black hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50"
         >
           <LogOut className="h-3.5 w-3.5 mr-2" />
           Sign Out
@@ -128,108 +129,121 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Total Residents */}
-        <Card className="p-5 border shadow-none bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background rounded-sm">
+        <Card className="p-2 border-green-500 shadow-none bg-white dark:bg-background rounded-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Total Residents</p>
-              <h2 className="text-3xl font-semibold">{dashboardData?.totalResidents || 0}</h2>
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">Total Residents</p>
+              <h2 className="text-xl font-semibold">{dashboardData?.totalResidents || 0}</h2>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <Users className="h-3 w-3 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </Card>
 
         {/* Total Staff */}
-        <Card className="p-5 border shadow-none bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background rounded-sm">
+        <Card className="p-2 border-green-500 shadow-none bg-white dark:bg-background rounded-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Total Staff</p>
-              <h2 className="text-3xl font-semibold">{dashboardData?.totalStaff || 0}</h2>
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">Total Staff</p>
+              <h2 className="text-xl font-semibold">{dashboardData?.totalStaff || 0}</h2>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <Users className="h-3 w-3 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </Card>
 
         {/* Total Units */}
-        <Card className="p-5 border shadow-none bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background rounded-sm">
+        <Card className="p-2 border-green-500 shadow-none bg-white dark:bg-background rounded-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Total Units</p>
-              <h2 className="text-3xl font-semibold">{dashboardData?.totalUnits || 0}</h2>
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">Total Units</p>
+              <h2 className="text-xl font-semibold">{dashboardData?.totalUnits || 0}</h2>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <Building2 className="h-3 w-3 text-green-600 dark:text-green-400" />
             </div>
+          </div>
+        </Card>
+
+        {/* Date and Time */}
+        <Card className="p-2 border-green-500 shadow-none bg-white dark:bg-background rounded-sm">
+          <div className="flex flex-col justify-center items-center h-full text-center">
+            <p className="text-xs font-medium text-muted-foreground mb-0.5">Today</p>
+            <h2 className="text-xl font-semibold">{format(new Date(), "MMM dd")}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(), "h:mm a")}</p>
           </div>
         </Card>
       </div>
 
-      {/* Latest Incidents */}
-      <Card className="p-5 border shadow-none rounded-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
+      {/* Latest Incidents and Todo List */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="p-5 border shadow-none rounded-sm lg:col-span-2">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-base font-medium">Latest Incidents</h2>
           </div>
-          <h2 className="text-base font-medium">Latest Incidents</h2>
-        </div>
 
-        {dashboardData?.latestIncidents && dashboardData.latestIncidents.length > 0 ? (
-          <div className="overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead className="text-xs font-medium">Type</TableHead>
-                  <TableHead className="text-xs font-medium">Resident</TableHead>
-                  <TableHead className="text-xs font-medium">Severity</TableHead>
-                  <TableHead className="text-xs font-medium">Date & Time</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dashboardData.latestIncidents.map((incident) => (
-                  <TableRow
-                    key={incident._id}
-                    className="cursor-pointer hover:bg-muted/30"
-                    onClick={() =>
-                      incident.residentId &&
-                      router.push(`/dashboard/residents/${incident.residentId}/incidents`)
-                    }
-                  >
-                    <TableCell className="font-normal text-sm">
-                      {incident.incidentTypes && incident.incidentTypes.length > 0
-                        ? incident.incidentTypes[0]
-                        : incident.type || "Unknown"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {incident.resident
-                        ? `${incident.resident.firstName} ${incident.resident.lastName}`
-                        : "Unknown Resident"}
-                    </TableCell>
-                    <TableCell>{getSeverityBadge(incident.incidentLevel || "")}</TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">
-                        {incident.date && format(new Date(incident.date), "MMM dd, yyyy")}
-                        <div className="text-xs">
-                          {incident.time || "N/A"}
-                        </div>
-                      </div>
-                    </TableCell>
+          {dashboardData?.latestIncidents && dashboardData.latestIncidents.length > 0 ? (
+            <div className="overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="text-xs font-medium">Type</TableHead>
+                    <TableHead className="text-xs font-medium">Resident</TableHead>
+                    <TableHead className="text-xs font-medium">Severity</TableHead>
+                    <TableHead className="text-xs font-medium">Date & Time</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>No recent incidents</p>
-          </div>
-        )}
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {dashboardData.latestIncidents.map((incident) => (
+                    <TableRow
+                      key={incident._id}
+                      className="cursor-pointer hover:bg-muted/30"
+                      onClick={() =>
+                        incident.residentId &&
+                        router.push(`/dashboard/residents/${incident.residentId}/incidents`)
+                      }
+                    >
+                      <TableCell className="font-normal text-sm">
+                        {incident.incidentTypes && incident.incidentTypes.length > 0
+                          ? incident.incidentTypes[0]
+                          : incident.type || "Unknown"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {incident.resident
+                          ? `${incident.resident.firstName} ${incident.resident.lastName}`
+                          : "Unknown Resident"}
+                      </TableCell>
+                      <TableCell>{getSeverityBadge(incident.incidentLevel || "")}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {incident.date && format(new Date(incident.date), "MMM dd, yyyy")}
+                          <div className="text-xs">
+                            {incident.time || "N/A"}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No recent incidents</p>
+            </div>
+          )}
+        </Card>
+
+        <TodoList teamId={activeTeamId} />
+      </div>
 
       {/* Bottom Row - Appointments and Hospital Transfers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

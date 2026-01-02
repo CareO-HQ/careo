@@ -17,8 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Mail, Phone, Plus, X } from "lucide-react";
+import { Search, Mail, Phone, Plus, X, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 
 interface TeamStaffMember {
   _id: string;
@@ -47,6 +48,7 @@ interface OrgStaffMember {
   address?: string;
   dateOfJoin?: string;
   rightToWorkStatus?: string;
+  nisccExpiryDate?: string;
 }
 
 export default function StaffPage() {
@@ -169,12 +171,13 @@ export default function StaffPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>NISCC Expiry</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {!staff ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <p className="text-muted-foreground">Loading staff members...</p>
                   </TableCell>
                 </TableRow>
@@ -191,6 +194,7 @@ export default function StaffPage() {
                   const imageUrl = isTeamMember ? teamMember.imageUrl : orgMember.user.image;
                   const role = isTeamMember ? teamMember.role : orgMember.role;
                   const memberId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
+                  const nisccExpiryDate = isTeamMember ? undefined : orgMember.nisccExpiryDate;
 
                   // Get initials from name or email
                   const nameParts = name?.split(' ') || [];
@@ -242,12 +246,22 @@ export default function StaffPage() {
                           <span className="text-xs text-muted-foreground">No role</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {nisccExpiryDate ? (
+                          <div className="flex items-center space-x-1 text-sm">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span>{format(new Date(nisccExpiryDate), "dd/MM/yyyy")}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Not set</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <p className="text-muted-foreground">
                       {staff.length === 0
                         ? 'No staff members found in this organization/team.'
