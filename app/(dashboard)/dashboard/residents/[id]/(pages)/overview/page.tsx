@@ -3,6 +3,8 @@
 import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
+import { canEditOverview } from "@/lib/permissions";
 
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +38,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const { data: member } = authClient.useActiveMember();
+  const userRole = member?.role;
 
   // Use optimized query that fetches all related data in one go
   const residentData = useQuery(api.residents.getResidentOverview, {
@@ -157,14 +161,16 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditDialogOpen(true)}
-          >
-            <Edit3 className="w-4 h-4 mr-2" />
-            Edit
-          </Button>
+          {canEditOverview(userRole) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
         </div>
       </div>
 

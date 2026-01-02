@@ -19,7 +19,7 @@ import { useTransition } from "react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { canInviteMembers, getAllowedRolesToInvite, type UserRole } from "@/lib/permissions";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 
@@ -27,15 +27,20 @@ export default function SendInvitationForm() {
   const { data: member } = authClient.useActiveMember();
   const [isLoading, startTransition] = useTransition();
   const createInvitation = useMutation(api.customInvite.createInvitationForManager);
+  const teams = useQuery(api.auth.getTeamsWithMembers, {});
   const router = useRouter();
   
   const form = useForm<z.infer<typeof inviteMemberSchema>>({
     resolver: zodResolver(inviteMemberSchema),
     defaultValues: {
       email: "",
-      role: "manager"
+      role: "manager",
+      teamId: undefined
     }
   });
+
+  const selectedRole = form.watch("role");
+  const showTeamSelector = selectedRole === "nurse" || selectedRole === "care_assistant";
 
   const onSubmit = (values: z.infer<typeof inviteMemberSchema>) => {
     // Check if user has permission to invite members
@@ -48,7 +53,8 @@ export default function SendInvitationForm() {
       try {
         const result = await createInvitation({
           email: values.email,
-          role: values.role as any
+          role: values.role as any,
+          teamId: values.teamId
         });
 
         if (result.success) {
@@ -125,6 +131,42 @@ export default function SendInvitationForm() {
             )}
           />
         </div>
+        {showTeamSelector && (
+          <FormField
+            control={form.control}
+            name="teamId"
+            render={({ field }) => (
+              <FormItem className="w-full">
+                <FormLabel>Team</FormLabel>
+                <FormControl>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || ""}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams && teams.length > 0 ? (
+                        teams.map((team) => (
+                          <SelectItem key={team.id} value={team.id}>
+                            {team.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="" disabled>
+                          No teams available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <Button type="submit" disabled={isLoading}>
           Send invitation
         </Button>

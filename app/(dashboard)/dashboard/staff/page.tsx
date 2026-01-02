@@ -33,6 +33,7 @@ interface TeamStaffMember {
   imageUrl?: string | null;
   role?: string;
   teamId?: string;
+  teamName?: string; // Team/Unit name for display
   organizationId?: string;
 }
 
@@ -50,6 +51,8 @@ interface OrgStaffMember {
   address?: string;
   dateOfJoin?: string;
   rightToWorkStatus?: string;
+  teamName?: string; // Team/Unit name for display
+  activeTeamId?: string; // Active team ID for reference
 }
 
 export default function StaffPage() {
@@ -78,30 +81,8 @@ export default function StaffPage() {
     !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   ) as OrgStaffMember[] | undefined;
 
-  if (isActiveMemberLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Checking permissions...</p>
-      </div>
-    );
-  }
-
-  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
-    return null;
-  }
-
-  console.log("Staff Page - teamStaff:", teamStaff);
-  console.log("Staff Page - enrichedOrgStaff:", enrichedOrgStaff);
-
   // Use organization members if only org is selected, otherwise use team members
   const staff = activeTeamId ? teamStaff : enrichedOrgStaff;
-
-  // Determine display name for header
-  const displayName = activeTeamId
-    ? activeTeam?.name || 'selected unit'
-    : activeOrganizationId
-      ? `All units in ${activeOrganization?.name || 'care home'}`
-      : '';
 
   // Filter staff based on search term
   const filteredStaff = (staff || []).filter((member) => {
@@ -133,6 +114,87 @@ export default function StaffPage() {
       );
     }
   });
+
+  // Determine display name for header
+  const displayName = activeTeamId
+    ? activeTeam?.name || 'selected unit'
+    : activeOrganizationId
+      ? `All units in ${activeOrganization?.name || 'care home'}`
+      : '';
+
+  // Debugging: Track team switching and staff list changes
+  useEffect(() => {
+    console.log("[STAFF-PAGE] Team context changed:", {
+      activeTeamId,
+      activeTeamName: activeTeam?.name,
+      activeOrganizationId,
+      activeOrganizationName: activeOrganization?.name,
+      viewingMode: activeTeamId ? "team" : "organization"
+    });
+  }, [activeTeamId, activeTeam, activeOrganizationId, activeOrganization]);
+
+  // Debugging: Log staff list details
+  useEffect(() => {
+    if (staff) {
+      const totalCount = staff.length;
+      
+      // Breakdown by role
+      const roleBreakdown: Record<string, number> = {};
+      staff.forEach((member) => {
+        const role = activeTeamId 
+          ? (member as TeamStaffMember).role || "unknown"
+          : (member as OrgStaffMember).role || "unknown";
+        roleBreakdown[role] = (roleBreakdown[role] || 0) + 1;
+      });
+
+      console.log("[STAFF-PAGE] Staff list loaded:", {
+        totalCount,
+        roleBreakdown,
+        activeTeamId,
+        activeTeamName: activeTeam?.name,
+        source: activeTeamId ? "teamStaff" : "enrichedOrgStaff"
+      });
+
+      // Log individual staff members for debugging (first 5)
+      const sampleStaff = staff.slice(0, 5).map((member) => {
+        const isTeamMember = activeTeamId;
+        const teamMember = member as TeamStaffMember;
+        const orgMember = member as OrgStaffMember;
+        return {
+          email: isTeamMember ? teamMember.email : orgMember.user.email,
+          role: isTeamMember ? teamMember.role : orgMember.role,
+          name: isTeamMember ? teamMember.name : orgMember.user.name
+        };
+      });
+      console.log("[STAFF-PAGE] Sample staff members (first 5):", sampleStaff);
+    } else {
+      console.log("[STAFF-PAGE] Staff list is loading...");
+    }
+  }, [staff, activeTeamId, activeTeam]);
+
+  // Debugging: Log when search filter is applied
+  useEffect(() => {
+    if (staff && searchTerm) {
+      console.log("[STAFF-PAGE] Search filter applied:", {
+        searchTerm,
+        totalStaff: staff.length,
+        filteredCount: filteredStaff.length
+      });
+    }
+  }, [searchTerm, staff, filteredStaff.length]);
+
+  // Conditional returns after all hooks
+  if (isActiveMemberLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Checking permissions...</p>
+      </div>
+    );
+  }
+
+  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+    return null;
+  }
 
   return (
     <div className="container mx-auto space-y-4">
@@ -189,12 +251,13 @@ export default function StaffPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Team/Unit</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {!staff ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <p className="text-muted-foreground">Loading staff members...</p>
                   </TableCell>
                 </TableRow>
@@ -211,6 +274,7 @@ export default function StaffPage() {
                   const imageUrl = isTeamMember ? teamMember.imageUrl : orgMember.user.image;
                   const role = isTeamMember ? teamMember.role : orgMember.role;
                   const memberId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
+                  const teamName = isTeamMember ? teamMember.teamName : orgMember.teamName; // Team name for both views
 
                   // Get initials from name or email
                   const nameParts = name?.split(' ') || [];
@@ -262,12 +326,23 @@ export default function StaffPage() {
                           <span className="text-xs text-muted-foreground">No role</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {teamName ? (
+                          <Badge variant="outline" className="text-xs">
+                            {teamName}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {activeTeamId ? 'N/A' : 'All units'}
+                          </span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <p className="text-muted-foreground">
                       {staff.length === 0
                         ? 'No staff members found in this organization/team.'

@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
+import { canCreateQuickCareNotes, canLogDailyCare } from "@/lib/permissions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -78,6 +79,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const resident = useQuery(api.residents.getById, {
     residentId: id as Id<"residents">
   });
+  const { data: member } = authClient.useActiveMember();
+  const userRole = member?.role;
+  const canCreateNotes = canCreateQuickCareNotes(userRole);
+  const canLogCareEntries = canLogDailyCare(userRole);
 
   // ✅ UK TIMEZONE: Get today's date in UK timezone
   // This ensures correct date cutoff at midnight UK time (handles GMT/BST)
@@ -742,13 +747,15 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
-          <Button
-            onClick={() => setIsCareNotesDialogOpen(true)}
-            className="bg-black text-white hover:bg-gray-800"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Quick Care Notes
-          </Button>
+          {canCreateNotes && (
+            <Button
+              onClick={() => setIsCareNotesDialogOpen(true)}
+              className="bg-black text-white hover:bg-gray-800"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Quick Care Notes
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/daily-care/documents`)}
@@ -942,22 +949,26 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              variant="outline"
-              className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
-              onClick={() => setIsPersonalCareDialogOpen(true)}
-            >
-              <User className="w-6 h-6 mr-3" />
-              Log Personal Care
-            </Button>
-            <Button
-              variant="outline"
-              className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
-              onClick={() => setIsActivityRecordDialogOpen(true)}
-            >
-              <Activity className="w-6 h-6 mr-3" />
-              Log Daily Activity
-            </Button>
+            {canLogCareEntries && (
+              <>
+                <Button
+                  variant="outline"
+                  className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
+                  onClick={() => setIsPersonalCareDialogOpen(true)}
+                >
+                  <User className="w-6 h-6 mr-3" />
+                  Log Personal Care
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
+                  onClick={() => setIsActivityRecordDialogOpen(true)}
+                >
+                  <Activity className="w-6 h-6 mr-3" />
+                  Log Daily Activity
+                </Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

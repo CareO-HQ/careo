@@ -11,7 +11,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { canManageDiet } from "@/lib/permissions";
+import { canAddDietMenu, canLogFoodFluidEntry } from "@/lib/permissions";
 import {
   Card,
   CardContent,
@@ -126,6 +126,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const { data: user } = authClient.useSession();
   const { data: member } = authClient.useActiveMember();
   const userRole = member?.role;
+  const canManageDietActions = canAddDietMenu(userRole);
+  const canLogEntries = canLogFoodFluidEntry(userRole);
 
   // Mutations
   const createOrUpdateDietMutation = useMutation(api.diet.createOrUpdateDiet);
@@ -417,14 +419,23 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
             </p>
           </div>
           <div className="flex flex-row gap-2">
-            {canManageDiet(userRole) && (
-              <Button
-                onClick={() => setIsDialogOpen(true)}
-                className="bg-black text-white hover:bg-gray-800"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Diet
-              </Button>
+            {canManageDietActions && (
+              <>
+                <Button
+                  onClick={() => setIsDialogOpen(true)}
+                  className="bg-black text-white hover:bg-gray-800"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Diet
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(true)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Menu
+                </Button>
+              </>
             )}
             <Button
               variant="outline"
@@ -445,7 +456,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   <Utensils className="w-4 h-4 text-amber-600" />
                   <span className="text-sm font-medium">Diet Information</span>
                 </div>
-                {canManageDiet(userRole) && (
+                {canManageDietActions && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -582,46 +593,48 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         )}
 
         {/* Food & Fluid Entry Buttons */}
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Utensils className="w-5 h-5 text-gray-600" />
-              <span>Log Food & Fluid Intake</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button
-                variant="outline"
-                className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
-                onClick={() => {
-                  setEntryType("food");
-                  logForm.setValue("section", getCurrentSection());
-                  logForm.setValue("typeOfFoodDrink", "");
-                  logForm.setValue("fluidConsumedMl", undefined);
-                  setIsFoodFluidDialogOpen(true);
-                }}
-              >
-                <Utensils className="w-6 h-6 mr-3" />
-                Log Food Entry
-              </Button>
+        {canLogEntries && (
+          <Card className="border-0">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Utensils className="w-5 h-5 text-gray-600" />
+                <span>Log Food & Fluid Intake</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button
+                  variant="outline"
+                  className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
+                  onClick={() => {
+                    setEntryType("food");
+                    logForm.setValue("section", getCurrentSection());
+                    logForm.setValue("typeOfFoodDrink", "");
+                    logForm.setValue("fluidConsumedMl", undefined);
+                    setIsFoodFluidDialogOpen(true);
+                  }}
+                >
+                  <Utensils className="w-6 h-6 mr-3" />
+                  Log Food Entry
+                </Button>
 
-              <Button
-                variant="outline"
-                className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
-                onClick={() => {
-                  setEntryType("fluid");
-                  logForm.setValue("section", getCurrentSection());
-                  logForm.setValue("typeOfFoodDrink", "Water");
-                  setIsFoodFluidDialogOpen(true);
-                }}
-              >
-                <Droplets className="w-6 h-6 mr-3" />
-                Log Fluid Entry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <Button
+                  variant="outline"
+                  className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
+                  onClick={() => {
+                    setEntryType("fluid");
+                    logForm.setValue("section", getCurrentSection());
+                    logForm.setValue("typeOfFoodDrink", "Water");
+                    setIsFoodFluidDialogOpen(true);
+                  }}
+                >
+                  <Droplets className="w-6 h-6 mr-3" />
+                  Log Fluid Entry
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Log Another Actions */}
         {showLogAnotherActions && (

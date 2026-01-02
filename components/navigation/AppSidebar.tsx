@@ -32,7 +32,18 @@ import { TeamSwitcher } from "./TeamSwitcher";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { canViewAuditLogs, canViewStaffList } from "@/lib/permissions";
+import {
+  canViewSidebarActionPlans,
+  canViewSidebarAppointment,
+  canViewSidebarAudit,
+  canViewSidebarHandover,
+  canViewSidebarIncidents,
+  canViewSidebarNotification,
+  canViewSidebarResidents,
+  canViewSidebarStaff,
+  canViewSidebarHome,
+  getAuditLabel
+} from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
 import HelpSupportDialog from "./HelpSupportDialog";
@@ -43,6 +54,7 @@ export function AppSidebar() {
   const { data: user } = authClient.useSession();
   const { data: activeMember } = authClient.useActiveMember();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const userRole = (activeMember?.role ?? user?.user?.role) as string | undefined;
 
   // Extract email to a stable variable - always compute this before any conditional logic
   // This ensures React sees consistent hook call patterns across renders
@@ -126,31 +138,35 @@ export function AppSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             {/* Home */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard">
-                  <HomeIcon />
-                  <span>Home</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewSidebarHome(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard">
+                    <HomeIcon />
+                    <span>Home</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* Residents */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/residents">
-                  <User2Icon />
-                  <span>Residents</span>
-                </Link>
-              </SidebarMenuButton>
-              <CreateResidentDialog
-                isResidentDialogOpen={isResidentDialogOpen}
-                setIsResidentDialogOpen={setIsResidentDialogOpen}
-              />
-            </SidebarMenuItem>
+            {canViewSidebarResidents(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/residents">
+                    <User2Icon />
+                    <span>Residents</span>
+                  </Link>
+                </SidebarMenuButton>
+                <CreateResidentDialog
+                  isResidentDialogOpen={isResidentDialogOpen}
+                  setIsResidentDialogOpen={setIsResidentDialogOpen}
+                />
+              </SidebarMenuItem>
+            )}
 
             {/* Staff */}
-            {canViewStaffList((activeMember?.role ?? user?.user?.role) as any) && (
+            {canViewSidebarStaff(userRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/staff">
@@ -168,96 +184,106 @@ export function AppSidebar() {
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             {/* Handover */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/handover">
-                  <ClipboardListIcon />
-                  <span>Handover</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewSidebarHandover(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/handover">
+                    <ClipboardListIcon />
+                    <span>Handover</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* Appointment */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/appointment" className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <CalendarIcon className="w-4 h-4" />
-                    <span>Appointment</span>
-                  </div>
-                  {unreadAppointmentsCount !== undefined && unreadAppointmentsCount > 0 && (
-                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
-                      {unreadAppointmentsCount}
-                    </Badge>
-                  )}
-                </Link>
+            {canViewSidebarAppointment(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/appointment" className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4" />
+                      <span>Appointment</span>
+                    </div>
+                    {unreadAppointmentsCount !== undefined && unreadAppointmentsCount > 0 && (
+                      <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                        {unreadAppointmentsCount}
+                      </Badge>
+                    )}
+                  </Link>
               </SidebarMenuButton>
-            </SidebarMenuItem>
+              </SidebarMenuItem>
+            )}
 
             {/* Incidents */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    <span>Incidents</span>
-                  </div>
-                  {unreadCount !== undefined && unreadCount > 0 && (
-                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
-                      {unreadCount}
-                    </Badge>
-                  )}
-                </Link>
+            {canViewSidebarIncidents(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      <span>Incidents</span>
+                    </div>
+                    {unreadCount !== undefined && unreadCount > 0 && (
+                      <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                        {unreadCount}
+                      </Badge>
+                    )}
+                  </Link>
               </SidebarMenuButton>
-            </SidebarMenuItem>
+              </SidebarMenuItem>
+            )}
 
             {/* Action Plans */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/action-plans" className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <ListTodo className="w-4 h-4" />
-                    <span>Action Plans</span>
-                  </div>
-                  {totalNewActionPlansCount > 0 && (
-                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
-                      {totalNewActionPlansCount}
-                    </Badge>
-                  )}
-                </Link>
+            {canViewSidebarActionPlans(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/action-plans" className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <ListTodo className="w-4 h-4" />
+                      <span>Action Plans</span>
+                    </div>
+                    {totalNewActionPlansCount > 0 && (
+                      <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                        {totalNewActionPlansCount}
+                      </Badge>
+                    )}
+                  </Link>
               </SidebarMenuButton>
-            </SidebarMenuItem>
+              </SidebarMenuItem>
+            )}
 
             {/* Notification */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <BellIcon className="w-4 h-4" />
-                    <span>Notification</span>
-                  </div>
-                  {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
-                    <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
-                      {unreadNotificationCount}
-                    </Badge>
-                  )}
-                </Link>
+            {canViewSidebarNotification(userRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <BellIcon className="w-4 h-4" />
+                      <span>Notification</span>
+                    </div>
+                    {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                      <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
+                        {unreadNotificationCount}
+                      </Badge>
+                    )}
+                  </Link>
               </SidebarMenuButton>
-            </SidebarMenuItem>
+              </SidebarMenuItem>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
 
         {/* Audit Section */}
-        {canViewAuditLogs((activeMember?.role ?? user?.user?.role) as any) && (
+        {canViewSidebarAudit(userRole) && (
           <SidebarGroup className="mt-0">
             <SidebarGroupLabel>Audit</SidebarGroupLabel>
             <SidebarGroupContent>
-              {/* CareO Audit */}
+              {/* Audit / CareO Audit */}
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/careo-audit">
                     <ClipboardListIcon />
-                    <span>CareO Audit</span>
+                    <span>{getAuditLabel(userRole) ?? "Audit"}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

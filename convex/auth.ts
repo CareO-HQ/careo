@@ -205,26 +205,204 @@ export const updateActiveTeam = mutation({
     teamId: v.string()
   },
   handler: async (ctx, { teamId }) => {
-    // Get the current user
-    const userMetadata = await betterAuthComponent.getAuthUser(ctx);
-    if (!userMetadata) {
-      // Silently return if no session - this can happen during page load
-      return { success: false, activeTeamId: null };
+    console.log(`[TEAM-SWITCH] Starting team switch process for teamId: ${teamId}`);
+    
+    // Get the Better Auth user identity first to get the correct user ID
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.subject) {
+      throw new Error("No active session found");
     }
 
-    const userId = userMetadata.userId as Id<"users">;
-    const user = await ctx.db.get(userId);
+    const betterAuthUserId = identity.subject;
+    console.log(`[TEAM-SWITCH] User switching teams: ${betterAuthUserId} (${identity.email})`);
 
-    if (!user) {
-      console.log("USER NOT FOUND", userId);
-      // Silently return if user not found
-      return { success: false, activeTeamId: null };
+    // Get the session to find the active organization
+    const session = await ctx.runQuery(
+      components.betterAuth.lib.getCurrentSession
+    );
+
+    if (!session || !session.activeOrganizationId) {
+      throw new Error("No active organization found");
     }
 
-    await ctx.db.patch(userId, {
+    // Verify the team exists and belongs to the current organization
+    const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "team",
+      where: [{ field: "id", value: teamId }]
+    });
+
+    if (!team) {
+      throw new Error("Team not found");
+    }
+
+    if (team.organizationId !== session.activeOrganizationId) {
+      throw new Error("Team does not belong to the active organization");
+    }
+
+    // Get the email from identity to find the Convex user
+    if (!identity.email) {
+      throw new Error("User email not found in identity");
+    }
+
+    // Find the Convex user record by email (more reliable than using userMetadata.userId)
+    const convexUser = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!convexUser) {
+      throw new Error("User not found in Convex database");
+    }
+
+    const previousTeamId = convexUser.activeTeamId;
+    console.log(`[TEAM-SWITCH] Previous team: ${previousTeamId || 'none'}, New team: ${teamId}`);
+
+    // Update the activeTeamId in the Convex users table
+    // This ensures the user's current team ID is updated (core functionality)
+    await ctx.db.patch(convexUser._id, {
       activeTeamId: teamId
     });
 
+    // Verify the update was successful
+    const updatedUser = await ctx.db.get(convexUser._id);
+    if (updatedUser?.activeTeamId !== teamId) {
+      console.error(`WARNING: activeTeamId update may have failed. Expected: ${teamId}, Got: ${updatedUser?.activeTeamId}`);
+    } else {
+      console.log(`✓ Verified: Updated activeTeamId to ${teamId} for user ${convexUser.email} (${betterAuthUserId})`);
+    }
+
+    // Try to get the member record to get the role for teamMembers
+    // If member lookup fails, we'll still proceed with team switching
+    let member = null;
+    try {
+      member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "member",
+        where: [
+          { field: "userId", value: betterAuthUserId },
+          { field: "organizationId", value: session.activeOrganizationId }
+        ]
+      });
+      if (member) {
+        console.log(`[TEAM-SWITCH] Found member record - role: ${member.role}`);
+      }
+    } catch (error) {
+      console.warn(`[TEAM-SWITCH] Failed to find member record for user ${betterAuthUserId}:`, error);
+    }
+
+    // If member not found, try finding by userId only (might be in different org)
+    if (!member) {
+      try {
+        const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "member",
+          where: [{ field: "userId", value: betterAuthUserId }],
+          paginationOpts: { cursor: null, numItems: 10 }
+        });
+        // Find member in the current organization
+        member = members?.page?.find((m: any) => m.organizationId === session.activeOrganizationId) || null;
+        if (member) {
+          console.log(`[TEAM-SWITCH] Found member record via userId lookup - role: ${member.role}`);
+        }
+      } catch (error) {
+        console.warn(`[TEAM-SWITCH] Failed to find member by userId only:`, error);
+      }
+    }
+
+    // Log onboarding status
+    const isOnboardingComplete = convexUser.isOnboardingComplete;
+    const userRole = member?.role || "unknown";
+    console.log(`[TEAM-SWITCH] User details - Role: ${userRole}, Onboarding Complete: ${isOnboardingComplete || false}`);
+
+    // Ensure user is added to teamMembers table so managers can see them in staff list
+    // This is critical for nurses and care assistants who switch teams
+    // Check if user is already in this team
+    const existingTeamMember = await ctx.db
+      .query("teamMembers")
+      .withIndex("byUserAndTeam", (q) =>
+        q.eq("userId", betterAuthUserId).eq("teamId", teamId)
+      )
+      .first();
+
+    // If not already in the team, add them to teamMembers table
+    // If already in team, update the role if it's missing or incorrect
+    // Role is optional in the schema, but we want to ensure it's set correctly
+    const teamMemberRole = member?.role || undefined;
+    
+    if (!existingTeamMember) {
+      console.log(`[TEAM-SWITCH] Adding user to teamMembers table:`, {
+        userId: betterAuthUserId,
+        email: identity.email,
+        teamId: teamId,
+        role: teamMemberRole,
+        isOnboardingComplete: isOnboardingComplete || false,
+        previousTeam: previousTeamId || 'none'
+      });
+      
+      await ctx.db.insert("teamMembers", {
+        userId: betterAuthUserId, // Use Better Auth user ID (identity.subject)
+        teamId: teamId,
+        organizationId: session.activeOrganizationId,
+        role: teamMemberRole, // Optional - can be undefined if member not found
+        email: identity.email, // Store email so we can find user in local table if Better Auth lookup fails
+        createdAt: Date.now(),
+        createdBy: betterAuthUserId
+      });
+      
+      console.log(`[TEAM-SWITCH] ✓ Successfully added user ${betterAuthUserId} (${identity.email}) to team ${teamId}`);
+    } else {
+      // User is already in team - update role and email if they're missing or incorrect
+      const currentRole = existingTeamMember.role;
+      const currentEmail = existingTeamMember.email;
+      const needsRoleUpdate = (!currentRole || currentRole === "unknown" || currentRole === "") && teamMemberRole;
+      const needsEmailUpdate = !currentEmail && identity.email;
+      
+      if (needsRoleUpdate || needsEmailUpdate) {
+        const updates: { role?: string; email?: string } = {};
+        if (needsRoleUpdate) {
+          updates.role = teamMemberRole;
+        }
+        if (needsEmailUpdate) {
+          updates.email = identity.email;
+        }
+        
+        console.log(`[TEAM-SWITCH] Updating existing teamMembers entry:`, {
+          userId: betterAuthUserId,
+          email: identity.email,
+          teamId: teamId,
+          oldRole: currentRole || 'missing',
+          newRole: teamMemberRole,
+          oldEmail: currentEmail || 'missing',
+          newEmail: identity.email,
+          updates
+        });
+        
+        await ctx.db.patch(existingTeamMember._id, updates);
+        
+        console.log(`[TEAM-SWITCH] ✓ Successfully updated teamMembers entry for user ${betterAuthUserId} in team ${teamId}`);
+      } else {
+        // Even if no updates needed, log the current state for debugging
+        console.log(`[TEAM-SWITCH] User ${betterAuthUserId} is already in team ${teamId}:`, {
+          role: currentRole || 'not set',
+          email: currentEmail || 'not set',
+          availableRole: teamMemberRole || 'not available',
+          availableEmail: identity.email || 'not available',
+          note: needsRoleUpdate || needsEmailUpdate ? 'Update should have happened above' : 'No updates needed'
+        });
+      }
+    }
+    
+    // Special logging for nurses and care assistants
+    if (userRole === "nurse" || userRole === "care_assistant") {
+      console.log(`[TEAM-SWITCH] ⚠ Nurse/Care Assistant team switch - Manager visibility:`, {
+        role: userRole,
+        isOnboardingComplete: isOnboardingComplete || false,
+        willBeVisible: isOnboardingComplete === true,
+        message: isOnboardingComplete === true 
+          ? "Manager in new team will see this staff member"
+          : "Manager in new team will NOT see this staff member (onboarding incomplete)"
+      });
+    }
+
+    console.log(`[TEAM-SWITCH] ✓ Team switch completed successfully for ${betterAuthUserId} (${identity.email})`);
     return { success: true, activeTeamId: teamId };
   }
 });
@@ -531,6 +709,18 @@ export const addMemberToTeam = mutation({
       // Get current user for createdBy field
       const currentUser = await betterAuthComponent.getAuthUser(ctx);
 
+      // Get user email for teamMembers record
+      let userEmail: string | undefined = undefined;
+      try {
+        const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "user",
+          where: [{ field: "id", value: member.userId }]
+        });
+        userEmail = authUser?.email;
+      } catch (error) {
+        console.warn(`Failed to get user email for userId ${member.userId}:`, error);
+      }
+
       // Create a new team membership record
       console.log("Creating new team membership...");
       await ctx.db.insert("teamMembers", {
@@ -538,6 +728,7 @@ export const addMemberToTeam = mutation({
         teamId: teamId,
         organizationId: member.organizationId,
         role: member.role, // Use the same role as the existing member
+        email: userEmail, // Store email for fallback lookup
         createdAt: Date.now(),
         createdBy: currentUser?.userId || "system"
       });
@@ -656,6 +847,73 @@ export const getMemberTeams = query({
       return teams.filter((team) => team !== null);
     } catch (error) {
       console.error("Error getting member teams:", error);
+      return [];
+    }
+  }
+});
+
+// Query to get teams for the current user (filtered by role)
+export const getTeamsForCurrentUser = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      organizationId: v.string(),
+      createdAt: v.number(),
+    })
+  ),
+  handler: async (ctx) => {
+    try {
+      const session = await ctx.runQuery(
+        components.betterAuth.lib.getCurrentSession
+      );
+
+      if (!session || !session.token) {
+        return [];
+      }
+
+      const targetOrgId = session.activeOrganizationId;
+
+      if (!targetOrgId) {
+        return [];
+      }
+
+      // Get the current user's member record
+      const currentMember = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "member",
+        where: [
+          { field: "userId", value: session.userId },
+          { field: "organizationId", value: targetOrgId }
+        ]
+      });
+
+      if (!currentMember) {
+        return [];
+      }
+
+      // All roles (managers, owners, nurses, care assistants) can see all teams
+      const teamsResult = await ctx.runQuery(
+        components.betterAuth.lib.findMany,
+        {
+          model: "team",
+          where: [{ field: "organizationId", value: targetOrgId }],
+          paginationOpts: {
+            cursor: null,
+            numItems: 20
+          }
+        }
+      );
+
+      const teams = teamsResult?.page || [];
+      return teams.map((team: any) => ({
+        id: team.id || team._id,
+        name: team.name,
+        organizationId: team.organizationId,
+        createdAt: team.createdAt || team._creationTime || 0,
+      }));
+    } catch (error) {
+      console.error("Error in getTeamsForCurrentUser:", error);
       return [];
     }
   }

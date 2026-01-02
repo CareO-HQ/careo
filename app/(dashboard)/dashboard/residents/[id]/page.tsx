@@ -37,7 +37,7 @@ import {
   X
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { canViewAlert, canViewResidentSection } from "@/lib/permissions";
+import { canViewAlert, canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
 import React from "react";
@@ -435,7 +435,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       </div>
       {/* HEALTH & SAFETY */}
       <div className="mb-8">
-        <p className="font-medium text-lg mb-2">Health & Safety</p>
+        {canViewHealthSafetyTitle(userRole) && (
+          <p className="font-medium text-lg mb-2">Health & Safety</p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Incidents & Falls Card */}
           {canViewResidentSection("incidents", userRole) && (

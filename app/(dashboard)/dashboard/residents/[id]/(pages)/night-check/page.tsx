@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
+import { canAddNightCheck, canDeleteNightCheck } from "@/lib/permissions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -121,6 +122,10 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
   // Get session data
   const { data: session } = authClient.useSession();
+  const { data: member } = authClient.useActiveMember();
+  const userRole = member?.role;
+  const canCreateNightCheck = canAddNightCheck(userRole);
+  const canDeleteNightCheckItem = canDeleteNightCheck(userRole);
 
   // Form setup
   const form = useForm<NightCheckFormData>({
@@ -890,98 +895,100 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Check
-                <ChevronDown className="w-4 h-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Night Check Options</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("night_check")) {
-                    setFrequencyDialogType("night_check");
-                    setPendingNightCheckAdd(true);
-                  }
-                }}
-                disabled={isItemTypeAdded("night_check")}
-              >
-                <Moon className="w-4 h-4 mr-2" />
-                Night Check
-                {isItemTypeAdded("night_check") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("positioning")) {
-                    setFrequencyDialogType("positioning");
-                    setPendingPositioningAdd(true);
-                  }
-                }}
-                disabled={isItemTypeAdded("positioning")}
-              >
-                <RotateCw className="w-4 h-4 mr-2" />
-                Positioning
-                {isItemTypeAdded("positioning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("pad_change")) {
-                    setFrequencyDialogType("pad_change");
-                    setPendingPadChangeAdd(true);
-                  }
-                }}
-                disabled={isItemTypeAdded("pad_change")}
-              >
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Pad Change
-                {isItemTypeAdded("pad_change") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("bed_rails")) {
-                    setPendingBedRailsAdd(true);
-                  }
-                }}
-                disabled={isItemTypeAdded("bed_rails")}
-              >
-                <BedDouble className="w-4 h-4 mr-2" />
-                Bed Rails Check
-                {isItemTypeAdded("bed_rails") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("environmental")) {
-                    setPendingEnvironmentalAdd(true);
-                  }
-                }}
-                disabled={isItemTypeAdded("environmental")}
-              >
-                <Home className="w-4 h-4 mr-2" />
-                Environmental Check
-                {isItemTypeAdded("environmental") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isItemTypeAdded("cleaning")) {
-                    setPendingCleaningAdd(true);
-                  }
-                }}
-                disabled={isItemTypeAdded("cleaning")}
-              >
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Cleaning
-                {isItemTypeAdded("cleaning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openDialog("night_note")}>
-                <StickyNote className="w-4 h-4 mr-2" />
-                Night Note
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canCreateNightCheck && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Check
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Night Check Options</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!isItemTypeAdded("night_check")) {
+                      setFrequencyDialogType("night_check");
+                      setPendingNightCheckAdd(true);
+                    }
+                  }}
+                  disabled={isItemTypeAdded("night_check")}
+                >
+                  <Moon className="w-4 h-4 mr-2" />
+                  Night Check
+                  {isItemTypeAdded("night_check") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!isItemTypeAdded("positioning")) {
+                      setFrequencyDialogType("positioning");
+                      setPendingPositioningAdd(true);
+                    }
+                  }}
+                  disabled={isItemTypeAdded("positioning")}
+                >
+                  <RotateCw className="w-4 h-4 mr-2" />
+                  Positioning
+                  {isItemTypeAdded("positioning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!isItemTypeAdded("pad_change")) {
+                      setFrequencyDialogType("pad_change");
+                      setPendingPadChangeAdd(true);
+                    }
+                  }}
+                  disabled={isItemTypeAdded("pad_change")}
+                >
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  Pad Change
+                  {isItemTypeAdded("pad_change") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!isItemTypeAdded("bed_rails")) {
+                      setPendingBedRailsAdd(true);
+                    }
+                  }}
+                  disabled={isItemTypeAdded("bed_rails")}
+                >
+                  <BedDouble className="w-4 h-4 mr-2" />
+                  Bed Rails Check
+                  {isItemTypeAdded("bed_rails") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!isItemTypeAdded("environmental")) {
+                      setPendingEnvironmentalAdd(true);
+                    }
+                  }}
+                  disabled={isItemTypeAdded("environmental")}
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  Environmental Check
+                  {isItemTypeAdded("environmental") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!isItemTypeAdded("cleaning")) {
+                      setPendingCleaningAdd(true);
+                    }
+                  }}
+                  disabled={isItemTypeAdded("cleaning")}
+                >
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  Cleaning
+                  {isItemTypeAdded("cleaning") && <span className="ml-auto text-xs text-muted-foreground">Added</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openDialog("night_note")}>
+                  <StickyNote className="w-4 h-4 mr-2" />
+                  Night Note
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}
@@ -1013,14 +1020,18 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                   <Moon className="w-10 h-10 text-gray-400" />
                 </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Night Check Items Added</h3>
-              <p className="text-gray-600 mb-4 max-w-md mx-auto">
-                Use the &quot;Add Night Checks&quot; button above to add specific check items for {fullName}.
-                Each resident can have different night check requirements.
-              </p>
-              <p className="text-sm text-gray-500">
-                Available items: Night Check, Positioning, Pad Change, Bed Rails, Environmental Checks, Night Note
-              </p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Night Check Items Added.</h3>
+              {canCreateNightCheck && (
+                <>
+                  <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                    Use the &quot;Add Night Checks&quot; button above to add specific check items for {fullName}.
+                    Each resident can have different night check requirements.
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Available items: Night Check, Positioning, Pad Change, Bed Rails, Environmental Checks, Night Note
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -1045,17 +1056,19 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                       </span>
                     )}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeNightCheckItem(item.id);
-                    }}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
+                  {canDeleteNightCheckItem && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeNightCheckItem(item.id);
+                      }}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

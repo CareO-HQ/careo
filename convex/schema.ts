@@ -179,12 +179,21 @@ export default defineSchema({
     teamId: v.string(),
     organizationId: v.string(),
     role: v.optional(v.string()),
+    email: v.optional(v.string()), // Store email for fallback user lookup
     createdAt: v.number(),
     createdBy: v.string()
   })
     .index("byUserId", ["userId"])
     .index("byTeamId", ["teamId"])
     .index("byUserAndTeam", ["userId", "teamId"])
+    .index("byOrganization", ["organizationId"]),
+
+  invitationMetadata: defineTable({
+    invitationId: v.string(),
+    teamId: v.optional(v.string()),
+    organizationId: v.string()
+  })
+    .index("byInvitationId", ["invitationId"])
     .index("byOrganization", ["organizationId"]),
 
   residents: defineTable({
