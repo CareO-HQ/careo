@@ -63,30 +63,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (!isActiveMemberLoading && activeMember) {
-      if (!canViewStaffList(activeMember.role as UserRole)) {
-        window.location.href = "/dashboard";
-      }
-    }
-  }, [activeMember, isActiveMemberLoading]);
-
-  if (isActiveOrgLoading || isActiveMemberLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
-    return null;
-  }
-
-  // Find the staff member from organization members
+  // Find the staff member from organization members (needed for hooks below)
   const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);
 
   // Get staff details from local database
@@ -137,6 +114,29 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
       });
     }
   }, [staffDetails]);
+
+  useEffect(() => {
+    if (!isActiveMemberLoading && activeMember) {
+      if (!canViewStaffList(activeMember.role as UserRole)) {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [activeMember, isActiveMemberLoading]);
+
+  if (isActiveOrgLoading || isActiveMemberLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
