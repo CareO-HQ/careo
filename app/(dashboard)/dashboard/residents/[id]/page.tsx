@@ -36,6 +36,8 @@ import {
   NotebookPen,
   X
 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import { canViewAlert, canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
 import React from "react";
@@ -54,17 +56,31 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     residentId: id as Id<"residents">
   });
 
-  // Get alert count for this resident
-  const alertCount = useQuery(
-    api.alerts.getResidentAlertCount,
-    resident ? { residentId: id as Id<"residents"> } : "skip"
-  );
+  const { data: member, isPending: isMemberPending } = authClient.useActiveMember();
+  const userRole = member?.role;
 
   // Get all alerts for this resident
-  const alerts = useQuery(
+  const allAlerts = useQuery(
     api.alerts.getResidentAlerts,
     resident ? { residentId: id as Id<"residents"> } : "skip"
   );
+
+  // Filter alerts based on role requirements
+  const alerts = React.useMemo(() => {
+    if (!allAlerts) return [];
+    return allAlerts.filter(alert => canViewAlert(alert.alertType, userRole));
+  }, [allAlerts, userRole]);
+
+  // Derive alert count from filtered alerts
+  const alertCount = React.useMemo(() => {
+    if (!alerts) return { total: 0, critical: 0, warning: 0, info: 0 };
+    return {
+      total: alerts.length,
+      critical: alerts.filter(a => a.severity === "critical").length,
+      warning: alerts.filter(a => a.severity === "warning").length,
+      info: alerts.filter(a => a.severity === "info").length,
+    };
+  }, [alerts]);
 
   const resolveAlert = useMutation(api.alerts.resolveAlert);
 
@@ -81,7 +97,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
   console.log("RESIDENT", resident);
 
-  if (resident === undefined) {
+  if (resident === undefined || isMemberPending) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -172,9 +188,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         >
           <Bell className="h-5 w-5" />
           {alertCount && alertCount.total > 0 && (
-            <span className={`absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-xs flex items-center justify-center font-semibold shadow-md ${
-              alertCount.critical > 0 ? 'bg-red-600' : 'bg-orange-500'
-            }`}>
+            <span className={`absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-xs flex items-center justify-center font-semibold shadow-md ${alertCount.critical > 0 ? 'bg-red-600' : 'bg-orange-500'
+              }`}>
               {alertCount.total}
             </span>
           )}
@@ -185,71 +200,77 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       <div className="mb-8">
         <p className="font-medium text-lg mb-2">Essential Care</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("overview")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <User className="w-6 h-6 text-blue-600" />
+          {canViewResidentSection("overview", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("overview")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <User className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Overview</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Basic information
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Overview</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Basic information
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
           {/* Care File Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("care-file")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-purple-50 rounded-lg">
-                    <FileText className="w-6 h-6 text-purple-600" />
+          {canViewResidentSection("care-file", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("care-file")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <FileText className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Care File</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Care plan & records
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Care File</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Care plan & records
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
           {/* Medication Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("medication")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <Pill className="w-6 h-6 text-green-600" />
+          {canViewResidentSection("medication", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("medication")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-green-50 rounded-lg">
+                      <Pill className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Medication</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Prescriptions & schedules
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Medication</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Prescriptions & schedules
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
       {/* HEALTH MONITORING */}
@@ -257,223 +278,243 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         <p className="font-medium text-lg mb-2">Daily Monitoring</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* food fluid  */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("food-fluid")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <Utensils className="w-6 h-6 text-green-600" />
+          {canViewResidentSection("food-fluid", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("food-fluid")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-green-50 rounded-lg">
+                      <Utensils className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Food & Fluid</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Nutrition & hydration
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Food & Fluid</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Nutrition & hydration
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
           {/* Daily Care Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("daily-care")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-red-50 rounded-lg">
-                    <Activity className="w-6 h-6 text-red-600" />
+          {canViewResidentSection("daily-care", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("daily-care")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-red-50 rounded-lg">
+                      <Activity className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Daily Care</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {getDependenciesCount() > 0
+                          ? `${getDependenciesCount()} dependencies`
+                          : "Care activities"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Daily Care</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {getDependenciesCount() > 0
-                        ? `${getDependenciesCount()} dependencies`
-                        : "Care activities"}
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-             {/* Progress Notes Card */}
-             <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("progress-notes")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-purple-50 rounded-lg">
-                    <NotebookPen className="w-6 h-6 text-purple-600" />
+              </CardContent>
+            </Card>
+          )}
+          {/* Progress Notes Card */}
+          {canViewResidentSection("progress-notes", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("progress-notes")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <NotebookPen className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Progress Notes</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Daily nursing notes
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Progress Notes</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Daily nursing notes
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
       {/* DOCUMENTATION */}
       <div className="mb-8">
         <p className="font-medium text-lg mb-2">Documentation</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-       
+
 
           {/* Documents Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("documents")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-indigo-50 rounded-lg">
-                    <Folder className="w-6 h-6 text-indigo-600" />
+          {canViewResidentSection("documents", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("documents")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-indigo-50 rounded-lg">
+                      <Folder className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Documents</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Files & attachments
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Documents</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Files & attachments
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-               {/* Night Check Card */}
-               <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("night-check")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-gray-50 rounded-lg">
-                    <Moon className="w-6 h-6 text-gray-600" />
+              </CardContent>
+            </Card>
+          )}
+          {/* Night Check Card */}
+          {canViewResidentSection("night-check", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("night-check")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-gray-50 rounded-lg">
+                      <Moon className="w-6 h-6 text-gray-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Night Docs</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Night monitoring
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Night Docs</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Night monitoring
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("appointments")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-cyan-50 rounded-lg">
-                    <Calendar className="w-6 h-6 text-cyan-600" />
+              </CardContent>
+            </Card>
+          )}
+          {canViewResidentSection("appointments", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("appointments")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-cyan-50 rounded-lg">
+                      <Calendar className="w-6 h-6 text-cyan-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Appointments</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Medical appointments
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Appointments</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Medical appointments
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-  
+              </CardContent>
+            </Card>
+          )}
+
         </div>
       </div>
       {/* HEALTH & SAFETY */}
       <div className="mb-8">
-        <p className="font-medium text-lg mb-2">Health & Safety</p>
+        {canViewHealthSafetyTitle(userRole) && (
+          <p className="font-medium text-lg mb-2">Health & Safety</p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Incidents & Falls Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("incidents")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-yellow-50 rounded-lg">
-                    <TrendingDown className="w-6 h-6 text-yellow-600" />
+          {canViewResidentSection("incidents", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("incidents")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-yellow-50 rounded-lg">
+                      <TrendingDown className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Incidents & Falls</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Safety records
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Incidents & Falls</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Safety records
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Health & Monitoring Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("health-monitoring")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <Stethoscope className="w-6 h-6 text-green-600" />
+          {canViewResidentSection("health-monitoring", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("health-monitoring")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-green-50 rounded-lg">
+                      <Stethoscope className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Health & Monitoring</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Vital signs & health tracking
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Health & Monitoring</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Vital signs & health tracking
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Clinical Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("clinical")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-rose-50 rounded-lg">
-                    <Heart className="w-6 h-6 text-rose-600" />
+          {canViewResidentSection("clinical", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("clinical")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-rose-50 rounded-lg">
+                      <Heart className="w-6 h-6 text-rose-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Clinical</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {getHealthConditionsCount() > 0 || getRisksCount() > 0
+                          ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
+                          : "Health information"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Clinical</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {getHealthConditionsCount() > 0 || getRisksCount() > 0
-                        ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
-                        : "Health information"}
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -482,71 +523,77 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         <p className="font-medium text-lg mb-2">Social Care & Emergency</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Lifestyle & Social Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("lifestyle-social")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <Users className="w-6 h-6 text-blue-600" />
+          {canViewResidentSection("lifestyle-social", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("lifestyle-social")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <Users className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Lifestyle & Social</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Activities & relationships
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Lifestyle & Social</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Activities & relationships
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
           {/* Hospital Transfer Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("hospital-transfer")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-red-50 rounded-lg">
-                    <Ambulance className="w-6 h-6 text-red-600" />
+          {canViewResidentSection("hospital-transfer", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("hospital-transfer")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-red-50 rounded-lg">
+                      <Ambulance className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Hospital Passport</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Emergency & transfers
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Hospital Passport</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Emergency & transfers
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
           {/* Hospital Transfer Card */}
-          <Card
-            className="cursor-pointer shadow-none"
-            onClick={() => handleCardClick("multidisciplinary-note")}
-          >
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between p-3">
-                <div className="flex flex-col items-start justify-start gap-2 space-x-3">
-                  <div className="p-2 bg-violet-50 rounded-lg">
-                    <PuzzleIcon className="w-6 h-6 text-violet-600" />
+          {canViewResidentSection("multidisciplinary-note", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("multidisciplinary-note")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-violet-50 rounded-lg">
+                      <PuzzleIcon className="w-6 h-6 text-violet-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Multi Disciplinary Note</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Emergency & transfers
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Multi Disciplinary Note</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Emergency & transfers
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -571,8 +618,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     alert.severity === "critical"
                       ? "border-red-300 bg-red-50"
                       : alert.severity === "warning"
-                      ? "border-orange-300 bg-orange-50"
-                      : "border-blue-300 bg-blue-50"
+                        ? "border-orange-300 bg-orange-50"
+                        : "border-blue-300 bg-blue-50"
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -584,15 +631,15 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                             alert.severity === "critical"
                               ? "bg-red-100 text-red-800 border-red-400"
                               : alert.severity === "warning"
-                              ? "bg-orange-100 text-orange-800 border-orange-400"
-                              : "bg-blue-100 text-blue-800 border-blue-400"
+                                ? "bg-orange-100 text-orange-800 border-orange-400"
+                                : "bg-blue-100 text-blue-800 border-blue-400"
                           )}
                         >
                           {alert.severity === "critical"
                             ? "Critical"
                             : alert.severity === "warning"
-                            ? "Warning"
-                            : "Info"}
+                              ? "Warning"
+                              : "Info"}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           {new Date(alert.timestamp).toLocaleString()}

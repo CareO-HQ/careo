@@ -25,7 +25,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import CreateTeamModal from "../team/CreateTeamModal";
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useTransition } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { toast } from "sonner";
 import CreateOrgModal from "../organization/CreateOrgModal";
@@ -43,8 +43,6 @@ export function TeamSwitcher({
   isPending: boolean;
   email: string;
 }) {
-  const [, startTransition] = useTransition();
-  const [orgTeams, setOrgTeams] = useState([]);
   const router = useRouter();
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: organizations } = authClient.useListOrganizations();
@@ -62,24 +60,14 @@ export function TeamSwitcher({
     {}
   );
 
-  const getTeams = useCallback(() => {
-    startTransition(async () => {
-      await authClient.organization.listTeams(
-        {},
-        {
-          onSuccess: ({ data }) => {
-            console.log("data", data);
-            // Filter out teams that have the same name as the organization (default teams)
-            const filteredTeams = data?.filter(
-              (team: { id: string; name: string }) =>
-                team.name !== activeOrganization?.name
-            );
-            setOrgTeams(filteredTeams);
-          }
-        }
-      );
-    });
-  }, [startTransition, activeOrganization?.name]);
+  // Use the query hook to get teams for current user (all teams for all roles)
+  const teamsForUser = useQuery(api.auth.getTeamsForCurrentUser, {});
+  
+  // Filter out teams that have the same name as the organization (default teams)
+  const orgTeams = teamsForUser?.filter(
+    (team: { id: string; name: string }) =>
+      team.name !== activeOrganization?.name
+  ) || [];
 
   const handleTeamClick = async (teamId: string) => {
     try {
@@ -96,19 +84,12 @@ export function TeamSwitcher({
       // Use our custom mutation that clears team and sets organization
       await setActiveOrganization({ organizationId });
 
-      // Refresh teams for the new organization
-      getTeams();
-
       toast.success("Care home switched successfully");
     } catch (error) {
       console.error("Error switching organization:", error);
       toast.error("Failed to switch organization");
     }
   };
-
-  useEffect(() => {
-    getTeams();
-  }, [getTeams]);
 
   return (
     <SidebarMenu className="p-2">
@@ -195,7 +176,7 @@ export function TeamSwitcher({
             <DropdownMenuSeparator />
             <div className="flex flex-row items-center justify-between">
               <DropdownMenuLabel>Units/House</DropdownMenuLabel>
-              <CreateTeamModal onTeamCreated={getTeams}>
+              <CreateTeamModal>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}
                   disabled={(orgTeams?.length ?? 0) >= config.limits.teams}

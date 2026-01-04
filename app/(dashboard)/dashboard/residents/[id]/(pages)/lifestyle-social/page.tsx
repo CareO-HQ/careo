@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/lib/auth-client";
+import { canAddLifestyleActivity } from "@/lib/permissions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -201,6 +202,9 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
 
   // Auth data
   const { data: user } = authClient.useSession();
+  const { data: member } = authClient.useActiveMember();
+  const userRole = member?.role;
+  const canAddActivity = canAddLifestyleActivity(userRole);
 
   // Update staff field when user data loads
   React.useEffect(() => {
@@ -426,12 +430,14 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
           </p>
         </div>
         <div className="flex flex-row gap-2">
-          <Button
-            onClick={() => setIsActivityDialogOpen(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Record Activity
-          </Button>
+          {canAddActivity && (
+            <Button
+              onClick={() => setIsActivityDialogOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Record Activity
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/residents/${id}/lifestyle-social/documents`)}
@@ -450,14 +456,16 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
               <Star className="w-5 h-5 text-yellow-600" />
               <span className="text-gray-900">Personal Interests & Preferences</span>
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsPersonalInterestsDialogOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {personalInterests ? "Edit" : "Add"}
-            </Button>
+            {canAddActivity && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPersonalInterestsDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {personalInterests ? "Edit" : "Add"}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -652,14 +660,16 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
               <Users className="w-5 h-5 text-blue-600" />
               <span className="text-gray-900">Social Connections</span>
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsSocialConnectionDialogOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Member
-            </Button>
+            {canAddActivity && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSocialConnectionDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Member
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-6">

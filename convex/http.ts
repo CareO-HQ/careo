@@ -1,9 +1,11 @@
 import { httpRouter } from "convex/server";
 import { betterAuthComponent } from "./auth";
-import { createAuth } from "../lib/auth";
+import { createAuth } from "./authConfig";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { createCorsHeaders, isOriginAllowed } from "./httpHelpers";
+import { components } from "./_generated/api";
+import { canInviteMembers, getAllowedRolesToInvite, type UserRole } from "./lib/permissions";
 
 const http = httpRouter();
 
@@ -58,6 +60,161 @@ betterAuthComponent.registerRoutes = function(router: any, authCreator: any) {
 };
 
 betterAuthComponent.registerRoutes(http, createAuth);
+
+// Custom invitation endpoint that allows managers to invite members
+http.route({
+  path: "/api/custom/invite-member",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("origin");
+    
+    try {
+      const body = await request.json();
+      const { email, role } = body;
+
+      if (!email || !role) {
+        return new Response(
+          JSON.stringify({ error: "Email and role are required" }),
+          { 
+            status: 400, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      }
+
+      // Get current session
+      const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+      if (!session || !session.userId) {
+        return new Response(
+          JSON.stringify({ error: "Not authenticated" }),
+          { 
+            status: 401, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      }
+
+      // Get the current user's member record
+      const currentMember = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "member",
+        where: [
+          { field: "userId", value: session.userId },
+          { field: "organizationId", value: session.activeOrganizationId }
+        ]
+      });
+
+      if (!currentMember) {
+        return new Response(
+          JSON.stringify({ error: "Member record not found" }),
+          { 
+            status: 404, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      }
+
+      // Check permissions using our custom logic
+      const userRole = currentMember.role as UserRole;
+      if (!canInviteMembers(userRole)) {
+        return new Response(
+          JSON.stringify({ error: "You don't have permission to invite members" }),
+          { 
+            status: 403, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      }
+
+      // Check if they can invite this specific role
+      const allowedRoles = getAllowedRolesToInvite(userRole);
+      if (!allowedRoles.includes(role as UserRole)) {
+        return new Response(
+          JSON.stringify({ error: `You can only invite: ${allowedRoles.join(", ")}` }),
+          { 
+            status: 403, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      }
+
+      // Check if user already invited
+      const existingInvitation = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "invitation",
+        where: [
+          { field: "email", value: email },
+          { field: "organizationId", value: currentMember.organizationId }
+        ]
+      });
+
+      if (existingInvitation) {
+        return new Response(
+          JSON.stringify({ error: "USER_IS_ALREADY_INVITED_TO_THIS_ORGANIZATION" }),
+          { 
+            status: 400, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      }
+
+      // Temporarily update the manager's role to "admin" so better-auth allows the invitation
+      const originalRole = currentMember.role;
+      if (userRole === "manager") {
+        await ctx.runMutation(components.betterAuth.lib.updateOne, {
+          input: {
+            model: "member",
+            where: [{ field: "id", value: currentMember.id }],
+            update: { role: "admin" }
+          }
+        });
+      }
+
+      try {
+        // Forward the request to better-auth's invite endpoint
+        // This will handle creating the invitation and sending the email
+        const inviteResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/organization/invite-member`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Cookie": request.headers.get("cookie") || "",
+          },
+          body: JSON.stringify({ email, role }),
+        });
+
+        const result = await inviteResponse.json();
+
+        return new Response(
+          JSON.stringify(result),
+          { 
+            status: inviteResponse.status, 
+            headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+          }
+        );
+      } finally {
+        // Restore the original role
+        if (userRole === "manager") {
+          await ctx.runMutation(components.betterAuth.lib.updateOne, {
+            input: {
+              model: "member",
+              where: [{ field: "id", value: currentMember.id }],
+              update: { role: originalRole }
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error in custom invite endpoint:", error);
+      return new Response(
+        JSON.stringify({ 
+          error: error instanceof Error ? error.message : "Failed to send invitation" 
+        }),
+        { 
+          status: 500, 
+          headers: { ...createCorsHeaders(origin), "Content-Type": "application/json" } 
+        }
+      );
+    }
+  }),
+});
 
 // Admin endpoint to delete all action plans
 // DANGER: This will delete ALL action plans and related notifications!

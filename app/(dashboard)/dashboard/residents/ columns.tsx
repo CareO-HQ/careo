@@ -242,8 +242,8 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
                 topAlert.severity === "critical"
                   ? "bg-red-50 text-red-700 border-red-300"
                   : topAlert.severity === "warning"
-                  ? "bg-orange-50 text-orange-700 border-orange-300"
-                  : "bg-blue-50 text-blue-700 border-blue-300"
+                    ? "bg-orange-50 text-orange-700 border-orange-300"
+                    : "bg-blue-50 text-blue-700 border-blue-300"
               )}
             >
               {topAlert.severity === "critical" ? "Critical" : topAlert.severity === "warning" ? "Warning" : "Info"}
@@ -298,8 +298,8 @@ export const columns: ColumnDef<Resident, unknown>[] = [
 
       // Search in first name, last name, and full name
       return firstName.includes(searchTerm) ||
-             lastName.includes(searchTerm) ||
-             fullName.includes(searchTerm);
+        lastName.includes(searchTerm) ||
+        fullName.includes(searchTerm);
     },
     cell: ({ row }) => {
       const resident = row.original;
@@ -452,11 +452,11 @@ export const columns: ColumnDef<Resident, unknown>[] = [
               variant="table"
               className={cn(
                 higherLevelRisk.level === "high" &&
-                  "bg-red-50 text-red-700 border-red-300",
+                "bg-red-50 text-red-700 border-red-300",
                 higherLevelRisk.level === "medium" &&
-                  "bg-yellow-50 text-yellow-700 border-yellow-300",
+                "bg-yellow-50 text-yellow-700 border-yellow-300",
                 higherLevelRisk.level === "low" &&
-                  "bg-blue-50 text-blue-700 border-blue-300"
+                "bg-blue-50 text-blue-700 border-blue-300"
               )}
             >
               <p className="flex items-center gap-2">
@@ -476,7 +476,7 @@ export const columns: ColumnDef<Resident, unknown>[] = [
                     {/* first letter uppercase */}
                     {riskItem.level
                       ? riskItem.level.charAt(0).toUpperCase() +
-                        riskItem.level.slice(1)
+                      riskItem.level.slice(1)
                       : "Low"}
                   </p>
                 </div>

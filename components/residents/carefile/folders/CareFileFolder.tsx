@@ -68,6 +68,7 @@ interface CareFileFolderProps {
     | undefined;
   preAddissionState: boolean | undefined;
   residentId: Id<"residents">;
+  canFillForms: boolean;
 }
 
 export default function CareFileFolder({
@@ -77,7 +78,8 @@ export default function CareFileFolder({
   carePlan,
   description,
   forms,
-  residentId
+  residentId,
+  canFillForms
 }: CareFileFolderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDialogKey, setActiveDialogKey] = useState<string | null>(null);
@@ -439,6 +441,7 @@ export default function CareFileFolder({
   );
 
   const handleCareFileClick = (key: string) => {
+    if (!canFillForms) return;
     setActiveDialogKey(key);
     setIsDialogOpen(true);
   };
@@ -730,7 +733,7 @@ export default function CareFileFolder({
                   </div>
                 );
               })}
-              {carePlan && (
+              {carePlan && canFillForms && (
                 <>
                   <div className="flex flex-row justify-between items-center gap-2 mt-10">
                     <p className="text-muted-foreground text-sm font-medium">

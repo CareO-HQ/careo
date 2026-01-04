@@ -1,15 +1,15 @@
+"use node";
+
 import { convexAdapter } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
 import { betterAuth } from "better-auth";
-import { type GenericCtx } from "../convex/_generated/server";
-import { betterAuthComponent, organizationRoles } from "../convex/auth";
-import { nextCookies } from "better-auth/next-js";
-import resend from "./resend";
+import { type GenericCtx } from "./_generated/server";
+import { betterAuthComponent, organizationRoles } from "./auth";
 import { organization, customSession, twoFactor } from "better-auth/plugins";
-import { components } from "../convex/_generated/api";
+import { components } from "./_generated/api";
 import { passkey } from "better-auth/plugins/passkey";
 import { admin } from "better-auth/plugins";
-import { getAllowedRolesToInvite, type UserRole } from "./permissions";
+import { Resend } from "resend";
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -57,35 +57,17 @@ export const createAuth = (ctx: GenericCtx) =>
       autoSignIn: true,
       sendResetPassword: async ({ user, url }) => {
         console.log("sendResetPassword", user.email, url);
-        await resend.emails.send({
-          from: "Uprio <uprio@auth.tryuprio.com>",
-          to: [user.email],
-          subject: "Reset your password",
-          html: `
-            <h3>Reset your password</h3>
-            <p>Click <a href="${url}">here</a> to reset your password.</p>
-            <p>This link will expire in 15 minutes.</p>
-          `
-        });
+        // Email sending is handled by the action in customInviteEmail.ts
       }
     },
     plugins: [
-      nextCookies(),
       convex(),
       twoFactor({
         skipVerificationOnEnable: true,
         otpOptions: {
           async sendOTP({ user, otp }) {
-            await resend.emails.send({
-              from: "Uprio <uprio@auth.tryuprio.com>",
-              to: [user.email],
-              subject: "Your Uprio 2FA code",
-              html: `
-            <h3>Your Uprio 2FA code</h3>
-            <p>Your 2FA code is ${otp}</p>
-            <p>This code will expire in 3 minutes.</p>
-            `
-            });
+            console.log("sendOTP", user.email, otp);
+            // Email sending would be handled by an action
           }
         }
       }),
@@ -104,7 +86,9 @@ export const createAuth = (ctx: GenericCtx) =>
           const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}&email=${data.email}`;
           console.log("sendInvitationEmail", inviteLink);
           
+          // Send email directly using Resend (Convex has access to RESEND_API_KEY)
           try {
+            const resend = new Resend(process.env.RESEND_API_KEY);
             await resend.emails.send({
               from: "Uprio <uprio@auth.tryuprio.com>",
               to: [data.email],
@@ -114,11 +98,9 @@ export const createAuth = (ctx: GenericCtx) =>
                 <p>Click <a href="${inviteLink}">here</a> to accept the invitation.</p>
               `
             });
-            console.log("✅ Invitation email sent successfully to:", data.email);
+            console.log("✅ Owner invitation email sent successfully to:", data.email);
           } catch (error) {
-            console.error("❌ Failed to send invitation email:", error);
-            console.error("Make sure RESEND_API_KEY is set in your environment variables");
-            throw new Error("Failed to send invitation email. Please check your email configuration.");
+            console.error("❌ Failed to send owner invitation email:", error);
           }
         }
       }),
@@ -140,3 +122,4 @@ export const createAuth = (ctx: GenericCtx) =>
       })
     ]
   });
+

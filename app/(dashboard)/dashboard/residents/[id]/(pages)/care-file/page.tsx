@@ -6,6 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { config } from "@/config";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
+import { canFillCareFileForms } from "@/lib/permissions";
 import { useQuery } from "convex/react";
 import { ArrowLeft, FolderIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +16,9 @@ import { usePathname, useRouter } from "next/navigation";
 export default function CareFilePage() {
   const careFiles = config.careFiles;
   const router = useRouter();
+  const { data: member } = authClient.useActiveMember();
+  const userRole = member?.role;
+  const canFillForms = canFillCareFileForms(userRole);
 
   const path = usePathname();
   const pathname = path.split("/");
@@ -116,6 +121,7 @@ export default function CareFilePage() {
                 forms={file.forms}
                 preAddissionState={preAddissionState}
                 residentId={residentId}
+                canFillForms={canFillForms}
               />
             )
         )}

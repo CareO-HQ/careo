@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
-import { useConvex } from "convex/react";
+import { useConvex, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -20,6 +20,7 @@ function AcceptInvitationContent() {
     email: string;
   } | null>(null);
   const convex = useConvex();
+  const assignTeamFromInvitation = useMutation(api.customInvite.assignTeamFromInvitationPublic);
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
 
@@ -30,6 +31,21 @@ function AcceptInvitationContent() {
       },
       {
         onSuccess: async () => {
+          // Try to assign team from invitation if it exists
+          if (token) {
+            try {
+              const teamResult = await assignTeamFromInvitation({
+                invitationId: token,
+              });
+              if (teamResult.success) {
+                console.log("User assigned to team:", teamResult.teamId);
+              }
+            } catch (error) {
+              // Silently fail - team assignment will be handled during onboarding if needed
+              console.error("Error assigning team:", error);
+            }
+          }
+
           if (!email) {
             router.push("/onboarding");
             return;

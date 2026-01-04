@@ -26,15 +26,24 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
+import { getAllowedRolesToInvite, UserRole } from "@/lib/permissions";
+import { toast } from "sonner";
 
 export default function InviteForm() {
   const [isLoading, startTransition] = useTransition();
   const { data: session } = authClient.useSession();
+  const { data: member } = authClient.useActiveMember();
   console.log("SESSION", session);
   const router = useRouter();
   const setIsOnboardingCompleted = useMutation(
     api.user.setIsOnboardingCompleted
   );
+  const createInvitation = useMutation(api.customInvite.createInvitationForManager);
+
+  // Get the first allowed role as default
+  const inviterRole = (member?.role as UserRole) || "owner";
+  const allowedRoles = getAllowedRolesToInvite(inviterRole);
+  const defaultRole = allowedRoles[0] || "manager";
 
   const form = useForm<z.infer<typeof InviteUsersOnboardingForm>>({
     resolver: zodResolver(InviteUsersOnboardingForm),
@@ -42,11 +51,11 @@ export default function InviteForm() {
       users: [
         {
           email: "",
-          role: "care_assistant"
+          role: defaultRole
         },
         {
           email: "",
-          role: "care_assistant"
+          role: defaultRole
         }
       ]
     }
@@ -64,16 +73,39 @@ export default function InviteForm() {
         users: usersWithEmails
       };
 
+      let successCount = 0;
+      let errorCount = 0;
+
       for (const user of finalData.users) {
         if (!user?.email) continue;
-        const { data, error } = await authClient.organization.inviteMember({
-          email: user.email,
-          role: user.role
-        });
-        console.log("Invitation sent:", data);
-        if (error) {
+
+        try {
+          const result = await createInvitation({
+            email: user.email,
+            role: user.role as any
+          });
+          
+          if (result.success) {
+            console.log("Invitation sent:", result.invitationId);
+            successCount++;
+          } else {
+            console.error("Error sending invitation:", result.error);
+            errorCount++;
+            if (result.error && !result.error.includes("already invited")) {
+              toast.error(`Failed to invite ${user.email}: ${result.error}`);
+            }
+          }
+        } catch (error) {
           console.error("Error sending invitation:", error);
+          errorCount++;
         }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully sent ${successCount} invitation(s)`);
+      }
+      if (errorCount > 0 && successCount === 0) {
+        toast.error(`Failed to send ${errorCount} invitation(s)`);
       }
 
       router.push("/dashboard");
@@ -88,7 +120,7 @@ export default function InviteForm() {
     if (currentUsers.length < MAX_INVITATIONS) {
       form.setValue("users", [
         ...currentUsers,
-        { email: "", role: "care_assistant" as const }
+        { email: "", role: defaultRole as const }
       ]);
     }
   };
@@ -156,27 +188,38 @@ export default function InviteForm() {
                 <FormField
                   control={form.control}
                   name={`users.${index}.role`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={isLoading}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue placeholder="Care Assistant" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="nurse">Nurse</SelectItem>
-                            <SelectItem value="care_assistant">Care Assistant</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const inviterRole = (member?.role as UserRole) || "owner";
+                    const allowedRoles = getAllowedRolesToInvite(inviterRole);
+
+                    return (
+                      <FormItem>
+                        <FormControl>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            disabled={isLoading}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allowedRoles.includes("manager") && (
+                                <SelectItem value="manager">Manager</SelectItem>
+                              )}
+                              {allowedRoles.includes("nurse") && (
+                                <SelectItem value="nurse">Nurse</SelectItem>
+                              )}
+                              {allowedRoles.includes("care_assistant") && (
+                                <SelectItem value="care_assistant">Care Assistant</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
             ))}

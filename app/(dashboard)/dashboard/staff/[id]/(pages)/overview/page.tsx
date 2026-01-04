@@ -21,6 +21,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn, formatRoleName } from "@/lib/utils";
+import { canViewStaffList, UserRole } from "@/lib/permissions";
+import { useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -57,8 +59,32 @@ type StaffOverviewProps = {
 
 export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const { id } = React.use(params);
-  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { data: activeOrg, isPending: isActiveOrgLoading } = authClient.useActiveOrganization();
+  const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isActiveMemberLoading && activeMember) {
+      if (!canViewStaffList(activeMember.role as UserRole)) {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [activeMember, isActiveMemberLoading]);
+
+  if (isActiveOrgLoading || isActiveMemberLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+    return null;
+  }
 
   // Find the staff member from organization members
   const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);

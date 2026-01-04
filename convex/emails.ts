@@ -6,8 +6,6 @@ import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export const sendEmailWithPDFAttachment = action({
   args: {
     to: v.string(),
@@ -23,6 +21,7 @@ export const sendEmailWithPDFAttachment = action({
     error: v.optional(v.string())
   }),
   handler: async (ctx, args) => {
+    const resend = new Resend(process.env.RESEND_API_KEY);
     try {
       // Get file metadata from your files table
       const fileRecord = await ctx.runQuery(
@@ -90,6 +89,7 @@ export const sendEmailWithMultiplePDFs = action({
     error: v.optional(v.string())
   }),
   handler: async (ctx, args) => {
+    const resend = new Resend(process.env.RESEND_API_KEY);
     try {
       // Get PDF files metadata and content
       const attachments = [];

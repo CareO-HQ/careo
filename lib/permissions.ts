@@ -1,173 +1,298 @@
-import { createAccessControl } from "better-auth/plugins/access";
-import {
-  defaultStatements,
-  ownerAc,
-  adminAc,
-  memberAc
-} from "better-auth/plugins/organization/access";
-
-const statement = {
-  ...defaultStatements, // Include default organization permissions
-  project: ["create", "share", "update", "delete"]
-} as const;
-
-const ac = createAccessControl(statement);
-
-// Map better-auth roles to our custom roles
-// Owner role - full access
-const owner = ac.newRole({
-  project: ["create", "update", "delete"],
-  ...ownerAc.statements // Include default owner permissions
-});
-
-// Manager role - replaces admin, high-level access
-const manager = ac.newRole({
-  project: ["create", "update", "share"],
-  ...adminAc.statements // Include default admin permissions
-});
-
-// Nurse role - medical access
-const nurse = ac.newRole({
-  project: ["create", "update"],
-  ...memberAc.statements // Include default member permissions
-});
-
-// Care Assistant role - basic care access
-const careAssistant = ac.newRole({
-  project: ["create"],
-  ...memberAc.statements // Include default member permissions
-});
-
-// Export for backward compatibility and better-auth integration
-export { owner, manager, nurse, careAssistant, ac, statement };
-// Legacy exports mapped to new roles
-export const admin = manager;
-export const member = careAssistant;
-
-/**
- * Healthcare-specific field-level permissions and access control
- * Implements role-based access control (RBAC) for sensitive resident information
- */
-
 export type UserRole = "owner" | "manager" | "nurse" | "care_assistant";
 
-export interface PermissionConfig {
-  canView: boolean;
-  canEdit: boolean;
-  requiresConsent?: boolean;
+// Simple role definitions for better-auth
+// The organization plugin expects minimal role configuration
+export const owner = {};
+
+export const manager = {};
+
+export const nurse = {};
+
+export const careAssistant = {};
+
+// Sidebar navigation permissions
+export function canViewSidebarHome(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
 }
 
-/**
- * Define which fields require elevated permissions
- */
-export const SENSITIVE_FIELDS = {
-  nhsHealthNumber: ["owner", "manager", "nurse"],
-  medicalConditions: ["owner", "manager", "nurse"],
-  medications: ["owner", "manager", "nurse"],
-  allergies: ["owner", "manager", "nurse", "care_assistant"],
-  risks: ["owner", "manager", "nurse", "care_assistant"],
-  emergencyContacts: ["owner", "manager", "nurse", "care_assistant"],
-  gpDetails: ["owner", "manager", "nurse"],
-  careManagerDetails: ["owner", "manager", "nurse", "care_assistant"],
-} as const;
-
-/**
- * Check if user has permission to view a specific field
- */
-export function canViewField(field: keyof typeof SENSITIVE_FIELDS, userRole: UserRole): boolean {
-  const allowedRoles = SENSITIVE_FIELDS[field];
-  return allowedRoles.includes(userRole);
+export function canViewSidebarResidents(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
 }
 
-/**
- * Check if user can edit resident data
- */
-export function canEditResident(userRole: UserRole): boolean {
-  return ["owner", "manager", "nurse"].includes(userRole);
+export function canViewSidebarStaff(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin";
 }
 
-/**
- * Check if user can discharge a resident
- */
-export function canDischargeResident(userRole: UserRole): boolean {
-  return ["owner", "manager"].includes(userRole);
+export function canViewSidebarHandover(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
-/**
- * Check if user can view audit logs
- */
-export function canViewAuditLogs(userRole: UserRole): boolean {
-  return ["owner", "manager"].includes(userRole);
+export function canViewSidebarAppointment(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
-/**
- * Check if user can delete data
- */
-export function canDeleteData(userRole: UserRole): boolean {
-  return ["owner"].includes(userRole);
+export function canViewSidebarIncidents(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
-/**
- * Filter resident object to only include fields user has permission to see
- */
-export function filterResidentData<T extends Record<string, any>>(
-  resident: T,
-  userRole: UserRole
-): Partial<T> {
-  const filtered = { ...resident };
+export function canViewSidebarActionPlans(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
 
-  // Hide NHS number if user doesn't have permission
-  if (!canViewField("nhsHealthNumber", userRole)) {
-    delete filtered.nhsHealthNumber;
+export function canViewSidebarNotification(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
+}
+
+export function canViewSidebarAudit(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin";
+}
+
+export function getAuditLabel(role?: string): "Audit" | "CareO Audit" | null {
+  if (role === "owner" || role === "admin") {
+    return "Audit";
+  }
+  if (role === "manager") {
+    return "CareO Audit";
+  }
+  return null;
+}
+
+// Resident Overview
+export function canViewOverview(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
+}
+
+export function canEditOverview(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin";
+}
+
+// Care File
+export function canViewCareFile(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+export function canFillCareFileForms(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Medication
+export function canViewMedication(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Food & Fluid
+export function canAddDietMenu(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+export function canLogFoodFluidEntry(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
+}
+
+// Daily Care
+export function canCreateQuickCareNotes(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+export function canLogDailyCare(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
+}
+
+// Night Check
+export function canAddNightCheck(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+export function canDeleteNightCheck(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Progress Notes
+export function canViewProgressNotes(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Documents
+export function canViewDocuments(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Appointments
+export function canViewAppointments(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Incidents & Falls
+export function canViewIncidents(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Health & Monitoring
+export function canViewHealthMonitoring(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+export function canViewHealthSafetyTitle(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Clinical
+export function canViewClinical(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Lifestyle & Social
+export function canViewLifestyleSocial(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "admin"
+  );
+}
+
+export function canAddLifestyleActivity(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Hospital Transfer
+export function canViewHospitalTransfer(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+// Multidisciplinary Notes
+export function canViewMultidisciplinaryNotes(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
+}
+
+export function canEditIncident(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin" || role === "nurse";
+}
+
+export function canCreateIncident(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin" || role === "nurse";
+}
+
+export function canViewAlert(alertType: string, role?: string): boolean {
+  if (!role) return false;
+
+  if (alertType === "food_fluid") {
+    return role === "care_assistant";
   }
 
-  // Hide medical conditions for lower-level staff
-  if (!canViewField("medicalConditions", userRole)) {
-    delete filtered.medicalConditions;
-    delete filtered.medications;
+  if (alertType === "medication") {
+    return role === "nurse";
   }
 
-  // Hide GP details for carers
-  if (!canViewField("gpDetails", userRole)) {
-    delete filtered.gpName;
-    delete filtered.gpAddress;
-    delete filtered.gpPhone;
+  if (role === "owner" || role === "manager" || role === "admin") {
+    return alertType !== "food_fluid" && alertType !== "medication";
   }
 
-  return filtered;
+  return true;
 }
 
-/**
- * Get permission summary for a user role
- */
-export function getPermissionSummary(userRole: UserRole) {
-  return {
-    role: userRole,
-    canViewSensitiveData: ["owner", "manager", "nurse"].includes(userRole),
-    canEditResidents: canEditResident(userRole),
-    canDischarge: canDischargeResident(userRole),
-    canViewAuditLogs: canViewAuditLogs(userRole),
-    canDeleteData: canDeleteData(userRole),
-    accessLevel:
-      userRole === "owner" ? "full" :
-      userRole === "manager" ? "high" :
-      userRole === "nurse" ? "medical" :
-      userRole === "care_assistant" ? "care" :
-      "read-only",
-  };
+export function canViewAuditLogs(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin";
 }
 
-/**
- * Log access to sensitive data for GDPR compliance
- */
-export function logDataAccess(params: {
-  userId: string;
-  residentId: string;
-  field: string;
-  action: "view" | "edit" | "export";
-  timestamp: number;
-}) {
-  // This would typically send to your audit logging system
-  console.info("Data access logged:", params);
-  return params;
+export function canViewStaffList(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin";
+}
+
+export function canManageDiet(role?: string): boolean {
+  if (!role) return false;
+  return role === "owner" || role === "manager" || role === "nurse";
+}
+
+export function canViewResidentSection(section: string, role?: string): boolean {
+  if (!role) return false;
+
+  switch (section) {
+    case "overview":
+      return canViewOverview(role);
+    case "care-file":
+      return canViewCareFile(role);
+    case "medication":
+      return canViewMedication(role);
+    case "food-fluid":
+      // All users can view; care assistant included explicitly
+      return canLogFoodFluidEntry(role);
+    case "daily-care":
+      // All users can view; care assistant included explicitly
+      return canLogDailyCare(role);
+    case "progress-notes":
+      return canViewProgressNotes(role);
+    case "documents":
+      return canViewDocuments(role);
+    case "night-check":
+      // Page is visible to all users
+    return true;
+    case "appointments":
+      return canViewAppointments(role);
+    case "incidents":
+      return canViewIncidents(role);
+    case "health-monitoring":
+      return canViewHealthMonitoring(role);
+    case "clinical":
+      return canViewClinical(role);
+    case "lifestyle-social":
+      return canViewLifestyleSocial(role);
+    case "hospital-transfer":
+      return canViewHospitalTransfer(role);
+    case "multidisciplinary-note":
+      return canViewMultidisciplinaryNotes(role);
+    default:
+      return false;
+  }
+}
+
+export function canInviteMembers(role: UserRole): boolean {
+  return role === "owner" || role === "manager";
+}
+
+export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
+  if (role === "owner") {
+    return ["manager"];
+  }
+  if (role === "manager") {
+    return ["nurse", "care_assistant"];
+  }
+  return [];
 }
