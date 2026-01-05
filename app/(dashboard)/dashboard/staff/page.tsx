@@ -84,8 +84,41 @@ export default function StaffPage() {
   // Use organization members if only org is selected, otherwise use team members
   const staff = activeTeamId ? teamStaff : enrichedOrgStaff;
 
+  // Filter out current user from staff list (backup safety measure)
+  const currentUserId = activeMember?.userId;
+  const currentUserEmail = activeMember?.email;
+  const staffWithoutCurrentUser = (staff || []).filter((member) => {
+    // If no current user info, include all
+    if (!currentUserId && !currentUserEmail) return true;
+    
+    // Handle different member structures
+    const isTeamMember = !!activeTeamId;
+    const teamMember = member as TeamStaffMember;
+    const orgMember = member as OrgStaffMember;
+    
+    const memberUserId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
+    const memberEmail = isTeamMember ? teamMember.email : orgMember.user.email;
+    
+    // Exclude current user - check by userId first, then by email as fallback
+    const matchesByUserId = currentUserId && memberUserId === currentUserId;
+    const matchesByEmail = currentUserEmail && memberEmail && memberEmail === currentUserEmail;
+    
+    if (matchesByUserId || matchesByEmail) {
+      console.log(`[STAFF-PAGE] ⏭️ Filtering out current user:`, {
+        memberEmail: memberEmail,
+        memberUserId: memberUserId,
+        currentUserId: currentUserId,
+        currentUserEmail: currentUserEmail,
+        matchesByUserId: matchesByUserId,
+        matchesByEmail: matchesByEmail
+      });
+      return false;
+    }
+    return true;
+  });
+
   // Filter staff based on search term
-  const filteredStaff = (staff || []).filter((member) => {
+  const filteredStaff = staffWithoutCurrentUser.filter((member) => {
     if (activeTeamId) {
       // Team member structure
       const teamMember = member as TeamStaffMember;
@@ -234,7 +267,7 @@ export default function StaffPage() {
           {/* Results count */}
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              {filteredStaff.length} of {staff?.length || 0} staff member(s)
+              {filteredStaff.length} of {staffWithoutCurrentUser.length} staff member(s)
             </div>
             <Button variant="outline" disabled>
               <Plus className="w-4 h-4 mr-2" />
@@ -264,15 +297,36 @@ export default function StaffPage() {
               ) : filteredStaff.length ? (
                 filteredStaff.map((member) => {
                   // Handle different member structures
-                  const isTeamMember = activeTeamId;
+                  // Check if this is team-level view (activeTeamId exists) vs org-level view
+                  const isTeamMember = !!activeTeamId;
                   const teamMember = member as TeamStaffMember;
                   const orgMember = member as OrgStaffMember;
 
+                  // Determine which data structure we're using based on whether activeTeamId exists
+                  // If activeTeamId exists, we're using teamStaff (TeamStaffMember structure)
+                  // If not, we're using enrichedOrgStaff (OrgStaffMember structure)
                   const name = isTeamMember ? teamMember.name : orgMember.user.name;
                   const email = isTeamMember ? teamMember.email : orgMember.user.email;
                   const phone = isTeamMember ? teamMember.phone : orgMember.phone;
                   const imageUrl = isTeamMember ? teamMember.imageUrl : orgMember.user.image;
-                  const role = isTeamMember ? teamMember.role : orgMember.role;
+                  // Extract role - ensure it's always a string (backend should guarantee this, but defensive check)
+                  const rawRole = isTeamMember ? teamMember.role : orgMember.role;
+                  const role = rawRole && typeof rawRole === 'string' && rawRole.trim() !== '' ? rawRole : undefined;
+                  
+                  // Debug logging for role issues
+                  if (!role && email) {
+                    console.warn(`[STAFF-PAGE] ⚠️ Missing role for ${email}:`, {
+                      isTeamMember,
+                      activeTeamId,
+                      rawRole,
+                      rawRoleType: typeof rawRole,
+                      teamMemberRole: isTeamMember ? teamMember.role : undefined,
+                      orgMemberRole: !isTeamMember ? orgMember.role : undefined,
+                      fullMember: member,
+                      memberKeys: Object.keys(member)
+                    });
+                  }
+                  
                   const memberId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
                   const teamName = isTeamMember ? teamMember.teamName : orgMember.teamName; // Team name for both views
 
@@ -344,7 +398,7 @@ export default function StaffPage() {
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
                     <p className="text-muted-foreground">
-                      {staff.length === 0
+                      {staffWithoutCurrentUser.length === 0
                         ? 'No staff members found in this organization/team.'
                         : 'No staff members found matching your search.'}
                     </p>
