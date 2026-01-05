@@ -1,4 +1,6 @@
 import * as admission from "./admission";
+import * as bedrailConsent from "./bedrailConsent";
+import * as bedRailsRiskAssessment from "./bedRailsRiskAssessment";
 import * as bladderBowel from "./bladderBowel";
 import * as carePlan from "./carePlan";
 import * as chokingRiskAssessment from "./chokingRiskAssessment";
@@ -22,6 +24,8 @@ import * as residentValuables from "./residentValuables";
 
 export {
   admission,
+  bedrailConsent,
+  bedRailsRiskAssessment,
   bladderBowel,
   carePlan,
   chokingRiskAssessment,

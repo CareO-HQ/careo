@@ -49,6 +49,20 @@ export function useFolderForms({
       : "skip"
   );
 
+  const allBedrailConsentForms = useQuery(
+    api.careFiles.bedrailConsent.getBedrailConsentsByResident,
+    folderFormKeys.includes("bedrail-consent-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allBedRailsRiskAssessmentForms = useQuery(
+    api.careFiles.bedRailsRiskAssessment.getBedRailsRiskAssessmentsByResident,
+    folderFormKeys.includes("bed-rails-risk-assessment-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   const allLongTermFallsForms = useQuery(
     api.careFiles.longTermFalls.getLatestAssessmentByResident,
     folderFormKeys.includes("long-term-fall-risk-form") &&
@@ -174,6 +188,13 @@ export function useFolderForms({
       : "skip"
   );
 
+  const allBestInterestDecisionForms = useQuery(
+    api.careFiles.bestInterestDecision.getBestInterestDecisionsByResident,
+    folderFormKeys.includes("best-interest-decision-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   const latestCarePlanForm = useQuery(
     api.careFiles.carePlan.getLatestCarePlanByResidentAndFolder,
     includeCarePlans && residentId && folderKey
@@ -257,6 +278,46 @@ export function useFolderForms({
           formKey: "moving-handling-form",
           formId: sortedForms[0]._id,
           name: "Moving & Handling Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Bedrail Consent forms (only show latest)
+    if (
+      allBedrailConsentForms &&
+      folderFormKeys.includes("bedrail-consent-form")
+    ) {
+      const sortedForms = [...allBedrailConsentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "bedrail-consent-form",
+          formId: sortedForms[0]._id,
+          name: "Bedrails Consent / Agreement",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Bed Rails Risk Assessment forms (only show latest)
+    if (
+      allBedRailsRiskAssessmentForms &&
+      folderFormKeys.includes("bed-rails-risk-assessment-form")
+    ) {
+      const sortedForms = [...allBedRailsRiskAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "bed-rails-risk-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Risk Assessment for Use of Bed Rails",
           completedAt: sortedForms[0]._creationTime,
           isLatest: true
         });
@@ -553,6 +614,25 @@ export function useFolderForms({
       }
     }
 
+    // Process Best Interest Decision forms (only show latest)
+    if (
+      allBestInterestDecisionForms &&
+      folderFormKeys.includes("best-interest-decision-form")
+    ) {
+      const sortedForms = [...allBestInterestDecisionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "best-interest-decision-form",
+          formId: sortedForms[0]._id,
+          name: "Best Interest Decision",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
     // Sort all PDFs by completion date (newest first)
     const sortedPdfFiles = pdfFiles.sort(
       (a, b) => b.completedAt - a.completedAt
@@ -564,6 +644,8 @@ export function useFolderForms({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
+    allBedrailConsentForms,
+    allBedRailsRiskAssessmentForms,
     allLongTermFallsForms,
     allAdmissionForms,
     allPhotographyConsentForms,
@@ -580,6 +662,7 @@ export function useFolderForms({
     allDietNotificationForms,
     allChokingRiskAssessmentForms,
     allCornellDepressionScaleForms,
+    allBestInterestDecisionForms,
     folderFormKeys
   ]);
 
@@ -589,6 +672,7 @@ export function useFolderForms({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
+    allBedrailConsentForms,
     allLongTermFallsForms,
     allAdmissionForms,
     allPhotographyConsentForms,
@@ -605,6 +689,7 @@ export function useFolderForms({
     allDietNotificationForms,
     allChokingRiskAssessmentForms,
     allCornellDepressionScaleForms,
+    allBestInterestDecisionForms,
     latestCarePlanForm,
     // Computed data
     getAllPdfFiles

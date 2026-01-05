@@ -5,6 +5,8 @@ export const managerAuditsValidator = defineTable({
   // Reference to the form/assessment that was audited
   formType: v.union(
     v.literal("movingHandlingAssessment"),
+    v.literal("bedrailConsent"),
+    v.literal("bedRailsRiskAssessment"),
     v.literal("infectionPreventionAssessment"),
     v.literal("carePlanAssessment"),
     v.literal("bladderBowelAssessment"),

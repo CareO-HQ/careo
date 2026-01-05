@@ -38,6 +38,10 @@ export default function RiskAssessmentViewDialog({
         return api.careFiles.infectionPrevention.getInfectionPreventionAssessment;
       case "moving-handling-form":
         return api.careFiles.movingHandling.getMovingHandlingAssessment;
+      case "bedrail-consent-form":
+        return api.careFiles.bedrailConsent.getBedrailConsent;
+      case "bed-rails-risk-assessment-form":
+        return api.careFiles.bedRailsRiskAssessment.getBedRailsRiskAssessment;
       case "long-term-fall-risk-form":
         return api.careFiles.longTermFalls.getLongTermFallsAssessment;
       case "blader-bowel-form":
@@ -74,6 +78,8 @@ export default function RiskAssessmentViewDialog({
         return api.careFiles.chokingRiskAssessment.getChokingRiskAssessment;
       case "cornell-depression-scale-form":
         return api.careFiles.cornellDepressionScale.getCornellDepressionScale;
+      case "best-interest-decision-form":
+        return api.careFiles.bestInterestDecision.getBestInterestDecision;
       default:
         return "skip";
     }
@@ -83,6 +89,8 @@ export default function RiskAssessmentViewDialog({
     const formKey = assessment.formKey;
     if (formKey === "infection-prevention") return { id: assessment.formId as Id<"infectionPreventionAssessments"> };
     if (formKey === "moving-handling-form") return { id: assessment.formId as Id<"movingHandlingAssessments"> };
+    if (formKey === "bedrail-consent-form") return { id: assessment.formId as Id<"bedrailConsents"> };
+    if (formKey === "bed-rails-risk-assessment-form") return { assessmentId: assessment.formId as Id<"bedRailsRiskAssessments"> };
     if (formKey === "long-term-fall-risk-form") return { id: assessment.formId as Id<"longTermFallsAssessments"> };
     if (formKey === "blader-bowel-form") return { id: assessment.formId as Id<"bladderBowelAssessments"> };
     if (formKey === "preAdmission-form") return { id: assessment.formId as Id<"preAdmissionCareFiles"> };
@@ -101,6 +109,7 @@ export default function RiskAssessmentViewDialog({
     if (formKey === "diet-notification-form") return { notificationId: assessment.formId as Id<"dietNotifications"> };
     if (formKey === "choking-risk-assessment-form") return { assessmentId: assessment.formId as Id<"chokingRiskAssessments"> };
     if (formKey === "cornell-depression-scale-form") return { assessmentId: assessment.formId as Id<"cornellDepressionScales"> };
+    if (formKey === "best-interest-decision-form") return { decisionId: assessment.formId as Id<"bestInterestDecisions"> };
     return "skip";
   };
 
@@ -130,12 +139,16 @@ export default function RiskAssessmentViewDialog({
         return "bg-orange-50 text-orange-700";
       case "Fall Risk":
         return "bg-red-50 text-red-700";
+      case "Risk Assessment":
+        return "bg-amber-50 text-amber-700";
       case "Continence":
         return "bg-purple-50 text-purple-700";
       case "Medication":
         return "bg-green-50 text-green-700";
       case "Nutrition":
         return "bg-emerald-50 text-emerald-700";
+      case "Capacity":
+        return "bg-indigo-50 text-indigo-700";
       default:
         return "bg-gray-50 text-gray-700";
     }
@@ -156,7 +169,22 @@ export default function RiskAssessmentViewDialog({
             key === "organizationId" ||
             key === "teamId" ||
             key === "createdBy" || // Skip createdBy ID, we show createdByName instead
-            key === "updatedBy"
+            key === "updatedBy" ||
+            key === "pdfFileId" ||
+            key === "pdfGenerated" ||
+            key === "pdfGeneratedAt" ||
+            key === "isArchived" ||
+            key === "archivedAt" ||
+            key === "savedAsDraft" ||
+            key === "updatedAt" ||
+            // Skip consent sections as they're handled specially above
+            (key === "ableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
+            (key === "unableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
+            // Skip bed rails risk assessment fields that are handled specially
+            (key === "exclusionCriteria" && assessment.formKey === "bed-rails-risk-assessment-form") ||
+            (key === "authorizationRationale" && assessment.formKey === "bed-rails-risk-assessment-form") ||
+            (key === "safetyChecklist" && assessment.formKey === "bed-rails-risk-assessment-form") ||
+            (key === "extendedHeightChecks" && assessment.formKey === "bed-rails-risk-assessment-form")
           ) {
             return null;
           }
@@ -166,6 +194,198 @@ export default function RiskAssessmentViewDialog({
             .replace(/([A-Z])/g, " $1")
             .replace(/^./, (str) => str.toUpperCase())
             .trim();
+
+          // Special handling for Date of Birth
+          if (key === "dateOfBirth") {
+            const dateValue = typeof value === "number" ? new Date(value) : null;
+            return (
+              <div key={key} className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Date of Birth</p>
+                <p className="text-sm leading-relaxed">
+                  {dateValue ? format(dateValue, "dd MMM yyyy") : "Not available"}
+                </p>
+              </div>
+            );
+          }
+
+          // Special handling for Bed Rails Risk Assessment fields
+          if (assessment.formKey === "bed-rails-risk-assessment-form") {
+            // Type of Bed
+            if (key === "typeOfBed") {
+              const bedTypeMap: Record<string, string> = {
+                "DIVAN": "Divan Bed",
+                "PROFILING_BED": "Profiling Bed"
+              };
+              return (
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Type of Bed</p>
+                  <p className="text-sm leading-relaxed">{bedTypeMap[value as string] || value}</p>
+                </div>
+              );
+            }
+
+            // Type of Mattress
+            if (key === "typeOfMattress") {
+              const mattressTypeMap: Record<string, string> = {
+                "STANDARD": "Standard Mattress",
+                "LIGHTWEIGHT_FOAM": "Lightweight Foam Mattress",
+                "STANDARD_WITH_OVERLAY": "Standard Mattress with Overlay",
+                "FULL_REPLACEMENT": "Full Replacement Mattress"
+              };
+              return (
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Type of Mattress</p>
+                  <p className="text-sm leading-relaxed">{mattressTypeMap[value as string] || value}</p>
+                </div>
+              );
+            }
+
+            // Type of Bedrails
+            if (key === "typeOfBedrails") {
+              const bedrailTypeMap: Record<string, string> = {
+                "INTEGRAL_FIXED": "Integral Fixed Bedrails",
+                "EXTENDED_HEIGHT_INTEGRAL": "Extended Height Integral Bedrails",
+                "EXTENDED_HEIGHT_NON_INTEGRAL": "Extended Height Non-Integral Bedrails"
+              };
+              return (
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Type of Bedrails</p>
+                  <p className="text-sm leading-relaxed">{bedrailTypeMap[value as string] || value}</p>
+                </div>
+              );
+            }
+
+            // Yes/No fields
+            if (key === "reasonExplainedToResident" || key === "consentObtained" || key === "carePlanCompleted") {
+              return (
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
+                  <p className="text-sm leading-relaxed">{value === "YES" ? "Yes" : "No"}</p>
+                </div>
+              );
+            }
+
+            // Boolean fields
+            if (key === "anyExclusionChecked" || key === "anySafetyCheckFailed" || key === "hasExtendedHeightRails") {
+              return (
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
+                  <p className="text-sm leading-relaxed">{value ? "Yes" : "No"}</p>
+                </div>
+              );
+            }
+          }
+
+          // Special handling for Bedrail Consent Type
+          if (key === "consentType" && assessment.formKey === "bedrail-consent-form") {
+            const consentTypeMap: Record<string, string> = {
+              "ABLE_TO_CONSENT": "Resident is able to consent",
+              "UNABLE_TO_CONSENT": "Resident is unable to consent"
+            };
+            return (
+              <div key={key} className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Consent Type</p>
+                <p className="text-sm leading-relaxed">
+                  {consentTypeMap[value as string] || value}
+                </p>
+              </div>
+            );
+          }
+
+          // Special handling for Bedrail Consent sections
+          if (key === "ableToConsentSection" && assessment.formKey === "bedrail-consent-form") {
+            const section = value as any;
+            if (!section) return null;
+
+            const consentChoiceMap: Record<string, string> = {
+              "CONSENT_TO_USE": "I would like bed rails/bumpers to be used",
+              "REFUSE_TO_USE": "I do NOT want bed rails or bumpers to be used"
+            };
+
+            return (
+              <div key={key} className="space-y-3">
+                <p className="text-sm font-semibold text-primary">Resident Consent Section</p>
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Consent Decision</p>
+                    <p className="text-sm leading-relaxed">
+                      {consentChoiceMap[section.consentChoice] || section.consentChoice}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Resident Signature</p>
+                    <p className="text-sm font-medium">{section.residentSignature}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Staff Member</p>
+                      <p className="text-sm">{section.staffMemberName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Staff Signature</p>
+                      <p className="text-sm font-medium">{section.staffMemberSignature}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Date Signed</p>
+                    <p className="text-sm">{section.staffSignatureDate}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (key === "unableToConsentSection" && assessment.formKey === "bedrail-consent-form") {
+            const section = value as any;
+            if (!section) return null;
+
+            const preferenceMap: Record<string, string> = {
+              "WOULD_PREFER_USE": "Would have preferred to use bed rails/bumpers",
+              "WOULD_NOT_PREFER_USE": "Would not have preferred to use bed rails/bumpers"
+            };
+
+            return (
+              <div key={key} className="space-y-3">
+                <p className="text-sm font-semibold text-primary">Representative Consent Section</p>
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Next of Kin / Advocate / MDT Member</p>
+                    <p className="text-sm font-medium">{section.representativeName}</p>
+                  </div>
+                  <div className="p-3 bg-muted rounded-md">
+                    <p className="text-xs italic text-muted-foreground">
+                      Discussion acknowledged: The representative has discussed the use of bed rails/bumpers
+                      with professionals concerned, based on the resident's previously expressed wishes and beliefs.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Resident's Presumed Preference</p>
+                    <p className="text-sm leading-relaxed">
+                      {preferenceMap[section.residentPreference] || section.residentPreference}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Representative Signature</p>
+                    <p className="text-sm font-medium">{section.representativeSignature}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Staff Member</p>
+                      <p className="text-sm">{section.staffMemberName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Staff Signature</p>
+                      <p className="text-sm font-medium">{section.staffMemberSignature}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Date Signed</p>
+                    <p className="text-sm">{section.staffSignatureDate}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           // Special handling for Dependency Level
           if (key === "dependencyLevel" && assessment.formKey === "dependency-assessment") {
@@ -359,6 +579,143 @@ export default function RiskAssessmentViewDialog({
             </div>
           );
         })}
+
+        {/* Special rendering for Bed Rails Risk Assessment complex objects */}
+        {assessment.formKey === "bed-rails-risk-assessment-form" && (
+          <>
+            {/* Exclusion Criteria */}
+            {data.exclusionCriteria && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-primary">Exclusion Criteria</p>
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Resident refuses:</span>
+                      <span className="text-sm">{data.exclusionCriteria.residentRefuses ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Climbing risk:</span>
+                      <span className="text-sm">{data.exclusionCriteria.climbingRisk ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Entrapment risk:</span>
+                      <span className="text-sm">{data.exclusionCriteria.entrapmentRisk ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Abnormal body size:</span>
+                      <span className="text-sm">{data.exclusionCriteria.abnormalBodySize ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Restraint purpose:</span>
+                      <span className="text-sm">{data.exclusionCriteria.restraintPurpose ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Freedom limitation:</span>
+                      <span className="text-sm">{data.exclusionCriteria.freedomLimitation ? "Yes" : "No"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Authorization Rationale */}
+            {data.authorizationRationale && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-primary">Authorization Rationale</p>
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Resident requests:</span>
+                      <span className="text-sm">{data.authorizationRationale.residentRequests ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">MDT meeting completed:</span>
+                      <span className="text-sm">{data.authorizationRationale.mdtMeetingCompleted ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Risk outweighs benefit:</span>
+                      <span className="text-sm">{data.authorizationRationale.riskOutweighsBenefit ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Alternatives explored:</span>
+                      <span className="text-sm">{data.authorizationRationale.alternativesExplored ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Best interest decision:</span>
+                      <span className="text-sm">{data.authorizationRationale.bestInterestDecision ? "Yes" : "No"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Safety Checklist */}
+            {data.safetyChecklist && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-primary">Safety Checklist</p>
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Gap between rail and mattress:</span>
+                      <span className="text-sm">{data.safetyChecklist.gapBetweenRailAndMattress === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Mattress compresses easily:</span>
+                      <span className="text-sm">{data.safetyChecklist.mattressCompressesEasily === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Gap more than 60mm:</span>
+                      <span className="text-sm">{data.safetyChecklist.gapMoreThan60mm === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Bed rail insecure:</span>
+                      <span className="text-sm">{data.safetyChecklist.bedRailInsecure === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Bed against wall:</span>
+                      <span className="text-sm">{data.safetyChecklist.bedAgainstWall === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Extended Height Checks */}
+            {data.extendedHeightChecks && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-primary">Extended Height Checks</p>
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Positioned correctly:</span>
+                      <span className="text-sm">{data.extendedHeightChecks.positionedCorrectly === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Securely fastened:</span>
+                      <span className="text-sm">{data.extendedHeightChecks.securelyFastened === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Correct bumpers installed:</span>
+                      <span className="text-sm">{data.extendedHeightChecks.correctBumpersInstalled === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Mattress below plimsoll line:</span>
+                      <span className="text-sm">{data.extendedHeightChecks.mattressBelowPlimsollLine === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Staff trained:</span>
+                      <span className="text-sm">{data.extendedHeightChecks.staffTrained === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Checked for damage:</span>
+                      <span className="text-sm">{data.extendedHeightChecks.checkedForDamage === "YES" ? "Yes" : "No"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   };

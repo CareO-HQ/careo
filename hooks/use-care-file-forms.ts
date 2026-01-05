@@ -39,6 +39,16 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     { residentId }
   );
 
+  const bedrailConsentForms = useQuery(
+    api.careFiles.bedrailConsent.getBedrailConsentsByResident,
+    { residentId }
+  );
+
+  const bedRailsRiskAssessmentForms = useQuery(
+    api.careFiles.bedRailsRiskAssessment.getBedRailsRiskAssessmentsByResident,
+    { residentId }
+  );
+
   const longTermFallsAssessment = useQuery(
     api.careFiles.longTermFalls.getLatestAssessmentByResident,
     activeOrg?.id
@@ -122,6 +132,11 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     activeOrg?.id ? { residentId, organizationId: activeOrg.id } : "skip"
   );
 
+  const bestInterestDecisionForms = useQuery(
+    api.careFiles.bestInterestDecision.getBestInterestDecisionsByResident,
+    { residentId }
+  );
+
   // Get PDF URLs for the latest forms (newest _creationTime first)
   const latestPreAdmissionForm = preAdmissionForms?.sort(
     (a, b) => b._creationTime - a._creationTime
@@ -134,6 +149,12 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
   const latestMovingHandlingAssessment = movingHandlingAssessments?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestBedrailConsentForm = bedrailConsentForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+  const latestBedRailsRiskAssessmentForm = bedRailsRiskAssessmentForms?.sort(
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
   const latestLongTermFallsAssessment = longTermFallsAssessment;
@@ -193,6 +214,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     (a, b) => b._creationTime - a._creationTime
   )?.[0];
 
+  const latestBestInterestDecisionForm = bestInterestDecisionForms?.sort(
+    (a, b) => b._creationTime - a._creationTime
+  )?.[0];
+
   const preAdmissionPdfUrl = useQuery(
     api.careFiles.preadmission.getPDFUrl,
     latestPreAdmissionForm ? { formId: latestPreAdmissionForm._id } : "skip"
@@ -216,6 +241,20 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     api.careFiles.movingHandling.getPDFUrl,
     latestMovingHandlingAssessment
       ? { assessmentId: latestMovingHandlingAssessment._id }
+      : "skip"
+  );
+
+  const bedrailConsentPdfUrl = useQuery(
+    api.careFiles.bedrailConsent.getPDFUrl,
+    latestBedrailConsentForm
+      ? { consentId: latestBedrailConsentForm._id }
+      : "skip"
+  );
+
+  const bedRailsRiskAssessmentPdfUrl = useQuery(
+    api.careFiles.bedRailsRiskAssessment.getPdfUrl,
+    latestBedRailsRiskAssessmentForm
+      ? { assessmentId: latestBedRailsRiskAssessmentForm._id }
       : "skip"
   );
 
@@ -349,6 +388,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       : "skip"
   );
 
+  const bestInterestDecisionPdfUrl = useQuery(
+    api.careFiles.bestInterestDecision.getPdfUrl,
+    latestBestInterestDecisionForm
+      ? { decisionId: latestBestInterestDecisionForm._id }
+      : "skip"
+  );
+
   // Query audit status for all latest forms
   const formIds = useMemo(() => {
     const ids: string[] = [];
@@ -359,6 +405,10 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       ids.push(latestBladderBowelAssessment._id);
     if (latestMovingHandlingAssessment)
       ids.push(latestMovingHandlingAssessment._id);
+    if (latestBedrailConsentForm)
+      ids.push(latestBedrailConsentForm._id);
+    if (latestBedRailsRiskAssessmentForm)
+      ids.push(latestBedRailsRiskAssessmentForm._id);
     if (latestLongTermFallsAssessment)
       ids.push(latestLongTermFallsAssessment._id);
     if (latestAdmissionAssessment) ids.push(latestAdmissionAssessment._id);
@@ -378,12 +428,15 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     if (latestDietNotificationForm) ids.push(latestDietNotificationForm._id);
     if (latestChokingRiskAssessmentForm) ids.push(latestChokingRiskAssessmentForm._id);
     if (latestCornellDepressionScaleForm) ids.push(latestCornellDepressionScaleForm._id);
+    if (latestBestInterestDecisionForm) ids.push(latestBestInterestDecisionForm._id);
     return ids;
   }, [
     latestPreAdmissionForm,
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
+    latestBedrailConsentForm,
+    latestBedRailsRiskAssessmentForm,
     latestLongTermFallsAssessment,
     latestAdmissionAssessment,
     latestPhotographyConsent,
@@ -399,7 +452,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestOralAssessmentForm,
     latestDietNotificationForm,
     latestChokingRiskAssessmentForm,
-    latestCornellDepressionScaleForm
+    latestCornellDepressionScaleForm,
+    latestBestInterestDecisionForm
   ]);
 
   const auditStatus = useQuery(
@@ -591,6 +645,58 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       isAudited: movingHandlingAudit?.isAudited || false,
       auditedAt: movingHandlingAudit?.auditedAt,
       auditedBy: movingHandlingAudit?.auditedBy
+    };
+
+    // Bedrail Consent
+    const hasBedrailConsentData = !!latestBedrailConsentForm;
+    const bedrailConsentHasPdfFileId = !!latestBedrailConsentForm?.pdfFileId;
+    const bedrailConsentAudit = latestBedrailConsentForm
+      ? auditStatus?.[latestBedrailConsentForm._id as string]
+      : undefined;
+
+    state["bedrail-consent-form"] = {
+      status: getFormStatus(
+        hasBedrailConsentData,
+        latestBedrailConsentForm?.savedAsDraft,
+        bedrailConsentHasPdfFileId,
+        bedrailConsentPdfUrl
+      ),
+      hasData: hasBedrailConsentData,
+      hasPdfFileId: bedrailConsentHasPdfFileId,
+      pdfUrl: bedrailConsentPdfUrl,
+      lastUpdated: latestBedrailConsentForm?._creationTime,
+      completedAt: !latestBedrailConsentForm?.savedAsDraft
+        ? latestBedrailConsentForm?.createdAt
+        : undefined,
+      isAudited: bedrailConsentAudit?.isAudited || false,
+      auditedAt: bedrailConsentAudit?.auditedAt,
+      auditedBy: bedrailConsentAudit?.auditedBy
+    };
+
+    // Bed Rails Risk Assessment
+    const hasBedRailsRiskAssessmentData = !!latestBedRailsRiskAssessmentForm;
+    const bedRailsRiskAssessmentHasPdfFileId = !!latestBedRailsRiskAssessmentForm?.pdfFileId;
+    const bedRailsRiskAssessmentAudit = latestBedRailsRiskAssessmentForm
+      ? auditStatus?.[latestBedRailsRiskAssessmentForm._id as string]
+      : undefined;
+
+    state["bed-rails-risk-assessment-form"] = {
+      status: getFormStatus(
+        hasBedRailsRiskAssessmentData,
+        latestBedRailsRiskAssessmentForm?.savedAsDraft,
+        bedRailsRiskAssessmentHasPdfFileId,
+        bedRailsRiskAssessmentPdfUrl
+      ),
+      hasData: hasBedRailsRiskAssessmentData,
+      hasPdfFileId: bedRailsRiskAssessmentHasPdfFileId,
+      pdfUrl: bedRailsRiskAssessmentPdfUrl,
+      lastUpdated: latestBedRailsRiskAssessmentForm?._creationTime,
+      completedAt: !latestBedRailsRiskAssessmentForm?.savedAsDraft
+        ? latestBedRailsRiskAssessmentForm?.createdAt
+        : undefined,
+      isAudited: bedRailsRiskAssessmentAudit?.isAudited || false,
+      auditedAt: bedRailsRiskAssessmentAudit?.auditedAt,
+      auditedBy: bedRailsRiskAssessmentAudit?.auditedBy
     };
 
     // Long Term Falls Risk Assessment
@@ -1073,6 +1179,32 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       auditedBy: cornellDepressionScaleAudit?.auditedBy
     };
 
+    // Best Interest Decision
+    const hasBestInterestDecisionData = !!latestBestInterestDecisionForm;
+    const bestInterestDecisionHasPdfFileId = !!latestBestInterestDecisionForm?.pdfFileId;
+    const bestInterestDecisionAudit = latestBestInterestDecisionForm
+      ? auditStatus?.[latestBestInterestDecisionForm._id as string]
+      : undefined;
+
+    state["best-interest-decision-form"] = {
+      status: getFormStatus(
+        hasBestInterestDecisionData,
+        latestBestInterestDecisionForm?.savedAsDraft,
+        bestInterestDecisionHasPdfFileId,
+        bestInterestDecisionPdfUrl
+      ),
+      hasData: hasBestInterestDecisionData,
+      hasPdfFileId: bestInterestDecisionHasPdfFileId,
+      pdfUrl: bestInterestDecisionPdfUrl,
+      lastUpdated: latestBestInterestDecisionForm?._creationTime,
+      completedAt: !latestBestInterestDecisionForm?.savedAsDraft
+        ? latestBestInterestDecisionForm?.createdAt
+        : undefined,
+      isAudited: bestInterestDecisionAudit?.isAudited || false,
+      auditedAt: bestInterestDecisionAudit?.auditedAt,
+      auditedBy: bestInterestDecisionAudit?.auditedBy
+    };
+
     // Add other forms here as they are implemented
     // state["discharge-form"] = { ... };
 
@@ -1082,6 +1214,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
+    latestBedrailConsentForm,
     latestLongTermFallsAssessment,
     latestAdmissionAssessment,
     latestPhotographyConsent,
@@ -1097,6 +1230,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     infectionPreventionPdfUrl,
     bladderBowelPdfUrl,
     movingHandlingPdfUrl,
+    bedrailConsentPdfUrl,
+    bedRailsRiskAssessmentPdfUrl,
     longTermFallsPdfUrl,
     admissionPdfUrl,
     photographyConsentPdfUrl,
@@ -1114,6 +1249,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     chokingRiskAssessmentPdfUrl,
     latestCornellDepressionScaleForm,
     cornellDepressionScalePdfUrl,
+    latestBestInterestDecisionForm,
+    bestInterestDecisionPdfUrl,
     auditStatus
   ]);
 
@@ -1181,6 +1318,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     latestInfectionPreventionAssessment,
     latestBladderBowelAssessment,
     latestMovingHandlingAssessment,
+    latestBedrailConsentForm,
     latestLongTermFallsAssessment,
     latestAdmissionAssessment,
     latestPhotographyConsent,

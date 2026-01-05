@@ -261,6 +261,10 @@ export default function CareFileFolder({
     api.careFiles.cornellDepressionScale.getArchivedForResident,
     residentId ? { residentId } : "skip"
   );
+  const archivedBestInterestDecision = useQuery(
+    api.careFiles.bestInterestDecision.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
   const archivedInfectionPrevention = useQuery(
     api.careFiles.infectionPrevention.getArchivedForResident,
     residentId ? { residentId } : "skip"
@@ -271,6 +275,14 @@ export default function CareFileFolder({
   );
   const archivedMovingHandling = useQuery(
     api.careFiles.movingHandling.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedBedrailConsent = useQuery(
+    api.careFiles.bedrailConsent.getArchivedForResident,
+    residentId ? { residentId } : "skip"
+  );
+  const archivedBedRailsRiskAssessment = useQuery(
+    api.careFiles.bedRailsRiskAssessment.getArchivedForResident,
     residentId ? { residentId } : "skip"
   );
   const archivedCarePlans = useQuery(
@@ -291,6 +303,8 @@ export default function CareFileFolder({
     ...(archivedSkinIntegrity?.map((item: any) => ({ ...item, formKey: "skin-integrity-form", formType: "Skin Integrity Assessment", folderKey: "skin integrity" })) || []),
     ...(archivedResidentValuables?.map((item: any) => ({ ...item, formKey: "resident-valuables-form", formType: "Resident Valuables", folderKey: "resident-valuables" })) || []),
     ...(archivedMovingHandling?.map((item: any) => ({ ...item, formKey: "moving-handling-form", formType: "Moving & Handling Assessment", folderKey: "mobility-fall" })) || []),
+    ...(archivedBedrailConsent?.map((item: any) => ({ ...item, formKey: "bedrail-consent-form", formType: "Bedrails Consent / Agreement", folderKey: "mobility-fall" })) || []),
+    ...(archivedBedRailsRiskAssessment?.map((item: any) => ({ ...item, formKey: "bed-rails-risk-assessment-form", formType: "Risk Assessment for Use of Bed Rails", folderKey: "mobility-fall" })) || []),
     ...(archivedHandlingProfile?.map((item: any) => ({ ...item, formKey: "resident-handling-profile-form", formType: "Resident Handling Profile", folderKey: "mobility-fall" })) || []),
     ...(archivedBladderBowel?.map((item: any) => ({ ...item, formKey: "blader-bowel-form", formType: "Bladder & Bowel Assessment", folderKey: "continence" })) || []),
     ...(archivedPainAssessment?.map((item: any) => ({ ...item, formKey: "pain-assessment-form", formType: "Pain Assessment and Evaluation", folderKey: "medication" })) || []),
@@ -299,6 +313,7 @@ export default function CareFileFolder({
     ...(archivedDietNotification?.map((item: any) => ({ ...item, formKey: "diet-notification-form", formType: "Diet Notification", folderKey: "nutrition-hydration" })) || []),
     ...(archivedChokingRiskAssessment?.map((item: any) => ({ ...item, formKey: "choking-risk-assessment-form", formType: "Choking Risk Assessment", folderKey: "nutrition-hydration" })) || []),
     ...(archivedCornellDepressionScale?.map((item: any) => ({ ...item, formKey: "cornell-depression-scale-form", formType: "Cornell Scale for Depression in Dementia", folderKey: "psychological-emotional" })) || []),
+    ...(archivedBestInterestDecision?.map((item: any) => ({ ...item, formKey: "best-interest-decision-form", formType: "Best Interest Decision", folderKey: "capacity-consent" })) || []),
     ...(archivedCarePlans?.map((item: any) => ({ ...item, formKey: "care-plan-form", formType: "Care Plan", folderKey: item.folderKey })) || [])
   ].sort((a, b) => b.archivedAt - a.archivedAt); // Sort by most recently archived first
 
@@ -339,6 +354,8 @@ export default function CareFileFolder({
     const viewableEditableForms = [
       { key: "infection-prevention", name: "Infection Prevention Assessment", category: "Infection Control", canDelete: true, canView: true, canEdit: true },
       { key: "moving-handling-form", name: "Moving & Handling Assessment", category: "Moving & Handling", canDelete: true, canView: true, canEdit: true },
+      { key: "bedrail-consent-form", name: "Bedrails Consent / Agreement", category: "Consent", canDelete: true, canView: true, canEdit: true },
+      { key: "bed-rails-risk-assessment-form", name: "Risk Assessment for Use of Bed Rails", category: "Risk Assessment", canDelete: true, canView: true, canEdit: true },
       { key: "blader-bowel-form", name: "Continence Assessment", category: "Continence", canDelete: true, canView: true, canEdit: true },
       { key: "long-term-fall-risk-form", name: "Fall Risk Assessment", category: "Fall Risk", canDelete: true, canView: true, canEdit: true },
       { key: "preAdmission-form", name: "Pre-Admission Form", category: "Pre-Admission", canDelete: true, canView: true, canEdit: true },
@@ -356,7 +373,8 @@ export default function CareFileFolder({
       { key: "oral-assessment-form", name: "Oral Assessment", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
       { key: "diet-notification-form", name: "Diet Notification", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
       { key: "choking-risk-assessment-form", name: "Choking Risk Assessment", category: "Nutrition", canDelete: true, canView: true, canEdit: true },
-      { key: "cornell-depression-scale-form", name: "Cornell Scale for Depression in Dementia", category: "Psychological", canDelete: true, canView: true, canEdit: true }
+      { key: "cornell-depression-scale-form", name: "Cornell Scale for Depression in Dementia", category: "Psychological", canDelete: true, canView: true, canEdit: true },
+      { key: "best-interest-decision-form", name: "Best Interest Decision", category: "Capacity", canDelete: true, canView: true, canEdit: true }
     ];
     const isViewableForm = viewableEditableForms.some(f => f.key === file.formKey);
     const formConfig = viewableEditableForms.find(f => f.key === file.formKey);
@@ -370,7 +388,7 @@ export default function CareFileFolder({
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-primary">
-                {file.name}.pdf
+                {file.name}
               </p>
             </div>
             <div className="flex flex-row items-center gap-2">
@@ -443,6 +461,8 @@ export default function CareFileFolder({
                 const formTypeMap: Record<string, string> = {
                   "infection-prevention": "infectionPreventionAssessment",
                   "moving-handling-form": "movingHandlingAssessment",
+                  "bedrail-consent-form": "bedrailConsent",
+                  "bed-rails-risk-assessment-form": "bedRailsRiskAssessment",
                   "blader-bowel-form": "bladderBowelAssessment",
                   "long-term-fall-risk-form": "longTermFallsRiskAssessment",
                   "preAdmission-form": "preAdmissionCareFile",
@@ -460,7 +480,8 @@ export default function CareFileFolder({
                   "oral-assessment-form": "oralAssessment",
                   "diet-notification-form": "dietNotification",
                   "choking-risk-assessment-form": "chokingRiskAssessment",
-                  "cornell-depression-scale-form": "cornellDepressionScale"
+                  "cornell-depression-scale-form": "cornellDepressionScale",
+                  "best-interest-decision-form": "bestInterestDecision"
                 };
                 setReviewFormData({
                   formType: formTypeMap[file.formKey] || file.formKey,
@@ -651,6 +672,8 @@ export default function CareFileFolder({
   const deleteCarePlanMutation = useMutation(api.careFiles.carePlan.deleteCarePlanAssessment);
   const deleteInfectionPreventionMutation = useMutation(api.careFiles.infectionPrevention.deleteInfectionPreventionAssessment);
   const deleteMovingHandlingMutation = useMutation(api.careFiles.movingHandling.deleteMovingHandlingAssessment);
+  const deleteBedrailConsentMutation = useMutation(api.careFiles.bedrailConsent.deleteBedrailConsent);
+  const deleteBedRailsRiskAssessmentMutation = useMutation(api.careFiles.bedRailsRiskAssessment.deleteBedRailsRiskAssessment);
   const deleteBladderBowelMutation = useMutation(api.careFiles.bladderBowel.deleteBladderBowelAssessment);
   const deleteAdmissionMutation = useMutation(api.careFiles.admission.deleteAdmissionAssessment);
   const deleteDependencyMutation = useMutation(api.careFiles.dependency.deleteDependencyAssessment);
@@ -668,6 +691,7 @@ export default function CareFileFolder({
   const deleteDietNotificationMutation = useMutation(api.careFiles.dietNotification.deleteDietNotification);
   const deleteChokingRiskAssessmentMutation = useMutation(api.careFiles.chokingRiskAssessment.deleteChokingRiskAssessment);
   const deleteCornellDepressionScaleMutation = useMutation(api.careFiles.cornellDepressionScale.deleteCornellDepressionScale);
+  const deleteBestInterestDecisionMutation = useMutation(api.careFiles.bestInterestDecision.deleteBestInterestDecision);
   const getAllFilesForDownload = useAction(
     api.careFilePdfs.getAllFilesForFolderDownload
   );
@@ -725,6 +749,16 @@ export default function CareFileFolder({
         case "moving-handling-form":
           await deleteMovingHandlingMutation({
             id: formId as Id<"movingHandlingAssessments">
+          });
+          break;
+        case "bedrail-consent-form":
+          await deleteBedrailConsentMutation({
+            id: formId as Id<"bedrailConsents">
+          });
+          break;
+        case "bed-rails-risk-assessment-form":
+          await deleteBedRailsRiskAssessmentMutation({
+            id: formId as Id<"bedRailsRiskAssessments">
           });
           break;
         case "blader-bowel-form":
@@ -818,6 +852,11 @@ export default function CareFileFolder({
             organizationId: activeOrg?.id ?? ""
           });
           break;
+        case "best-interest-decision-form":
+          await deleteBestInterestDecisionMutation({
+            decisionId: formId as Id<"bestInterestDecisions">
+          });
+          break;
         default:
           toast.error("Delete not supported for this form type");
           setIsDeletingForm(false);
@@ -901,7 +940,7 @@ export default function CareFileFolder({
                 />
               ) : (
                 <p className="text-sm font-medium text-primary">
-                  {pdf.name}.pdf
+                  {pdf.name}
                 </p>
               )}
             </div>
@@ -1008,6 +1047,8 @@ export default function CareFileFolder({
               return `bladder-bowel-assessment-${baseName}.pdf`;
             case "moving-handling-form":
               return `moving-handling-assessment-${baseName}.pdf`;
+            case "bedrail-consent-form":
+              return `bedrail-consent-${baseName}.pdf`;
             case "long-term-fall-risk-form":
               return `long-term-falls-assessment-${baseName}.pdf`;
             case "care-plan-form":
@@ -1040,6 +1081,8 @@ export default function CareFileFolder({
               return `choking-risk-assessment-${baseName}.pdf`;
             case "cornell-depression-scale-form":
               return `cornell-depression-scale-${baseName}.pdf`;
+            case "best-interest-decision-form":
+              return `best-interest-decision-${baseName}.pdf`;
             default:
               return `${key}-${baseName}.pdf`;
           }
@@ -1228,8 +1271,8 @@ export default function CareFileFolder({
             )}
           </div>
         </SheetTrigger>
-        <SheetContent size="lg">
-          <SheetHeader>
+        <SheetContent size="lg" className="flex flex-col">
+          <SheetHeader className="flex-shrink-0">
             <div className="flex items-center justify-between pr-10">
               <SheetTitle>{folderName}</SheetTitle>
               <UploadFileModal
@@ -1240,10 +1283,44 @@ export default function CareFileFolder({
             </div>
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>
-          <div className="flex flex-col justify-between h-full">
-            <div className="flex flex-col gap-1 px-4">
+          <div className="flex flex-col justify-between flex-1 overflow-hidden">
+            <div className="flex flex-col gap-1 px-4 overflow-y-auto flex-1">
               <p className="text-muted-foreground text-sm font-medium">Forms</p>
               {forms?.map((form) => {
+                // Handle external links
+                if (form.type === "link") {
+                  return (
+                    <a
+                      key={form.key}
+                      href={form.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group cursor-pointer hover:bg-muted/50 hover:text-primary"
+                      title={form.description}
+                    >
+                      <div className="flex flex-row items-center gap-2">
+                        <svg
+                          className="h-4 w-4 text-blue-500"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                        <p className="overflow-ellipsis overflow-hidden whitespace-nowrap max-w-full">
+                          {form.value}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                }
+
+                // Handle regular forms
                 const formKey = form.key as CareFileFormKey;
                 const formState = getFormState(formKey);
                 const showDownload = canDownloadPdf(formKey);
@@ -1454,12 +1531,26 @@ export default function CareFileFolder({
                   const isLoadingArchived =
                     archivedPreAdmission === undefined ||
                     archivedAdmission === undefined ||
+                    archivedPhotographyConsent === undefined ||
+                    archivedDnacpr === undefined ||
+                    archivedPeep === undefined ||
+                    archivedDependency === undefined ||
+                    archivedTiml === undefined ||
+                    archivedSkinIntegrity === undefined ||
+                    archivedResidentValuables === undefined ||
+                    archivedHandlingProfile === undefined ||
                     archivedPainAssessment === undefined ||
                     archivedNutritionalAssessment === undefined ||
                     archivedOralAssessment === undefined ||
                     archivedDietNotification === undefined ||
                     archivedChokingRiskAssessment === undefined ||
                     archivedCornellDepressionScale === undefined ||
+                    archivedBestInterestDecision === undefined ||
+                    archivedInfectionPrevention === undefined ||
+                    archivedBladderBowel === undefined ||
+                    archivedMovingHandling === undefined ||
+                    archivedBedrailConsent === undefined ||
+                    archivedBedRailsRiskAssessment === undefined ||
                     archivedCarePlans === undefined;
 
                   if (isLoadingArchived) {
@@ -1492,7 +1583,7 @@ export default function CareFileFolder({
                 })()}
               </div>
             </div>
-            <div className="px-4 py-2 flex flex-row justify-end items-center">
+            <div className="px-4 py-2 flex flex-row justify-end items-center flex-shrink-0 border-t">
               <Button
                 variant="outline"
                 size="sm"

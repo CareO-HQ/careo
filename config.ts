@@ -127,10 +127,17 @@ export const config = {
     {
       type: "folder",
       key: "capacity-consent",
-      value: "Capacity Consent",
-      description: "Capacity Consent",
+      value: "Capacity & Consent",
+      description: "Capacity & Consent Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "best-interest-decision-form",
+          value: "Best Interest Decision",
+          description: "Best Interest Decision Form"
+        }
+      ]
     },
     {
       type: "folder",
@@ -171,6 +178,18 @@ export const config = {
           key: "resident-handling-profile-form",
           value: "Resident Handling Profile",
           description: "Resident Handling Profile"
+        },
+        {
+          type: "form",
+          key: "bedrail-consent-form",
+          value: "Bedrails Consent / Agreement",
+          description: "Bedrails Consent / Agreement"
+        },
+        {
+          type: "form",
+          key: "bed-rails-risk-assessment-form",
+          value: "Risk Assessment for Use of Bed Rails",
+          description: "Risk Assessment for Use of Bed Rails"
         }
       ]
     },
@@ -204,6 +223,13 @@ export const config = {
           key: "choking-risk-assessment-form",
           value: "Choking Risk Assessment",
           description: "Choking Risk Assessment"
+        },
+        {
+          type: "link",
+          key: "must-calculator",
+          value: "MUST Calculator",
+          description: "Malnutrition Universal Screening Tool Calculator",
+          url: "https://www.bapen.org.uk/must-and-self-screening/must-calculator/"
         }
       ]
     },

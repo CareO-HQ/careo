@@ -1566,6 +1566,239 @@ export default defineSchema({
     pdfFileId: v.optional(v.id("_storage"))
   }).index("by_resident", ["residentId"]),
 
+  bedrailConsents: defineTable({
+    // Metadata
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+
+    // Header Information
+    residentName: v.string(),
+    bedroomNumber: v.string(),
+    dateOfBirth: v.number(),
+
+    // Consent Type
+    consentType: v.union(
+      v.literal("ABLE_TO_CONSENT"),
+      v.literal("UNABLE_TO_CONSENT")
+    ),
+
+    // Section 1: Residents Able to Consent
+    ableToConsentSection: v.optional(
+      v.object({
+        consentChoice: v.union(
+          v.literal("CONSENT_TO_USE"),
+          v.literal("REFUSE_TO_USE")
+        ),
+        residentSignature: v.string(),
+        staffMemberName: v.string(),
+        staffMemberSignature: v.string(),
+        staffSignatureDate: v.string()
+      })
+    ),
+
+    // Section 2: Residents Unable to Consent
+    unableToConsentSection: v.optional(
+      v.object({
+        representativeName: v.string(),
+        discussionAcknowledged: v.boolean(),
+        residentPreference: v.union(
+          v.literal("WOULD_PREFER_USE"),
+          v.literal("WOULD_NOT_PREFER_USE")
+        ),
+        representativeSignature: v.string(),
+        staffMemberName: v.string(),
+        staffMemberSignature: v.string(),
+        staffSignatureDate: v.string()
+      })
+    ),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+    savedAsDraft: v.optional(v.boolean()),
+    pdfFileId: v.optional(v.id("_storage"))
+  }).index("by_resident", ["residentId"]),
+
+  bedRailsRiskAssessments: defineTable({
+    // Metadata
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+
+    // Page 1: Administrative Details
+    residentName: v.string(),
+    bedroomNumber: v.string(),
+    dateOfBirth: v.number(),
+    assessmentCompletedBy: v.string(),
+    jobRole: v.string(),
+    dateOfAssessment: v.string(),
+
+    // Page 1: Trial & Rationale
+    alternativeEquipmentConsidered: v.string(),
+    reasonsAlternativesNotSuccessful: v.string(),
+
+    // Page 1: Exclusion Criteria
+    exclusionCriteria: v.object({
+      residentRefuses: v.boolean(),
+      climbingRisk: v.boolean(),
+      entrapmentRisk: v.boolean(),
+      abnormalBodySize: v.boolean(),
+      restraintPurpose: v.boolean(),
+      freedomLimitation: v.boolean()
+    }),
+    anyExclusionChecked: v.boolean(),
+
+    // Page 2: Authorization Rationale
+    authorizationRationale: v.object({
+      residentRequests: v.boolean(),
+      mdtMeetingCompleted: v.boolean(),
+      riskOutweighsBenefit: v.boolean(),
+      alternativesExplored: v.boolean(),
+      bestInterestDecision: v.boolean()
+    }),
+
+    // Page 2: Communication
+    reasonExplainedToResident: v.union(v.literal("YES"), v.literal("NO")),
+
+    // Page 2: Equipment Details
+    typeOfBed: v.union(v.literal("DIVAN"), v.literal("PROFILING_BED")),
+    typeOfMattress: v.union(
+      v.literal("STANDARD"),
+      v.literal("LIGHTWEIGHT_FOAM"),
+      v.literal("STANDARD_WITH_OVERLAY"),
+      v.literal("FULL_REPLACEMENT")
+    ),
+    typeOfBedrails: v.union(
+      v.literal("INTEGRAL_FIXED"),
+      v.literal("EXTENDED_HEIGHT_INTEGRAL"),
+      v.literal("EXTENDED_HEIGHT_NON_INTEGRAL")
+    ),
+
+    // Page 2: Safety Checklist
+    safetyChecklist: v.object({
+      gapBetweenRailAndMattress: v.union(v.literal("YES"), v.literal("NO")),
+      mattressCompressesEasily: v.union(v.literal("YES"), v.literal("NO")),
+      gapMoreThan60mm: v.union(v.literal("YES"), v.literal("NO")),
+      bedRailInsecure: v.union(v.literal("YES"), v.literal("NO")),
+      bedAgainstWall: v.union(v.literal("YES"), v.literal("NO"))
+    }),
+    anySafetyCheckFailed: v.boolean(),
+
+    // Page 3: Extended Height Bed Rails
+    hasExtendedHeightRails: v.boolean(),
+    extendedHeightChecks: v.optional(
+      v.object({
+        positionedCorrectly: v.union(v.literal("YES"), v.literal("NO")),
+        securelyFastened: v.union(v.literal("YES"), v.literal("NO")),
+        correctBumpersInstalled: v.union(v.literal("YES"), v.literal("NO")),
+        mattressBelowPlimsollLine: v.union(v.literal("YES"), v.literal("NO")),
+        staffTrained: v.union(v.literal("YES"), v.literal("NO")),
+        checkedForDamage: v.union(v.literal("YES"), v.literal("NO"))
+      })
+    ),
+
+    // Page 3: General
+    consentObtained: v.union(v.literal("YES"), v.literal("NO")),
+    carePlanCompleted: v.union(v.literal("YES"), v.literal("NO")),
+
+    // Signature
+    signatureOfAssessor: v.string(),
+    signatureDate: v.string(),
+
+    // Metadata
+    createdAt: v.string(),
+    updatedAt: v.number(),
+    savedAsDraft: v.boolean(),
+    isArchived: v.boolean(),
+    archivedAt: v.optional(v.number()),
+    pdfFileId: v.optional(v.string()),
+    pdfGenerated: v.optional(v.boolean()),
+    pdfGeneratedAt: v.optional(v.number())
+  }).index("by_resident", ["residentId"]),
+
+  bestInterestDecisions: defineTable({
+    // Metadata
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+
+    // Section A - Resident Information
+    residentFullName: v.string(),
+    dateOfBirth: v.float64(),
+    residentIdNumber: v.string(),
+    dateOfDecision: v.string(),
+
+    // Section B - Decision Being Made
+    typeOfDecision: v.array(v.string()),
+    otherDecisionType: v.optional(v.string()),
+    detailsOfDecision: v.string(),
+
+    // Section C - Capacity Assessment
+    ableToUnderstand: v.union(v.literal("YES"), v.literal("NO")),
+    reasonsForLackOfCapacity: v.optional(v.object({
+      cognitiveImpairment: v.boolean(),
+      communicationDifficulty: v.boolean(),
+      fluctuatingCapacity: v.boolean(),
+      other: v.boolean(),
+      otherDetails: v.optional(v.string())
+    })),
+    assessorName: v.string(),
+    assessorRole: v.string(),
+    assessorSignature: v.string(),
+    assessmentDate: v.string(),
+
+    // Section D - Best Interest Considerations
+    discussionWith: v.array(v.string()),
+    viewsExpressed: v.array(v.object({
+      personConsulted: v.string(),
+      relationship: v.string(),
+      viewPreference: v.string(),
+      notes: v.optional(v.string())
+    })),
+
+    // Section E - Options & Risks
+    optionsConsidered: v.array(v.object({
+      option: v.string(),
+      benefits: v.string(),
+      risks: v.string(),
+      preferred: v.boolean()
+    })),
+    reasonForPreferredOption: v.string(),
+    risksIfNotFollowed: v.string(),
+
+    // Section F - Best Interest Decision
+    decisionOutcome: v.union(v.literal("PROCEED"), v.literal("DO_NOT_PROCEED")),
+    summaryRationale: v.string(),
+
+    // Section G - Signatures
+    decisionMakerName: v.string(),
+    decisionMakerRole: v.string(),
+    decisionMakerSignature: v.string(),
+    decisionMakerDate: v.string(),
+    witnessName: v.optional(v.string()),
+    witnessRole: v.optional(v.string()),
+    witnessSignature: v.optional(v.string()),
+    witnessDate: v.optional(v.string()),
+    nextOfKinName: v.optional(v.string()),
+    nextOfKinRelationship: v.optional(v.string()),
+    nextOfKinSignature: v.optional(v.string()),
+    nextOfKinDate: v.optional(v.string()),
+
+    // Meta
+    createdAt: v.string(),
+    savedAsDraft: v.optional(v.boolean()),
+    pdfFileId: v.union(v.id("_storage"), v.literal("pending")),
+    pdfGenerated: v.boolean(),
+    isArchived: v.boolean(),
+    archivedAt: v.optional(v.number())
+  }).index("by_resident", ["residentId"]),
+
   incidents: defineTable({
     // Section 1: Incident Details (all required in form)
     date: v.string(), // Required - date of incident

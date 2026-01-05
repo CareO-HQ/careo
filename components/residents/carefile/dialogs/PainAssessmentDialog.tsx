@@ -341,7 +341,29 @@ export default function PainAssessmentDialog({
                         <FormItem>
                           <FormLabel required>Date and Time</FormLabel>
                           <FormControl>
-                            <Input placeholder="DD/MM/YYYY HH:MM" {...field} />
+                            <Input
+                              type="datetime-local"
+                              {...field}
+                              value={field.value ? (() => {
+                                // Convert DD/MM/YYYY HH:MM to YYYY-MM-DDTHH:MM format for datetime-local
+                                const parts = field.value.match(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/);
+                                if (parts) {
+                                  return `${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}`;
+                                }
+                                return '';
+                              })() : ''}
+                              onChange={(e) => {
+                                // Convert YYYY-MM-DDTHH:MM to DD/MM/YYYY HH:MM format
+                                const value = e.target.value;
+                                if (value) {
+                                  const date = new Date(value);
+                                  const formatted = format(date, "dd/MM/yyyy HH:mm");
+                                  field.onChange(formatted);
+                                } else {
+                                  field.onChange('');
+                                }
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -415,7 +437,7 @@ export default function PainAssessmentDialog({
                         <FormItem>
                           <FormLabel required>Time</FormLabel>
                           <FormControl>
-                            <Input placeholder="HH:MM" {...field} />
+                            <Input type="time" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

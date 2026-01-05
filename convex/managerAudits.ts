@@ -77,6 +77,8 @@ export const createAudit = mutation({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -96,7 +98,8 @@ export const createAudit = mutation({
       v.literal("oralAssessment"),
       v.literal("dietNotification"),
       v.literal("chokingRiskAssessment"),
-      v.literal("cornellDepressionScale")
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -150,6 +153,8 @@ export const getAuditsByForm = query({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -169,7 +174,8 @@ export const getAuditsByForm = query({
       v.literal("oralAssessment"),
       v.literal("dietNotification"),
       v.literal("chokingRiskAssessment"),
-      v.literal("cornellDepressionScale")
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formId: v.string()
   },
@@ -624,6 +630,8 @@ export const getFormDataForReview = query({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -652,6 +660,10 @@ export const getFormDataForReview = query({
     try {
       switch (args.formType) {
         case "movingHandlingAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "bedrailConsent":
+          return await ctx.db.get(args.formId as any);
+        case "bedRailsRiskAssessment":
           return await ctx.db.get(args.formId as any);
         case "infectionPreventionAssessment":
           return await ctx.db.get(args.formId as any);
@@ -710,6 +722,8 @@ export const submitReviewedForm = mutation({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -759,6 +773,18 @@ export const submitReviewedForm = mutation({
         case "movingHandlingAssessment":
           newFormId = await ctx.runMutation(
             api.careFiles.movingHandling.submitMovingHandlingAssessment,
+            args.formData
+          );
+          break;
+        case "bedrailConsent":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bedrailConsent.submitBedrailConsent,
+            args.formData
+          );
+          break;
+        case "bedRailsRiskAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bedRailsRiskAssessment.submitBedRailsRiskAssessment,
             args.formData
           );
           break;

@@ -1,6 +1,8 @@
 import { Id } from "@/convex/_generated/dataModel";
 import { CareFileFormKey } from "@/types/care-files";
 import AdmissionDialog from "@/components/residents/carefile/dialogs/AdmissionDialog";
+import BedrailConsentDialog from "@/components/residents/carefile/dialogs/BedrailConsentDialog";
+import BedRailsRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BedRailsRiskAssessmentDialog";
 import BladderBowelDialog from "@/components/residents/carefile/dialogs/ContinenceDialog";
 import CarePlanDialog from "@/components/residents/carefile/dialogs/CarePlanDialog";
 import DependencyDialog from "@/components/residents/carefile/dialogs/DependencyDialog";
@@ -21,6 +23,7 @@ import OralAssessmentDialog from "@/components/residents/carefile/dialogs/OralAs
 import DietNotificationDialog from "@/components/residents/carefile/dialogs/DietNotificationDialog";
 import ChokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/ChokingRiskAssessmentDialog";
 import CornellDepressionScaleDialog from "@/components/residents/carefile/dialogs/CornellDepressionScaleDialog";
+import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
 
 interface BaseDialogProps {
   residentId: Id<"residents">;
@@ -176,6 +179,33 @@ export function CareFileDialogRenderer({
     case "resident-handling-profile-form":
       return (
         <ResidentHandlingProfileDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
+      );
+
+    case "bedrail-consent-form":
+      return (
+        <BedrailConsentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "bed-rails-risk-assessment-form":
+      return (
+        <BedRailsRiskAssessmentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "best-interest-decision-form":
+      return (
+        <BestInterestDecisionDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
       );
 
     case "pain-assessment-form":
