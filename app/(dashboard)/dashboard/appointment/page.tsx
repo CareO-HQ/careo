@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar, ArrowLeft, Filter, Check } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { authClient } from "@/lib/auth-client";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { format } from "date-fns";
@@ -23,16 +24,26 @@ import { Id } from "@/convex/_generated/dataModel";
 export default function AppointmentPage() {
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
+  const { data: user } = authClient.useSession();
+  const { data: activeMember } = authClient.useActiveMember();
+  const userRole = (activeMember?.role ?? user?.user?.role) as string | undefined;
   const [filter, setFilter] = useState<"all" | "unread">("all");
+
+  // For managers, always use organization-based queries; for other roles, use team if available
+  const shouldUseOrganization = userRole === "manager";
 
   // Fetch appointments - either for specific team or entire organization
   const appointmentsData = useQuery(
-    activeTeamId
+    shouldUseOrganization && activeOrganizationId
+      ? api.appointments.getAppointmentsByOrganization
+      : activeTeamId
       ? api.appointments.getAppointmentsByTeam
       : activeOrganizationId
       ? api.appointments.getAppointmentsByOrganization
       : "skip",
-    activeTeamId
+    shouldUseOrganization && activeOrganizationId
+      ? { organizationId: activeOrganizationId }
+      : activeTeamId
       ? { teamId: activeTeamId }
       : activeOrganizationId
       ? { organizationId: activeOrganizationId }
@@ -163,7 +174,7 @@ export default function AppointmentPage() {
           <div>
             <h1 className="text-2xl font-semibold">Appointments</h1>
             <p className="text-sm text-muted-foreground">
-              Upcoming appointments for {activeTeamId ? activeTeam?.name || 'selected unit' : `All units in ${activeOrganization?.name || 'care home'}`}
+              Upcoming appointments for {shouldUseOrganization || !activeTeamId ? `All units in ${activeOrganization?.name || 'care home'}` : activeTeam?.name || 'selected unit'}
             </p>
           </div>
         </div>
