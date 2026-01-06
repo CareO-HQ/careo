@@ -14,7 +14,7 @@ export const bestInterestDecisionSchema = z.object({
   // Section B - Decision Being Made
   typeOfDecision: z.array(z.string()).min(1, "At least one decision type is required"),
   otherDecisionType: z.string().optional(),
-  detailsOfDecision: z.string().min(10, "Please provide details of the decision required"),
+  detailsOfDecision: z.string().min(10, "Please provide details of the decision required (minimum 10 characters)"),
 
   // Section C - Capacity Assessment
   ableToUnderstand: z.enum(["YES", "NO"]),
@@ -46,12 +46,12 @@ export const bestInterestDecisionSchema = z.object({
     risks: z.string().min(1, "Risks are required"),
     preferred: z.boolean()
   })).min(1, "At least one option must be considered"),
-  reasonForPreferredOption: z.string().min(10, "Reason for preferred option is required"),
-  risksIfNotFollowed: z.string().min(10, "Risks if decision not followed are required"),
+  reasonForPreferredOption: z.string(),
+  risksIfNotFollowed: z.string(),
 
   // Section F - Best Interest Decision
   decisionOutcome: z.enum(["PROCEED", "DO_NOT_PROCEED"]),
-  summaryRationale: z.string().min(20, "Summary rationale is required"),
+  summaryRationale: z.string().min(20, "Summary rationale is required (minimum 20 characters)"),
 
   // Section G - Signatures
   decisionMakerName: z.string().min(1, "Decision maker name is required"),
@@ -72,6 +72,25 @@ export const bestInterestDecisionSchema = z.object({
   // Meta
   savedAsDraft: z.boolean().optional(),
   createdAt: z.string().optional()
+}).refine((data) => {
+  // Only require reasonForPreferredOption if filled or if there's a preferred option
+  const hasPreferredOption = data.optionsConsidered.some(opt => opt.preferred);
+  if (hasPreferredOption && (!data.reasonForPreferredOption || data.reasonForPreferredOption.trim().length < 10)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Reason for preferred option is required (minimum 10 characters) when a preferred option is selected",
+  path: ["reasonForPreferredOption"]
+}).refine((data) => {
+  // Only require risksIfNotFollowed if filled
+  if (data.risksIfNotFollowed && data.risksIfNotFollowed.trim().length > 0 && data.risksIfNotFollowed.trim().length < 10) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Risks must be at least 10 characters if provided",
+  path: ["risksIfNotFollowed"]
 });
 
 export type BestInterestDecisionFormData = z.infer<typeof bestInterestDecisionSchema>;

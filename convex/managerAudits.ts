@@ -363,10 +363,18 @@ export const getUnauditedForms = query({
         peep: {
           formType: "peep",
           table: "peeps"
+        },
+        "best-interest-decision": {
+          formType: "bestInterestDecision",
+          table: "bestInterestDecisions"
         }
       };
 
-    const unauditedForms = [];
+    const unauditedForms: Array<{
+      formType: string;
+      formId: string;
+      lastUpdated: number;
+    }> = [];
 
     // Check which form keys to process (all if not specified)
     const keysToCheck = args.formKeys || Object.keys(formTypeMapping);
@@ -540,6 +548,21 @@ export const getUnauditedForms = query({
             // Get only the latest submission
             completedForms = allPeepForms.length > 0 ? [allPeepForms[0]] : [];
             break;
+          case "bestInterestDecisions":
+            const allBestInterestForms = await ctx.db
+              .query("bestInterestDecisions")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms = allBestInterestForms.length > 0 ? [allBestInterestForms[0]] : [];
+            break;
         }
       } catch (error) {
         // If table doesn't exist or other error, skip this form type
@@ -651,7 +674,8 @@ export const getFormDataForReview = query({
       v.literal("oralAssessment"),
       v.literal("dietNotification"),
       v.literal("chokingRiskAssessment"),
-      v.literal("cornellDepressionScale")
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formId: v.string()
   },
@@ -705,6 +729,8 @@ export const getFormDataForReview = query({
           return await ctx.db.get(args.formId as any);
         case "cornellDepressionScale":
           return await ctx.db.get(args.formId as any);
+        case "bestInterestDecision":
+          return await ctx.db.get(args.formId as any);
         default:
           return null;
       }
@@ -743,7 +769,8 @@ export const submitReviewedForm = mutation({
       v.literal("oralAssessment"),
       v.literal("dietNotification"),
       v.literal("chokingRiskAssessment"),
-      v.literal("cornellDepressionScale")
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -906,6 +933,12 @@ export const submitReviewedForm = mutation({
         case "cornellDepressionScale":
           newFormId = await ctx.runMutation(
             api.careFiles.cornellDepressionScale.submitCornellDepressionScale,
+            args.formData
+          );
+          break;
+        case "bestInterestDecision":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bestInterestDecision.submitBestInterestDecision,
             args.formData
           );
           break;

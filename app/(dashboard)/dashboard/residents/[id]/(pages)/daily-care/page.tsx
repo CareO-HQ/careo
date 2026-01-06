@@ -1129,28 +1129,48 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
               <div className="text-2xl font-bold text-amber-600">
                 {(() => {
-                  const dayShiftCount = allTasks.filter(task => {
-                    const taskTime = new Date(task.createdAt);
-                    const hour = taskTime.getHours();
-                    return hour >= 8 && hour < 20;
-                  }).length || 0;
-                  return dayShiftCount;
+                  const personalCareCount = allTasks.filter(task => task.taskType !== 'daily_activity_record').length || 0;
+                  return personalCareCount;
                 })()}
               </div>
-              <p className="text-sm text-amber-700">Day Shift Activities</p>
+              <p className="text-sm text-amber-700">Personal Care</p>
+              {(() => {
+                const personalCareTasks = allTasks.filter(task => task.taskType !== 'daily_activity_record');
+                if (personalCareTasks.length > 0) {
+                  const lastTask = personalCareTasks.reduce((latest, task) =>
+                    task.createdAt > latest.createdAt ? task : latest
+                  );
+                  return (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Last: {new Date(lastTask.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
               <div className="text-2xl font-bold text-indigo-600">
                 {(() => {
-                  const nightShiftCount = allTasks.filter(task => {
-                    const taskTime = new Date(task.createdAt);
-                    const hour = taskTime.getHours();
-                    return hour >= 20 || hour < 8;
-                  }).length || 0;
-                  return nightShiftCount;
+                  const dailyActivityCount = allTasks.filter(task => task.taskType === 'daily_activity_record').length || 0;
+                  return dailyActivityCount;
                 })()}
               </div>
-              <p className="text-sm text-indigo-700">Night Shift Activities</p>
+              <p className="text-sm text-indigo-700">Daily Activity</p>
+              {(() => {
+                const activityRecords = allTasks.filter(task => task.taskType === 'daily_activity_record');
+                if (activityRecords.length > 0) {
+                  const lastActivity = activityRecords.reduce((latest, task) =>
+                    task.createdAt > latest.createdAt ? task : latest
+                  );
+                  return (
+                    <p className="text-xs text-indigo-600 mt-1">
+                      Last: {new Date(lastActivity.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-gray-600">

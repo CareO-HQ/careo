@@ -77,10 +77,12 @@ export const submitBestInterestDecision = mutation({
       isArchived: false
     });
 
-    // Generate PDF in the background
-    await ctx.scheduler.runAfter(0, "careFiles:generateBestInterestDecisionPdf" as any, {
-      formId
-    });
+    // TODO: Implement PDF generation
+    // await ctx.scheduler.runAfter(
+    //   1000,
+    //   internal.careFiles.bestInterestDecision.generatePDFAndUpdateRecord,
+    //   { formId }
+    // );
 
     return formId;
   }

@@ -21,7 +21,7 @@ export function TodoList({ teamId }: TodoListProps) {
   const [showInput, setShowInput] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
 
-  const todos = useQuery(api.todos.getTodos, { teamId });
+  const todos = useQuery(api.todos.getTodos, { teamId: teamId ?? undefined });
   const createTodo = useMutation(api.todos.createTodo);
   const toggleTodo = useMutation(api.todos.toggleTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
@@ -38,7 +38,7 @@ export function TodoList({ teamId }: TodoListProps) {
 
     await createTodo({
       title: newTodoTitle,
-      teamId,
+      teamId: teamId ?? undefined,
     });
 
     setNewTodoTitle("");
