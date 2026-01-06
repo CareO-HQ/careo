@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Filter, Bell, ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
@@ -25,7 +26,13 @@ type NotificationType = "info" | "warning" | "success" | "urgent";
 export default function NotificationPage() {
   const router = useRouter();
   const { activeTeam, activeTeamId, activeOrganization, activeOrganizationId, isLoading: isTeamLoading } = useActiveTeam();
+  const { data: user } = authClient.useSession();
+  const { data: activeMember } = authClient.useActiveMember();
+  const userRole = (activeMember?.role ?? user?.user?.role) as string | undefined;
   const [filter, setFilter] = useState<"all" | "unread">("all");
+
+  // For managers, always use organization-based queries; for other roles, use team if available
+  const shouldUseOrganization = userRole === "manager";
 
   // Debug logging
   console.log('Notification Page Debug:', {
@@ -33,17 +40,23 @@ export default function NotificationPage() {
     activeOrganizationId,
     activeTeam,
     activeOrganization,
-    isTeamLoading
+    isTeamLoading,
+    userRole,
+    shouldUseOrganization
   });
 
   // Fetch incidents - either for specific team or entire organization
   const incidents = useQuery(
-    activeTeamId
+    shouldUseOrganization && activeOrganizationId
+      ? api.incidents.getIncidentsByOrganization
+      : activeTeamId
       ? api.incidents.getIncidentsByTeam
       : activeOrganizationId
       ? api.incidents.getIncidentsByOrganization
       : "skip",
-    activeTeamId
+    shouldUseOrganization && activeOrganizationId
+      ? { organizationId: activeOrganizationId, limit: 50 }
+      : activeTeamId
       ? { teamId: activeTeamId, limit: 50 }
       : activeOrganizationId
       ? { organizationId: activeOrganizationId, limit: 50 }
@@ -210,7 +223,7 @@ export default function NotificationPage() {
           <div>
             <h1 className="text-2xl font-semibold">Incidents</h1>
             <p className="text-sm text-muted-foreground">
-              Incident reports for {activeTeamId ? activeTeam?.name || 'selected unit' : `All units in ${activeOrganization?.name || 'care home'}`}
+              Incident reports for {shouldUseOrganization || !activeTeamId ? `All units in ${activeOrganization?.name || 'care home'}` : activeTeam?.name || 'selected unit'}
             </p>
           </div>
         </div>

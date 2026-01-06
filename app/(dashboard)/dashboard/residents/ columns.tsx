@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { authClient } from "@/lib/auth-client";
 import { cn, getAge, getColorForBadge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
@@ -154,18 +155,24 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
 // Component for displaying alerts (real data from alerts system)
 const NotificationsCell = ({ residentId }: { residentId: string }) => {
   const resolveAlert = useMutation(api.alerts.resolveAlert);
+  
+  // Get current user's role for filtering alerts
+  const { data: activeMember } = authClient.useActiveMember();
+  const userRole = activeMember?.role as string | undefined;
 
   const alertData = useQuery(
     api.alerts.getResidentAlertCount,
     {
-      residentId: residentId as Id<"residents">
+      residentId: residentId as Id<"residents">,
+      userRole: userRole
     }
   );
 
   const alerts = useQuery(
     api.alerts.getResidentAlerts,
     {
-      residentId: residentId as Id<"residents">
+      residentId: residentId as Id<"residents">,
+      userRole: userRole
     }
   );
 

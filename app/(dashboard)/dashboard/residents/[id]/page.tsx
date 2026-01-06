@@ -37,7 +37,7 @@ import {
   X
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { canViewAlert, canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
+import { canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
 import React from "react";
@@ -57,19 +57,16 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   });
 
   const { data: member, isPending: isMemberPending } = authClient.useActiveMember();
-  const userRole = member?.role;
+  const userRole = member?.role as string | undefined;
 
-  // Get all alerts for this resident
-  const allAlerts = useQuery(
+  // Get alerts for this resident (filtered by role at query level)
+  const alerts = useQuery(
     api.alerts.getResidentAlerts,
-    resident ? { residentId: id as Id<"residents"> } : "skip"
+    resident ? { 
+      residentId: id as Id<"residents">,
+      userRole: userRole
+    } : "skip"
   );
-
-  // Filter alerts based on role requirements
-  const alerts = React.useMemo(() => {
-    if (!allAlerts) return [];
-    return allAlerts.filter(alert => canViewAlert(alert.alertType, userRole));
-  }, [allAlerts, userRole]);
 
   // Derive alert count from filtered alerts
   const alertCount = React.useMemo(() => {

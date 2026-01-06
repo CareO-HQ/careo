@@ -91,6 +91,7 @@ export const generateFoodFluidAlerts = internalMutation({
           message: `No food or fluid intake has been recorded for ${resident.firstName} ${resident.lastName} during the morning period (6 AM - 12 PM).`,
           timePeriod: "morning",
           metadata: { date: today, section: "Morning" },
+          targetRoles: ["care_assistant"],
           organizationId: resident.organizationId,
           teamId: resident.teamId,
         });
@@ -107,6 +108,7 @@ export const generateFoodFluidAlerts = internalMutation({
           message: `No food or fluid intake has been recorded for ${resident.firstName} ${resident.lastName} during the afternoon period (12 PM - 6 PM).`,
           timePeriod: "afternoon",
           metadata: { date: today, section: "Afternoon" },
+          targetRoles: ["care_assistant"],
           organizationId: resident.organizationId,
           teamId: resident.teamId,
         });
@@ -123,6 +125,7 @@ export const generateFoodFluidAlerts = internalMutation({
           message: `No food or fluid intake has been recorded for ${resident.firstName} ${resident.lastName} during the evening period (6 PM - 10 PM).`,
           timePeriod: "evening",
           metadata: { date: today, section: "Evening" },
+          targetRoles: ["care_assistant"],
           organizationId: resident.organizationId,
           teamId: resident.teamId,
         });
@@ -140,6 +143,7 @@ export const generateFoodFluidAlerts = internalMutation({
           message: `No food or fluid intake has been recorded for ${resident.firstName} ${resident.lastName} during the night period (10 PM - 6 AM).`,
           timePeriod: "night",
           metadata: { date: today, section: "Night" },
+          targetRoles: ["care_assistant"],
           organizationId: resident.organizationId,
           teamId: resident.teamId,
         });
@@ -301,6 +305,7 @@ export const generateNightCheckAlerts = internalMutation({
               configurationId: config._id,
               frequencyMinutes: config.frequencyMinutes,
             },
+            targetRoles: ["care_assistant"], // Night check alerts (including positioning) are for care assistants
             organizationId: resident.organizationId,
             teamId: resident.teamId,
           });
@@ -340,6 +345,11 @@ export const generateMedicationAlerts = internalMutation({
     const thirtyMinutesFromNow = now + 30 * 60 * 1000; // 30 minutes ahead
     const fifteenMinutesAgo = now - 15 * 60 * 1000; // 15 minutes ago
 
+    // Calculate start of today timestamp for end date comparison
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayTimestamp = startOfToday.getTime();
+
     // Get all scheduled medication intakes
     const allIntakes = await ctx.db
       .query("medicationIntake")
@@ -363,6 +373,11 @@ export const generateMedicationAlerts = internalMutation({
       // Get medication info
       const medication = await ctx.db.get(intake.medicationId);
       if (!medication) continue;
+
+      // Skip alerts for medications past their end date
+      if (medication.endDate && medication.endDate < startOfTodayTimestamp) {
+        continue;
+      }
 
       const scheduledTime = intake.scheduledTime;
       let shouldAlert = false;
@@ -403,6 +418,7 @@ export const generateMedicationAlerts = internalMutation({
             medicationName: medication.name,
             scheduledTime: scheduledTime,
           },
+          targetRoles: ["nurse"], // Medication alerts are for nurses only
           organizationId: resident.organizationId,
           teamId: resident.teamId,
         });
@@ -443,6 +459,11 @@ export const generateMedicationAlerts = internalMutation({
       const medication = await ctx.db.get(intake.medicationId);
       if (!medication) continue;
 
+      // Skip alerts for medications past their end date
+      if (medication.endDate && medication.endDate < startOfTodayTimestamp) {
+        continue;
+      }
+
       residentIds.add(intake.residentId);
 
       const result = await ctx.runMutation(internal.alerts.createAlert, {
@@ -458,6 +479,7 @@ export const generateMedicationAlerts = internalMutation({
           scheduledTime: intake.scheduledTime,
           missedReason: "marked_as_missed",
         },
+        targetRoles: ["nurse"], // Medication alerts are for nurses only
         organizationId: resident.organizationId,
         teamId: resident.teamId,
       });
