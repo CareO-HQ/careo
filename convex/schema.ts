@@ -3777,6 +3777,9 @@ export default defineSchema({
     // Additional context
     metadata: v.optional(v.any()), // Flexible field for alert-specific data
 
+    // Role-based visibility
+    targetRoles: v.optional(v.array(v.string())), // Roles that should see this alert (e.g., ["care_assistant"], ["nurse"])
+
     // Organization tracking
     organizationId: v.string(),
     teamId: v.string(),

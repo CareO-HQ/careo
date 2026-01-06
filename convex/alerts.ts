@@ -3,11 +3,34 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 
 /**
+ * Helper function to determine if an alert should be shown to a user based on their role
+ * Returns true if:
+ * - targetRoles is empty/undefined (backwards compatibility - show to all)
+ * - targetRoles includes the user's role
+ * Returns false otherwise
+ */
+function shouldShowAlert(alert: Doc<"alerts">, userRole?: string): boolean {
+  // If no targetRoles specified, show to all (backwards compatibility)
+  if (!alert.targetRoles || alert.targetRoles.length === 0) {
+    return true;
+  }
+
+  // If no userRole provided, show to all (backwards compatibility)
+  if (!userRole) {
+    return true;
+  }
+
+  // Check if user's role is in targetRoles
+  return alert.targetRoles.includes(userRole);
+}
+
+/**
  * Get active (unresolved) alerts for a specific resident
  */
 export const getResidentAlerts = query({
   args: {
     residentId: v.id("residents"),
+    userRole: v.optional(v.string()), // User's role for filtering
   },
   handler: async (ctx, args) => {
     const alerts = await ctx.db
@@ -17,8 +40,13 @@ export const getResidentAlerts = query({
       )
       .collect();
 
+    // Filter alerts by role if userRole is provided
+    const filteredAlerts = args.userRole
+      ? alerts.filter((alert) => shouldShowAlert(alert, args.userRole))
+      : alerts;
+
     // Sort by severity and timestamp
-    return alerts.sort((a, b) => {
+    return filteredAlerts.sort((a, b) => {
       // Critical alerts first
       if (a.severity === "critical" && b.severity !== "critical") return -1;
       if (a.severity !== "critical" && b.severity === "critical") return 1;
@@ -37,6 +65,7 @@ export const getResidentAlerts = query({
 export const getResidentAlertCount = query({
   args: {
     residentId: v.id("residents"),
+    userRole: v.optional(v.string()), // User's role for filtering
   },
   handler: async (ctx, args) => {
     const alerts = await ctx.db
@@ -46,11 +75,16 @@ export const getResidentAlertCount = query({
       )
       .collect();
 
+    // Filter alerts by role if userRole is provided
+    const filteredAlerts = args.userRole
+      ? alerts.filter((alert) => shouldShowAlert(alert, args.userRole))
+      : alerts;
+
     return {
-      total: alerts.length,
-      critical: alerts.filter((a) => a.severity === "critical").length,
-      warning: alerts.filter((a) => a.severity === "warning").length,
-      info: alerts.filter((a) => a.severity === "info").length,
+      total: filteredAlerts.length,
+      critical: filteredAlerts.filter((a) => a.severity === "critical").length,
+      warning: filteredAlerts.filter((a) => a.severity === "warning").length,
+      info: filteredAlerts.filter((a) => a.severity === "info").length,
     };
   },
 });
@@ -61,6 +95,7 @@ export const getResidentAlertCount = query({
 export const getMultipleResidentsAlertCounts = query({
   args: {
     residentIds: v.array(v.id("residents")),
+    userRole: v.optional(v.string()), // User's role for filtering
   },
   handler: async (ctx, args) => {
     const alertCounts: Record<
@@ -76,9 +111,16 @@ export const getMultipleResidentsAlertCounts = query({
 
     // Filter and group by resident
     const residentIdSet = new Set(args.residentIds);
-    const relevantAlerts = alerts.filter((alert) =>
+    let relevantAlerts = alerts.filter((alert) =>
       residentIdSet.has(alert.residentId)
     );
+
+    // Filter alerts by role if userRole is provided
+    if (args.userRole) {
+      relevantAlerts = relevantAlerts.filter((alert) =>
+        shouldShowAlert(alert, args.userRole)
+      );
+    }
 
     // Initialize counts
     args.residentIds.forEach((residentId) => {
@@ -191,6 +233,7 @@ export const createAlert = internalMutation({
       )
     ),
     metadata: v.optional(v.any()),
+    targetRoles: v.optional(v.array(v.string())), // Roles that should see this alert
     organizationId: v.string(),
     teamId: v.string(),
   },
@@ -227,6 +270,7 @@ export const createAlert = internalMutation({
       timePeriod: args.timePeriod,
       isResolved: false,
       metadata: args.metadata,
+      targetRoles: args.targetRoles,
       organizationId: args.organizationId,
       teamId: args.teamId,
       createdAt: Date.now(),

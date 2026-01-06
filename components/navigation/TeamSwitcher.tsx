@@ -51,6 +51,8 @@ export function TeamSwitcher({
   console.log("Active Organization:", activeOrganization);
   const { data: activeMember } = authClient.useActiveMember();
   const isOwner = activeMember?.role === "owner";
+  const userRole = activeMember?.role as string | undefined;
+  const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
   const { activeTeamId, activeTeam } = useActiveTeam();
   const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
   const setActiveOrganization = useMutation(api.auth.setActiveOrganization);
@@ -216,17 +218,21 @@ export function TeamSwitcher({
               </div>
             )}
 
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings/profile")}>
-              <UserIcon />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => router.push("/settings/organization")}
-            >
-              <BuildingIcon />
-              Manage organization
-            </DropdownMenuItem>
+            {canViewProfileAndOrg && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push("/settings/profile")}>
+                  <UserIcon />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push("/settings/organization")}
+                >
+                  <BuildingIcon />
+                  Manage organization
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

@@ -434,15 +434,25 @@ export const getActiveByTeamId = query({
     teamId: v.string()
   },
   handler: async (ctx, args) => {
+    // Calculate start of today timestamp
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayTimestamp = startOfToday.getTime();
+
     const medication = await ctx.db
       .query("medication")
       .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
+    // Filter out medications past their end date
+    const activeMedications = medication.filter(
+      (med) => !med.endDate || med.endDate >= startOfTodayTimestamp
+    );
+
     // Include resident details in the medication data
     const medicationWithResident = await Promise.all(
-      medication.map(async (medication) => {
+      activeMedications.map(async (medication) => {
         const resident = medication.residentId
           ? await ctx.db.get(medication.residentId as Id<"residents">)
           : null;
@@ -458,13 +468,23 @@ export const getActiveByResidentId = query({
     residentId: v.string()
   },
   handler: async (ctx, args) => {
+    // Calculate start of today timestamp
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayTimestamp = startOfToday.getTime();
+
     const medications = await ctx.db
       .query("medication")
       .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    return medications;
+    // Filter out medications past their end date
+    const activeMedications = medications.filter(
+      (med) => !med.endDate || med.endDate >= startOfTodayTimestamp
+    );
+
+    return activeMedications;
   }
 });
 
@@ -1015,12 +1035,22 @@ export const getAllActiveMedications = internalQuery({
     })
   ),
   handler: async (ctx, args) => {
+    // Calculate start of today timestamp
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayTimestamp = startOfToday.getTime();
+
     const activeMedications = await ctx.db
       .query("medication")
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    return activeMedications;
+    // Filter out medications past their end date
+    const filteredMedications = activeMedications.filter(
+      (med) => !med.endDate || med.endDate >= startOfTodayTimestamp
+    );
+
+    return filteredMedications;
   }
 });
 
@@ -1583,6 +1613,11 @@ export const getPrnOrTopicalMedicationsByResidentId = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    // Calculate start of today timestamp
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayTimestamp = startOfToday.getTime();
+
     // Get all active medications for this resident
     const medications = await ctx.db
       .query("medication")
@@ -1590,8 +1625,13 @@ export const getPrnOrTopicalMedicationsByResidentId = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
+    // Filter out medications past their end date
+    const activeMedications = medications.filter(
+      (med) => !med.endDate || med.endDate >= startOfTodayTimestamp
+    );
+
     // Filter for PRN or Topical medications
-    const prnOrTopical = medications.filter(
+    const prnOrTopical = activeMedications.filter(
       (medication) =>
         medication.scheduleType === "PRN (As Needed)" ||
         medication.route === "Topical"
@@ -1607,6 +1647,11 @@ export const getActiveMedicationsByResidentId = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    // Calculate start of today timestamp
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayTimestamp = startOfToday.getTime();
+
     // Get all active medications for this resident
     const medications = await ctx.db
       .query("medication")
@@ -1614,7 +1659,12 @@ export const getActiveMedicationsByResidentId = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    return medications;
+    // Filter out medications past their end date
+    const activeMedications = medications.filter(
+      (med) => !med.endDate || med.endDate >= startOfTodayTimestamp
+    );
+
+    return activeMedications;
   }
 });
 

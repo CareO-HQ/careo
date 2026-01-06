@@ -60,24 +60,31 @@ export function AppSidebar() {
   // This ensures React sees consistent hook call patterns across renders
   const userEmail = user?.user?.email || null;
 
-  // Get unread notification count - dynamic based on selection
+  // For managers, always use organization-based queries; for other roles, use team if available
+  const shouldUseOrganization = userRole === "manager";
+
+  // Get unread notification count - dynamic based on selection and role
   const unreadCount = useQuery(
     api.notifications.getUnreadCount,
-    activeTeamId
-      ? { teamId: activeTeamId, organizationId: undefined }
-      : activeOrganizationId
-        ? { teamId: undefined, organizationId: activeOrganizationId }
-        : "skip"
+    shouldUseOrganization && activeOrganizationId
+      ? { teamId: undefined, organizationId: activeOrganizationId }
+      : activeTeamId
+        ? { teamId: activeTeamId, organizationId: undefined }
+        : activeOrganizationId
+          ? { teamId: undefined, organizationId: activeOrganizationId }
+          : "skip"
   );
 
-  // Get unread appointments count - dynamic based on selection
+  // Get unread appointments count - dynamic based on selection and role
   const unreadAppointmentsCount = useQuery(
     api.appointmentNotifications.getUnreadAppointmentCount,
-    activeTeamId
-      ? { teamId: activeTeamId, organizationId: undefined }
-      : activeOrganizationId
-        ? { teamId: undefined, organizationId: activeOrganizationId }
-        : "skip"
+    shouldUseOrganization && activeOrganizationId
+      ? { teamId: undefined, organizationId: activeOrganizationId }
+      : activeTeamId
+        ? { teamId: activeTeamId, organizationId: undefined }
+        : activeOrganizationId
+          ? { teamId: undefined, organizationId: activeOrganizationId }
+          : "skip"
   );
 
   // Get unread notification count for current user

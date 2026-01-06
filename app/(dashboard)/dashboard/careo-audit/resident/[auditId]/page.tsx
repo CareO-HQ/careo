@@ -1358,9 +1358,9 @@ export default function ResidentAuditPage() {
                 <PopoverContent className="w-64 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
                   <div className="space-y-1 max-h-60 overflow-y-auto">
                     {organizationMembers && organizationMembers.length > 0 ? (
-                      organizationMembers.map((member: any) => (
+                      organizationMembers.map((member: any, index: number) => (
                         <div
-                          key={member.id}
+                          key={member.id || member.email || `member-${index}`}
                           className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer flex items-center gap-2"
                           onClick={() => {
                             setAssignedTo(member.name || member.email);
