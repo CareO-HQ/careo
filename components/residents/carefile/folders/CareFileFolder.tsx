@@ -113,11 +113,15 @@ export default function CareFileFolder({
     formId: string;
     formKey: string;
     formName: string;
+    isLatest: boolean;
+    hasArchivedVersions: boolean;
   }>({
     open: false,
     formId: "",
     formKey: "",
-    formName: ""
+    formName: "",
+    isLatest: false,
+    hasArchivedVersions: false
   });
   const [isDeletingForm, setIsDeletingForm] = useState(false);
   const [riskAssessmentDialogOpen, setRiskAssessmentDialogOpen] =
@@ -137,7 +141,7 @@ export default function CareFileFolder({
   useEffect(() => {
     return () => {
       // Clean up delete dialogs when component unmounts
-      setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+      setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "", isLatest: false, hasArchivedVersions: false });
       setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" });
       setIsDeletingForm(false);
       setIsDeleting(false);
@@ -314,13 +318,27 @@ export default function CareFileFolder({
     ...(archivedChokingRiskAssessment?.map((item: any) => ({ ...item, formKey: "choking-risk-assessment-form", formType: "Choking Risk Assessment", folderKey: "nutrition-hydration" })) || []),
     ...(archivedCornellDepressionScale?.map((item: any) => ({ ...item, formKey: "cornell-depression-scale-form", formType: "Cornell Scale for Depression in Dementia", folderKey: "psychological-emotional" })) || []),
     ...(archivedBestInterestDecision?.map((item: any) => ({ ...item, formKey: "best-interest-decision-form", formType: "Best Interest Decision", folderKey: "capacity-consent" })) || []),
-    ...(archivedCarePlans?.map((item: any) => ({ ...item, formKey: "care-plan-form", formType: "Care Plan", folderKey: item.folderKey })) || [])
+    ...(archivedCarePlans?.map((item: any) => ({ ...item, formKey: "care-plan-form", formType: item.nameOfCarePlan || "Care Plan", folderKey: item.folderKey })) || [])
   ].sort((a, b) => b.archivedAt - a.archivedAt); // Sort by most recently archived first
 
   // Filter archived items by current folder
-  const filteredArchivedItems = allArchivedItems.filter(item => item.folderKey === folderKey);
+  const archivedItemsInFolder = allArchivedItems.filter(item => item.folderKey === folderKey);
 
-  const totalArchivedCount = filteredArchivedItems.length;
+  // Group by formKey to get only the most recent archived version per form type
+  const formKeyGroups = archivedItemsInFolder.reduce((acc, item) => {
+    if (!acc[item.formKey]) {
+      acc[item.formKey] = [];
+    }
+    acc[item.formKey].push(item);
+    return acc;
+  }, {} as Record<string, typeof archivedItemsInFolder>);
+
+  // Take only the first (most recent) archived item per form type
+  const filteredArchivedItems = Object.values(formKeyGroups).map(group =>
+    group.sort((a, b) => b._creationTime - a._creationTime)[0]
+  );
+
+  const totalArchivedCount = archivedItemsInFolder.length;
 
   // Component to handle individual PDF file with URL fetching
   const PdfFileItem = ({
@@ -336,16 +354,17 @@ export default function CareFileFolder({
       isLatest: boolean;
     };
   }) => {
-    // Don't render if this is the form being deleted
-    if (deleteFormDialog.formId === file.formId && deleteFormDialog.open) {
-      return null;
-    }
-
+    // Call hooks before any conditional returns
     const pdfUrl = usePdfUrl({
       formKey: file.formKey as CareFileFormKey,
       formId: file.formId,
       organizationId: activeOrg?.id
     });
+
+    // Don't render if this is the form being deleted
+    if (deleteFormDialog.formId === file.formId && deleteFormDialog.open) {
+      return null;
+    }
 
     // Show the file even if PDF is still being generated
     const isPdfGenerating = pdfUrl === undefined || pdfUrl === null;
@@ -544,11 +563,17 @@ export default function CareFileFolder({
               className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation();
+                // Check if there are archived versions for this form type
+                const archivedForThisForm = filteredArchivedItems.filter(
+                  item => item.formKey === file.formKey
+                );
                 setDeleteFormDialog({
                   open: true,
                   formId: file.formId,
                   formKey: file.formKey,
-                  formName: file.name
+                  formName: file.name,
+                  isLatest: file.isLatest,
+                  hasArchivedVersions: archivedForThisForm.length > 0
                 });
               }}
               title="Delete Form"
@@ -608,16 +633,28 @@ export default function CareFileFolder({
             className="h-8 w-8"
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedRiskAssessment({
-                formKey: item.formKey,
-                formId: item._id,
-                name: item.formType,
-                completedAt: item._creationTime,
-                category: "Archived"
-              });
-              setRiskAssessmentDialogOpen(true);
+              // Check if this is a care plan
+              if (item.formKey === "care-plan-form") {
+                setSelectedCarePlan({
+                  formKey: item.formKey,
+                  formId: item._id,
+                  name: item.nameOfCarePlan || item.formType || "Care Plan",
+                  completedAt: item._creationTime,
+                  isLatest: false
+                });
+                setCarePlanDialogOpen(true);
+              } else {
+                setSelectedRiskAssessment({
+                  formKey: item.formKey,
+                  formId: item._id,
+                  name: item.formType,
+                  completedAt: item._creationTime,
+                  category: "Archived"
+                });
+                setRiskAssessmentDialogOpen(true);
+              }
             }}
-            title="View Archived Form"
+            title={item.formKey === "care-plan-form" ? "View Archived Care Plan" : "View Archived Form"}
           >
             <Eye className="h-4 w-4 text-muted-foreground/70 hover:text-primary" />
           </Button>
@@ -650,14 +687,26 @@ export default function CareFileFolder({
             className="h-8 w-8"
             onClick={(e) => {
               e.stopPropagation();
-              setDeleteFormDialog({
-                open: true,
-                formId: item._id,
-                formKey: item.formKey,
-                formName: item.formType
-              });
+              // Check if this is a care plan
+              if (item.formKey === "care-plan-form") {
+                setDeleteCarePlanDialog({
+                  open: true,
+                  carePlanId: item._id,
+                  carePlanName: item.nameOfCarePlan || item.formType || "Care Plan"
+                });
+              } else {
+                // For archived items, isLatest is always false
+                setDeleteFormDialog({
+                  open: true,
+                  formId: item._id,
+                  formKey: item.formKey,
+                  formName: item.formType,
+                  isLatest: false,
+                  hasArchivedVersions: false // Deleting archived version doesn't matter
+                });
+              }
             }}
-            title="Delete Archived Form"
+            title={item.formKey === "care-plan-form" ? "Delete Archived Care Plan" : "Delete Archived Form"}
           >
             <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-destructive" />
           </Button>
@@ -867,13 +916,13 @@ export default function CareFileFolder({
       toast.success("Form deleted successfully");
       // Use setTimeout to ensure state updates happen after mutation completes
       setTimeout(() => {
-        setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+        setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "", isLatest: false, hasArchivedVersions: false });
       }, 100);
     } catch (error) {
       console.error("Error deleting form:", error);
       toast.error("Failed to delete form");
       setTimeout(() => {
-        setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+        setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "", isLatest: false, hasArchivedVersions: false });
       }, 100);
     } finally {
       // Delay clearing the deleting flags to keep the sheet locked
@@ -1570,6 +1619,19 @@ export default function CareFileFolder({
                         {filteredArchivedItems.map((item) => (
                           <ArchivedFileItem key={item._id} item={item} />
                         ))}
+                        {totalArchivedCount > filteredArchivedItems.length && (
+                          <div className="w-full text-center p-2 py-3 border rounded-md bg-blue-50/50 text-blue-700 text-xs">
+                            <p className="font-medium">
+                              {totalArchivedCount - filteredArchivedItems.length} older version{totalArchivedCount - filteredArchivedItems.length !== 1 ? 's' : ''} available
+                            </p>
+                            <a
+                              href={`/dashboard/residents/${residentId}/care-file/archived-risk-assessments`}
+                              className="text-blue-600 hover:text-blue-800 underline text-xs mt-1 inline-block"
+                            >
+                              View all archived assessments →
+                            </a>
+                          </div>
+                        )}
                       </>
                     );
                   }
@@ -1700,16 +1762,34 @@ export default function CareFileFolder({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deleteFormDialog.formName}&quot;?
-              This action cannot be undone and will permanently delete the assessment
-              and its associated PDF file.
+              {deleteFormDialog.isLatest && deleteFormDialog.hasArchivedVersions ? (
+                <>
+                  <span className="font-semibold text-orange-600">Warning: You are deleting the latest version.</span>
+                  <br /><br />
+                  This assessment has older archived versions. After deletion:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>The latest version will be permanently deleted</li>
+                    <li>The Files section will appear empty</li>
+                    <li>Previous versions will remain in the Archive section</li>
+                    <li>You can view archived versions in the Archive section below</li>
+                  </ul>
+                  <br />
+                  Are you sure you want to proceed?
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete &quot;{deleteFormDialog.formName}&quot;?
+                  This action cannot be undone and will permanently delete the assessment
+                  and its associated PDF file.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={(e) => {
                 e.stopPropagation();
-                setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "" });
+                setDeleteFormDialog({ open: false, formId: "", formKey: "", formName: "", isLatest: false, hasArchivedVersions: false });
               }}
               disabled={isDeletingForm}
             >

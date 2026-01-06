@@ -99,6 +99,61 @@ export default function ArchivedRiskAssessmentsPage() {
     { residentId: residentId as Id<"residents"> }
   );
 
+  const archivedOralAssessment = useQuery(
+    api.careFiles.oralAssessment.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedDietNotification = useQuery(
+    api.careFiles.dietNotification.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedChokingRiskAssessment = useQuery(
+    api.careFiles.chokingRiskAssessment.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedCornellDepressionScale = useQuery(
+    api.careFiles.cornellDepressionScale.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedBestInterestDecision = useQuery(
+    api.careFiles.bestInterestDecision.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedInfectionPrevention = useQuery(
+    api.careFiles.infectionPrevention.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedBladderBowel = useQuery(
+    api.careFiles.bladderBowel.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedMovingHandling = useQuery(
+    api.careFiles.movingHandling.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedBedrailConsent = useQuery(
+    api.careFiles.bedrailConsent.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedBedRailsRiskAssessment = useQuery(
+    api.careFiles.bedRailsRiskAssessment.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
+  const archivedLongTermFalls = useQuery(
+    api.careFiles.longTermFalls.getArchivedForResident,
+    { residentId: residentId as Id<"residents"> }
+  );
+
   if (
     resident === undefined ||
     archivedPreAdmission === undefined ||
@@ -112,7 +167,18 @@ export default function ArchivedRiskAssessmentsPage() {
     archivedResidentValuables === undefined ||
     archivedHandlingProfile === undefined ||
     archivedPainAssessment === undefined ||
-    archivedNutritionalAssessment === undefined
+    archivedNutritionalAssessment === undefined ||
+    archivedOralAssessment === undefined ||
+    archivedDietNotification === undefined ||
+    archivedChokingRiskAssessment === undefined ||
+    archivedCornellDepressionScale === undefined ||
+    archivedBestInterestDecision === undefined ||
+    archivedInfectionPrevention === undefined ||
+    archivedBladderBowel === undefined ||
+    archivedMovingHandling === undefined ||
+    archivedBedrailConsent === undefined ||
+    archivedBedRailsRiskAssessment === undefined ||
+    archivedLongTermFalls === undefined
   ) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -145,7 +211,7 @@ export default function ArchivedRiskAssessmentsPage() {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
-  // Collect all archived assessments from all 10 assessment types
+  // Collect all archived assessments from all 23 assessment types
   const archivedAssessments = [
     ...(archivedPreAdmission?.map(form => ({
       _id: form._id,
@@ -242,6 +308,94 @@ export default function ArchivedRiskAssessmentsPage() {
       completedAt: form._creationTime,
       folderName: "Nutrition & Hydration",
       category: "Nutrition"
+    })) || []),
+    ...(archivedOralAssessment?.map(form => ({
+      _id: form._id,
+      key: "oral-assessment-form",
+      name: "Oral Assessment",
+      completedAt: form._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Nutrition"
+    })) || []),
+    ...(archivedDietNotification?.map(form => ({
+      _id: form._id,
+      key: "diet-notification-form",
+      name: "Diet Notification",
+      completedAt: form._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Nutrition"
+    })) || []),
+    ...(archivedChokingRiskAssessment?.map(form => ({
+      _id: form._id,
+      key: "choking-risk-assessment-form",
+      name: "Choking Risk Assessment",
+      completedAt: form._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Nutrition"
+    })) || []),
+    ...(archivedCornellDepressionScale?.map(form => ({
+      _id: form._id,
+      key: "cornell-depression-scale-form",
+      name: "Cornell Scale for Depression in Dementia",
+      completedAt: form._creationTime,
+      folderName: "Psychological & Emotional Needs",
+      category: "Psychological"
+    })) || []),
+    ...(archivedBestInterestDecision?.map(form => ({
+      _id: form._id,
+      key: "best-interest-decision-form",
+      name: "Best Interest Decision",
+      completedAt: form._creationTime,
+      folderName: "Capacity & Consent",
+      category: "Capacity"
+    })) || []),
+    ...(archivedInfectionPrevention?.map(form => ({
+      _id: form._id,
+      key: "infection-prevention",
+      name: "Infection Prevention Assessment",
+      completedAt: form._creationTime,
+      folderName: "Pre-Admission",
+      category: "Infection Control"
+    })) || []),
+    ...(archivedBladderBowel?.map(form => ({
+      _id: form._id,
+      key: "blader-bowel-form",
+      name: "Continence Assessment",
+      completedAt: form._creationTime,
+      folderName: "Continence",
+      category: "Continence"
+    })) || []),
+    ...(archivedMovingHandling?.map(form => ({
+      _id: form._id,
+      key: "moving-handling-form",
+      name: "Moving & Handling Assessment",
+      completedAt: form._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Moving & Handling"
+    })) || []),
+    ...(archivedBedrailConsent?.map(form => ({
+      _id: form._id,
+      key: "bedrail-consent-form",
+      name: "Bedrails Consent / Agreement",
+      completedAt: form._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Consent"
+    })) || []),
+    ...(archivedBedRailsRiskAssessment?.map(form => ({
+      _id: form._id,
+      key: "bed-rails-risk-assessment-form",
+      name: "Risk Assessment for Use of Bed Rails",
+      completedAt: form._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Risk Assessment"
+    })) || []),
+    ...(archivedLongTermFalls?.map(form => ({
+      _id: form._id,
+      key: "long-term-fall-risk-form",
+      name: "Fall Risk Assessment",
+      completedAt: form._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Fall Risk"
     })) || [])
   ];
 
@@ -274,6 +428,24 @@ export default function ArchivedRiskAssessmentsPage() {
         return "bg-amber-50 text-amber-700";
       case "Handling":
         return "bg-teal-50 text-teal-700";
+      case "Medication":
+        return "bg-rose-50 text-rose-700";
+      case "Nutrition":
+        return "bg-lime-50 text-lime-700";
+      case "Psychological":
+        return "bg-violet-50 text-violet-700";
+      case "Capacity":
+        return "bg-fuchsia-50 text-fuchsia-700";
+      case "Infection Control":
+        return "bg-sky-50 text-sky-700";
+      case "Continence":
+        return "bg-emerald-50 text-emerald-700";
+      case "Moving & Handling":
+        return "bg-teal-50 text-teal-700";
+      case "Risk Assessment":
+        return "bg-red-50 text-red-700";
+      case "Fall Risk":
+        return "bg-orange-50 text-orange-700";
       default:
         return "bg-gray-50 text-gray-700";
     }
