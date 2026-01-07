@@ -4,24 +4,52 @@ import { Doc, Id } from "./_generated/dataModel";
 
 /**
  * Helper function to determine if an alert should be shown to a user based on their role
- * Returns true if:
- * - targetRoles is empty/undefined (backwards compatibility - show to all)
- * - targetRoles includes the user's role
- * Returns false otherwise
+ * 
+ * Role-based filtering rules:
+ * - Managers: Never see medication, food_fluid, or night_check alerts
+ * - Nurses: Only see medication alerts
+ * - Care Assistants: Only see food_fluid and night_check alerts
+ * 
+ * Returns true if the alert should be shown to the user, false otherwise
  */
 function shouldShowAlert(alert: Doc<"alerts">, userRole?: string): boolean {
-  // If no targetRoles specified, show to all (backwards compatibility)
-  if (!alert.targetRoles || alert.targetRoles.length === 0) {
-    return true;
-  }
-
-  // If no userRole provided, show to all (backwards compatibility)
+  // If no userRole provided, don't show alerts (strict filtering)
   if (!userRole) {
+    return false;
+  }
+
+  // Managers never see medication, food_fluid, or night_check alerts
+  if (userRole === "manager" || userRole === "owner" || userRole === "admin") {
+    if (
+      alert.alertType === "medication" ||
+      alert.alertType === "food_fluid" ||
+      alert.alertType === "night_check"
+    ) {
+      return false;
+    }
+    // Managers can see other alert types (activity, vital_signs, care_plan)
     return true;
   }
 
-  // Check if user's role is in targetRoles
-  return alert.targetRoles.includes(userRole);
+  // If alert has targetRoles, check if user's role matches
+  if (alert.targetRoles && alert.targetRoles.length > 0) {
+    return alert.targetRoles.includes(userRole);
+  }
+
+  // For alerts without targetRoles (backwards compatibility for old alerts):
+  // Apply role-based filtering based on alertType
+  if (alert.alertType === "medication") {
+    // Medication alerts only for nurses
+    return userRole === "nurse";
+  }
+
+  if (alert.alertType === "food_fluid" || alert.alertType === "night_check") {
+    // Food/fluid and night check alerts only for care assistants
+    return userRole === "care_assistant";
+  }
+
+  // Other alert types (activity, vital_signs, care_plan) - show to all roles
+  return true;
 }
 
 /**
