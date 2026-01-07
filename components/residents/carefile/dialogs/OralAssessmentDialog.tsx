@@ -513,7 +513,7 @@ export default function OralAssessmentDialog({
                     name="dentistName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Dentist's Name</FormLabel>
+                        <FormLabel>Dentist&apos;s Name</FormLabel>
                         <FormControl>
                           <Input placeholder="Dr. Smith" {...field} />
                         </FormControl>

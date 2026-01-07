@@ -37,18 +37,17 @@ export default function NotificationPage() {
   });
 
   // Fetch incidents - either for specific team or entire organization
-  const incidents = useQuery(
-    activeTeamId
-      ? api.incidents.getIncidentsByTeam
-      : activeOrganizationId
-      ? api.incidents.getIncidentsByOrganization
-      : "skip",
-    activeTeamId
-      ? { teamId: activeTeamId, limit: 50 }
-      : activeOrganizationId
-      ? { organizationId: activeOrganizationId, limit: 50 }
-      : "skip"
+  const teamIncidents = useQuery(
+    api.incidents.getIncidentsByTeam,
+    activeTeamId ? { teamId: activeTeamId, limit: 50 } : "skip"
   );
+
+  const orgIncidents = useQuery(
+    api.incidents.getIncidentsByOrganization,
+    !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId, limit: 50 } : "skip"
+  );
+
+  const incidents = activeTeamId ? teamIncidents : orgIncidents;
 
   // Mutations
   const markIncidentAsRead = useMutation(api.notifications.markIncidentAsRead);
@@ -281,7 +280,7 @@ export default function NotificationPage() {
               >
                 {/* Resident Avatar */}
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={incident.resident?.imageUrl} alt={residentName} />
+                  <AvatarImage src={incident.resident?.imageUrl || undefined} alt={residentName} />
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
 

@@ -477,7 +477,7 @@ export default function EditMedicationDialog({
                               name="times"
                               render={({ field }) => {
                                 const isSelected = field.value?.includes(time);
-                                const isDisabled = !isSelected && field.value?.length >= maxTimes;
+                                const isDisabled = !isSelected && (field.value?.length || 0) >= maxTimes;
 
                                 return (
                                   <FormItem key={time} className="space-y-0">
@@ -488,7 +488,7 @@ export default function EditMedicationDialog({
                                         onClick={() => {
                                           const checked = !isSelected;
                                           return checked
-                                            ? field.onChange([...field.value, time])
+                                            ? field.onChange([...(field.value || []), time])
                                             : field.onChange(
                                                 field.value?.filter(
                                                   (value) => value !== time

@@ -76,7 +76,7 @@ export default function BedrailConsentDialog({
   );
 
   const form = useForm<z.infer<typeof bedrailConsentSchema>>({
-    resolver: zodResolver(bedrailConsentSchema),
+    resolver: zodResolver(bedrailConsentSchema) as any,
     mode: "onChange",
     defaultValues: initialData
       ? {

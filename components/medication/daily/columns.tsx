@@ -284,7 +284,7 @@ export const createColumns = (
         try {
           await updateMedicationIntakeStatus({
             intakeId: row.original._id,
-            state: newState
+            state: newState as any
           });
           toast.success("State updated successfully");
         } catch (error) {

@@ -228,7 +228,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         return;
       }
 
-      const organizationId = user.user.activeTeamId || resident?.organizationId;
+      const organizationId = (user.user as any).activeTeamId || resident?.organizationId;
 
       if (!organizationId) {
         toast.error("Missing organization information");
@@ -288,7 +288,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         return;
       }
 
-      const organizationId = user.user.activeTeamId || resident?.organizationId;
+      const organizationId = (user.user as any).activeTeamId || resident?.organizationId;
 
       if (!organizationId) {
         toast.error("Missing organization information");
@@ -1173,7 +1173,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         onOpenChange={setIsPersonalInterestsDialogOpen}
         residentId={id}
         residentName={fullName}
-        organizationId={user?.user?.activeTeamId || ""}
+        organizationId={(user?.user as any)?.activeTeamId || ""}
         createdBy={user?.user?.id || ""}
         existingData={personalInterests ? {
           mainInterests: personalInterests.mainInterests,

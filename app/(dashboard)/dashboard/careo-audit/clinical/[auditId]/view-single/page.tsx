@@ -33,7 +33,7 @@ import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 interface ItemResponse {
   itemId: string;
   itemName: string;
-  status?: "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
+  status?: "" | "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
   notes?: string;
   date?: string;
 }
@@ -456,7 +456,7 @@ function ClinicalAuditViewSinglePageContent() {
 
 export default function ClinicalAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view-single" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <ClinicalAuditViewSinglePageContent />
     </ErrorBoundary>
   );

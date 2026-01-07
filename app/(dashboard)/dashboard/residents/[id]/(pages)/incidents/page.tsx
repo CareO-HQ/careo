@@ -147,20 +147,16 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
     // Convert BHSCT reports to the same format as trust reports
     const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
-      _id: report._id,
-      incidentId: report.incidentId,
+      ...report,
       trustName: "BHSCT",
-      reportType: "bhsct",
-      ...report
+      reportType: "bhsct"
     }));
 
     // Convert SEHSCT reports to the same format as trust reports
     const formattedSehsctReports = sehsctReportsForIncident.map(report => ({
-      _id: report._id,
-      incidentId: report.incidentId,
+      ...report,
       trustName: "SEHSCT",
-      reportType: "sehsct",
-      ...report
+      reportType: "sehsct"
     }));
 
     return [...oldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];

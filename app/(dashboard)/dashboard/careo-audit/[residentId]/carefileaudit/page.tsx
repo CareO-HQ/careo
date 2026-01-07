@@ -480,7 +480,7 @@ function CareFileAuditPageContent() {
 
 export default function CareFileAuditPage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="listing" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <CareFileAuditPageContent />
     </ErrorBoundary>
   );

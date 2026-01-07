@@ -27,16 +27,12 @@ export default function AppointmentPage() {
 
   // Fetch appointments - either for specific team or entire organization
   const appointmentsData = useQuery(
-    activeTeamId
-      ? api.appointments.getAppointmentsByTeam
-      : activeOrganizationId
-      ? api.appointments.getAppointmentsByOrganization
-      : "skip",
+    activeTeamId ? api.appointments.getAppointmentsByTeam : activeOrganizationId ? api.appointments.getAppointmentsByOrganization : ("skip" as any),
     activeTeamId
       ? { teamId: activeTeamId }
       : activeOrganizationId
       ? { organizationId: activeOrganizationId }
-      : "skip"
+      : undefined
   );
 
   const markAppointmentAsRead = useMutation(api.appointmentNotifications.markAppointmentAsRead);

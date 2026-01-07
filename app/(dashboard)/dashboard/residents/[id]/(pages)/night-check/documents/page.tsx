@@ -777,43 +777,43 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
 
                 // Build one-line summary based on check type
                 if (recording.checkType === "night_check" && recording.checkData) {
-                  const parts = [];
+                  const parts: any[] = [];
                   if (recording.checkData.position) parts.push(positionLabels[recording.checkData.position]);
                   if (recording.checkData.status) parts.push(statusLabels[recording.checkData.status]);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "positioning" && recording.checkData) {
-                  const parts = [];
+                  const parts: any[] = [];
                   if (recording.checkData.position) parts.push(positionLabels[recording.checkData.position]);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "pad_change" && recording.checkData) {
-                  const parts = [];
+                  const parts: any[] = [];
                   if (recording.checkData.pad_changed) parts.push("Pad Changed");
                   if (recording.checkData.skin_condition) parts.push(`Skin: ${skinConditionLabels[recording.checkData.skin_condition]}`);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "bed_rails" && recording.checkData) {
                   const items = recording.checkData.equipment_checked?.map((item: string) => equipmentLabels[item] || item).join(", ") || "";
-                  const parts = [];
+                  const parts: any[] = [];
                   if (items) parts.push(items);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "environmental" && recording.checkData) {
                   const items = recording.checkData.items_checked?.map((item: string) => environmentalLabels[item] || item).join(", ") || "";
-                  const parts = [];
+                  const parts: any[] = [];
                   if (items) parts.push(items);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "cleaning" && recording.checkData) {
                   const items = recording.checkData.items_cleaned?.map((item: string) => cleaningLabels[item] || item).join(", ") || "";
-                  const parts = [];
+                  const parts: any[] = [];
                   if (items) parts.push(items);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");
                 } else if (recording.checkType === "personal_care" && recording.checkData) {
                   const activities = recording.checkData.activities_performed?.map((item: string) => personalCareLabels[item] || item).join(", ") || "";
-                  const parts = [];
+                  const parts: any[] = [];
                   if (activities) parts.push(activities);
                   if (recording.checkData.additional_notes) parts.push(recording.checkData.additional_notes);
                   summary = parts.join(" - ");

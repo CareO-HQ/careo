@@ -54,7 +54,7 @@ interface Audit {
   lastAudited: string;
   dueDate: string;
   category: string;
-  frequency?: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
+  frequency?: "daily" | "weekly" | "monthly" | "quarterly" | "6months" | "yearly" | "adhoc";
 }
 
 interface Resident {
@@ -590,7 +590,7 @@ function CareOAuditPageContent() {
 
       setIsDialogOpen(false);
       setFormData({ auditName: "", auditorName: "", frequency: "" });
-      router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}`);
+      router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}` as any);
     }
   };
 
@@ -602,7 +602,7 @@ function CareOAuditPageContent() {
     const isConvexId = /^[a-z]/.test(audit.id);
     if (isConvexId) {
       try {
-        let impact = null;
+        let impact: { auditCount: number; actionPlanCount: number } | null = null;
         if (audit.category === "resident") {
           impact = await convex.query(api.auditTemplates.getDeletionImpact, {
             templateId: audit.id as Id<"residentAuditTemplates">
@@ -875,7 +875,7 @@ function CareOAuditPageContent() {
       const completions: {[residentId: string]: number} = {};
       const dates: {[residentId: string]: {lastAudited: string, nextAudit: string}} = {};
 
-      residents.forEach(resident => {
+      (residents as unknown as Resident[]).forEach((resident) => {
         completions[resident._id] = calculateResidentCareFileCompletion(resident._id);
         dates[resident._id] = calculateResidentDates(resident._id);
       });
@@ -1092,7 +1092,7 @@ function CareOAuditPageContent() {
             </TableHeader>
             <TableBody>
               {residents && residents.length > 0 ? (
-                residents.map((resident) => (
+                (residents as unknown as Resident[]).map((resident) => (
                   <TableRow key={resident._id} className="hover:bg-muted/50">
                     <TableCell className="border-r last:border-r-0">
                       <input type="checkbox" className="rounded border-gray-300" />
@@ -1182,7 +1182,7 @@ function CareOAuditPageContent() {
                   </TableCell>
                   <TableCell className="border-r last:border-r-0">
                     <button
-                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
+                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}` as any)}
                       className="font-medium hover:underline text-left"
                     >
                       {audit.name}

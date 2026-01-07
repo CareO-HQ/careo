@@ -433,7 +433,7 @@ export default function MyActionPlansPage() {
                 </p>
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {plan.templateName}
+                    {"templateName" in plan ? plan.templateName : ""}
                   </p>
                   {plan.createdBy === userEmail && plan.assignedTo !== userEmail && (
                     <p className="text-xs text-gray-600 dark:text-gray-300">
@@ -488,7 +488,7 @@ export default function MyActionPlansPage() {
                 </p>
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {plan.templateName}
+                    {"templateName" in plan ? plan.templateName : ""}
                   </p>
                   {plan.createdBy === userEmail && plan.assignedTo !== userEmail && (
                     <p className="text-xs text-gray-600 dark:text-gray-300">
@@ -544,7 +544,7 @@ export default function MyActionPlansPage() {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {plan.templateName}
+                      {"templateName" in plan ? plan.templateName : ""}
                     </p>
                     {/* Delete Button */}
                     <Button

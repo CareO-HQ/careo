@@ -62,13 +62,13 @@ export default function StaffPage() {
 
   // Fetch staff by team if team is selected
   const teamStaff = useQuery(
-    activeTeamId ? api.users.getByTeamId : "skip",
+    api.users.getByTeamId,
     activeTeamId ? { teamId: activeTeamId } : "skip"
   ) as TeamStaffMember[] | undefined;
 
   // Fetch enriched organization members with phone numbers
   const enrichedOrgStaff = useQuery(
-    !activeTeamId && activeOrganizationId ? api.users.getEnrichedOrgMembers : "skip",
+    api.users.getEnrichedOrgMembers,
     !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   ) as OrgStaffMember[] | undefined;
 

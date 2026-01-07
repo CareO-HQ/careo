@@ -210,7 +210,7 @@ export default function PainAssessmentDialog({
                   name="residentName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Resident's Name</FormLabel>
+                      <FormLabel required>Resident&apos;s Name</FormLabel>
                       <FormControl>
                         <Input placeholder="John Doe" {...field} />
                       </FormControl>

@@ -22,7 +22,7 @@ export default function CreateMedicationDemo() {
         <DialogHeader>
           <DialogTitle>DEMO Create Medication</DialogTitle>
         </DialogHeader>
-        <CreateMedicationForm onSuccess={() => setDialogOpen(false)} />
+        <CreateMedicationForm residentId={"" as any} onSuccess={() => setDialogOpen(false)} />
       </DialogContent>
     </Dialog>
   );

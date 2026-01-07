@@ -75,7 +75,7 @@ export default function ArchivedCarePlansPage() {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
-  const handleViewCarePlan = (carePlan: typeof archivedCarePlans[0]) => {
+  const handleViewCarePlan = (carePlan: any) => {
     setViewingCarePlan({
       formKey: "care-plan-form",
       formId: carePlan._id,
@@ -139,7 +139,7 @@ export default function ArchivedCarePlansPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {archivedCarePlans.map((carePlan) => (
+              {(archivedCarePlans as any[]).map((carePlan) => (
                 <TableRow key={carePlan._id} className="bg-muted/20">
                   <TableCell className="font-medium">
                     {carePlan.nameOfCarePlan}

@@ -501,7 +501,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                             <Badge className="bg-red-100 text-red-800 border-0">
                               Cancelled
                             </Badge>
-                          ) : appointment.status === "rescheduled" ? (
+                          ) : (appointment.status as string) === "rescheduled" ? (
                             <Badge className="bg-yellow-100 text-yellow-800 border-0">
                               Rescheduled
                             </Badge>

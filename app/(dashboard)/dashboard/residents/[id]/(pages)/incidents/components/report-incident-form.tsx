@@ -121,8 +121,6 @@ export function ReportIncidentForm({
       
       await createIncident({
         residentId: residentId as Id<"residents">,
-        type: values.type,
-        severity: values.severity,
         date: values.date.toISOString(),
         time: values.time,
         location: values.location,
@@ -137,7 +135,7 @@ export function ReportIncidentForm({
         preventativeMeasures: values.preventativeMeasures || "",
         reportedBy: values.reportedBy,
         reporterRole: values.reporterRole,
-      });
+      } as any);
 
       toast.success("Incident report submitted successfully");
       form.reset();

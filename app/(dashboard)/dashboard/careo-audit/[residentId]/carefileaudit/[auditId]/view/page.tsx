@@ -81,12 +81,6 @@ function CareFileAuditViewPageContent() {
       : "skip"
   );
 
-  // Load all action plans for this template
-  const allTemplateActionPlans = useQuery(
-    api.careFileAuditActionPlans.getActionPlansByTemplate,
-    templateId ? { templateId } : "skip"
-  );
-
   useEffect(() => {
     if (dbArchivedAudits) {
       const formatted = dbArchivedAudits
@@ -103,15 +97,6 @@ function CareFileAuditViewPageContent() {
       setArchivedAudits(formatted as any);
     }
   }, [dbArchivedAudits]);
-
-  // Helper function to get action plans count for a specific audit response
-  const getActionPlansCountForAudit = (auditResponseId: string): number => {
-    if (!allTemplateActionPlans) return 0;
-
-    return allTemplateActionPlans.filter(
-      (plan: any) => plan.auditResponseId === auditResponseId
-    ).length;
-  };
 
   if (resident === undefined || template === undefined) {
     return (
@@ -205,7 +190,6 @@ function CareFileAuditViewPageContent() {
                     <TableHead className="font-semibold">Completed Date</TableHead>
                     <TableHead className="font-semibold">Time</TableHead>
                     <TableHead className="font-semibold">Items</TableHead>
-                    <TableHead className="font-semibold">Action Plans</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold w-[100px]">Actions</TableHead>
                   </TableRow>
@@ -213,7 +197,6 @@ function CareFileAuditViewPageContent() {
                 <TableBody>
                   {archivedAudits.map((audit, index) => {
                     const completedDate = new Date(audit.completedAt);
-                    const actionPlanCount = getActionPlansCountForAudit(audit.id);
 
                     return (
                       <TableRow key={audit.id} className="hover:bg-muted/50">
@@ -229,11 +212,6 @@ function CareFileAuditViewPageContent() {
                         <TableCell>
                           <Badge variant="secondary" className="text-xs">
                             {audit.items?.length || 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">
-                            {actionPlanCount}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -273,7 +251,7 @@ function CareFileAuditViewPageContent() {
 
 export default function CareFileAuditViewPage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <CareFileAuditViewPageContent />
     </ErrorBoundary>
   );

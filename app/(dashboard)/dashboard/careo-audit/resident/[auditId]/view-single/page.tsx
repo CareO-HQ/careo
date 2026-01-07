@@ -128,11 +128,11 @@ export default function ViewCompletedAuditPage() {
     if (auditData && dbAudit) {
       // Include templateId for database audits
       const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}&templateId=${dbAudit.templateId}`;
-      router.push(backUrl);
+      router.push(backUrl as any);
     } else if (auditData) {
       // Fallback without templateId for localStorage audits
       const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}`;
-      router.push(backUrl);
+      router.push(backUrl as any);
     } else {
       // Fallback to main listing
       router.push("/dashboard/careo-audit?tab=resident");

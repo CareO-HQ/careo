@@ -415,8 +415,8 @@ export default function EnvironmentAuditPage() {
 
   // Track if data has actually changed to avoid unnecessary saves
   const lastSavedData = React.useRef<string>("");
-  const saveTimeoutRef = React.useRef<NodeJS.Timeout>();
-  const abortControllerRef = React.useRef<AbortController>();
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | undefined>(undefined);
+  const abortControllerRef = React.useRef<AbortController | undefined>(undefined);
 
   // Auto-save audit progress to database (debounced and optimized)
   useEffect(() => {
@@ -439,7 +439,7 @@ export default function EnvironmentAuditPage() {
       const items = auditDetailItems.map((item) => ({
         itemId: item.id,
         itemName: item.itemName,
-        status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
+        status: (item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined) || undefined,
         notes: item.notes || undefined,
         date: item.lastReviewed || undefined,
       }));
@@ -493,9 +493,9 @@ export default function EnvironmentAuditPage() {
       const items = auditDetailItems.map((item) => ({
         itemId: item.id,
         itemName: item.itemName,
-        status: item.status && item.status.trim() !== ""
+        status: (item.status && item.status.trim() !== ""
           ? (item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked")
-          : undefined,
+          : undefined),
         notes: item.notes || undefined,
         date: item.lastReviewed || undefined,
       }));

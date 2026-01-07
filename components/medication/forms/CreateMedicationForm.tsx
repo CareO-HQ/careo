@@ -178,7 +178,7 @@ export default function CreateMedicationForm({
   const handleSecondStep = async () => {
     const fieldsToValidate = ["times"] as const;
     // At least one time is required
-    if (form.getValues("times").length === 0) {
+    if (form.getValues("times")?.length === 0) {
       toast.error("Please add at least one time");
       return;
     }
@@ -475,7 +475,7 @@ export default function CreateMedicationForm({
                                 name="times"
                                 render={({ field }) => {
                                   const isSelected = field.value?.includes(time);
-                                  const isDisabled = !isSelected && field.value?.length >= maxTimes;
+                                  const isDisabled = !isSelected && (field.value?.length || 0) >= maxTimes;
                                   const timeQuantities = form.watch("timeQuantities") || {};
 
                                   return (
@@ -488,7 +488,7 @@ export default function CreateMedicationForm({
                                             onClick={() => {
                                               const checked = !isSelected;
                                               if (checked) {
-                                                field.onChange([...field.value, time]);
+                                                field.onChange([...(field.value || []), time]);
                                                 // Set default quantity to 1 when time is selected
                                                 form.setValue("timeQuantities", {
                                                   ...timeQuantities,

@@ -618,7 +618,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         residentId: id as Id<"residents">,
         teamId: resident.teamId,
         organizationId: resident.organizationId,
-        checkType: "personal_care",
+        checkType: "personal_care" as any,
         selectedItems: selectedPersonalCareItems,
         createdBy: session.user.id,
       });
@@ -792,7 +792,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           equipment: config.checkType === "bed_rails" ? config.selectedItems : undefined,
           environmentalItems: config.checkType === "environmental" ? config.selectedItems : undefined,
           cleaningItems: config.checkType === "cleaning" ? config.selectedItems : undefined,
-          personalCareItems: config.checkType === "personal_care" ? config.selectedItems : undefined,
+          personalCareItems: (config.checkType as any) === "personal_care" ? config.selectedItems : undefined,
         };
       });
 
@@ -865,7 +865,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         residentId: id as Id<"residents">,
         teamId: resident.teamId,
         organizationId: resident.organizationId,
-        checkType: dialogType,
+        checkType: dialogType as any,
         recordDate,
         recordTime,
         recordDateTime,
@@ -1230,7 +1230,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                           itemsList = recording.checkData.equipment_checked;
                         } else if (recording.checkType === "cleaning" && recording.checkData?.items_cleaned) {
                           itemsList = recording.checkData.items_cleaned;
-                        } else if (recording.checkType === "personal_care" && recording.checkData?.activities_performed) {
+                        } else if ((recording.checkType as any) === "personal_care" && recording.checkData?.activities_performed) {
                           itemsList = recording.checkData.activities_performed;
                         }
 

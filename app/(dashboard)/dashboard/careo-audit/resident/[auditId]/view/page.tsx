@@ -36,31 +36,8 @@ function ResidentAuditViewPageContent() {
   const { activeTeamId } = useActiveTeam();
 
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
-  const [templateId, setTemplateId] = useState<Id<"auditTemplates"> | null>(null);
-  const [isCheckingId, setIsCheckingId] = useState(true);
-
-  // Try to get templateId from responseId (in case old URL is used)
-  const templateIdFromResponse = useQuery(
-    api.auditResponses.getTemplateIdFromResponse,
-    auditId && isCheckingId ? { possibleResponseId: auditId } : "skip"
-  );
-
-  // Determine if auditId is a templateId or responseId, and redirect if needed
-  useEffect(() => {
-    if (!isCheckingId) return;
-
-    // If we got a templateId from the response query, it means auditId was a responseId
-    if (templateIdFromResponse) {
-      // Redirect to the correct URL with templateId
-      router.replace(`/dashboard/careo-audit/resident/${templateIdFromResponse}/view`);
-      setIsCheckingId(false);
-    } else if (templateIdFromResponse === null) {
-      // Query returned null, which means auditId is not a valid responseId
-      // So it must be a templateId already
-      setTemplateId(auditId as Id<"auditTemplates">);
-      setIsCheckingId(false);
-    }
-  }, [templateIdFromResponse, auditId, router, isCheckingId]);
+  // Assume auditId is always a templateId for this view
+  const templateId = auditId as Id<"residentAuditTemplates">;
 
   // Fetch template to get the name
   const template = useQuery(
@@ -70,19 +47,13 @@ function ResidentAuditViewPageContent() {
 
   // Load completed audits from database for this template
   const dbArchivedAudits = useQuery(
-    api.auditResponses.getCompletedResponsesByTemplate,
+    api.auditResponses.getResponsesByTemplate,
     templateId && activeTeamId
       ? {
           templateId,
           teamId: activeTeamId,
         }
       : "skip"
-  );
-
-  // Load all action plans for this template
-  const allTemplateActionPlans = useQuery(
-    api.auditActionPlans.getActionPlansByTemplate,
-    templateId ? { templateId } : "skip"
   );
 
   useEffect(() => {
@@ -101,15 +72,6 @@ function ResidentAuditViewPageContent() {
       setArchivedAudits(formatted as any);
     }
   }, [dbArchivedAudits]);
-
-  // Helper function to get action plans count for a specific audit response
-  const getActionPlansCountForAudit = (auditResponseId: string): number => {
-    if (!allTemplateActionPlans) return 0;
-
-    return allTemplateActionPlans.filter(
-      (plan: any) => plan.auditResponseId === auditResponseId
-    ).length;
-  };
 
   // Helper function to get total residents count
   const getResidentsCount = (audit: ArchivedAudit): number => {
@@ -197,7 +159,6 @@ function ResidentAuditViewPageContent() {
                     <TableHead className="font-semibold">Time</TableHead>
                     <TableHead className="font-semibold">Audited By</TableHead>
                     <TableHead className="font-semibold">Residents</TableHead>
-                    <TableHead className="font-semibold">Action Plans</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold w-[100px]">Actions</TableHead>
                   </TableRow>
@@ -205,7 +166,6 @@ function ResidentAuditViewPageContent() {
                 <TableBody>
                   {archivedAudits.map((audit, index) => {
                     const completedDate = new Date(audit.completedAt);
-                    const actionPlanCount = getActionPlansCountForAudit(audit.id);
                     const residentsCount = getResidentsCount(audit);
 
                     return (
@@ -225,11 +185,6 @@ function ResidentAuditViewPageContent() {
                         <TableCell>
                           <Badge variant="secondary" className="text-xs">
                             {residentsCount}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">
-                            {actionPlanCount}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -269,7 +224,7 @@ function ResidentAuditViewPageContent() {
 
 export default function ResidentAuditViewPage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <ResidentAuditViewPageContent />
     </ErrorBoundary>
   );

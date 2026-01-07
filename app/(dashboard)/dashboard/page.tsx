@@ -40,18 +40,17 @@ export default function DashboardPage() {
   } = useActiveTeam();
 
   // Fetch dashboard data based on team or organization
-  const dashboardData = useQuery(
-    activeTeamId
-      ? api.dashboard.getDashboardStatsByTeam
-      : activeOrganizationId
-      ? api.dashboard.getDashboardStatsByOrganization
-      : "skip",
-    activeTeamId
-      ? { teamId: activeTeamId }
-      : activeOrganizationId
-      ? { organizationId: activeOrganizationId }
-      : "skip"
+  const teamDashboard = useQuery(
+    api.dashboard.getDashboardStatsByTeam,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
   );
+
+  const orgDashboard = useQuery(
+    api.dashboard.getDashboardStatsByOrganization,
+    !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  const dashboardData = activeTeamId ? teamDashboard : orgDashboard;
 
   const isLoading = isTeamLoading || dashboardData === undefined;
 

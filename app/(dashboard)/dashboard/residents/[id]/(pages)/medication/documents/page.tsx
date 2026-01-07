@@ -72,7 +72,7 @@ const generateDummyMedicationData = () => {
   const statuses = ["administered", "missed", "refused"];
   const staff = ["Sarah Johnson", "Michael Chen", "Emma Williams", "James Brown"];
 
-  const dates = [];
+  const dates: any[] = [];
   const today = new Date();
 
   for (let i = 0; i < 90; i++) {
@@ -80,7 +80,7 @@ const generateDummyMedicationData = () => {
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
 
-    const logs = [];
+    const logs: any[] = [];
     const numLogs = Math.floor(Math.random() * 4) + 3; // 3-6 logs per day
 
     for (let j = 0; j < numLogs; j++) {

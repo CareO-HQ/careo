@@ -1629,7 +1629,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           <DialogHeader>
             <DialogTitle>Add Menu Item to {resident.teamName || "Your Unit"}</DialogTitle>
             <DialogDescription>
-              Add a common food item to your unit's menu. This will be available for all residents in {resident.teamName || "your unit"}.
+              Add a common food item to your unit&apos;s menu. This will be available for all residents in {resident.teamName || "your unit"}.
             </DialogDescription>
           </DialogHeader>
 

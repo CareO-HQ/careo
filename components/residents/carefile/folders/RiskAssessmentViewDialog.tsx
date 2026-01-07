@@ -355,11 +355,11 @@ export default function RiskAssessmentViewDialog({
                   <div className="p-3 bg-muted rounded-md">
                     <p className="text-xs italic text-muted-foreground">
                       Discussion acknowledged: The representative has discussed the use of bed rails/bumpers
-                      with professionals concerned, based on the resident's previously expressed wishes and beliefs.
+                      with professionals concerned, based on the resident&apos;s previously expressed wishes and beliefs.
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">Resident's Presumed Preference</p>
+                    <p className="text-xs font-medium text-muted-foreground">Resident&apos;s Presumed Preference</p>
                     <p className="text-sm leading-relaxed">
                       {preferenceMap[section.residentPreference] || section.residentPreference}
                     </p>

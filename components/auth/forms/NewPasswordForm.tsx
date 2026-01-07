@@ -77,7 +77,7 @@ export default function NewPasswordForm() {
     setHasCapital(/[A-Z]/.test(password));
     setHasNumber(/[0-9]/.test(password));
     setHasLowercase(/[a-z]/.test(password));
-  }, [form, password]);
+  }, [form]);
 
   return (
     <Form {...form}>

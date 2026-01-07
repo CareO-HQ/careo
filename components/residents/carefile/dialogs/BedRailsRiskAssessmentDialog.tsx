@@ -275,7 +275,7 @@ export default function BedRailsRiskAssessmentDialog({
                   name="residentName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Resident's Name</FormLabel>
+                      <FormLabel>Resident&apos;s Name</FormLabel>
                       <FormControl>
                         <Input {...field} className="bg-muted" disabled />
                       </FormControl>
@@ -754,7 +754,7 @@ export default function BedRailsRiskAssessmentDialog({
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">2. Safety Checklist (Risk of Entrapment)</h3>
                 <p className="text-sm text-muted-foreground">
-                  If any answer is "Yes", bed rails should not be used.
+                  If any answer is &quot;Yes&quot;, bed rails should not be used.
                 </p>
 
                 <div className="space-y-3">
@@ -910,7 +910,7 @@ export default function BedRailsRiskAssessmentDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Have you obtained consent from the Resident or consulted the NOK as part of the "best interest" decision?
+                        Have you obtained consent from the Resident or consulted the NOK as part of the &quot;best interest&quot; decision?
                       </FormLabel>
                       <FormControl>
                         <RadioGroup

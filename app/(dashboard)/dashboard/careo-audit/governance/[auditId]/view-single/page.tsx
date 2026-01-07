@@ -456,7 +456,7 @@ function GovernanceAuditViewSinglePageContent() {
 
 export default function GovernanceAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view-single" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <GovernanceAuditViewSinglePageContent />
     </ErrorBoundary>
   );

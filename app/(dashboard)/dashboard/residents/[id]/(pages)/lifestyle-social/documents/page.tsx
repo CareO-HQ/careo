@@ -90,12 +90,12 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
 
   // Get unique years from activities
   const availableYears = useMemo(() => {
-    if (!allActivities || allActivities.length === 0) {
+    if (!allActivities || (allActivities as any).length === 0) {
       const currentYear = new Date().getFullYear();
       return [currentYear, currentYear - 1];
     }
     const years = new Set<number>();
-    allActivities.forEach((activity: any) => {
+    (allActivities as any).forEach((activity: any) => {
       const year = new Date(activity.activityDate).getFullYear();
       years.add(year);
     });
@@ -108,7 +108,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
 
     const grouped = new Map<string, any[]>();
 
-    allActivities.forEach((activity: any) => {
+    (allActivities as any).forEach((activity: any) => {
       const date = activity.activityDate;
       if (!grouped.has(date)) {
         grouped.set(date, []);
@@ -179,19 +179,19 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     const currentYear = now.getFullYear();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const thisMonth = allActivities.filter((activity: any) => {
+    const thisMonth = (allActivities as any).filter((activity: any) => {
       const activityDate = new Date(activity.activityDate);
       return activityDate.getMonth() === currentMonth && activityDate.getFullYear() === currentYear;
     }).length;
 
-    const thisWeek = allActivities.filter((activity: any) => {
+    const thisWeek = (allActivities as any).filter((activity: any) => {
       const activityDate = new Date(activity.activityDate);
       return activityDate >= oneWeekAgo;
     }).length;
 
     return {
       total: activitiesByDate.length,
-      totalActivities: allActivities.length,
+      totalActivities: (allActivities as any).length,
       thisMonth,
       thisWeek,
     };

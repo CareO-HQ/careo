@@ -153,7 +153,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         availableMembers,
         markMedicationIntakeAsPoppedOut,
         setWithnessForMedicationIntake,
-        updateMedicationIntakeStatus,
+        updateMedicationIntakeStatus as any,
         saveMedicationIntakeComment,
         currentUser?.user
           ? {
@@ -456,7 +456,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <div className="w-full">
           <DataTable
             columns={prnTopicalColumns}
-            data={prnOrTopicalMedications || []}
+            data={(prnOrTopicalMedications as any) || []}
           />
         </div>
       </div>
@@ -468,7 +468,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <div className="w-full">
           <DataTable
             columns={allActiveMedicationColumns}
-            data={allActiveMedications || []}
+            data={(allActiveMedications as any) || []}
           />
         </div>
       </div>
@@ -485,7 +485,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <div className="w-full">
             <DataTable
               columns={allActiveMedicationColumns}
-              data={discontinuedMedications}
+              data={discontinuedMedications as any}
             />
           </div>
         </div>

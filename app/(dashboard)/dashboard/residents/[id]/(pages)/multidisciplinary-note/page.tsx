@@ -317,7 +317,7 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
 
   // Build disciplinary team from resident data and database team members
   const buildDisciplinaryTeam = () => {
-    const team = [];
+    const team: any[] = [];
 
     // Add GP if available
     if (resident?.gpName) {

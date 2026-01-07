@@ -488,7 +488,7 @@ function CareFileAuditViewSinglePageContent() {
 
 export default function CareFileAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <CareFileAuditViewSinglePageContent />
     </ErrorBoundary>
   );

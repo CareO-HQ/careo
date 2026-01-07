@@ -456,7 +456,7 @@ function EnvironmentAuditViewSinglePageContent() {
 
 export default function EnvironmentAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view-single" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <EnvironmentAuditViewSinglePageContent />
     </ErrorBoundary>
   );

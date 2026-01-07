@@ -493,7 +493,7 @@ export default function InfectionPreventionDialog({
     <>
       <DialogHeader>
         <DialogTitle>
-          {step === 1 && "Resident's details"}
+          {step === 1 && "Resident&apos;s details"}
           {step === 2 && "Acute Respiratory Illness (ARI)"}
           {step === 3 && "Exposure"}
           {step === 4 && "Diarrhea and Vomiting"}

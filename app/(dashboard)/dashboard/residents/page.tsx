@@ -10,18 +10,17 @@ export default function ResidentsPage() {
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
 
   // Fetch residents - either for specific team or entire organization
-  const residents = useQuery(
-    activeTeamId
-      ? api.residents.getByTeamId
-      : activeOrganizationId
-      ? api.residents.getByOrganization
-      : "skip",
-    activeTeamId
-      ? { teamId: activeTeamId }
-      : activeOrganizationId
-      ? { organizationId: activeOrganizationId }
-      : "skip"
-  ) as Resident[] | undefined;
+  const teamResidents = useQuery(
+    api.residents.getByTeamId,
+    activeTeamId ? { teamId: activeTeamId } : "skip"
+  );
+
+  const orgResidents = useQuery(
+    api.residents.getByOrganization,
+    !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
+  );
+
+  const residents = (activeTeamId ? teamResidents : orgResidents) as Resident[] | undefined;
 
   // Determine display name for header
   const displayName = activeTeamId

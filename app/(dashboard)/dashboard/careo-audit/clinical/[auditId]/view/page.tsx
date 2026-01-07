@@ -80,12 +80,6 @@ function ClinicalAuditViewPageContent() {
       : "skip"
   );
 
-  // Load all action plans for this template
-  const allTemplateActionPlans = useQuery(
-    api.clinicalAuditActionPlans.getActionPlansByTemplate,
-    templateId ? { templateId } : "skip"
-  );
-
   useEffect(() => {
     if (dbArchivedAudits) {
       const formatted = dbArchivedAudits
@@ -103,15 +97,6 @@ function ClinicalAuditViewPageContent() {
       setArchivedAudits(formatted as any);
     }
   }, [dbArchivedAudits]);
-
-  // Helper function to get action plans count for a specific audit response
-  const getActionPlansCountForAudit = (auditResponseId: string): number => {
-    if (!allTemplateActionPlans) return 0;
-
-    return allTemplateActionPlans.filter(
-      (plan: any) => plan.auditResponseId === auditResponseId
-    ).length;
-  };
 
   if (template === undefined) {
     return (
@@ -194,7 +179,6 @@ function ClinicalAuditViewPageContent() {
                     <TableHead className="font-semibold">Time</TableHead>
                     <TableHead className="font-semibold">Audited By</TableHead>
                     <TableHead className="font-semibold">Items</TableHead>
-                    <TableHead className="font-semibold">Action Plans</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold w-[100px]">Actions</TableHead>
                   </TableRow>
@@ -202,7 +186,6 @@ function ClinicalAuditViewPageContent() {
                 <TableBody>
                   {archivedAudits.map((audit, index) => {
                     const completedDate = new Date(audit.completedAt);
-                    const actionPlanCount = getActionPlansCountForAudit(audit.id);
 
                     return (
                       <TableRow key={audit.id} className="hover:bg-muted/50">
@@ -221,11 +204,6 @@ function ClinicalAuditViewPageContent() {
                         <TableCell>
                           <Badge variant="secondary" className="text-xs">
                             {audit.items?.length || 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">
-                            {actionPlanCount}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -265,7 +243,7 @@ function ClinicalAuditViewPageContent() {
 
 export default function ClinicalAuditViewPage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <ClinicalAuditViewPageContent />
     </ErrorBoundary>
   );

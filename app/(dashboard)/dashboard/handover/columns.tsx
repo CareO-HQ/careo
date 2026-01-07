@@ -287,9 +287,7 @@ const CommentsCell = ({
 
   // Fetch existing comment from database
   const existingComment = useQuery(
-    teamId && currentUserId
-      ? api.handoverComments.getComment
-      : "skip",
+    api.handoverComments.getComment,
     teamId && currentUserId ? {
       teamId,
       residentId: residentId as Id<"residents">,
@@ -304,7 +302,7 @@ const CommentsCell = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const initialLoadComplete = useRef(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Load existing comment on mount
   useEffect(() => {
@@ -316,7 +314,7 @@ const CommentsCell = ({
   }, [existingComment]);
 
   // Auto-save with debounce
-  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     const value = e.target.value;
     setComment(value);
 

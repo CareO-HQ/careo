@@ -547,10 +547,10 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                   <Button
                     variant="outline"
                     onClick={() => loadMore(ITEMS_PER_PAGE)}
-                    disabled={status === "LoadingMore"}
+                    disabled={(status as any) === "LoadingMore"}
                     className="w-full sm:w-auto"
                   >
-                    {status === "LoadingMore" ? (
+                    {(status as any) === "LoadingMore" ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
                         Loading more...

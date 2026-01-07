@@ -979,6 +979,7 @@ function CareFileAuditEditorPageContent() {
 
                     const newActionPlan: ActionPlan = {
                       id: actionPlanId,
+                      auditId: auditId,
                       text: actionPlanText,
                       assignedTo: assignedTo,
                       assignedToEmail: assignedToEmail,
@@ -1069,7 +1070,7 @@ function CareFileAuditEditorPageContent() {
 
 export default function CareFileAuditEditorPage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="editor" />}>
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <CareFileAuditEditorPageContent />
     </ErrorBoundary>
   );
