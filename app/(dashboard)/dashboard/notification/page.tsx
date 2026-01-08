@@ -654,14 +654,14 @@ export default function NotificationPage() {
             <AlertDialogTitle>Delete All Notifications</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete all notifications? This action cannot be undone.
-              {notifications && (
-                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {notifications.length} notification{notifications.length !== 1 ? 's' : ''} will be deleted
-                  </p>
-                </div>
-              )}
             </AlertDialogDescription>
+            {notifications && (
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {notifications.length} notification{notifications.length !== 1 ? 's' : ''} will be deleted
+                </p>
+              </div>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -127,6 +127,13 @@ export function useFolderForms({
       : "skip"
   );
 
+  const archivedCarePlans = useQuery(
+    api.careFiles.carePlan.getArchivedCarePlansByResidentAndFolder,
+    includeCarePlans && residentId && folderKey
+      ? { residentId, folderKey }
+      : "skip"
+  );
+
   // Helper function to get all PDFs from all form submissions for this folder
   const getAllPdfFiles = useMemo(() => {
     const pdfFiles: Array<{
@@ -422,6 +429,7 @@ export function useFolderForms({
     allResidentValuablesForms,
     allHandlingProfileForms,
     latestCarePlanForm,
+    archivedCarePlans,
     // Computed data
     getAllPdfFiles
   };
