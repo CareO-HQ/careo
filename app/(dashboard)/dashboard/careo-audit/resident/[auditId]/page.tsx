@@ -518,8 +518,6 @@ export default function ResidentAuditPage() {
 
     // Determine if audit is due based on frequency
     const frequencyDays: { [key: string]: number } = {
-      daily: 1,
-      weekly: 7,
       monthly: 30,
       quarterly: 90,
       yearly: 365,

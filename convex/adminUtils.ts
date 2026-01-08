@@ -1,173 +1,245 @@
-import { internalMutation } from "./_generated/server";
+import { mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
-// Delete all action plans (use with caution!)
-export const deleteAllActionPlans = internalMutation({
+/**
+ * Quick fix for audit frequency migration
+ * Updates a specific careFileAuditTemplate's frequency from old value to new value
+ */
+export const fixAuditFrequency = mutation({
   args: {
-    confirmationToken: v.string(), // Require a confirmation token for safety
+    templateId: v.id("careFileAuditTemplates"),
+    newFrequency: v.union(v.literal("monthly"), v.literal("quarterly"), v.literal("yearly")),
   },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
   handler: async (ctx, args) => {
-    // Safety check - require exact confirmation
-    if (args.confirmationToken !== "DELETE_ALL_ACTION_PLANS_CONFIRMED") {
-      throw new Error("Invalid confirmation token. This operation is dangerous and requires exact confirmation.");
+    const template = await ctx.db.get(args.templateId);
+    if (!template) {
+      throw new Error("Template not found");
     }
 
-    const results = {
-      residentActionPlans: 0,
-      careFileActionPlans: 0,
-      clinicalActionPlans: 0,
-      governanceActionPlans: 0,
-      environmentActionPlans: 0,
-      relatedNotifications: 0,
+    await ctx.db.patch(args.templateId, {
+      frequency: args.newFrequency,
+    });
+
+    return {
+      success: true,
+      message: `Updated template ${args.templateId} frequency to ${args.newFrequency}`,
     };
-
-    // Delete resident audit action plans
-    const residentPlans = await ctx.db.query("residentAuditActionPlans").collect();
-    for (const plan of residentPlans) {
-      await ctx.db.delete(plan._id);
-      results.residentActionPlans++;
-    }
-
-    // Delete care file audit action plans
-    const careFilePlans = await ctx.db.query("careFileAuditActionPlans").collect();
-    for (const plan of careFilePlans) {
-      await ctx.db.delete(plan._id);
-      results.careFileActionPlans++;
-    }
-
-    // Delete clinical audit action plans
-    const clinicalPlans = await ctx.db.query("clinicalAuditActionPlans").collect();
-    for (const plan of clinicalPlans) {
-      await ctx.db.delete(plan._id);
-      results.clinicalActionPlans++;
-    }
-
-    // Delete governance audit action plans
-    const governancePlans = await ctx.db.query("governanceAuditActionPlans").collect();
-    for (const plan of governancePlans) {
-      await ctx.db.delete(plan._id);
-      results.governanceActionPlans++;
-    }
-
-    // Delete environment audit action plans
-    const environmentPlans = await ctx.db.query("environmentAuditActionPlans").collect();
-    for (const plan of environmentPlans) {
-      await ctx.db.delete(plan._id);
-      results.environmentActionPlans++;
-    }
-
-    // Delete related notifications
-    const notifications = await ctx.db.query("notifications").collect();
-    for (const notification of notifications) {
-      if (
-        notification.type === "action_plan_status_updated" ||
-        notification.type === "action_plan_completed" ||
-        notification.type === "action_plan_overdue" ||
-        notification.type === "action_plan_overdue_manager" ||
-        notification.type === "action_plan"
-      ) {
-        await ctx.db.delete(notification._id);
-        results.relatedNotifications++;
-      }
-    }
-
-    console.log("Deleted action plans:", results);
-    return results;
   },
 });
 
-// Delete old completed action plans (safer - only deletes completed ones older than X days)
+/**
+ * Fix all audit frequencies in careFileAuditTemplates
+ */
+export const fixAllCareFileAuditFrequencies = mutation({
+  args: {},
+  returns: v.object({
+    success: v.boolean(),
+    updated: v.number(),
+    message: v.string(),
+  }),
+  handler: async (ctx) => {
+    const templates = await ctx.db.query("careFileAuditTemplates").collect();
+    
+    let updated = 0;
+    
+    for (const template of templates) {
+      // Type assertion needed because database may still have old values
+      const currentFreq = template.frequency as string;
+      let newFreq: "monthly" | "quarterly" | "yearly" = "quarterly";
+      
+      if (currentFreq === "3months" || currentFreq === "6months") {
+        newFreq = "quarterly";
+      } else if (currentFreq === "daily" || currentFreq === "weekly") {
+        newFreq = "monthly";
+      } else if (currentFreq === "adhoc") {
+        newFreq = "yearly";
+      } else if (currentFreq === "monthly" || currentFreq === "quarterly" || currentFreq === "yearly") {
+        continue; // Already correct
+      } else {
+        newFreq = "yearly"; // Default
+      }
+      
+      if (currentFreq !== newFreq) {
+        await ctx.db.patch(template._id, { frequency: newFreq });
+        updated++;
+        console.log(`Updated template ${template._id}: ${currentFreq} → ${newFreq}`);
+      }
+    }
+    
+    return {
+      success: true,
+      updated,
+      message: `Updated ${updated} careFileAuditTemplates`,
+    };
+  },
+});
+
+/**
+ * Delete all action plans (admin function)
+ */
+export const deleteAllActionPlans = internalMutation({
+  args: {
+    confirmationToken: v.string(),
+  },
+  returns: v.object({
+    deleted: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    // Verify confirmation token matches expected value
+    const expectedToken = process.env.ADMIN_CONFIRMATION_TOKEN || "CONFIRM_DELETE_ALL";
+    if (args.confirmationToken !== expectedToken) {
+      throw new Error("Invalid confirmation token");
+    }
+
+    // Delete all action plans from all tables
+    const residentPlans = await ctx.db.query("residentAuditActionPlans").collect();
+    const careFilePlans = await ctx.db.query("careFileAuditActionPlans").collect();
+    const governancePlans = await ctx.db.query("governanceAuditActionPlans").collect();
+    const clinicalPlans = await ctx.db.query("clinicalAuditActionPlans").collect();
+    const environmentPlans = await ctx.db.query("environmentAuditActionPlans").collect();
+
+    let deleted = 0;
+
+    for (const plan of residentPlans) {
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
+    for (const plan of careFilePlans) {
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
+    for (const plan of governancePlans) {
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
+    for (const plan of clinicalPlans) {
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
+    for (const plan of environmentPlans) {
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
+    // Also delete related notifications
+    const notifications = await ctx.db
+      .query("notifications")
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("type"), "action_plan_created"),
+          q.eq(q.field("type"), "action_plan_completed")
+        )
+      )
+      .collect();
+
+    for (const notification of notifications) {
+      await ctx.db.delete(notification._id);
+    }
+
+    return { deleted };
+  },
+});
+
+/**
+ * Delete old completed action plans (admin function)
+ */
 export const deleteOldCompletedActionPlans = internalMutation({
   args: {
-    daysOld: v.number(), // Delete completed action plans older than this many days
+    daysOld: v.number(),
   },
+  returns: v.object({
+    deleted: v.number(),
+  }),
   handler: async (ctx, args) => {
-    const cutoffDate = Date.now() - args.daysOld * 24 * 60 * 60 * 1000;
+    const cutoffTime = Date.now() - (args.daysOld * 24 * 60 * 60 * 1000);
 
-    const results = {
-      residentActionPlans: 0,
-      careFileActionPlans: 0,
-      clinicalActionPlans: 0,
-      governanceActionPlans: 0,
-      environmentActionPlans: 0,
-    };
+    let deleted = 0;
 
-    // Delete old completed resident audit action plans
+    // Delete from all action plan tables
     const residentPlans = await ctx.db
       .query("residentAuditActionPlans")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "completed"),
-          q.lt(q.field("completedAt"), cutoffDate)
+          q.lt(q.field("completedAt"), cutoffTime)
         )
       )
       .collect();
+
     for (const plan of residentPlans) {
       await ctx.db.delete(plan._id);
-      results.residentActionPlans++;
+      deleted++;
     }
 
-    // Delete old completed care file audit action plans
     const careFilePlans = await ctx.db
       .query("careFileAuditActionPlans")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "completed"),
-          q.lt(q.field("completedAt"), cutoffDate)
+          q.lt(q.field("completedAt"), cutoffTime)
         )
       )
       .collect();
+
     for (const plan of careFilePlans) {
       await ctx.db.delete(plan._id);
-      results.careFileActionPlans++;
+      deleted++;
     }
 
-    // Delete old completed clinical audit action plans
-    const clinicalPlans = await ctx.db
-      .query("clinicalAuditActionPlans")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("status"), "completed"),
-          q.lt(q.field("completedAt"), cutoffDate)
-        )
-      )
-      .collect();
-    for (const plan of clinicalPlans) {
-      await ctx.db.delete(plan._id);
-      results.clinicalActionPlans++;
-    }
-
-    // Delete old completed governance audit action plans
     const governancePlans = await ctx.db
       .query("governanceAuditActionPlans")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "completed"),
-          q.lt(q.field("completedAt"), cutoffDate)
+          q.lt(q.field("completedAt"), cutoffTime)
         )
       )
       .collect();
+
     for (const plan of governancePlans) {
       await ctx.db.delete(plan._id);
-      results.governanceActionPlans++;
+      deleted++;
     }
 
-    // Delete old completed environment audit action plans
+    const clinicalPlans = await ctx.db
+      .query("clinicalAuditActionPlans")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "completed"),
+          q.lt(q.field("completedAt"), cutoffTime)
+        )
+      )
+      .collect();
+
+    for (const plan of clinicalPlans) {
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
     const environmentPlans = await ctx.db
       .query("environmentAuditActionPlans")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "completed"),
-          q.lt(q.field("completedAt"), cutoffDate)
+          q.lt(q.field("completedAt"), cutoffTime)
         )
       )
       .collect();
+
     for (const plan of environmentPlans) {
       await ctx.db.delete(plan._id);
-      results.environmentActionPlans++;
+      deleted++;
     }
 
-    console.log(`Deleted completed action plans older than ${args.daysOld} days:`, results);
-    return results;
+    return { deleted };
   },
 });

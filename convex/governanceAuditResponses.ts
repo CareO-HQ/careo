@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 // Get or create draft response for a template
 export const getOrCreateDraft = mutation({
@@ -242,9 +243,6 @@ export const completeAudit = mutation({
         case "quarterly":
           nextAuditDue = now + 90 * 24 * 60 * 60 * 1000; // 90 days
           break;
-        case "6months":
-          nextAuditDue = now + 180 * 24 * 60 * 60 * 1000; // 180 days
-          break;
         case "yearly":
           nextAuditDue = now + 365 * 24 * 60 * 60 * 1000; // 365 days
           break;
@@ -262,6 +260,25 @@ export const completeAudit = mutation({
       auditedByName, // Update to person who completed it
       updatedAt: now,
     });
+
+    // Notify managers about audit completion (only if nextAuditDue is valid)
+    if (nextAuditDue && nextAuditDue > 0 && typeof nextAuditDue === "number") {
+      // Schedule notification 15 days before next audit date
+      const fifteenDaysBefore = nextAuditDue - (15 * 24 * 60 * 60 * 1000);
+      const delayMs = Math.max(0, fifteenDaysBefore - Date.now());
+      
+      if (delayMs > 0) {
+        await ctx.scheduler.runAfter(delayMs, internal.auditNotifications.notifyManagersBeforeDueDate, {
+          auditCategory: "governance",
+          auditCompletionId: responseId,
+          templateId: response.templateId,
+          auditName: response.templateName,
+          organizationId: response.organizationId,
+          nextAuditDue,
+          teamId: undefined,
+        });
+      }
+    }
 
     return responseId;
   },

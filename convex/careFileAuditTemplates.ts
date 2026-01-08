@@ -19,8 +19,8 @@ export const createTemplate = mutation({
     description: v.optional(v.string()),
     items: v.array(itemValidator),
     frequency: v.union(
-      v.literal("3months"),
-      v.literal("6months"),
+      v.literal("monthly"),
+      v.literal("quarterly"),
       v.literal("yearly")
     ),
     teamId: v.string(),
@@ -54,8 +54,8 @@ export const updateTemplate = mutation({
     items: v.optional(v.array(itemValidator)),
     frequency: v.optional(
       v.union(
-        v.literal("3months"),
-        v.literal("6months"),
+        v.literal("monthly"),
+      v.literal("quarterly"),
         v.literal("yearly")
       )
     ),

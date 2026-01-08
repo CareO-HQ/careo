@@ -200,4 +200,74 @@ crons.interval(
   internal.careFiles.carePlan.sendCarePlanEvaluationNotifications
 );
 
+/**
+ * CHECK AND NOTIFY AUDIT REMINDERS
+ * Checks for audits that are 15 days before due date or overdue
+ * Runs daily to check for audits needing notifications
+ * - Queries all completed audits with nextAuditDue set
+ * - Sends notifications for audits 15 days before due date
+ * - Sends overdue notifications for audits past their due date
+ * - Only shows notifications to Managers
+ * - Organization-wide visibility (not team-specific)
+ */
+crons.daily(
+  "Check and notify audit reminders",
+  {
+    // London time: 08:00 - check for 15-day reminders and overdue audits
+    hourUTC: 8,
+    minuteUTC: 0
+  },
+  internal.auditNotifications.checkAndNotifyAuditReminders
+);
+
+/**
+ * CLEANUP INVALID AUDIT NOTIFICATIONS (IMMEDIATE)
+ * Removes invalid notifications immediately after updating days remaining
+ * Runs every 2 minutes right after updating notifications
+ * - Removes notifications for audits that are not completed
+ * - Removes notifications for audits without valid nextAuditDue dates
+ */
+crons.interval(
+  "Cleanup invalid audit notifications (2min)",
+  { minutes: 2 },
+  internal.auditNotifications.cleanupInvalidAuditNotifications
+);
+
+/**
+ * CHECK AND NOTIFY EXPIRED AUDITS
+ * Checks for audits that have passed their due date and generates expiry notifications
+ * Runs daily at 9 AM to check for expired audits
+ * - Queries all completed audits with nextAuditDue set
+ * - Creates expiry notifications for audits where nextAuditDue <= now
+ * - Only shows notifications to Managers
+ * - Organization-wide visibility (not team-specific)
+ */
+crons.daily(
+  "Check and notify expired audits",
+  {
+    // London time: 09:00 - check for expired audits
+    hourUTC: 9,
+    minuteUTC: 0
+  },
+  internal.auditNotifications.checkAndNotifyExpiredAudits
+);
+
+/**
+ * CLEANUP INVALID AUDIT NOTIFICATIONS
+ * Removes notifications for audits that are no longer completed or don't have valid nextAuditDue
+ * Runs daily at 10 AM to clean up invalid notifications
+ * - Removes notifications for audits that are not completed
+ * - Removes notifications for audits without valid nextAuditDue dates
+ * - Prevents showing stale notifications to Managers
+ */
+crons.daily(
+  "Cleanup invalid audit notifications",
+  {
+    // London time: 10:00 - cleanup invalid notifications
+    hourUTC: 10,
+    minuteUTC: 0
+  },
+  internal.auditNotifications.cleanupInvalidAuditNotifications
+);
+
 export default crons;

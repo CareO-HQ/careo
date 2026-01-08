@@ -2650,12 +2650,9 @@ export default defineSchema({
       })
     ),
     frequency: v.union(
-      v.literal("daily"),
-      v.literal("weekly"),
       v.literal("monthly"),
       v.literal("quarterly"),
-      v.literal("yearly"),
-      v.literal("adhoc")
+      v.literal("yearly")
     ),
     isActive: v.boolean(),
     teamId: v.string(),
@@ -2801,8 +2798,8 @@ export default defineSchema({
       })
     ),
     frequency: v.union(
-      v.literal("3months"),
-      v.literal("6months"),
+      v.literal("monthly"),
+      v.literal("quarterly"),
       v.literal("yearly")
     ),
     isActive: v.boolean(),
@@ -3034,7 +3031,6 @@ export default defineSchema({
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
-      v.literal("6months"),
       v.literal("yearly")
     ),
     isActive: v.boolean(),
@@ -3174,7 +3170,6 @@ export default defineSchema({
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
-      v.literal("6months"),
       v.literal("yearly")
     ),
     isActive: v.boolean(),
@@ -3315,7 +3310,6 @@ export default defineSchema({
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
-      v.literal("6months"),
       v.literal("yearly")
     ),
     isActive: v.boolean(),

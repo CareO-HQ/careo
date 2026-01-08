@@ -1,5 +1,6 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 // Validation schemas
 const answerValidator = v.object({
@@ -88,8 +89,6 @@ export const completeResponse = mutation({
     let nextAuditDue: number | undefined;
     if (response.frequency) {
       const frequencyDays: { [key: string]: number } = {
-        daily: 1,
-        weekly: 7,
         monthly: 30,
         quarterly: 90,
         yearly: 365,
@@ -109,6 +108,24 @@ export const completeResponse = mutation({
 
     // Auto-archive old audits (keep only last 10)
     await archiveOldAudits(ctx, response.templateId, response.teamId);
+
+    // Schedule notification 15 days before next audit date (only if nextAuditDue is valid)
+    if (nextAuditDue && nextAuditDue > 0 && typeof nextAuditDue === "number") {
+      const fifteenDaysBefore = nextAuditDue - (15 * 24 * 60 * 60 * 1000);
+      const delayMs = Math.max(0, fifteenDaysBefore - Date.now());
+      
+      if (delayMs > 0) {
+        await ctx.scheduler.runAfter(delayMs, internal.auditNotifications.notifyManagersBeforeDueDate, {
+          auditCategory: "resident",
+          auditCompletionId: args.responseId,
+          templateId: response.templateId,
+          auditName: response.templateName,
+          organizationId: response.organizationId,
+          nextAuditDue,
+          teamId: response.teamId,
+        });
+      }
+    }
 
     return args.responseId;
   },

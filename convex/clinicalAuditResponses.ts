@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 // Get or create a draft response for a template
 export const getOrCreateDraft = mutation({
@@ -233,7 +234,6 @@ export const completeAudit = mutation({
     const frequencyDays: { [key: string]: number } = {
       monthly: 30,
       quarterly: 90,
-      "6months": 180,
       yearly: 365,
     };
     const days = frequencyDays[template.frequency] || 30;
@@ -250,6 +250,25 @@ export const completeAudit = mutation({
       auditedByName, // Update to person who completed it
       updatedAt: now,
     });
+
+    // Notify managers about audit completion (only if nextAuditDue is valid)
+    if (nextAuditDue && nextAuditDue > 0 && typeof nextAuditDue === "number") {
+      // Schedule notification 15 days before next audit date
+      const fifteenDaysBefore = nextAuditDue - (15 * 24 * 60 * 60 * 1000);
+      const delayMs = Math.max(0, fifteenDaysBefore - Date.now());
+      
+      if (delayMs > 0) {
+        await ctx.scheduler.runAfter(delayMs, internal.auditNotifications.notifyManagersBeforeDueDate, {
+          auditCategory: "clinical",
+          auditCompletionId: responseId,
+          templateId: response.templateId,
+          auditName: response.templateName,
+          organizationId: response.organizationId,
+          nextAuditDue,
+          teamId: undefined,
+        });
+      }
+    }
 
     return responseId;
   },

@@ -1,31 +1,5 @@
-import { internalMutation, mutation } from "./_generated/server";
+import { mutation } from "../_generated/server";
 import { v } from "convex/values";
-
-// Delete all existing quickCareNotes due to schema change
-export const clearQuickCareNotes = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    console.log("Clearing all existing quickCareNotes due to schema change...");
-    
-    // Get all existing quickCareNotes
-    const allNotes = await ctx.db.query("quickCareNotes").collect();
-    
-    let deletedCount = 0;
-    
-    for (const note of allNotes) {
-      await ctx.db.delete(note._id);
-      deletedCount++;
-      console.log(`Deleted note ${note._id}`);
-    }
-    
-    console.log(`Clear completed. Deleted ${deletedCount} records.`);
-    return { 
-      success: true, 
-      deletedCount,
-      message: "All quickCareNotes cleared due to schema change. Users can now add new structured care notes."
-    };
-  },
-});
 
 /**
  * Migration to update audit template frequencies from old values to new standardized values
@@ -43,6 +17,10 @@ export const clearQuickCareNotes = internalMutation({
  * - governanceAuditTemplates
  * - clinicalAuditTemplates
  * - environmentAuditTemplates
+ * 
+ * Usage:
+ * 1. Run this mutation from the Convex dashboard: migrations.updateAuditFrequencies.migrateAllAuditFrequencies
+ * 2. Or call it programmatically after deploying the schema changes
  */
 export const migrateAllAuditFrequencies = mutation({
   args: {},
@@ -171,3 +149,4 @@ export const migrateAllAuditFrequencies = mutation({
     };
   },
 });
+

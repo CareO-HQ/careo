@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { components } from "./_generated/api";
 
 // Mark an incident as read by the current user
 export const markIncidentAsRead = mutation({
@@ -180,6 +181,9 @@ export const getUserNotifications = query({
 
     // Get user's current activeTeamId to filter team-specific notifications
     let userActiveTeamId: string | null | undefined = null;
+    let userRole: string | null | undefined = null;
+    let userOrganizationId: string | null | undefined = null;
+    
     try {
       const user = await ctx.db
         .query("users")
@@ -191,6 +195,27 @@ export const getUserNotifications = query({
         console.log(`[getUserNotifications] User activeTeamId: ${userActiveTeamId}`);
       } else {
         console.warn(`[getUserNotifications] User not found for email: ${args.userId}`);
+      }
+
+      // Get user's role from Better Auth
+      try {
+        const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+        if (session?.userId && session?.activeOrganizationId) {
+          userOrganizationId = session.activeOrganizationId;
+          const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "member",
+            where: [
+              { field: "userId", value: session.userId },
+              { field: "organizationId", value: session.activeOrganizationId }
+            ]
+          });
+          if (member?.role) {
+            userRole = member.role;
+            console.log(`[getUserNotifications] User role: ${userRole}`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[getUserNotifications] Error getting user role:`, error);
       }
     } catch (error) {
       console.warn(`[getUserNotifications] Error getting user activeTeamId:`, error);
@@ -205,12 +230,14 @@ export const getUserNotifications = query({
 
     console.log(`[getUserNotifications] Found ${allNotifications.length} total notifications for user`);
 
-    // Filter notifications based on team membership
-    // For team-specific notifications (like care_plan_evaluation), only show if:
-    // 1. Notification has no teamId (global notification), OR
-    // 2. Notification's teamId matches user's activeTeamId, OR
-    // 3. User has no activeTeamId (hasn't switched teams yet) - show notifications from all teams they were in
-    const filteredNotifications = allNotifications.filter((notification) => {
+    // First, filter non-audit notifications synchronously
+    const nonAuditNotifications = allNotifications.filter((notification) => {
+      const isAuditNotification = notification.type === "audit_days_remaining" || notification.type === "audit_expired";
+      return !isAuditNotification;
+    });
+
+    // Filter non-audit notifications based on team membership
+    const filteredNonAuditNotifications = nonAuditNotifications.filter((notification) => {
       // If notification has no teamId, it's a global notification - always show
       if (!notification.teamId) {
         console.log(`[getUserNotifications] Including notification ${notification._id} - no teamId (global notification)`);
@@ -244,6 +271,114 @@ export const getUserNotifications = query({
       return true;
     });
 
+    // Now handle audit notifications with async validation
+    const auditNotifications = allNotifications.filter((notification) => {
+      return notification.type === "audit_days_remaining" || notification.type === "audit_expired";
+    });
+
+    // Validate audit notifications asynchronously and delete invalid ones
+    const validatedAuditNotifications = await Promise.all(
+      auditNotifications.map(async (notification) => {
+        // Audit notifications are only visible to Managers (and owners)
+        const isManager = userRole === "manager" || userRole === "owner";
+        if (!isManager) {
+          console.log(`[getUserNotifications] Excluding audit notification ${notification._id} - user is not a manager (role: ${userRole})`);
+          return null;
+        }
+        
+        // Audit notifications are organization-wide - check organization match
+        if (userOrganizationId && notification.organizationId !== userOrganizationId) {
+          console.log(`[getUserNotifications] Excluding audit notification ${notification._id} - organization mismatch`);
+          return null;
+        }
+        
+        // Validate that the audit notification references a valid completed audit with nextAuditDue
+        const metadata = notification.metadata as any;
+        if (!metadata) {
+          // No metadata means invalid notification
+          console.log(`[getUserNotifications] Excluding invalid audit notification ${notification._id} - missing metadata`);
+          return null;
+        }
+
+        const nextAuditDue = metadata.nextAuditDue;
+        const auditCompletionId = metadata.auditCompletionId;
+        const auditCategory = metadata.auditCategory;
+        
+        // Check if nextAuditDue is valid
+        if (nextAuditDue === undefined || nextAuditDue === null || typeof nextAuditDue !== "number" || nextAuditDue <= 0) {
+          console.log(`[getUserNotifications] Excluding invalid audit notification ${notification._id} - invalid or missing nextAuditDue`);
+          return null;
+        }
+        
+        // Verify the audit completion record exists and is still completed
+        // This prevents showing notifications for audits that were deleted or are no longer completed
+        try {
+          let auditExists = false;
+          let auditStatus = null;
+          let audit: any = null;
+          
+          if (auditCategory === "resident" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "carefile" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "governance" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "clinical" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "environment" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          }
+          
+          // Only show notification if audit exists and is completed
+          if (!auditExists || auditStatus !== "completed") {
+            console.log(`[getUserNotifications] Excluding invalid audit notification ${notification._id} - audit not found or not completed (exists: ${auditExists}, status: ${auditStatus})`);
+            return null;
+          }
+          
+          // Verify nextAuditDue matches the audit record
+          const auditNextAuditDue = audit?.nextAuditDue;
+          if (auditNextAuditDue === undefined || auditNextAuditDue === null || auditNextAuditDue <= 0) {
+            console.log(`[getUserNotifications] Excluding invalid audit notification ${notification._id} - audit has no valid nextAuditDue`);
+            return null;
+          }
+          
+          // Audit notifications are organization-wide - always show (no team filtering)
+          console.log(`[getUserNotifications] Including audit notification ${notification._id} - manager, organization-wide, valid audit`);
+          return notification;
+        } catch (error) {
+          console.warn(`[getUserNotifications] Error validating audit notification ${notification._id}:`, error);
+          // If we can't validate, exclude it to be safe
+          return null;
+        }
+      })
+    );
+
+    // Filter out null values (invalid notifications)
+    const validAuditNotifications = validatedAuditNotifications.filter((n) => n !== null) as typeof auditNotifications;
+
+    // Combine filtered notifications
+    const filteredNotifications = [...filteredNonAuditNotifications, ...validAuditNotifications];
+
     console.log(`[getUserNotifications] Returning ${filteredNotifications.length} filtered notifications (filtered from ${allNotifications.length} total)`);
 
     // Return limited results
@@ -260,6 +395,9 @@ export const getNotificationCount = query({
   handler: async (ctx, args) => {
     // Get user's current activeTeamId to filter team-specific notifications
     let userActiveTeamId: string | null | undefined = null;
+    let userRole: string | null | undefined = null;
+    let userOrganizationId: string | null | undefined = null;
+    
     try {
       const user = await ctx.db
         .query("users")
@@ -268,6 +406,26 @@ export const getNotificationCount = query({
       
       if (user) {
         userActiveTeamId = user.activeTeamId;
+      }
+
+      // Get user's role from Better Auth
+      try {
+        const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+        if (session?.userId && session?.activeOrganizationId) {
+          userOrganizationId = session.activeOrganizationId;
+          const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "member",
+            where: [
+              { field: "userId", value: session.userId },
+              { field: "organizationId", value: session.activeOrganizationId }
+            ]
+          });
+          if (member?.role) {
+            userRole = member.role;
+          }
+        }
+      } catch (error) {
+        console.warn(`[getNotificationCount] Error getting user role:`, error);
       }
     } catch (error) {
       console.warn(`[getNotificationCount] Error getting user activeTeamId:`, error);
@@ -281,8 +439,13 @@ export const getNotificationCount = query({
       )
       .collect();
 
-    // Filter notifications based on team membership (same logic as getUserNotifications)
-    const filteredNotifications = allUnreadNotifications.filter((notification) => {
+    // First, filter non-audit notifications synchronously
+    const nonAuditNotifications = allUnreadNotifications.filter((notification) => {
+      return notification.type !== "audit_days_remaining" && notification.type !== "audit_expired";
+    });
+
+    // Filter non-audit notifications based on team membership
+    const filteredNonAuditNotifications = nonAuditNotifications.filter((notification) => {
       // If notification has no teamId, it's a global notification - always count
       if (!notification.teamId) {
         return true;
@@ -305,7 +468,102 @@ export const getNotificationCount = query({
       return true;
     });
 
-    return filteredNotifications.length;
+    // Now handle audit notifications with async validation
+    const auditNotifications = allUnreadNotifications.filter((notification) => {
+      return notification.type === "audit_days_remaining" || notification.type === "audit_expired";
+    });
+
+    // Validate audit notifications asynchronously
+    const validatedAuditNotifications = await Promise.all(
+      auditNotifications.map(async (notification) => {
+        // Audit notifications are only visible to Managers (and owners)
+        const isManager = userRole === "manager" || userRole === "owner";
+        if (!isManager) {
+          return null;
+        }
+        
+        // Audit notifications are organization-wide - check organization match
+        if (userOrganizationId && notification.organizationId !== userOrganizationId) {
+          return null;
+        }
+        
+        // Validate that the audit notification references a valid completed audit with nextAuditDue
+        const metadata = notification.metadata as any;
+        if (!metadata) {
+          return null;
+        }
+
+        const nextAuditDue = metadata.nextAuditDue;
+        const auditCompletionId = metadata.auditCompletionId;
+        const auditCategory = metadata.auditCategory;
+        
+        // Check if nextAuditDue is valid
+        if (nextAuditDue === undefined || nextAuditDue === null || typeof nextAuditDue !== "number" || nextAuditDue <= 0) {
+          return null;
+        }
+        
+        // Verify the audit completion record exists and is still completed
+        try {
+          let auditExists = false;
+          let auditStatus = null;
+          let audit: any = null;
+          
+          if (auditCategory === "resident" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "carefile" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "governance" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "clinical" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          } else if (auditCategory === "environment" && auditCompletionId) {
+            audit = await ctx.db.get(auditCompletionId as any);
+            if (audit) {
+              auditExists = true;
+              auditStatus = (audit as any).status;
+            }
+          }
+          
+          // Only count notification if audit exists and is completed
+          if (!auditExists || auditStatus !== "completed") {
+            return null;
+          }
+          
+          // Verify nextAuditDue matches the audit record
+          const auditNextAuditDue = audit?.nextAuditDue;
+          if (auditNextAuditDue === undefined || auditNextAuditDue === null || auditNextAuditDue <= 0) {
+            return null;
+          }
+          
+          return notification;
+        } catch (error) {
+          // If we can't validate, exclude it to be safe
+          return null;
+        }
+      })
+    );
+
+    // Filter out null values (invalid notifications)
+    const validAuditNotifications = validatedAuditNotifications.filter((n) => n !== null);
+
+    // Return total count
+    return filteredNonAuditNotifications.length + validAuditNotifications.length;
   },
 });
 
