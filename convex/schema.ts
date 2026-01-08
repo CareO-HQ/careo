@@ -1956,7 +1956,10 @@ export default defineSchema({
     ),
     createdBy: v.string(),
     createdAt: v.number(),
-    completedAt: v.optional(v.number())
+    completedAt: v.optional(v.number()),
+    lastNotificationSentAt: v.optional(v.number()),
+    organizationId: v.optional(v.string()),
+    teamId: v.optional(v.string())
   })
     .index("by_care_plan", ["carePlanId"])
     .index("by_reminder_status", ["reminderStatus"])
