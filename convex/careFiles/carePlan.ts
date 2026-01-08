@@ -1150,34 +1150,37 @@ export const getNursesInTeam = internalQuery({
         continue;
       }
 
+      // Extract email to properly narrow the type
+      const userEmail = authUser.email;
+
       // Skip if already processed
-      if (addedUserEmails.has(authUser.email)) {
-        console.log(`[getNursesInTeam] Skipping duplicate: ${authUser.email}`);
+      if (addedUserEmails.has(userEmail)) {
+        console.log(`[getNursesInTeam] Skipping duplicate: ${userEmail}`);
         continue;
       }
 
-      // Get local user record
+      // Get local user record (userEmail is safe after earlier guard)
       const localUser = await ctx.db
         .query("users")
-        .withIndex("byEmail", (q) => q.eq("email", authUser.email))
+        .withIndex("byEmail", (q) => q.eq("email", userEmail))
         .first();
 
       if (!localUser) {
-        console.warn(`[getNursesInTeam] Local user not found for email ${authUser.email}`);
+        console.warn(`[getNursesInTeam] Local user not found for email ${userEmail}`);
         continue;
       }
 
       // Check if this nurse belongs to the requested team
       // Method 1: Check teamMembers entry for this team
       const teamMemberForThisTeam = teamMembers.find(tm => 
-        tm.userId === betterAuthUserId || tm.email === authUser.email
+        tm.userId === betterAuthUserId || tm.email === userEmail
       );
 
       // Method 2: Check activeTeamId
       const userActiveTeamIdStr = localUser.activeTeamId != null ? String(localUser.activeTeamId) : null;
       const hasActiveTeamMatch = userActiveTeamIdStr === requestedTeamIdStr;
 
-      console.log(`[getNursesInTeam] Team membership check for ${authUser.email}:`, {
+      console.log(`[getNursesInTeam] Team membership check for ${userEmail}:`, {
         hasTeamMemberEntry: !!teamMemberForThisTeam,
         teamMemberTeamId: teamMemberForThisTeam?.teamId,
         activeTeamId: localUser.activeTeamId,
@@ -1188,7 +1191,7 @@ export const getNursesInTeam = internalQuery({
 
       // Include if they have a teamMembers entry for this team OR activeTeamId matches
       if (!teamMemberForThisTeam && !hasActiveTeamMatch) {
-        console.log(`[getNursesInTeam] ❌ Excluding nurse ${authUser.email} - not in team ${args.teamId}`);
+        console.log(`[getNursesInTeam] ❌ Excluding nurse ${userEmail} - not in team ${args.teamId}`);
         console.log(`[getNursesInTeam]   - No teamMembers entry for this team`);
         console.log(`[getNursesInTeam]   - activeTeamId (${userActiveTeamIdStr}) != requested (${requestedTeamIdStr})`);
         continue;
@@ -1197,20 +1200,20 @@ export const getNursesInTeam = internalQuery({
       // Check onboarding status
       const isOnboardingComplete = localUser.isOnboardingComplete;
       if (isOnboardingComplete !== true) {
-        console.log(`[getNursesInTeam] Excluding ${authUser.email} - onboarding not complete`);
+        console.log(`[getNursesInTeam] Excluding ${userEmail} - onboarding not complete`);
         continue;
       }
 
-      console.log(`[getNursesInTeam] ✅ Including nurse: ${authUser.email}`, {
+      console.log(`[getNursesInTeam] ✅ Including nurse: ${userEmail}`, {
         userId: betterAuthUserId,
         role: nurseMember.role,
         teamMembershipMethod: teamMemberForThisTeam ? 'teamMembers entry' : 'activeTeamId',
         activeTeamId: localUser.activeTeamId
       });
 
-      addedUserEmails.add(authUser.email);
+      addedUserEmails.add(userEmail);
       nurses.push({
-        email: authUser.email,
+        email: userEmail,
         userId: betterAuthUserId
       });
     }

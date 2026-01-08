@@ -1959,17 +1959,11 @@ export default defineSchema({
     createdBy: v.string(),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
-<<<<<<< HEAD
-    lastNotificationSentAt: v.optional(v.number()),
-    organizationId: v.optional(v.string()),
-    teamId: v.optional(v.string())
-=======
     // Team and organization context for notifications
     teamId: v.optional(v.string()),
     organizationId: v.optional(v.string()),
     // Track last notification sent to prevent duplicates
     lastNotificationSentAt: v.optional(v.number())
->>>>>>> 00e4bf507d871317ab5f05a91a0c568a6a992357
   })
     .index("by_care_plan", ["carePlanId"])
     .index("by_reminder_status", ["reminderStatus"])
