@@ -155,6 +155,7 @@ export default function CareFileFolder({
     allResidentValuablesForms,
     allHandlingProfileForms,
     latestCarePlanForm,
+    archivedCarePlans,
     getAllPdfFiles: folderPdfFiles
   } = useFolderForms({
     residentId,
@@ -881,6 +882,46 @@ export default function CareFileFolder({
                   );
                 })()}
               </div>
+
+              {/* Archive Section - Only shown for folders with care plans */}
+              {carePlan && (
+                <>
+                  <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                    <p className="text-muted-foreground text-sm font-medium">
+                      Archive
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {archivedCarePlans === undefined ? (
+                      <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-muted-foreground"></div>
+                          Loading archived care plans...
+                        </div>
+                      </div>
+                    ) : archivedCarePlans && archivedCarePlans.length > 0 ? (
+                      archivedCarePlans.map((carePlan) => (
+                        <PdfFileItem
+                          key={carePlan._id}
+                          isCarePlan
+                          file={{
+                            formKey: "care-plan-form",
+                            formId: carePlan._id,
+                            name:
+                              carePlan.nameOfCarePlan || "Care Plan Assessment",
+                            completedAt: carePlan._creationTime,
+                            isLatest: false
+                          }}
+                        />
+                      ))
+                    ) : (
+                      <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                        No archived care plans found. Only the latest care plan is shown in the Care plans section.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <div className="px-4 py-2 flex flex-row justify-end items-center">
               <Button

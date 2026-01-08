@@ -664,17 +664,17 @@ export default function MyActionPlansPage() {
             <AlertDialogTitle>Delete Action Plan</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this completed action plan? This action cannot be undone.
-              {planToDelete && (
-                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {planToDelete.description}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {planToDelete.templateName}
-                  </p>
-                </div>
-              )}
             </AlertDialogDescription>
+            {planToDelete && (
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {planToDelete.description}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {planToDelete.templateName}
+                </p>
+              </div>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
