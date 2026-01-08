@@ -6,7 +6,7 @@ import {
   internalMutation,
   internalQuery
 } from "../_generated/server";
-import { Id } from "../_generated/dataModel";
+import { Id, Doc } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { api } from "../_generated/api";
 import { components } from "../_generated/api";
@@ -541,7 +541,7 @@ export const getPendingRemindersForTeam = internalQuery({
     }
 
     // Filter out reminders where evaluation already exists
-    const validReminders = [];
+    const validReminders: Array<Doc<"carePlanReminders">> = [];
     for (const reminder of allReminders) {
       const existingEvaluation = await ctx.db
         .query("carePlanEvaluations")
@@ -1131,12 +1131,12 @@ export const getNursesInTeam = internalQuery({
       });
 
       // Get Better Auth user to get email
-      let authUser = null;
+      let authUser: { email?: string; [key: string]: unknown } | null = null;
       try {
         authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
           model: "user",
           where: [{ field: "id", value: betterAuthUserId }]
-        });
+        }) as { email?: string; [key: string]: unknown } | null;
         if (authUser) {
           console.log(`[getNursesInTeam] ✓ Found Better Auth user: ${authUser.email}`);
         }
