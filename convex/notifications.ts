@@ -167,6 +167,7 @@ export const createNotification = mutation({
 });
 
 // Get all notifications for a user (OPTIMIZED: Uses index)
+// Filters by user's current activeTeamId to ensure team-specific notifications
 export const getUserNotifications = query({
   args: {
     userId: v.string(),
@@ -175,32 +176,136 @@ export const getUserNotifications = query({
   handler: async (ctx, args) => {
     const limit = args.limit || 50;
 
-    // Use the "by_user" index for efficient querying
-    const notifications = await ctx.db
+    console.log(`[getUserNotifications] Getting notifications for userId: ${args.userId}`);
+
+    // Get user's current activeTeamId to filter team-specific notifications
+    let userActiveTeamId: string | null | undefined = null;
+    try {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", args.userId))
+        .first();
+      
+      if (user) {
+        userActiveTeamId = user.activeTeamId;
+        console.log(`[getUserNotifications] User activeTeamId: ${userActiveTeamId}`);
+      } else {
+        console.warn(`[getUserNotifications] User not found for email: ${args.userId}`);
+      }
+    } catch (error) {
+      console.warn(`[getUserNotifications] Error getting user activeTeamId:`, error);
+    }
+
+    // Get all notifications for this user
+    const allNotifications = await ctx.db
       .query("notifications")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
-      .take(limit);
+      .take(limit * 2); // Get more to account for filtering
 
-    return notifications;
+    console.log(`[getUserNotifications] Found ${allNotifications.length} total notifications for user`);
+
+    // Filter notifications based on team membership
+    // For team-specific notifications (like care_plan_evaluation), only show if:
+    // 1. Notification has no teamId (global notification), OR
+    // 2. Notification's teamId matches user's activeTeamId, OR
+    // 3. User has no activeTeamId (hasn't switched teams yet) - show notifications from all teams they were in
+    const filteredNotifications = allNotifications.filter((notification) => {
+      // If notification has no teamId, it's a global notification - always show
+      if (!notification.teamId) {
+        console.log(`[getUserNotifications] Including notification ${notification._id} - no teamId (global notification)`);
+        return true;
+      }
+
+      // For team-specific notifications, check team membership
+      if (notification.type === "care_plan_evaluation" || notification.teamId) {
+        // If user has an activeTeamId, only show notifications from that team
+        if (userActiveTeamId != null) {
+          const notificationTeamIdStr = String(notification.teamId);
+          const userActiveTeamIdStr = String(userActiveTeamId);
+          const matches = notificationTeamIdStr === userActiveTeamIdStr;
+          
+          console.log(`[getUserNotifications] Team check for notification ${notification._id}:`, {
+            notificationTeamId: notification.teamId,
+            userActiveTeamId: userActiveTeamId,
+            matches: matches,
+            type: notification.type
+          });
+          
+          return matches;
+        } else {
+          // User has no activeTeamId (hasn't switched teams) - show all their notifications
+          console.log(`[getUserNotifications] Including notification ${notification._id} - user has no activeTeamId`);
+          return true;
+        }
+      }
+
+      // For other notification types, show them (non-team-specific)
+      return true;
+    });
+
+    console.log(`[getUserNotifications] Returning ${filteredNotifications.length} filtered notifications (filtered from ${allNotifications.length} total)`);
+
+    // Return limited results
+    return filteredNotifications.slice(0, limit);
   },
 });
 
 // Get notification count for a user (OPTIMIZED: Uses composite index)
+// Filters by user's current activeTeamId to ensure team-specific notifications
 export const getNotificationCount = query({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Use the "by_user_and_read" composite index for maximum efficiency
-    const unreadNotifications = await ctx.db
+    // Get user's current activeTeamId to filter team-specific notifications
+    let userActiveTeamId: string | null | undefined = null;
+    try {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", args.userId))
+        .first();
+      
+      if (user) {
+        userActiveTeamId = user.activeTeamId;
+      }
+    } catch (error) {
+      console.warn(`[getNotificationCount] Error getting user activeTeamId:`, error);
+    }
+
+    // Get all unread notifications for this user
+    const allUnreadNotifications = await ctx.db
       .query("notifications")
       .withIndex("by_user_and_read", (q) =>
         q.eq("userId", args.userId).eq("isRead", false)
       )
       .collect();
 
-    return unreadNotifications.length;
+    // Filter notifications based on team membership (same logic as getUserNotifications)
+    const filteredNotifications = allUnreadNotifications.filter((notification) => {
+      // If notification has no teamId, it's a global notification - always count
+      if (!notification.teamId) {
+        return true;
+      }
+
+      // For team-specific notifications, check team membership
+      if (notification.type === "care_plan_evaluation" || notification.teamId) {
+        // If user has an activeTeamId, only count notifications from that team
+        if (userActiveTeamId != null) {
+          const notificationTeamIdStr = String(notification.teamId);
+          const userActiveTeamIdStr = String(userActiveTeamId);
+          return notificationTeamIdStr === userActiveTeamIdStr;
+        } else {
+          // User has no activeTeamId (hasn't switched teams) - count all their notifications
+          return true;
+        }
+      }
+
+      // For other notification types, count them (non-team-specific)
+      return true;
+    });
+
+    return filteredNotifications.length;
   },
 });
 

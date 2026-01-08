@@ -75,7 +75,7 @@ export default function CarePlanViewDialog({
           )}
           {carePlan.isLatest && carePlanData.previousCarePlanId && (
             <div className="text-xs text-green-700 bg-green-50 px-3 py-1.5 rounded mt-3">
-              This is an updated version. Previous versions available in documentation.
+              This is an updated version. Previous versions available in Archive.
             </div>
           )}
         </div>

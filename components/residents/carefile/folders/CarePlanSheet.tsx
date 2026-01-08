@@ -270,8 +270,7 @@ export default function CarePlanSheetContent({
                 </span>
                 {carePlanData.previousCarePlanId && (
                   <span className="text-orange-500 text-xs italic w-full bg-orange-50 px-2 py-1 rounded-md mt-1 inline-block">
-                    Previous versions of this care plan can be found under
-                    documentation.
+                    Previous versions of this care plan can be found under Archive.
                   </span>
                 )}
               </SheetDescription>

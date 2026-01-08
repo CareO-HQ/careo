@@ -185,4 +185,19 @@ crons.interval(
   internal.alertGeneration.generateMedicationAlerts
 );
 
+/**
+ * SEND CARE PLAN EVALUATION NOTIFICATIONS
+ * Sends reminder notifications to nurses for care plans that need evaluation
+ * Runs every 2 minutes to send reminders
+ * - Starts immediately after care plan creation/update
+ * - Sends notifications to nurses in the same team as the resident
+ * - Shows days remaining until evaluation becomes overdue (30 days after creation)
+ * - Stops when evaluation is completed or becomes overdue
+ */
+crons.interval(
+  "Send care plan evaluation notifications",
+  { minutes: 2 },
+  internal.careFiles.carePlan.sendCarePlanEvaluationNotifications
+);
+
 export default crons;

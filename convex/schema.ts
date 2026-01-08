@@ -98,7 +98,9 @@ export default defineSchema({
     nextOfKinPhone: v.optional(v.string()),
     nextOfKinEmail: v.optional(v.string()),
     nextOfKinAddress: v.optional(v.string())
-  }).index("byEmail", ["email"]), // Add index for email lookups
+  })
+    .index("byEmail", ["email"])
+    .index("byActiveTeamId", ["activeTeamId"]), // Index for querying users by active team
 
   // Passkey table for better-auth passkey plugin
   passkey: defineTable({
@@ -1956,12 +1958,18 @@ export default defineSchema({
     ),
     createdBy: v.string(),
     createdAt: v.number(),
-    completedAt: v.optional(v.number())
+    completedAt: v.optional(v.number()),
+    // Team and organization context for notifications
+    teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
+    // Track last notification sent to prevent duplicates
+    lastNotificationSentAt: v.optional(v.number())
   })
     .index("by_care_plan", ["carePlanId"])
     .index("by_reminder_status", ["reminderStatus"])
     .index("by_reminder_date", ["reminderDate"])
-    .index("by_created_by", ["createdBy"]),
+    .index("by_created_by", ["createdBy"])
+    .index("by_reminder_status_and_date", ["reminderStatus", "reminderDate"]),
 
   // Care plan evaluations
   carePlanEvaluations: defineTable({
