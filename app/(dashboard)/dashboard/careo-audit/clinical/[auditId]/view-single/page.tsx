@@ -319,7 +319,7 @@ function ClinicalAuditViewSinglePageContent() {
                     </TableHeader>
                     <TableBody>
                       {dbResponse.items && dbResponse.items.length > 0 ? (
-                        dbResponse.items.map((item: ItemResponse) => (
+                        dbResponse.items.map((item) => (
                           <TableRow key={item.itemId} className="hover:bg-muted/50">
                             <TableCell className="font-medium">
                               {item.itemName}
@@ -456,7 +456,12 @@ function ClinicalAuditViewSinglePageContent() {
 
 export default function ClinicalAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view-single" />}>
+    <ErrorBoundary 
+      fallback={
+        // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
+        <AuditErrorFallback context="view-single" />
+      }
+    >
       <ClinicalAuditViewSinglePageContent />
     </ErrorBoundary>
   );

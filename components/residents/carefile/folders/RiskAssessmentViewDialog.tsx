@@ -32,26 +32,45 @@ export default function RiskAssessmentViewDialog({
   assessment
 }: RiskAssessmentViewDialogProps) {
   // Fetch the assessment data based on the form key
-  const assessmentData = useQuery(
-    assessment.formKey === "infection-prevention"
-      ? api.careFiles.infectionPrevention.getInfectionPreventionAssessment
-      : assessment.formKey === "moving-handling-form"
-      ? api.careFiles.movingHandling.getMovingHandlingAssessment
-      : assessment.formKey === "long-term-fall-risk-form"
-      ? api.careFiles.longTermFalls.getLongTermFallsAssessment
-      : assessment.formKey === "blader-bowel-form"
-      ? api.careFiles.bladderBowel.getBladderBowelAssessment
-      : "skip",
+  const infectionPreventionData = useQuery(
+    api.careFiles.infectionPrevention.getInfectionPreventionAssessment,
     assessment.formKey === "infection-prevention"
       ? { id: assessment.formId as Id<"infectionPreventionAssessments"> }
-      : assessment.formKey === "moving-handling-form"
+      : "skip"
+  );
+
+  const movingHandlingData = useQuery(
+    api.careFiles.movingHandling.getMovingHandlingAssessment,
+    assessment.formKey === "moving-handling-form"
       ? { id: assessment.formId as Id<"movingHandlingAssessments"> }
-      : assessment.formKey === "long-term-fall-risk-form"
-      ? { id: assessment.formId as Id<"longTermFallsAssessments"> }
-      : assessment.formKey === "blader-bowel-form"
+      : "skip"
+  );
+
+  const longTermFallsData = useQuery(
+    api.careFiles.longTermFalls.getLongTermFallsAssessment,
+    assessment.formKey === "long-term-fall-risk-form"
+      ? { id: assessment.formId as Id<"longTermFallsRiskAssessments"> }
+      : "skip"
+  );
+
+  const bladderBowelData = useQuery(
+    api.careFiles.bladderBowel.getBladderBowelAssessment,
+    assessment.formKey === "blader-bowel-form"
       ? { id: assessment.formId as Id<"bladderBowelAssessments"> }
       : "skip"
   );
+
+  // Get the appropriate data based on form key
+  const assessmentData =
+    assessment.formKey === "infection-prevention"
+      ? infectionPreventionData
+      : assessment.formKey === "moving-handling-form"
+      ? movingHandlingData
+      : assessment.formKey === "long-term-fall-risk-form"
+      ? longTermFallsData
+      : assessment.formKey === "blader-bowel-form"
+      ? bladderBowelData
+      : undefined;
 
   if (!assessmentData) {
     return (

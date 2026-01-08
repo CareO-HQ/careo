@@ -9,7 +9,6 @@ import { organization, customSession, twoFactor } from "better-auth/plugins";
 import { components } from "../convex/_generated/api";
 import { passkey } from "better-auth/plugins/passkey";
 import { admin } from "better-auth/plugins";
-import { getAllowedRolesToInvite, type UserRole } from "./permissions";
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL;
 

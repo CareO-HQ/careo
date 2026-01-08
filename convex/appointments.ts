@@ -259,7 +259,7 @@ export const getAppointmentsByTeam = query({
           .filter((q) => q.eq(q.field("userId"), resident._id))
           .first();
 
-        let imageUrl = null;
+        let imageUrl: string | null = null;
         if (residentImage?.format === "image") {
           imageUrl = await ctx.storage.getUrl(residentImage.body);
         }
@@ -381,7 +381,7 @@ export const getAppointmentsByOrganization = query({
           .filter((q) => q.eq(q.field("userId"), resident._id))
           .first();
 
-        let imageUrl = null;
+        let imageUrl: string | null = null;
         if (residentImage?.format === "image") {
           imageUrl = await ctx.storage.getUrl(residentImage.body);
         }

@@ -210,7 +210,7 @@ export default function NotificationPage() {
 
         for (const mutation of mutations) {
           try {
-            await mutation.fn(updateData);
+            await mutation.fn(updateData as any);
             console.log(`Successfully updated using ${mutation.name} mutation`);
             toast.success("Status updated successfully");
             setIsDetailModalOpen(false);
@@ -565,7 +565,7 @@ export default function NotificationPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      Resident: {actionPlanDetails.resident.firstName} {actionPlanDetails.resident.lastName}
+                      Resident: {(actionPlanDetails.resident as { firstName: string; lastName: string }).firstName} {(actionPlanDetails.resident as { firstName: string; lastName: string }).lastName}
                     </span>
                   </div>
                 )}

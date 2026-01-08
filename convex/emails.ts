@@ -92,7 +92,7 @@ export const sendEmailWithMultiplePDFs = action({
     const resend = new Resend(process.env.RESEND_API_KEY);
     try {
       // Get PDF files metadata and content
-      const attachments = [];
+      const attachments: Array<{ content: string; filename: string }> = [];
 
       for (const fileId of args.pdfStorageIds) {
         // Get file metadata from your files table

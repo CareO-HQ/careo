@@ -31,8 +31,18 @@ type StaffPageProps = {
 
 export default function StaffProfilePage({ params }: StaffPageProps) {
   const { id } = React.use(params);
+  const router = useRouter();
   const { data: activeOrg, isPending: isActiveOrgLoading } = authClient.useActiveOrganization();
   const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
+
+  // Find the staff member from organization members
+  const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);
+
+  // Fetch staff member's profile image from Convex
+  const userImage = useQuery(
+    api.files.image.getUserImageByUserId,
+    staffMember?.userId ? { userId: staffMember.userId } : "skip"
+  );
 
   useEffect(() => {
     if (!isActiveMemberLoading && activeMember) {
@@ -56,15 +66,6 @@ export default function StaffProfilePage({ params }: StaffPageProps) {
   if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
     return null;
   }
-
-  // Find the staff member from organization members
-  const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);
-
-  // Fetch staff member's profile image from Convex
-  const userImage = useQuery(
-    api.files.image.getUserImageByUserId,
-    staffMember?.userId ? { userId: staffMember.userId } : "skip"
-  );
 
   console.log("Staff member:", staffMember);
   console.log("Looking for ID:", id);

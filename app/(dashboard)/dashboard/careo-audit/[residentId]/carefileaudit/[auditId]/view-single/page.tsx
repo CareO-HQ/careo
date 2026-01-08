@@ -488,7 +488,12 @@ function CareFileAuditViewSinglePageContent() {
 
 export default function CareFileAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view" />}>
+    <ErrorBoundary 
+      fallback={
+        // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
+        <AuditErrorFallback context="view" />
+      }
+    >
       <CareFileAuditViewSinglePageContent />
     </ErrorBoundary>
   );

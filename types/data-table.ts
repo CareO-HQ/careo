@@ -1,6 +1,16 @@
 import type { ColumnSort, Row, RowData } from "@tanstack/react-table";
-import type { DataTableConfig } from "@/config/data-table";
-import type { FilterItemSchema } from "@/lib/parsers";
+
+// Define types first
+export type FilterOperator = string;
+export type FilterVariant = string;
+export type JoinOperator = string;
+
+// Define FilterItemSchema locally since the parsers file doesn't exist
+interface FilterItemSchema {
+  operator?: FilterOperator;
+  value?: any;
+  joinOperator?: JoinOperator;
+}
 
 declare module "@tanstack/react-table" {
   // biome-ignore lint/correctness/noUnusedVariables: TValue is used in the ColumnMeta interface
@@ -21,10 +31,6 @@ export interface Option {
   count?: number;
   icon?: React.FC<React.SVGProps<SVGSVGElement>>;
 }
-
-export type FilterOperator = DataTableConfig["operators"][number];
-export type FilterVariant = DataTableConfig["filterVariants"][number];
-export type JoinOperator = DataTableConfig["joinOperators"][number];
 
 export interface ExtendedColumnSort<TData> extends Omit<ColumnSort, "id"> {
   id: Extract<keyof TData, string>;

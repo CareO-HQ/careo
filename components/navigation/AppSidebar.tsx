@@ -54,7 +54,7 @@ export function AppSidebar() {
   const { data: user } = authClient.useSession();
   const { data: activeMember } = authClient.useActiveMember();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const userRole = (activeMember?.role ?? user?.user?.role) as string | undefined;
+  const userRole = activeMember?.role as string | undefined;
 
   // Extract email to a stable variable - always compute this before any conditional logic
   // This ensures React sees consistent hook call patterns across renders

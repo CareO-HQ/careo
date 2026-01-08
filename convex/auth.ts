@@ -273,7 +273,7 @@ export const updateActiveTeam = mutation({
 
     // Try to get the member record to get the role for teamMembers
     // If member lookup fails, we'll still proceed with team switching
-    let member = null;
+    let member: any = null;
     try {
       member = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "member",

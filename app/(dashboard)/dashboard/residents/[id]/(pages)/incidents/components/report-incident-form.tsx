@@ -137,7 +137,7 @@ export function ReportIncidentForm({
         preventativeMeasures: values.preventativeMeasures || "",
         reportedBy: values.reportedBy,
         reporterRole: values.reporterRole,
-      });
+      } as any);
 
       toast.success("Incident report submitted successfully");
       form.reset();

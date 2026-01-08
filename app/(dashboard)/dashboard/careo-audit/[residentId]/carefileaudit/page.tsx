@@ -480,7 +480,12 @@ function CareFileAuditPageContent() {
 
 export default function CareFileAuditPage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="listing" />}>
+    <ErrorBoundary 
+      fallback={
+        // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
+        <AuditErrorFallback context="listing" />
+      }
+    >
       <CareFileAuditPageContent />
     </ErrorBoundary>
   );

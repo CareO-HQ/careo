@@ -1855,7 +1855,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             incidentId={nhsReportIncident._id}
             residentId={id}
             incident={nhsReportIncident}
-            user={user}
+            user={session?.user}
             onReportCreated={handleNHSReportCreated}
           />
         )}
@@ -2827,7 +2827,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <BHSCTReportForm
             incident={trustPickerIncident}
             resident={resident}
-            user={user}
+            user={session?.user}
             open={showTrustForm}
             onClose={handleCloseTrustForm}
           />
@@ -2835,7 +2835,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <SEHSCTReportForm
             incident={trustPickerIncident}
             resident={resident}
-            user={user}
+            user={session?.user}
             open={showTrustForm}
             onClose={handleCloseTrustForm}
           />

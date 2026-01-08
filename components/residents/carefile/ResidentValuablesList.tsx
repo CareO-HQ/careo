@@ -142,9 +142,9 @@ export default function ResidentValuablesList({
                       <h3 className="font-medium">Valuables</h3>
                       <ul className="list-disc list-inside">
                         {assessment.valuables.map(
-                          (item: string, index: number) => (
+                          (item: { value: string }, index: number) => (
                             <li key={index} className="text-sm">
-                              {item}
+                              {item.value}
                             </li>
                           )
                         )}
@@ -157,9 +157,9 @@ export default function ResidentValuablesList({
                       <h3 className="font-medium">Clothing</h3>
                       <ul className="list-disc list-inside">
                         {assessment.clothing.map(
-                          (item: string, index: number) => (
+                          (item: { value: string }, index: number) => (
                             <li key={index} className="text-sm">
-                              {item}
+                              {item.value}
                             </li>
                           )
                         )}

@@ -282,9 +282,11 @@ export const createColumns = (
         }
 
         try {
+          // Map "given" to "administered" for the mutation
+          const mappedState = newState === "given" ? "administered" : newState;
           await updateMedicationIntakeStatus({
             intakeId: row.original._id,
-            state: newState
+            state: mappedState as "scheduled" | "dispensed" | "administered" | "refused" | "missed" | "skipped"
           });
           toast.success("State updated successfully");
         } catch (error) {

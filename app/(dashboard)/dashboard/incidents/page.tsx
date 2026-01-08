@@ -28,7 +28,7 @@ export default function NotificationPage() {
   const { activeTeam, activeTeamId, activeOrganization, activeOrganizationId, isLoading: isTeamLoading } = useActiveTeam();
   const { data: user } = authClient.useSession();
   const { data: activeMember } = authClient.useActiveMember();
-  const userRole = (activeMember?.role ?? user?.user?.role) as string | undefined;
+  const userRole = activeMember?.role as string | undefined;
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   // For managers, always use organization-based queries; for other roles, use team if available
@@ -46,22 +46,22 @@ export default function NotificationPage() {
   });
 
   // Fetch incidents - either for specific team or entire organization
-  const incidents = useQuery(
-    shouldUseOrganization && activeOrganizationId
-      ? api.incidents.getIncidentsByOrganization
-      : activeTeamId
-      ? api.incidents.getIncidentsByTeam
-      : activeOrganizationId
-      ? api.incidents.getIncidentsByOrganization
-      : "skip",
-    shouldUseOrganization && activeOrganizationId
-      ? { organizationId: activeOrganizationId, limit: 50 }
-      : activeTeamId
-      ? { teamId: activeTeamId, limit: 50 }
-      : activeOrganizationId
+  const organizationIncidents = useQuery(
+    api.incidents.getIncidentsByOrganization,
+    (shouldUseOrganization && activeOrganizationId) || (!activeTeamId && activeOrganizationId)
       ? { organizationId: activeOrganizationId, limit: 50 }
       : "skip"
   );
+
+  const teamIncidents = useQuery(
+    api.incidents.getIncidentsByTeam,
+    !shouldUseOrganization && activeTeamId
+      ? { teamId: activeTeamId, limit: 50 }
+      : "skip"
+  );
+
+  // Use organization incidents if manager or no team, otherwise use team incidents
+  const incidents = (shouldUseOrganization || !activeTeamId) ? organizationIncidents : teamIncidents;
 
   // Mutations
   const markIncidentAsRead = useMutation(api.notifications.markIncidentAsRead);
@@ -294,7 +294,7 @@ export default function NotificationPage() {
               >
                 {/* Resident Avatar */}
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={incident.resident?.imageUrl} alt={residentName} />
+                  <AvatarImage src={incident.resident?.imageUrl ?? undefined} alt={residentName} />
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
 

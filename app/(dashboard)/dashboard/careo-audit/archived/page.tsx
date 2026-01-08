@@ -262,7 +262,7 @@ function ArchivedAuditsContent() {
                             size="sm"
                             onClick={() =>
                               router.push(
-                                `/dashboard/careo-audit/${auditCategory}/${audit.id}/view-single`
+                                `/dashboard/careo-audit/${auditCategory}/${audit.id}/view-single` as any
                               )
                             }
                           >

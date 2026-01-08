@@ -96,6 +96,12 @@ const PDF_URL_CONFIG: Record<CareFileFormKey, PdfUrlConfig> = {
       assessmentId: formId as Id<"residentValuablesAssessments">,
       organizationId: organizationId ?? ""
     })
+  },
+  "resident-handling-profile-form": {
+    query: api.careFiles.handlingProfile.getPDFUrl,
+    buildArgs: (formId) => ({
+      profileId: formId as Id<"residentHandlingProfileForm">
+    })
   }
 };
 

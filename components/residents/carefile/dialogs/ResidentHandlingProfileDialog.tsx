@@ -64,12 +64,14 @@ export default function ResidentHandlingProfile({
     Record<string, boolean>
   >({});
 
-  const submitProfile = useMutation(
-    api.careFiles.handlingProfile.submitHandlingProfile
-  );
-  const updateProfile = useMutation(
-    api.careFiles.handlingProfile.updateHandlingProfile
-  );
+  // TODO: Implement submitHandlingProfile and updateHandlingProfile functions in convex/careFiles/handlingProfile.ts
+  // These mutations don't exist yet, so commenting out for now
+  // const submitProfile = useMutation(
+  //   api.careFiles.handlingProfile.submitHandlingProfile
+  // );
+  // const updateProfile = useMutation(
+  //   api.careFiles.handlingProfile.updateHandlingProfile
+  // );
 
   const getDefaultActivityValues = () => ({
     nStaff: 0,
@@ -194,22 +196,26 @@ export default function ResidentHandlingProfile({
       try {
         const formData = form.getValues();
 
-        if (isEditMode && initialData) {
-          await updateProfile({
-            profileId: initialData._id,
-            ...formData,
-            residentId: residentId as Id<"residents">
-          });
-          toast.success("Handling profile updated successfully");
-        } else {
-          await submitProfile({
-            ...formData,
-            residentId: residentId as Id<"residents">
-          });
-          toast.success("Handling profile saved successfully");
-        }
+        // TODO: Implement mutations in convex/careFiles/handlingProfile.ts
+        toast.error("Handling profile save functionality is not yet implemented. Please implement submitHandlingProfile and updateHandlingProfile mutations.");
+        
+        // Uncomment when mutations are implemented:
+        // if (isEditMode && initialData) {
+        //   await updateProfile({
+        //     profileId: initialData._id,
+        //     ...formData,
+        //     residentId: residentId as Id<"residents">
+        //   });
+        //   toast.success("Handling profile updated successfully");
+        // } else {
+        //   await submitProfile({
+        //     ...formData,
+        //     residentId: residentId as Id<"residents">
+        //   });
+        //   toast.success("Handling profile saved successfully");
+        // }
 
-        onClose?.();
+        // onClose?.();
       } catch (error) {
         console.error("Error submitting form:", error);
         toast.error("Failed to save handling profile");

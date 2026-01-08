@@ -6,7 +6,7 @@ export const formatLocationDisplay = (
 ): string => {
   if (!location) return "Loading location...";
 
-  const parts = [];
+  const parts: string[] = [];
   if (location.city) parts.push(location.city);
   if (location.region) parts.push(location.region);
   if (location.country) parts.push(location.country);

@@ -54,7 +54,7 @@ export function useAutoSave<T extends Record<string, any>>(
     showNotifications = false,
   } = options;
 
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
