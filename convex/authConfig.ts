@@ -21,6 +21,7 @@ export const createAuth = (ctx: GenericCtx) =>
       "http://localhost:3000",
       "http://localhost:8081", // Mobile app (Expo)
       "exp://localhost:8081",  // Expo Go app
+      ...(process.env.NEXT_PUBLIC_BASE_URL ? [process.env.NEXT_PUBLIC_BASE_URL] : []),
       ...(process.env.NEXT_PUBLIC_MOBILE_APP_URL ? [process.env.NEXT_PUBLIC_MOBILE_APP_URL] : [])
     ],
     advanced: {
