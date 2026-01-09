@@ -88,27 +88,30 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     return `${resident.firstName} ${resident.lastName}`;
   }, [resident]);
 
+  // Extract array from pagination result if needed
+  const activitiesArray = Array.isArray(allActivities) ? allActivities : (allActivities as any)?.page || [];
+
   // Get unique years from activities
   const availableYears = useMemo(() => {
-    if (!allActivities || allActivities.length === 0) {
+    if (!activitiesArray || activitiesArray.length === 0) {
       const currentYear = new Date().getFullYear();
       return [currentYear, currentYear - 1];
     }
     const years = new Set<number>();
-    allActivities.forEach((activity: any) => {
+    activitiesArray.forEach((activity: any) => {
       const year = new Date(activity.activityDate).getFullYear();
       years.add(year);
     });
     return Array.from(years).sort((a, b) => b - a);
-  }, [allActivities]);
+  }, [activitiesArray]);
 
   // Group activities by date
   const activitiesByDate = useMemo(() => {
-    if (!allActivities) return [];
+    if (!activitiesArray) return [];
 
     const grouped = new Map<string, any[]>();
 
-    allActivities.forEach((activity: any) => {
+    activitiesArray.forEach((activity: any) => {
       const date = activity.activityDate;
       if (!grouped.has(date)) {
         grouped.set(date, []);
@@ -122,7 +125,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
       activities,
       count: activities.length,
     }));
-  }, [allActivities]);
+  }, [activitiesArray]);
 
   // Filter and sort
   const filteredReports = useMemo(() => {
@@ -172,30 +175,30 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
 
   // Stats
   const reportStats = useMemo(() => {
-    if (!allActivities) return { total: 0, thisMonth: 0, thisWeek: 0 };
+    if (!activitiesArray) return { total: 0, thisMonth: 0, thisWeek: 0 };
 
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const thisMonth = allActivities.filter((activity: any) => {
+    const thisMonth = activitiesArray.filter((activity: any) => {
       const activityDate = new Date(activity.activityDate);
       return activityDate.getMonth() === currentMonth && activityDate.getFullYear() === currentYear;
     }).length;
 
-    const thisWeek = allActivities.filter((activity: any) => {
+    const thisWeek = activitiesArray.filter((activity: any) => {
       const activityDate = new Date(activity.activityDate);
       return activityDate >= oneWeekAgo;
     }).length;
 
     return {
       total: activitiesByDate.length,
-      totalActivities: allActivities.length,
+      totalActivities: activitiesArray.length,
       thisMonth,
       thisWeek,
     };
-  }, [allActivities, activitiesByDate]);
+  }, [activitiesArray, activitiesByDate]);
 
   // Handlers
   const handleViewReport = (report: any) => {

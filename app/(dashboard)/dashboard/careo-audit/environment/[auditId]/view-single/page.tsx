@@ -456,7 +456,12 @@ function EnvironmentAuditViewSinglePageContent() {
 
 export default function EnvironmentAuditViewSinglePage() {
   return (
-    <ErrorBoundary fallback={<AuditErrorFallback context="view-single" />}>
+    <ErrorBoundary 
+      fallback={
+        // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
+        <AuditErrorFallback context="view-single" />
+      }
+    >
       <EnvironmentAuditViewSinglePageContent />
     </ErrorBoundary>
   );

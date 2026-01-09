@@ -22,8 +22,8 @@ export const getCurrentUserContext = query({
     }
 
     // Get the active team if set
-    let team = null;
-    let organization = null;
+    let team: { id: string; name: string } | null = null;
+    let organization: { id: string; name: string } | null = null;
 
     if (user.activeTeamId) {
       // Get team membership details
@@ -574,7 +574,7 @@ export const getByTeamId = query({
       console.log(`Processing team member with userId: ${userId}`);
 
       // Try multiple methods to get user from Better Auth
-      let authUser = null;
+      let authUser: any = null;
       
       // Method 1: Try findOne with id field
       try {
@@ -766,7 +766,7 @@ export const getByTeamId = query({
         organizationIdType: typeof teamMember.organizationId
       });
       
-      let member = null;
+      let member: any = null;
       try {
         member = await ctx.runQuery(components.betterAuth.lib.findOne, {
           model: "member",

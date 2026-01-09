@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,39 +24,35 @@ import { Id } from "@/convex/_generated/dataModel";
 export default function AppointmentPage() {
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
-  const { data: user } = authClient.useSession();
   const { data: activeMember } = authClient.useActiveMember();
-  const userRole = (activeMember?.role ?? user?.user?.role) as string | undefined;
+  const userRole = activeMember?.role as string | undefined;
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   // For managers, always use organization-based queries; for other roles, use team if available
   const shouldUseOrganization = userRole === "manager";
 
   // Fetch appointments - either for specific team or entire organization
-  const appointmentsData = useQuery(
-    shouldUseOrganization && activeOrganizationId
-      ? api.appointments.getAppointmentsByOrganization
-      : activeTeamId
-      ? api.appointments.getAppointmentsByTeam
-      : activeOrganizationId
-      ? api.appointments.getAppointmentsByOrganization
-      : "skip",
-    shouldUseOrganization && activeOrganizationId
-      ? { organizationId: activeOrganizationId }
-      : activeTeamId
-      ? { teamId: activeTeamId }
-      : activeOrganizationId
+  const organizationAppointments = useQuery(
+    api.appointments.getAppointmentsByOrganization,
+    (shouldUseOrganization && activeOrganizationId) || (!activeTeamId && activeOrganizationId)
       ? { organizationId: activeOrganizationId }
       : "skip"
   );
+
+  const teamAppointments = useQuery(
+    api.appointments.getAppointmentsByTeam,
+    !shouldUseOrganization && activeTeamId
+      ? { teamId: activeTeamId }
+      : "skip"
+  );
+
+  // Use organization appointments if manager or no team, otherwise use team appointments
+  const appointmentsData = (shouldUseOrganization || !activeTeamId) ? organizationAppointments : teamAppointments;
 
   const markAppointmentAsRead = useMutation(api.appointmentNotifications.markAppointmentAsRead);
   const markMultipleAsRead = useMutation(api.appointmentNotifications.markMultipleAppointmentsAsRead);
 
   const isLoading = isTeamLoading;
-  const hasMarkedAsRead = useRef(false);
-
-  // Removed auto-mark as read functionality - appointments only marked as read when clicked
 
   // Filter appointments by read/unread status
   const filteredAppointments = useMemo(() => {
@@ -239,7 +235,7 @@ export default function AppointmentPage() {
               >
                 {/* Resident Avatar */}
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={appointment.resident?.imageUrl} alt={residentName} />
+                  <AvatarImage src={appointment.resident?.imageUrl ?? undefined} alt={residentName} />
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
 

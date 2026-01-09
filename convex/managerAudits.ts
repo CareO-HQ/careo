@@ -340,7 +340,7 @@ export const getUnauditedForms = query({
         }
       };
 
-    const unauditedForms = [];
+    const unauditedForms: Array<{ formType: string; formId: any; lastUpdated: any }> = [];
 
     // Check which form keys to process (all if not specified)
     const keysToCheck = args.formKeys || Object.keys(formTypeMapping);

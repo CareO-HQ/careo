@@ -135,7 +135,7 @@ export default function HandoverPage() {
         const comments = commentData?.comment || "";
 
         return {
-          residentId: resident._id,
+          residentId: resident._id as Id<"residents">,
           residentName: `${resident.firstName} ${resident.lastName}`,
           roomNumber: resident.roomNumber,
           age: getAge(resident.dateOfBirth),

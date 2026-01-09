@@ -60,6 +60,7 @@ export default function StaffPage() {
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
   const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
+  const { data: session } = authClient.useSession();
 
   useEffect(() => {
     if (!isActiveMemberLoading && activeMember) {
@@ -71,13 +72,13 @@ export default function StaffPage() {
 
   // Fetch staff by team if team is selected
   const teamStaff = useQuery(
-    activeTeamId ? api.users.getByTeamId : "skip",
+    api.users.getByTeamId,
     activeTeamId ? { teamId: activeTeamId } : "skip"
   ) as TeamStaffMember[] | undefined;
 
   // Fetch enriched organization members with phone numbers
   const enrichedOrgStaff = useQuery(
-    !activeTeamId && activeOrganizationId ? api.users.getEnrichedOrgMembers : "skip",
+    api.users.getEnrichedOrgMembers,
     !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   ) as OrgStaffMember[] | undefined;
 
@@ -86,7 +87,7 @@ export default function StaffPage() {
 
   // Filter out current user from staff list (backup safety measure)
   const currentUserId = activeMember?.userId;
-  const currentUserEmail = activeMember?.email;
+  const currentUserEmail = session?.user?.email;
   const staffWithoutCurrentUser = (staff || []).filter((member) => {
     // If no current user info, include all
     if (!currentUserId && !currentUserEmail) return true;

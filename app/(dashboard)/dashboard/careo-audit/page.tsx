@@ -188,7 +188,7 @@ function CareOAuditPageContent() {
             ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
             : "-",
           category: "governance",
-          frequency: template.frequency,
+          frequency: template.frequency === "6months" ? "quarterly" : template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -216,7 +216,7 @@ function CareOAuditPageContent() {
             ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
             : "-",
           category: "clinical",
-          frequency: template.frequency,
+          frequency: template.frequency === "6months" ? "quarterly" : template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -244,7 +244,7 @@ function CareOAuditPageContent() {
             ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
             : "-",
           category: "environment",
-          frequency: template.frequency,
+          frequency: template.frequency === "6months" ? "quarterly" : template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -300,7 +300,7 @@ function CareOAuditPageContent() {
           lastAudited,
           dueDate: nextAudit,
           category: "resident",
-          frequency: template.frequency,
+          frequency: template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -590,7 +590,7 @@ function CareOAuditPageContent() {
 
       setIsDialogOpen(false);
       setFormData({ auditName: "", auditorName: "", frequency: "" });
-      router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}`);
+      router.push(`/dashboard/careo-audit/${activeTab}/${newAudit.id}` as any);
     }
   };
 
@@ -602,7 +602,7 @@ function CareOAuditPageContent() {
     const isConvexId = /^[a-z]/.test(audit.id);
     if (isConvexId) {
       try {
-        let impact = null;
+        let impact: { auditCount: number; actionPlanCount: number; } | null = null;
         if (audit.category === "resident") {
           impact = await convex.query(api.auditTemplates.getDeletionImpact, {
             templateId: audit.id as Id<"residentAuditTemplates">
@@ -876,8 +876,9 @@ function CareOAuditPageContent() {
       const dates: {[residentId: string]: {lastAudited: string, nextAudit: string}} = {};
 
       residents.forEach(resident => {
-        completions[resident._id] = calculateResidentCareFileCompletion(resident._id);
-        dates[resident._id] = calculateResidentDates(resident._id);
+        const residentId = resident._id as string;
+        completions[residentId] = calculateResidentCareFileCompletion(residentId);
+        dates[residentId] = calculateResidentDates(residentId);
       });
 
       setResidentCompletions(completions);
@@ -1093,7 +1094,7 @@ function CareOAuditPageContent() {
             <TableBody>
               {residents && residents.length > 0 ? (
                 residents.map((resident) => (
-                  <TableRow key={resident._id} className="hover:bg-muted/50">
+                  <TableRow key={resident._id as string} className="hover:bg-muted/50">
                     <TableCell className="border-r last:border-r-0">
                       <input type="checkbox" className="rounded border-gray-300" />
                     </TableCell>
@@ -1103,17 +1104,17 @@ function CareOAuditPageContent() {
                         className="flex items-center gap-3 font-medium hover:underline text-left"
                       >
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
+                          <AvatarImage src={resident.imageUrl as string | undefined} alt={`${resident.firstName as string} ${resident.lastName as string}`} />
                           <AvatarFallback>
-                            {resident.firstName.charAt(0)}{resident.lastName.charAt(0)}
+                            {(resident.firstName as string).charAt(0)}{(resident.lastName as string).charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <span>{resident.firstName} {resident.lastName}</span>
+                        <span>{resident.firstName as string} {resident.lastName as string}</span>
                       </button>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
                       {(() => {
-                        const completionPercentage = residentCompletions[resident._id] ?? 0;
+                        const completionPercentage = residentCompletions[resident._id as string] ?? 0;
                         return (
                           <div className="flex items-center gap-2 min-w-[120px]">
                             <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -1130,10 +1131,10 @@ function CareOAuditPageContent() {
                       })()}
                     </TableCell>
                     <TableCell className="text-muted-foreground border-r last:border-r-0">
-                      {residentDates[resident._id]?.lastAudited || '-'}
+                      {residentDates[resident._id as string]?.lastAudited || '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground border-r last:border-r-0">
-                      {residentDates[resident._id]?.nextAudit || '-'}
+                      {residentDates[resident._id as string]?.nextAudit || '-'}
                     </TableCell>
                   </TableRow>
                 ))
@@ -1182,7 +1183,7 @@ function CareOAuditPageContent() {
                   </TableCell>
                   <TableCell className="border-r last:border-r-0">
                     <button
-                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}`)}
+                      onClick={() => router.push(`/dashboard/careo-audit/${audit.category}/${audit.id}` as any)}
                       className="font-medium hover:underline text-left"
                     >
                       {audit.name}

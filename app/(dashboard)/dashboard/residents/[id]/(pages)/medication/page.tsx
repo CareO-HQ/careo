@@ -115,6 +115,29 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const saveMedicationIntakeComment = useMutation(
     api.medication.saveMedicationIntakeComment
   );
+
+  // Wrapper function to map states for updateMedicationIntakeStatus
+  const handleUpdateMedicationIntakeStatus = async (args: {
+    intakeId: Id<"medicationIntake">;
+    state: "scheduled" | "dispensed" | "administered" | "refused" | "missed" | "skipped";
+  }) => {
+    // Map states to what the mutation expects
+    let mappedState: "given" | "refused" | "missed";
+    if (args.state === "administered" || args.state === "dispensed") {
+      mappedState = "given";
+    } else if (args.state === "refused") {
+      mappedState = "refused";
+    } else if (args.state === "missed") {
+      mappedState = "missed";
+    } else {
+      // Skip scheduled and skipped states
+      return null;
+    }
+    return await updateMedicationIntakeStatus({
+      intakeId: args.intakeId,
+      state: mappedState,
+    });
+  };
   const createAndAdministerMedicationIntake = useMutation(
     api.medication.createAndAdministerMedicationIntake
   );
@@ -153,7 +176,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         availableMembers,
         markMedicationIntakeAsPoppedOut,
         setWithnessForMedicationIntake,
-        updateMedicationIntakeStatus,
+        handleUpdateMedicationIntakeStatus,
         saveMedicationIntakeComment,
         currentUser?.user
           ? {

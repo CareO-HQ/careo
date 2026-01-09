@@ -134,9 +134,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
   // Get files for the selected folder
   const folderFiles = useQuery(
-    selectedFolder
-      ? api.residentFiles.getByResident
-      : "skip",
+    api.residentFiles.getByResident,
     selectedFolder
       ? {
           residentId: id as Id<"residents">,

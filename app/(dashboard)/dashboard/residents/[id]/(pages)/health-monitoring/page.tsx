@@ -750,7 +750,7 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                                 <FormLabel className="text-sm">Diastolic</FormLabel>
                                 <FormControl>
                                   <Input 
-                                    placeholder={currentVital.placeholder2}
+                                    placeholder={(currentVital as any).placeholder2 || currentVital.placeholder}
                                     {...field}
                                     className="h-9"
                                   />

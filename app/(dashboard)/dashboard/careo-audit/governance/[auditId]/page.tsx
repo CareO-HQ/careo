@@ -420,8 +420,8 @@ export default function GovernanceAuditPage() {
 
   // Track if data has actually changed to avoid unnecessary saves
   const lastSavedData = React.useRef<string>("");
-  const saveTimeoutRef = React.useRef<NodeJS.Timeout>();
-  const abortControllerRef = React.useRef<AbortController>();
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | undefined>(undefined);
+  const abortControllerRef = React.useRef<AbortController | undefined>(undefined);
 
   // Auto-save audit progress to database (debounced and optimized)
   useEffect(() => {
@@ -465,7 +465,10 @@ export default function GovernanceAuditPage() {
         // Auto-save to database
         await updateResponse({
           responseId,
-          items,
+          items: items.map(item => ({
+            ...item,
+            status: item.status as "not-applicable" | "compliant" | "non-compliant" | "checked" | "unchecked" | undefined,
+          })),
           status: "in-progress",
         });
 
@@ -508,7 +511,10 @@ export default function GovernanceAuditPage() {
       // Complete the audit in database
       await completeAudit({
         responseId,
-        items,
+        items: items.map(item => ({
+          ...item,
+          status: item.status as "not-applicable" | "compliant" | "non-compliant" | "checked" | "unchecked" | undefined,
+        })),
         auditedBy: session?.user?.email || "",
         auditedByName: session?.user?.name || session?.user?.email || "",
       });

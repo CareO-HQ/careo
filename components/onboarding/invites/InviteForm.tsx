@@ -51,11 +51,11 @@ export default function InviteForm() {
       users: [
         {
           email: "",
-          role: defaultRole
+          role: defaultRole as "manager" | "nurse" | "care_assistant"
         },
         {
           email: "",
-          role: defaultRole
+          role: defaultRole as "manager" | "nurse" | "care_assistant"
         }
       ]
     }
@@ -120,7 +120,7 @@ export default function InviteForm() {
     if (currentUsers.length < MAX_INVITATIONS) {
       form.setValue("users", [
         ...currentUsers,
-        { email: "", role: defaultRole as const }
+        { email: "", role: defaultRole as "manager" | "nurse" | "care_assistant" }
       ]);
     }
   };

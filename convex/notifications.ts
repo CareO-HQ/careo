@@ -66,7 +66,7 @@ export const markMultipleIncidentsAsRead = mutation({
       throw new Error("User not found");
     }
 
-    const results = [];
+    const results: Id<"notificationReadStatus">[] = [];
     for (const incidentId of args.incidentIds) {
       // Check if already marked as read
       const existing = await ctx.db
