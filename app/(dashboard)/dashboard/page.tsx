@@ -52,7 +52,12 @@ export default function DashboardPage() {
   // Use team data if available, otherwise use organization data
   const dashboardData = activeTeamId ? teamDashboardData : organizationDashboardData;
 
-  const isLoading = isTeamLoading || dashboardData === undefined;
+  // Check if we have team/organization context first (before checking loading)
+  const hasTeamOrOrgContext = activeTeamId || activeOrganizationId;
+  
+  // Only consider data loading if we actually have a team/org to query
+  const isDataLoading = hasTeamOrOrgContext && dashboardData === undefined;
+  const isLoading = isTeamLoading || isDataLoading;
 
   // Get user's first name
   const userName = session?.user?.name?.split(" ")[0] || "User";
@@ -90,7 +95,7 @@ export default function DashboardPage() {
     return <Badge variant="secondary">In Hospital</Badge>;
   };
 
-  // Loading state
+  // Loading state - only show if we're still loading team info OR if we have a team/org and data is loading
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -99,12 +104,15 @@ export default function DashboardPage() {
     );
   }
 
-  // No active team or organization
+  // No active team or organization - redirect to onboarding
   if (!activeTeamId && !activeOrganizationId) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <Building2 className="h-16 w-16 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">Please select a care home to view the dashboard</p>
+      <div className="flex flex-col items-center justify-center h-screen gap-4">
+        <Building2 className="h-16 w-16 text-muted-foreground" />
+        <p className="text-muted-foreground text-center">You need to set up your care home first</p>
+        <Button onClick={() => router.push("/onboarding")}>
+          Complete Setup
+        </Button>
       </div>
     );
   }
