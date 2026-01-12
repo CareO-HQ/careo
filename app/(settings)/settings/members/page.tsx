@@ -14,6 +14,14 @@ export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const { data: member } = authClient.useActiveMember();
+
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrganization?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+
+  // Use activeMember role first, fallback to org member role
+  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
   const activeMember = member;
 
   const invitations = activeOrganization?.invitations.filter(
@@ -25,11 +33,11 @@ export default function MembersPage() {
   };
 
   function showRemoveButton() {
-    return activeMember?.role === "owner" || activeMember?.role === "manager";
+    return userRole === "owner" || userRole === "manager";
   }
 
-  const isOwner = activeMember?.role === "owner";
-  const isManager = activeMember?.role === "manager";
+  const isOwner = userRole === "owner";
+  const isManager = userRole === "manager";
 
   return (
     <div className="flex flex-col justify-start items-start gap-8">
@@ -90,7 +98,7 @@ export default function MembersPage() {
         ))}
       </div>
       <Separator />
-      {activeMember?.role && canInviteMembers(activeMember.role as UserRole) && (
+      {userRole && canInviteMembers(userRole) && (
         <div className="flex flex-col justify-start items-start gap-4 w-full">
           <div className="flex flex-row justify-between items-center w-full">
             <p className="font-medium">Pending invitations</p>

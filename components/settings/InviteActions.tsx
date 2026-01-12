@@ -20,11 +20,21 @@ export default function InviteActions({
   invitationId: string;
 }) {
   const { data: member } = authClient.useActiveMember();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const { data: user } = authClient.useSession();
   const router = useRouter();
   const revokeInvitation = useMutation(api.customInvite.revokeInvitationForManager);
 
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrganization?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+
+  // Use activeMember role first, fallback to org member role
+  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
+
   // Only owners and managers can manage invitations
-  const canManageInvitations = member?.role ? canInviteMembers(member.role as UserRole) : false;
+  const canManageInvitations = userRole ? canInviteMembers(userRole) : false;
 
   const handleRevoke = async () => {
     if (!canManageInvitations) {

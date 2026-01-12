@@ -25,10 +25,20 @@ import { useRouter } from "next/navigation";
 
 export default function SendInvitationForm() {
   const { data: member } = authClient.useActiveMember();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const { data: user } = authClient.useSession();
   const [isLoading, startTransition] = useTransition();
   const createInvitation = useMutation(api.customInvite.createInvitationForManager);
   const teams = useQuery(api.auth.getTeamsWithMembers, {});
   const router = useRouter();
+
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrganization?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+
+  // Use activeMember role first, fallback to org member role
+  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
   
   const form = useForm<z.infer<typeof inviteMemberSchema>>({
     resolver: zodResolver(inviteMemberSchema),
@@ -44,7 +54,7 @@ export default function SendInvitationForm() {
 
   const onSubmit = (values: z.infer<typeof inviteMemberSchema>) => {
     // Check if user has permission to invite members
-    if (!member?.role || !canInviteMembers(member.role as UserRole)) {
+    if (!userRole || !canInviteMembers(userRole)) {
       toast.error("You don't have permission to invite members");
       return;
     }
@@ -114,13 +124,13 @@ export default function SendInvitationForm() {
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
                     <SelectContent>
-                      {getAllowedRolesToInvite(member?.role as UserRole || "care_assistant").includes("manager") && (
+                      {userRole && getAllowedRolesToInvite(userRole).includes("manager") && (
                         <SelectItem value="manager">Manager</SelectItem>
                       )}
-                      {getAllowedRolesToInvite(member?.role as UserRole || "care_assistant").includes("nurse") && (
+                      {userRole && getAllowedRolesToInvite(userRole).includes("nurse") && (
                         <SelectItem value="nurse">Nurse</SelectItem>
                       )}
-                      {getAllowedRolesToInvite(member?.role as UserRole || "care_assistant").includes("care_assistant") && (
+                      {userRole && getAllowedRolesToInvite(userRole).includes("care_assistant") && (
                         <SelectItem value="care_assistant">Care Assistant</SelectItem>
                       )}
                     </SelectContent>

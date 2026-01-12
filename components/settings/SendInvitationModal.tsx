@@ -16,9 +16,19 @@ import { canInviteMembers, type UserRole } from "@/lib/permissions";
 
 export default function SendInvitationModal() {
   const { data: member } = authClient.useActiveMember();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const { data: user } = authClient.useSession();
+
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrganization?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+
+  // Use activeMember role first, fallback to org member role
+  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
 
   // Only show invitation button if user has permission
-  if (!member?.role || !canInviteMembers(member.role as UserRole)) {
+  if (!userRole || !canInviteMembers(userRole)) {
     return null;
   }
 

@@ -2802,6 +2802,7 @@ export default defineSchema({
     ),
     frequency: v.union(
       v.literal("3months"),
+      v.literal("quarterly"),
       v.literal("6months"),
       v.literal("yearly")
     ),
