@@ -35,12 +35,10 @@ import { config } from "@/config";
 
 export function TeamSwitcher({
   orgName,
-  isPending,
-  email
+  isPending
 }: {
   orgName: string;
   isPending: boolean;
-  email: string;
 }) {
   const [, startTransition] = useTransition();
   const [orgTeams, setOrgTeams] = useState([]);
@@ -135,10 +133,11 @@ export function TeamSwitcher({
                     {isPending ? (
                       <Skeleton className="w-20 h-4 bg-muted-foreground/10" />
                     ) : (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {/* Organization 1 - Team 1 */}
-                        {activeTeam ? activeTeam.name : email}
-                      </p>
+                      activeTeam && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {activeTeam.name}
+                        </p>
+                      )
                     )}
                   </div>
                 </div>
