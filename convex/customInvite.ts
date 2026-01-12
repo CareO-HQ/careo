@@ -414,22 +414,7 @@ export const assignTeamFromInvitationPublic = mutation({
         };
       }
 
-      // Check if member is already in this team
-      const existingTeamMember = await ctx.db
-        .query("teamMembers")
-        .withIndex("byUserAndTeam", (q) =>
-          q.eq("userId", session.userId).eq("teamId", metadata.teamId)
-        )
-        .first();
-
-      if (existingTeamMember) {
-        return {
-          success: true as const,
-          teamId: metadata.teamId,
-        };
-      }
-
-      // Get user email for teamMembers record
+      // Get user email for teamMembers record and activeTeamId update
       let userEmail: string | undefined = undefined;
       try {
         const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
@@ -439,6 +424,35 @@ export const assignTeamFromInvitationPublic = mutation({
         userEmail = authUser?.email;
       } catch (error) {
         console.warn(`Failed to get user email for userId ${session.userId}:`, error);
+      }
+
+      // Check if member is already in this team
+      const existingTeamMember = await ctx.db
+        .query("teamMembers")
+        .withIndex("byUserAndTeam", (q) =>
+          q.eq("userId", session.userId).eq("teamId", metadata.teamId)
+        )
+        .first();
+
+      if (existingTeamMember) {
+        // User is already in the team, but ensure activeTeamId is set
+        if (userEmail) {
+          const convexUser = await ctx.db
+            .query("users")
+            .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+            .first();
+          
+          if (convexUser && convexUser.activeTeamId !== metadata.teamId) {
+            await ctx.db.patch(convexUser._id, {
+              activeTeamId: metadata.teamId
+            });
+            console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail} (already in team)`);
+          }
+        }
+        return {
+          success: true as const,
+          teamId: metadata.teamId,
+        };
       }
 
       // Create team membership
@@ -451,6 +465,21 @@ export const assignTeamFromInvitationPublic = mutation({
         createdAt: Date.now(),
         createdBy: session.userId,
       });
+
+      // Set activeTeamId in the users table so the team is selected in the sidebar
+      if (userEmail) {
+        const convexUser = await ctx.db
+          .query("users")
+          .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+          .first();
+        
+        if (convexUser) {
+          await ctx.db.patch(convexUser._id, {
+            activeTeamId: metadata.teamId
+          });
+          console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail}`);
+        }
+      }
 
       return {
         success: true as const,
@@ -535,22 +564,7 @@ export const assignTeamFromInvitation = internalMutation({
         };
       }
 
-      // Check if member is already in this team
-      const existingTeamMember = await ctx.db
-        .query("teamMembers")
-        .withIndex("byUserAndTeam", (q) =>
-          q.eq("userId", args.userId).eq("teamId", metadata.teamId)
-        )
-        .first();
-
-      if (existingTeamMember) {
-        return {
-          success: true as const,
-          teamId: metadata.teamId,
-        };
-      }
-
-      // Get user email for teamMembers record
+      // Get user email for teamMembers record and activeTeamId update
       let userEmail: string | undefined = undefined;
       try {
         const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
@@ -560,6 +574,35 @@ export const assignTeamFromInvitation = internalMutation({
         userEmail = authUser?.email;
       } catch (error) {
         console.warn(`Failed to get user email for userId ${args.userId}:`, error);
+      }
+
+      // Check if member is already in this team
+      const existingTeamMember = await ctx.db
+        .query("teamMembers")
+        .withIndex("byUserAndTeam", (q) =>
+          q.eq("userId", args.userId).eq("teamId", metadata.teamId)
+        )
+        .first();
+
+      if (existingTeamMember) {
+        // User is already in the team, but ensure activeTeamId is set
+        if (userEmail) {
+          const convexUser = await ctx.db
+            .query("users")
+            .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+            .first();
+          
+          if (convexUser && convexUser.activeTeamId !== metadata.teamId) {
+            await ctx.db.patch(convexUser._id, {
+              activeTeamId: metadata.teamId
+            });
+            console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail} (already in team)`);
+          }
+        }
+        return {
+          success: true as const,
+          teamId: metadata.teamId,
+        };
       }
 
       // Create team membership
@@ -572,6 +615,21 @@ export const assignTeamFromInvitation = internalMutation({
         createdAt: Date.now(),
         createdBy: "system",
       });
+
+      // Set activeTeamId in the users table so the team is selected in the sidebar
+      if (userEmail) {
+        const convexUser = await ctx.db
+          .query("users")
+          .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+          .first();
+        
+        if (convexUser) {
+          await ctx.db.patch(convexUser._id, {
+            activeTeamId: metadata.teamId
+          });
+          console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail}`);
+        }
+      }
 
       return {
         success: true as const,
