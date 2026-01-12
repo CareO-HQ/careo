@@ -151,12 +151,19 @@ export const createInvitationForManager = mutation({
       }
 
       // Schedule the email sending action
-      await ctx.scheduler.runAfter(0, api.customInviteEmail.sendInvitationEmail as any, {
-        invitationId: String(invitationId),
-        email: args.email,
-        organizationName: organization.name,
-        inviterName: session.user?.name || "A team member",
-      });
+      try {
+        await ctx.scheduler.runAfter(0, api.customInviteEmail.sendInvitationEmail, {
+          invitationId: String(invitationId),
+          email: args.email,
+          organizationName: organization.name,
+          inviterName: session.user?.name || "A team member",
+        });
+        console.log("✅ Email sending scheduled for invitation:", invitationIdStr);
+      } catch (schedulerError) {
+        console.error("❌ Failed to schedule email sending:", schedulerError);
+        // Don't fail the invitation creation if email scheduling fails
+        // The invitation is still created and can be resent later
+      }
 
       return {
         success: true as const,
