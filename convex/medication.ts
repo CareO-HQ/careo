@@ -296,7 +296,14 @@ export const createMedication = mutation({
     let currentTeamId = teamId;
     if (!currentTeamId) {
       console.log("No teamId provided, checking user data...");
-      const userData = await ctx.db.get(userMetadata.userId as Id<"users">);
+      // Look up user by email, not by userId (Better Auth ID != Convex document ID)
+      let userData = null;
+      if (userMetadata.email) {
+        userData = await ctx.db
+          .query("users")
+          .withIndex("byEmail", (q) => q.eq("email", userMetadata.email))
+          .first();
+      }
       console.log("User activeTeamId:", userData?.activeTeamId);
       currentTeamId = userData?.activeTeamId;
       if (!currentTeamId) {

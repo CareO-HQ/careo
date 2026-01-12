@@ -108,8 +108,16 @@ export default function InviteForm() {
         toast.error(`Failed to send ${errorCount} invitation(s)`);
       }
 
+      // Mark onboarding as complete BEFORE redirecting to ensure it's saved
+      try {
+        await setIsOnboardingCompleted();
+      } catch (error) {
+        console.error("Error marking onboarding as complete:", error);
+        toast.error("Failed to complete onboarding. Please try again.");
+        return;
+      }
+      
       router.push("/dashboard");
-      await setIsOnboardingCompleted();
     });
   }
 

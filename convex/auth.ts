@@ -47,8 +47,15 @@ export const {
   // Must create a user and return the user id
   onCreateUser: async (ctx, user) => {
     console.log("Creating user in Convex:", user);
+    
+    // Ensure email is present - this is critical for user lookup
+    if (!user.email) {
+      console.error("ERROR: User email is missing during signup!", user);
+      throw new Error("Email is required for user creation");
+    }
+    
     return ctx.db.insert("users", {
-      email: user.email,
+      email: user.email, // Email is required and must be saved
       name: user.name || undefined,
       image: user.image || undefined,
       isOnboardingComplete: false
@@ -93,7 +100,22 @@ export const getCurrentUser = query({
     console.log("session activeOrganizationId:", session?.activeOrganizationId);
 
     // Get user data from your application's database for custom fields
-    const customUserData = await ctx.db.get(userMetadata.userId as Id<"users">);
+    // IMPORTANT: Look up by email, not by userId, because userId is Better Auth ID, not Convex document ID
+    let customUserData = null;
+    if (userMetadata.email) {
+      customUserData = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", userMetadata.email))
+        .first();
+      
+      // If user not found by email, log error but don't crash - this helps debug signup issues
+      if (!customUserData) {
+        console.error("WARNING: User not found in Convex database by email:", userMetadata.email);
+        console.error("This might indicate the email wasn't saved during signup");
+      }
+    } else {
+      console.error("WARNING: userMetadata.email is missing:", userMetadata);
+    }
 
     // Get active team details if activeTeamId exists
     let activeTeam: { id: any; name: any; organizationId?: any } | null = null;
@@ -454,14 +476,21 @@ export const setActiveOrganization = mutation({
     }
 
     // First clear the active team since we're switching organizations
-    const userId = userMetadata.userId as Id<"users">;
-    const user = await ctx.db.get(userId);
+    // Look up user by email, not by userId (Better Auth ID != Convex document ID)
+    if (!userMetadata.email) {
+      throw new Error("User email not found");
+    }
+    
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userMetadata.email))
+      .first();
 
     if (!user) {
-      throw new Error("User not found");
+      throw new Error("User not found in Convex database");
     }
 
-    await ctx.db.patch(userId, {
+    await ctx.db.patch(user._id, {
       activeTeamId: undefined
     });
 
