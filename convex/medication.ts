@@ -8,7 +8,7 @@ import {
 } from "./_generated/server";
 import { betterAuthComponent } from "./auth";
 import { components, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
 import { api } from "./_generated/api";
 
 // Helper function to create medication intake records for up to 7 days or until end date
@@ -296,7 +296,14 @@ export const createMedication = mutation({
     let currentTeamId = teamId;
     if (!currentTeamId) {
       console.log("No teamId provided, checking user data...");
-      const userData = await ctx.db.get(userMetadata.userId as Id<"users">);
+      // Look up user by email, not by userId (Better Auth ID != Convex document ID)
+      let userData: Doc<"users"> | null = null;
+      if (userMetadata.email) {
+        userData = await ctx.db
+          .query("users")
+          .withIndex("byEmail", (q) => q.eq("email", userMetadata.email))
+          .first();
+      }
       console.log("User activeTeamId:", userData?.activeTeamId);
       currentTeamId = userData?.activeTeamId;
       if (!currentTeamId) {
