@@ -24,8 +24,42 @@ export default function MembersPage() {
   const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
   const activeMember = member;
 
+  // Get current user ID for filtering invitations
+  const currentUserId = user?.user?.id || member?.userId;
+
+  // Filter invitations:
+  // - Owners can see all pending invitations
+  // - Managers can only see invitations they sent themselves
   const invitations = activeOrganization?.invitations.filter(
-    (invitation) => invitation.status === "pending"
+    (invitation) => {
+      if (invitation.status !== "pending") {
+        return false;
+      }
+      
+      // Owners can see all invitations
+      if (userRole === "owner") {
+        return true;
+      }
+      
+      // Managers can only see invitations they sent
+      if (userRole === "manager") {
+        // Check if the invitation was sent by the current user
+        // inviterId might be available on the invitation object (from better-auth)
+        const invitationInviterId = (invitation as any).inviterId;
+        
+        // If inviterId is available, check if it matches the current user
+        if (invitationInviterId && currentUserId) {
+          return String(invitationInviterId) === String(currentUserId);
+        }
+        
+        // If inviterId is not available, don't show the invitation to managers
+        // (This is a security measure - if we can't verify who sent it, managers shouldn't see it)
+        return false;
+      }
+      
+      // Other roles shouldn't see any invitations
+      return false;
+    }
   );
 
   const isCurrentUser = (email: string) => {

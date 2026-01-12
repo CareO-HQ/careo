@@ -21,16 +21,14 @@ import { toast } from "sonner";
 import { canInviteMembers, getAllowedRolesToInvite, type UserRole } from "@/lib/permissions";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useRouter } from "next/navigation";
 
 export default function SendInvitationForm() {
   const { data: member } = authClient.useActiveMember();
-  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const { data: activeOrganization, refetch: refetchOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const [isLoading, startTransition] = useTransition();
   const createInvitation = useMutation(api.customInvite.createInvitationForManager);
   const teams = useQuery(api.auth.getTeamsWithMembers, {});
-  const router = useRouter();
 
   // Fallback: Get role from organization members if activeMember is not available
   const orgMemberRole = activeOrganization?.members?.find(
@@ -52,6 +50,18 @@ export default function SendInvitationForm() {
   const selectedRole = form.watch("role");
   const showTeamSelector = selectedRole === "nurse" || selectedRole === "care_assistant";
 
+  // Filter teams: Hide teams with organization name when manager invites nurse/care_assistant
+  const filteredTeams = teams?.filter((team) => {
+    // If manager is inviting nurse or care_assistant, hide teams that match organization name
+    if (userRole === "manager" && (selectedRole === "nurse" || selectedRole === "care_assistant")) {
+      const orgName = activeOrganization?.name || "";
+      // Hide team if its name matches the organization name
+      return team.name !== orgName;
+    }
+    // Otherwise, show all teams
+    return true;
+  }) || [];
+
   const onSubmit = (values: z.infer<typeof inviteMemberSchema>) => {
     // Check if user has permission to invite members
     if (!userRole || !canInviteMembers(userRole)) {
@@ -70,7 +80,8 @@ export default function SendInvitationForm() {
         if (result.success) {
           toast.success("Invitation sent successfully");
           form.reset();
-          router.refresh();
+          // Refetch organization data to update the invitations list
+          await refetchOrganization();
         } else {
           // Handle specific error cases
           if (result.error?.includes("already invited")) {
@@ -158,8 +169,8 @@ export default function SendInvitationForm() {
                       <SelectValue placeholder="Select a team" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teams && teams.length > 0 ? (
-                        teams.map((team) => (
+                      {filteredTeams && filteredTeams.length > 0 ? (
+                        filteredTeams.map((team) => (
                           <SelectItem key={team.id} value={team.id}>
                             {team.name}
                           </SelectItem>
