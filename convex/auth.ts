@@ -5,7 +5,7 @@ import {
 } from "@convex-dev/better-auth";
 import { v } from "convex/values";
 import { api, components, internal } from "./_generated/api";
-import type { DataModel, Id } from "./_generated/dataModel";
+import type { DataModel, Id, Doc } from "./_generated/dataModel";
 import { action, mutation, query } from "./_generated/server";
 import {
   adminAc,
@@ -101,7 +101,7 @@ export const getCurrentUser = query({
 
     // Get user data from your application's database for custom fields
     // IMPORTANT: Look up by email, not by userId, because userId is Better Auth ID, not Convex document ID
-    let customUserData = null;
+    let customUserData: Doc<"users"> | null = null;
     if (userMetadata.email) {
       customUserData = await ctx.db
         .query("users")

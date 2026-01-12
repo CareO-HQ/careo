@@ -8,7 +8,7 @@ import {
 } from "./_generated/server";
 import { betterAuthComponent } from "./auth";
 import { components, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
 import { api } from "./_generated/api";
 
 // Helper function to create medication intake records for up to 7 days or until end date
@@ -297,7 +297,7 @@ export const createMedication = mutation({
     if (!currentTeamId) {
       console.log("No teamId provided, checking user data...");
       // Look up user by email, not by userId (Better Auth ID != Convex document ID)
-      let userData = null;
+      let userData: Doc<"users"> | null = null;
       if (userMetadata.email) {
         userData = await ctx.db
           .query("users")
