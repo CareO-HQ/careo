@@ -9,7 +9,6 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useRouter } from "next/navigation";
 import { MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 import { canInviteMembers, type UserRole } from "@/lib/permissions";
@@ -20,11 +19,20 @@ export default function InviteActions({
   invitationId: string;
 }) {
   const { data: member } = authClient.useActiveMember();
-  const router = useRouter();
+  const { data: activeOrganization, refetch: refetchOrganization } = authClient.useActiveOrganization();
+  const { data: user } = authClient.useSession();
   const revokeInvitation = useMutation(api.customInvite.revokeInvitationForManager);
 
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrganization?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+
+  // Use activeMember role first, fallback to org member role
+  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
+
   // Only owners and managers can manage invitations
-  const canManageInvitations = member?.role ? canInviteMembers(member.role as UserRole) : false;
+  const canManageInvitations = userRole ? canInviteMembers(userRole) : false;
 
   const handleRevoke = async () => {
     if (!canManageInvitations) {
@@ -36,7 +44,8 @@ export default function InviteActions({
       const result = await revokeInvitation({ invitationId });
       if (result.success) {
         toast.success("Invitation revoked");
-        router.refresh();
+        // Refetch organization data to update the invitations list
+        await refetchOrganization();
       } else {
         toast.error(result.error || "Failed to revoke invitation");
       }

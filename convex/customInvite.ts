@@ -233,6 +233,15 @@ export const revokeInvitationForManager = mutation({
         return { success: false as const, error: "Invitation does not belong to your organization" };
       }
 
+      // Managers can only revoke invitations they sent themselves
+      // Owners can revoke any invitation in their organization
+      if (userRole === "manager") {
+        const invitationInviterId = (invitation as any).inviterId;
+        if (!invitationInviterId || String(invitationInviterId) !== String(session.userId)) {
+          return { success: false as const, error: "You can only revoke invitations you sent" };
+        }
+      }
+
       await ctx.runMutation(components.betterAuth.lib.deleteOne, {
         model: "invitation",
         where: [{ field: "id", value: args.invitationId }]

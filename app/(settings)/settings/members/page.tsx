@@ -14,10 +14,52 @@ export default function MembersPage() {
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
   const { data: member } = authClient.useActiveMember();
+
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrganization?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+
+  // Use activeMember role first, fallback to org member role
+  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
   const activeMember = member;
 
+  // Get current user ID for filtering invitations
+  const currentUserId = user?.user?.id || member?.userId;
+
+  // Filter invitations:
+  // - Owners can see all pending invitations
+  // - Managers can only see invitations they sent themselves
   const invitations = activeOrganization?.invitations.filter(
-    (invitation) => invitation.status === "pending"
+    (invitation) => {
+      if (invitation.status !== "pending") {
+        return false;
+      }
+      
+      // Owners can see all invitations
+      if (userRole === "owner") {
+        return true;
+      }
+      
+      // Managers can only see invitations they sent
+      if (userRole === "manager") {
+        // Check if the invitation was sent by the current user
+        // inviterId might be available on the invitation object (from better-auth)
+        const invitationInviterId = (invitation as any).inviterId;
+        
+        // If inviterId is available, check if it matches the current user
+        if (invitationInviterId && currentUserId) {
+          return String(invitationInviterId) === String(currentUserId);
+        }
+        
+        // If inviterId is not available, don't show the invitation to managers
+        // (This is a security measure - if we can't verify who sent it, managers shouldn't see it)
+        return false;
+      }
+      
+      // Other roles shouldn't see any invitations
+      return false;
+    }
   );
 
   const isCurrentUser = (email: string) => {
@@ -25,11 +67,11 @@ export default function MembersPage() {
   };
 
   function showRemoveButton() {
-    return activeMember?.role === "owner" || activeMember?.role === "manager";
+    return userRole === "owner" || userRole === "manager";
   }
 
-  const isOwner = activeMember?.role === "owner";
-  const isManager = activeMember?.role === "manager";
+  const isOwner = userRole === "owner";
+  const isManager = userRole === "manager";
 
   return (
     <div className="flex flex-col justify-start items-start gap-8">
@@ -90,7 +132,7 @@ export default function MembersPage() {
         ))}
       </div>
       <Separator />
-      {activeMember?.role && canInviteMembers(activeMember.role as UserRole) && (
+      {userRole && canInviteMembers(userRole) && (
         <div className="flex flex-col justify-start items-start gap-4 w-full">
           <div className="flex flex-row justify-between items-center w-full">
             <p className="font-medium">Pending invitations</p>
