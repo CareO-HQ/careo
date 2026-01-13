@@ -52,16 +52,36 @@ export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
   const activeOrg = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
-  const { data: activeMember } = authClient.useActiveMember();
+  const { data: activeMember, isPending: isActiveMemberPending } = authClient.useActiveMember();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const userRole = activeMember?.role as string | undefined;
+  
+  // Fallback: Get role from organization members if activeMember is not available
+  const orgMemberRole = activeOrg.data?.members?.find(
+    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
+  )?.role;
+  
+  // Use activeMember role first, fallback to org member role
+  const userRole = (activeMember?.role || orgMemberRole) as string | undefined;
+
+  // Debug logging for owner role issue
+  if (process.env.NODE_ENV === "development") {
+    console.log("AppSidebar Debug:", {
+      userRole,
+      activeMember,
+      orgMemberRole,
+      isActiveMemberPending,
+      hasActiveMember: !!activeMember,
+      hasOrgMembers: !!activeOrg.data?.members,
+      userEmail: user?.user?.email,
+    });
+  }
 
   // Extract email to a stable variable - always compute this before any conditional logic
   // This ensures React sees consistent hook call patterns across renders
   const userEmail = user?.user?.email || null;
 
-  // For managers, always use organization-based queries; for other roles, use team if available
-  const shouldUseOrganization = userRole === "manager";
+  // For owners and managers, always use organization-based queries; for other roles, use team if available
+  const shouldUseOrganization = userRole === "manager" || userRole === "owner";
 
   // Get unread notification count - dynamic based on selection and role
   const unreadCount = useQuery(
