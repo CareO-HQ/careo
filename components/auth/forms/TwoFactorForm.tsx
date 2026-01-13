@@ -50,13 +50,50 @@ export default function TwoFactorForm() {
             code: values.code
           },
           {
-            onSuccess: async () => {
+            onSuccess: async (ctx) => {
               const userFromDb = await convex.query(api.user.getUserByEmail, {
                 email: email as string
               });
+              
+              // #region agent log
+              console.log("[DEBUG TwoFactorForm] User data after 2FA", {
+                email: email,
+                isOnboardingComplete: userFromDb?.isOnboardingComplete,
+                isSaasAdmin: userFromDb?.isSaasAdmin,
+                hypothesisId: "D"
+              });
+              // #endregion
+
+              // Check if user has active organizations (only for non-SaaS Admin users)
+              if (!userFromDb?.isSaasAdmin && ctx.data?.user?.id) {
+                const activeOrgs = await convex.query(api.auth.getUserActiveOrganizations, {
+                  userId: ctx.data.user.id
+                });
+                
+                if (activeOrgs.length === 0) {
+                  toast.error("Your account has no active organizations. Please contact support.");
+                  return;
+                }
+              }
+              
               if (userFromDb?.isOnboardingComplete) {
-                router.push("/dashboard");
+                // Redirect SaaS Admin to admin dashboard, others to regular dashboard
+                if (userFromDb.isSaasAdmin) {
+                  // #region agent log
+                  console.log("[DEBUG TwoFactorForm] Redirecting SaaS Admin to /admin", {
+                    hypothesisId: "D"
+                  });
+                  // #endregion
+                  router.push("/admin");
+                } else {
+                  router.push("/dashboard");
+                }
               } else {
+                // #region agent log
+                console.log("[DEBUG TwoFactorForm] Onboarding not complete, redirecting to /onboarding", {
+                  hypothesisId: "D"
+                });
+                // #endregion
                 router.push("/onboarding");
               }
             },

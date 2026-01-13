@@ -46,6 +46,13 @@ export function TeamSwitcher({
   const router = useRouter();
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: organizations } = authClient.useListOrganizations();
+  const organizationsWithStatus = useQuery(api.auth.getCurrentUserOrganizationsWithStatus);
+  
+  // Filter out deactivated organizations
+  const activeOrganizations = organizations?.filter((org: { id: string; name: string }) => {
+    const orgStatus = organizationsWithStatus?.find((o: { id: string; status: "active" | "suspended" | "deactivated" }) => o.id === org.id) as { id: string; status: "active" | "suspended" | "deactivated" } | undefined;
+    return !orgStatus || orgStatus.status === "active";
+  });
 
   // Debug: Log the structure of activeOrganization
   console.log("Active Organization:", activeOrganization);
@@ -167,14 +174,20 @@ export function TeamSwitcher({
                 </Tooltip>
               )}
             </div>
-            {organizations?.map((organization) => (
-              <OrganizationItem
-                key={organization.id}
-                organization={organization}
-                isActive={activeOrganization?.id === organization.id}
-                onSelect={handleOrganizationSwitch}
-              />
-            ))}
+            {activeOrganizations && activeOrganizations.length > 0 ? (
+              activeOrganizations.map((organization) => (
+                <OrganizationItem
+                  key={organization.id}
+                  organization={organization}
+                  isActive={activeOrganization?.id === organization.id}
+                  onSelect={handleOrganizationSwitch}
+                />
+              ))
+            ) : (
+              <div className="p-2 text-xs text-muted-foreground">
+                No active care homes available
+              </div>
+            )}
             <DropdownMenuSeparator />
             <div className="flex flex-row items-center justify-between">
               <DropdownMenuLabel>Units/House</DropdownMenuLabel>

@@ -66,10 +66,47 @@ export default function LoginForm() {
             const userFromDb = await convex.query(api.user.getUserByEmail, {
               email: values.email
             });
+            
+            // #region agent log
+            console.log("[DEBUG LoginForm] User data after login", {
+              email: values.email,
+              isOnboardingComplete: userFromDb?.isOnboardingComplete,
+              isSaasAdmin: userFromDb?.isSaasAdmin,
+              hypothesisId: "D"
+            });
+            // #endregion
+
+            // Check if user has active organizations (only for non-SaaS Admin users)
+            if (!userFromDb?.isSaasAdmin && ctx.data?.user?.id) {
+              const activeOrgs = await convex.query(api.auth.getUserActiveOrganizations, {
+                userId: ctx.data.user.id
+              });
+              
+              if (activeOrgs.length === 0) {
+                toast.error("Your account has no active organizations. Please contact support.");
+                return;
+              }
+            }
+            
             if (userFromDb?.isOnboardingComplete) {
-              router.push("/dashboard");
+              // Redirect SaaS Admin to admin dashboard, others to regular dashboard
+              if (userFromDb.isSaasAdmin) {
+                // #region agent log
+                console.log("[DEBUG LoginForm] Redirecting SaaS Admin to /admin", {
+                  hypothesisId: "D"
+                });
+                // #endregion
+                router.push("/admin");
+              } else {
+                router.push("/dashboard");
+              }
               return;
             } else {
+              // #region agent log
+              console.log("[DEBUG LoginForm] Onboarding not complete, redirecting to /onboarding", {
+                hypothesisId: "D"
+              });
+              // #endregion
               if (redirect && token) {
                 router.push(`/${redirect}?token=${token}` as Route);
                 return;

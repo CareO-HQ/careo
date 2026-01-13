@@ -116,10 +116,11 @@ export const createAuth = (ctx: GenericCtx) =>
         };
       }),
       admin({
-        adminUserIds: [
-          "m17f5hycmedfr15th28e1xt13d7n4nqc",
-          "m170w78er3krb5js6j3yh3c6rd7n2pyz"
-        ]
+        // SaaS Admin status is checked via isSaasAdmin flag in Convex users table
+        // This is dynamically determined (first user becomes SaaS Admin)
+        // Admin plugin is kept for Better Auth admin features, but authorization
+        // is primarily handled through isSaasAdmin flag checks in Convex functions
+        adminUserIds: []
       })
     ]
   });

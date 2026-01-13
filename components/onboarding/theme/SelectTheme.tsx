@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useTransition } from "react";
 
@@ -24,12 +24,34 @@ export default function SelectTheme({
   const setIsOnboardingCompleted = useMutation(
     api.user.setIsOnboardingCompleted
   );
+  const currentUser = useQuery(api.auth.getCurrentUser);
+  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
 
   const handleNext = () => {
     startTransition(async () => {
       if (isLastStep) {
-        router.push("/dashboard");
+        // #region agent log
+        console.log("[DEBUG SelectTheme] Last step - completing onboarding", {
+          isSaasAdmin,
+          hypothesisId: "C"
+        });
+        // #endregion
+        
         await setIsOnboardingCompleted();
+        
+        // #region agent log
+        console.log("[DEBUG SelectTheme] Onboarding completed, redirecting", {
+          isSaasAdmin,
+          hypothesisId: "C"
+        });
+        // #endregion
+        
+        // Redirect SaaS Admin to admin dashboard, others to regular dashboard
+        if (isSaasAdmin) {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
       } else {
         setStep(step + 1);
       }
