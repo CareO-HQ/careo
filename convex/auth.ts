@@ -54,11 +54,20 @@ export const {
       throw new Error("Email is required for user creation");
     }
     
+    // Check if this is the first user (SaaS Admin)
+    const existingUsers = await ctx.db.query("users").collect();
+    const isFirstUser = existingUsers.length === 0;
+    
+    if (isFirstUser) {
+      console.log("First user detected - assigning SaaS Admin role:", user.email);
+    }
+    
     return ctx.db.insert("users", {
       email: user.email, // Email is required and must be saved
       name: user.name || undefined,
       image: user.image || undefined,
-      isOnboardingComplete: false
+      isOnboardingComplete: false,
+      isSaasAdmin: isFirstUser ? true : undefined // First user becomes SaaS Admin
     });
   },
 
@@ -151,7 +160,7 @@ export const getCurrentUser = query({
       }
     }
 
-    // Better Auth user data takes precedence since we update it directly
+      // Better Auth user data takes precedence since we update it directly
     return {
       // Include all Better Auth fields first
       ...userMetadata,
@@ -163,6 +172,7 @@ export const getCurrentUser = query({
       image: userMetadata.image, // Use Better Auth image (updated by our mutation)
       phone: userMetadata.phoneNumber, // Use Better Auth phoneNumber
       isOnboardingComplete: customUserData?.isOnboardingComplete || false,
+      isSaasAdmin: customUserData?.isSaasAdmin || false, // Include SaaS Admin flag
       activeTeamId: customUserData?.activeTeamId || null, // Include active team ID
       activeTeam: activeTeam, // Include active team details
       activeOrganizationId: activeOrganizationId, // Include active organization ID from session
@@ -454,12 +464,162 @@ export const clearActiveTeam = mutation({
   }
 });
 
+/**
+ * Check if an organization is active
+ */
+export const isOrganizationActive = query({
+  args: { organizationId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const status = await ctx.db
+      .query("organizationStatus")
+      .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
+      .first();
+    // If no status record exists, organization is active by default
+    return !status || status.status === "active";
+  }
+});
+
+/**
+ * Get user's active organizations
+ */
+export const getUserActiveOrganizations = query({
+  args: { userId: v.string() },
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      organizationName: v.string(),
+      role: v.string()
+    })
+  ),
+  handler: async (ctx, args) => {
+    // Get all members for this user
+    const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "member",
+      where: [{ field: "userId", value: args.userId }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 1000
+      }
+    });
+
+    if (!members?.page) {
+      return [];
+    }
+
+    const activeOrgs: Array<{
+      organizationId: string;
+      organizationName: string;
+      role: string;
+    }> = [];
+
+    for (const member of members.page) {
+      // Check if organization is active
+      const isActive = await ctx.runQuery(api.auth.isOrganizationActive, {
+        organizationId: member.organizationId
+      });
+
+      if (isActive) {
+        // Get organization name
+        const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: member.organizationId }]
+        });
+
+        if (org) {
+          activeOrgs.push({
+            organizationId: member.organizationId,
+            organizationName: org.name || "",
+            role: member.role || ""
+          });
+        }
+      }
+    }
+
+    return activeOrgs;
+  }
+});
+
+/**
+ * Get current user's organizations with status
+ */
+export const getCurrentUserOrganizationsWithStatus = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      status: v.union(v.literal("active"), v.literal("suspended"), v.literal("deactivated"))
+    })
+  ),
+  handler: async (ctx) => {
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.subject) {
+      return [];
+    }
+
+    // Get all members for this user
+    const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "member",
+      where: [{ field: "userId", value: userIdentity.subject }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 1000
+      }
+    });
+
+    if (!members?.page) {
+      return [];
+    }
+
+    const orgsWithStatus: Array<{
+      id: string;
+      name: string;
+      status: "active" | "suspended" | "deactivated";
+    }> = [];
+
+    for (const member of members.page) {
+      // Get organization
+      const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "organization",
+        where: [{ field: "id", value: member.organizationId }]
+      });
+
+      if (org) {
+        // Get status
+        const statusRecord = await ctx.db
+          .query("organizationStatus")
+          .withIndex("byOrganizationId", (q) => q.eq("organizationId", member.organizationId))
+          .first();
+
+        const status = statusRecord?.status || "active";
+
+        orgsWithStatus.push({
+          id: member.organizationId,
+          name: org.name || "",
+          status: status as "active" | "suspended" | "deactivated"
+        });
+      }
+    }
+
+    return orgsWithStatus;
+  }
+});
+
 // Mutation to set the active organization and clear active team
 export const setActiveOrganization = mutation({
   args: {
     organizationId: v.string()
   },
   handler: async (ctx, { organizationId }) => {
+    // Check if organization is active
+    const isActive = await ctx.runQuery(api.auth.isOrganizationActive, {
+      organizationId
+    });
+    if (!isActive) {
+      throw new Error("This organization has been deactivated");
+    }
+
     // Get the current session
     const session = await ctx.runQuery(
       components.betterAuth.lib.getCurrentSession

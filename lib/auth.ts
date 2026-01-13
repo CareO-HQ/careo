@@ -6,7 +6,7 @@ import { betterAuthComponent, organizationRoles } from "../convex/auth";
 import { nextCookies } from "better-auth/next-js";
 import resend from "./resend";
 import { organization, customSession, twoFactor } from "better-auth/plugins";
-import { components } from "../convex/_generated/api";
+import { components, api } from "../convex/_generated/api";
 import { passkey } from "better-auth/plugins/passkey";
 import { admin } from "better-auth/plugins";
 
@@ -33,17 +33,38 @@ export const createAuth = (ctx: GenericCtx) =>
       session: {
         create: {
           before: async (session) => {
-            const member = await ctx.runQuery(
-              components.betterAuth.lib.findOne,
+            // Get all members for this user
+            const members = await ctx.runQuery(
+              components.betterAuth.lib.findMany,
               {
                 model: "member",
-                where: [{ field: "userId", value: session.userId }]
+                where: [{ field: "userId", value: session.userId }],
+                paginationOpts: {
+                  cursor: null,
+                  numItems: 1000
+                }
               }
             );
+
+            let activeOrganizationId: string | null = null;
+
+            if (members?.page && members.page.length > 0) {
+              // Find the first active organization
+              for (const member of members.page) {
+                const isActive = await ctx.runQuery(api.auth.isOrganizationActive, {
+                  organizationId: member.organizationId
+                });
+                if (isActive) {
+                  activeOrganizationId = member.organizationId;
+                  break;
+                }
+              }
+            }
+
             return {
               data: {
                 ...session,
-                activeOrganizationId: member?.organizationId,
+                activeOrganizationId: activeOrganizationId,
                 activeTeamId: null // Initialize with no active team
               }
             };
@@ -133,10 +154,11 @@ export const createAuth = (ctx: GenericCtx) =>
         };
       }),
       admin({
-        adminUserIds: [
-          "m17f5hycmedfr15th28e1xt13d7n4nqc",
-          "m170w78er3krb5js6j3yh3c6rd7n2pyz"
-        ]
+        // SaaS Admin status is checked via isSaasAdmin flag in Convex users table
+        // This is dynamically determined (first user becomes SaaS Admin)
+        // Admin plugin is kept for Better Auth admin features, but authorization
+        // is primarily handled through isSaasAdmin flag checks in Convex functions
+        adminUserIds: []
       })
     ]
   });

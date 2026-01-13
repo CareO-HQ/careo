@@ -79,6 +79,7 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     isOnboardingComplete: v.optional(v.boolean()),
     activeTeamId: v.optional(v.string()),
+    isSaasAdmin: v.optional(v.boolean()), // Platform super-admin flag
 
     // Staff details
     address: v.optional(v.string()),
@@ -100,7 +101,8 @@ export default defineSchema({
     nextOfKinAddress: v.optional(v.string())
   })
     .index("byEmail", ["email"])
-    .index("byActiveTeamId", ["activeTeamId"]), // Index for querying users by active team
+    .index("byActiveTeamId", ["activeTeamId"]) // Index for querying users by active team
+    .index("bySaasAdmin", ["isSaasAdmin"]), // Index for querying SaaS admins
 
   // Passkey table for better-auth passkey plugin
   passkey: defineTable({
@@ -197,6 +199,20 @@ export default defineSchema({
   })
     .index("byInvitationId", ["invitationId"])
     .index("byOrganization", ["organizationId"]),
+
+  organizationStatus: defineTable({
+    organizationId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("suspended"),
+      v.literal("deactivated")
+    ),
+    deactivatedAt: v.optional(v.number()),
+    deactivatedBy: v.optional(v.string()), // SaaS Admin user ID
+    reason: v.optional(v.string())
+  })
+    .index("byOrganizationId", ["organizationId"])
+    .index("byStatus", ["status"]),
 
   residents: defineTable({
     firstName: v.string(),

@@ -91,6 +91,7 @@ import type * as quickCareNotes from "../quickCareNotes.js";
 import type * as residentAuditItems from "../residentAuditItems.js";
 import type * as residentFiles from "../residentFiles.js";
 import type * as residents from "../residents.js";
+import type * as saasAdmin from "../saasAdmin.js";
 import type * as schemas_carefiles from "../schemas/carefiles.js";
 import type * as schemas_managerAudits from "../schemas/managerAudits.js";
 import type * as sehsctReports from "../sehsctReports.js";
@@ -199,6 +200,7 @@ declare const fullApi: ApiFromModules<{
   residentAuditItems: typeof residentAuditItems;
   residentFiles: typeof residentFiles;
   residents: typeof residents;
+  saasAdmin: typeof saasAdmin;
   "schemas/carefiles": typeof schemas_carefiles;
   "schemas/managerAudits": typeof schemas_managerAudits;
   sehsctReports: typeof sehsctReports;

@@ -54,27 +54,10 @@ export function AppSidebar() {
   const { data: user } = authClient.useSession();
   const { data: activeMember, isPending: isActiveMemberPending } = authClient.useActiveMember();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  
-  // Fallback: Get role from organization members if activeMember is not available
-  const orgMemberRole = activeOrg.data?.members?.find(
-    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
-  )?.role;
-  
-  // Use activeMember role first, fallback to org member role
-  const userRole = (activeMember?.role || orgMemberRole) as string | undefined;
-
-  // Debug logging for owner role issue
-  if (process.env.NODE_ENV === "development") {
-    console.log("AppSidebar Debug:", {
-      userRole,
-      activeMember,
-      orgMemberRole,
-      isActiveMemberPending,
-      hasActiveMember: !!activeMember,
-      hasOrgMembers: !!activeOrg.data?.members,
-      userEmail: user?.user?.email,
-    });
-  }
+  const currentUser = useQuery(api.auth.getCurrentUser);
+  // SaaS Admin won't have activeMember, so check isSaasAdmin flag
+  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
+  const userRole = isSaasAdmin ? "saas_admin" : (activeMember?.role as string | undefined);
 
   // Extract email to a stable variable - always compute this before any conditional logic
   // This ensures React sees consistent hook call patterns across renders
@@ -319,6 +302,17 @@ export function AppSidebar() {
         )}
       </SidebarContent>
       <SidebarFooter>
+        {/* Show Admin link for SaaS Admin */}
+        {userRole === "saas_admin" && (
+          <SidebarMenuItem className="list-none mb-2">
+            <SidebarMenuButton asChild>
+              <Link href="/admin">
+                <SettingsIcon />
+                <span>Platform Admin</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        )}
         <HelpSupportDialog>
           <SidebarMenuButton>
             <MessageCircleQuestionMarkIcon />
