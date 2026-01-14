@@ -235,6 +235,19 @@ export default function OrganizationForm({
         // Use the existing organization ID
         organizationId = orgId;
         
+        // CRITICAL: Ensure organization is set in session before creating care home
+        // This ensures resolveUser can find the organizationId
+        if (organizationId && !activeOrganization?.id) {
+          try {
+            await ensureAndSetActiveOrganizationMutation();
+            // Wait a moment for session to propagate to Convex
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          } catch (error) {
+            console.error("Error ensuring active organization before care home creation:", error);
+            // Continue anyway - resolveUser has fallback logic
+          }
+        }
+        
         // #region agent log
         if (typeof window !== 'undefined') {
           fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:beforeCreateCareHome',message:'about to create care home',data:{organizationId:organizationId||null,hasOrgId:!!organizationId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
@@ -242,7 +255,7 @@ export default function OrganizationForm({
         // #endregion
         
         // Create a care home (NOT an organization) during onboarding
-        // Retry logic in case role isn't set yet
+        // Retry logic in case role isn't set yet or member record isn't available yet
         let retries = 3;
         let careHomeCreated = false;
         
@@ -307,8 +320,8 @@ export default function OrganizationForm({
         // #endregion
         
         if (!careHomeCreated) {
-          console.warn("Failed to create care home during onboarding. It will be created automatically later.");
-          // Don't fail the onboarding - care home will be created via ensureCareHomeForOrganization
+          console.warn("Failed to create care home during onboarding. Owner can create it later through the dashboard sidebar.");
+          // Don't fail the onboarding - owner can create care home later
         }
       }
 

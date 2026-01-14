@@ -52,7 +52,7 @@ export function AdminSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* Care Homes */}
+            {/* Organizations */}
             <SidebarMenuItem className="list-none">
               <SidebarMenuButton
                 asChild
@@ -60,7 +60,7 @@ export function AdminSidebar() {
               >
                 <Link href="/admin/care-homes">
                   <Building2 />
-                  <span>Care Homes</span>
+                  <span>Organizations</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

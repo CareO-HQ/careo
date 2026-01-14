@@ -214,6 +214,9 @@ export async function resolveUser(
         if (memberOrgExists) {
           organizationId = firstMember.organizationId;
           member = firstMember;
+          console.log(`[resolveUser] Using organizationId ${organizationId} from member record (no session) for user ${identity.email}`);
+        } else {
+          console.warn(`[resolveUser] Member record found but organization ${firstMember.organizationId} does not exist for user ${identity.email}`);
         }
       }
     }

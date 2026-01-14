@@ -4,12 +4,16 @@
  * Handles organization creation (SaaS Admin only).
  * Organizations are created in Better Auth, this module provides
  * the RBAC wrapper around Better Auth organization creation.
+ * 
+ * NOTE: This function ONLY creates organizations in Better Auth.
+ * Care homes are NOT created automatically - owners create them during onboarding
+ * or through the dashboard sidebar.
  */
 
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { canCreateOrganization, resolveUser } from "../lib/rbac";
-import { components, internal } from "../_generated/api";
+import { components } from "../_generated/api";
 
 /**
  * Create a new organization (SaaS Admin only)
@@ -55,18 +59,8 @@ export const createOrganization = mutation({
 
     const organizationIdStr = String(organizationId);
 
-    // Automatically create a care home for this organization
-    try {
-      await ctx.runMutation(internal.rbac.careHomes.ensureCareHomeForOrganization, {
-        organizationId: organizationIdStr,
-        organizationName: args.name,
-        createdBy: user._id
-      });
-      console.log(`[createOrganization] Created care home for organization ${organizationIdStr}`);
-    } catch (error) {
-      console.error(`[createOrganization] Failed to create care home:`, error);
-      // Don't fail organization creation if care home creation fails
-    }
+    // NOTE: Care homes are NOT created automatically here.
+    // The owner will create care homes during onboarding or through the dashboard sidebar.
 
     console.log(`[createOrganization] Organization created by SaaS Admin ${user.email}: ${organizationIdStr}`);
 

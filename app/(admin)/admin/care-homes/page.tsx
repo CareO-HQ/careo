@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type StatusFilter = "all" | "active" | "deactivated";
 
@@ -27,11 +26,7 @@ export default function CareHomesPage() {
   const router = useRouter();
   const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
   const organizations = useQuery(api.saasAdmin.getAllOrganizations);
-  const careHomes = useQuery(api.saasAdmin.getAllCareHomes);
-  const populateCareHomes = useMutation(api.saasAdmin.populateCareHomes);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [activeTab, setActiveTab] = useState<"organizations" | "carehomes">("organizations");
-  const [isPopulating, setIsPopulating] = useState(false);
 
   // Filter organizations by status
   const filteredOrganizations = organizations?.filter((org) => {
@@ -70,9 +65,9 @@ export default function CareHomesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-medium">Organizations & Care Homes</h1>
+          <h1 className="text-2xl font-medium">Organizations</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage organizations and their care homes
+            Manage organizations. Click on an organization to view its care homes.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -86,43 +81,11 @@ export default function CareHomesPage() {
               <SelectItem value="deactivated">Deactivated Only</SelectItem>
             </SelectContent>
           </Select>
-          {organizations && organizations.length > 0 && (!careHomes || careHomes.length === 0) && (
-            <Button
-              onClick={async () => {
-                setIsPopulating(true);
-                try {
-                  const result = await populateCareHomes({});
-                  alert(`Created ${result.careHomesCreated} care homes for ${result.organizationsProcessed} organizations`);
-                  window.location.reload();
-                } catch (err) {
-                  alert(`Error: ${err instanceof Error ? err.message : "Failed to populate care homes"}`);
-                } finally {
-                  setIsPopulating(false);
-                }
-              }}
-              disabled={isPopulating}
-            >
-              {isPopulating ? "Populating..." : "Populate Care Homes"}
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Tabs for Organizations and Care Homes */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "organizations" | "carehomes")}>
-        <TabsList>
-          <TabsTrigger value="organizations">
-            <Building className="h-4 w-4 mr-2" />
-            Organizations ({organizations?.length || 0})
-          </TabsTrigger>
-          <TabsTrigger value="carehomes">
-            <Building2 className="h-4 w-4 mr-2" />
-            Care Homes ({careHomes?.length || 0})
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Organizations Tab */}
-        <TabsContent value="organizations" className="space-y-4">
+      {/* Organizations List */}
+      <div className="space-y-4">
           {filteredOrganizations && filteredOrganizations.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrganizations.map((org) => (
@@ -208,64 +171,7 @@ export default function CareHomesPage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-
-        {/* Care Homes Tab */}
-        <TabsContent value="carehomes" className="space-y-4">
-          {careHomes && careHomes.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {careHomes.map((careHome) => (
-                <Link key={careHome._id} href={`/admin/care-homes/${careHome.organizationId}`}>
-                  <Card className="hover:bg-accent transition-colors cursor-pointer">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <Building2 className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(careHome.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <CardTitle className="mt-2">{careHome.name}</CardTitle>
-                      <CardDescription>
-                        Care Home in {careHome.organizationName}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <span>{careHome.memberCount} members</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <UsersRound className="h-4 w-4 text-muted-foreground" />
-                          <span>{careHome.teamCount} teams</span>
-                        </div>
-                      </div>
-                      {careHome.residentCount !== undefined && (
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          {careHome.residentCount} residents
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-semibold mb-2">No Care Homes Yet</p>
-                <p className="text-muted-foreground text-center mb-4">
-                  Care homes are automatically created when organizations are created.
-                  {organizations && organizations.length > 0 && (
-                    <> If you see organizations but no care homes, click the &quot;Populate Care Homes&quot; button above.</>
-                  )}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+      </div>
     </div>
   );
 }

@@ -579,18 +579,8 @@ export const createCareHomeOwner = mutation({
       });
       // #endregion
 
-      // Automatically create a care home for this organization
-      try {
-        await ctx.runMutation(internal.rbac.careHomes.ensureCareHomeForOrganization, {
-          organizationId: organizationIdStr,
-          organizationName: args.organizationName,
-          createdBy: userIdentity.subject
-        });
-        console.log(`[createCareHomeOwner] Created care home for organization ${organizationIdStr}`);
-      } catch (error) {
-        console.error(`[createCareHomeOwner] Failed to create care home:`, error);
-        // Don't fail owner creation if care home creation fails
-      }
+      // NOTE: Care homes are NOT created automatically here.
+      // The owner will create care homes during onboarding or through the dashboard sidebar.
 
       // Check if invitation already exists for this email and organization
       const existingInvitation = await ctx.runQuery(components.betterAuth.lib.findOne, {

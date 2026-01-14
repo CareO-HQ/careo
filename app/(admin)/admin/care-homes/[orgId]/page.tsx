@@ -21,6 +21,7 @@ export default function CareHomeDetailsPage() {
   const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
   const orgDetails = useQuery(api.saasAdmin.getOrganizationDetails, { organizationId: orgId });
   const organizations = useQuery(api.saasAdmin.getAllOrganizations);
+  const careHomes = useQuery(api.rbac.careHomes.getCareHomes, { organizationId: orgId });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
 
@@ -88,6 +89,11 @@ export default function CareHomeDetailsPage() {
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
               Created {new Date(orgDetails.createdAt).toLocaleDateString()}
+              {careHomes !== undefined && (
+                <span className="ml-2">
+                  • {careHomes.length} {careHomes.length === 1 ? "care home" : "care homes"}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -164,7 +170,7 @@ export default function CareHomeDetailsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Members</CardTitle>
-          <CardDescription>All users in this care home</CardDescription>
+          <CardDescription>All users in this organization</CardDescription>
         </CardHeader>
         <CardContent>
           {orgDetails.members.length > 0 ? (
@@ -192,7 +198,7 @@ export default function CareHomeDetailsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Teams</CardTitle>
-          <CardDescription>Team structures in this care home</CardDescription>
+          <CardDescription>Team structures in this organization</CardDescription>
         </CardHeader>
         <CardContent>
           {orgDetails.teams.length > 0 ? (
@@ -211,6 +217,50 @@ export default function CareHomeDetailsPage() {
             </div>
           ) : (
             <p className="text-muted-foreground">No teams yet</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Care Homes List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Care Homes</CardTitle>
+          <CardDescription>Care homes in this organization</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {careHomes && careHomes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {careHomes.map((careHome) => (
+                <Card key={careHome._id} className="border">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <Building2 className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(careHome.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <CardTitle className="mt-2 text-base">{careHome.name}</CardTitle>
+                    <CardDescription className="text-xs">
+                      Care Home ID: {careHome._id}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm text-muted-foreground">
+                      Created: {new Date(careHome.createdAt).toLocaleDateString()}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : careHomes === undefined ? (
+            <p className="text-muted-foreground">Loading care homes...</p>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Building2 className="h-12 w-12 text-muted-foreground mb-2 opacity-50" />
+              <p className="text-muted-foreground text-center">
+                No care homes yet. Care homes are created by owners during onboarding or through the dashboard sidebar.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

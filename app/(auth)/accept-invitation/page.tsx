@@ -21,6 +21,7 @@ function AcceptInvitationContent() {
   } | null>(null);
   const convex = useConvex();
   const assignTeamFromInvitation = useMutation(api.customInvite.assignTeamFromInvitationPublic);
+  const ensureAndSetActiveOrganization = useMutation(api.auth.ensureAndSetActiveOrganization);
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
 
@@ -31,6 +32,25 @@ function AcceptInvitationContent() {
       },
       {
         onSuccess: async () => {
+          // CRITICAL: Ensure organization is set in session after accepting invitation
+          // This is needed because Better Auth's acceptInvitation might not immediately
+          // update the session's activeOrganizationId
+          try {
+            // Wait a moment for Better Auth to process the invitation
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            
+            // Try to ensure and set active organization from member record
+            const orgResult = await ensureAndSetActiveOrganization();
+            if (orgResult) {
+              console.log("[accept-invitation] Set active organization:", orgResult.id);
+            } else {
+              console.warn("[accept-invitation] Could not set active organization immediately, will retry during onboarding");
+            }
+          } catch (error) {
+            // Don't fail invitation acceptance if this fails - onboarding will handle it
+            console.error("[accept-invitation] Error ensuring active organization:", error);
+          }
+
           // Try to assign team from invitation if it exists
           if (token) {
             try {

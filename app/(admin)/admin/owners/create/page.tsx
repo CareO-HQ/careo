@@ -62,7 +62,7 @@ export default function CreateOwnerPage() {
 
         if (result.success) {
           toast.success(
-            `Organization "${values.organizationName}" created successfully. An invitation email has been sent to ${values.email}.`
+            `Organization "${values.organizationName}" created successfully. An invitation email has been sent to ${values.email}. The owner will create care homes during onboarding or through the dashboard.`
           );
           if (result.organizationId) {
             router.push(`/admin/care-homes/${result.organizationId}`);
@@ -154,7 +154,7 @@ export default function CreateOwnerPage() {
                       />
                     </FormControl>
                     <FormDescription>
-                      The name of the organization. The owner can create care homes within this organization after accepting the invitation.
+                      The name of the organization. The owner will create care homes within this organization during onboarding or through the dashboard sidebar after accepting the invitation.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

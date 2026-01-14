@@ -20,6 +20,7 @@ export const getCareHomes = query({
   returns: v.array(
     v.object({
       _id: v.id("careHomes"),
+      _creationTime: v.number(),
       organizationId: v.string(),
       name: v.string(),
       createdBy: v.string(),
@@ -39,6 +40,19 @@ export const getCareHomes = query({
     // SaaS Admin can see all care homes
     if (role === ROLES.SAAS_ADMIN) {
       if (args.organizationId) {
+        // CRITICAL: Validate organization exists in Better Auth before returning care homes
+        const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: args.organizationId }]
+        });
+
+        if (!organization) {
+          // Organization doesn't exist - return empty array instead of error
+          // This handles cases where organization was deleted but care homes still exist
+          console.warn(`[getCareHomes] Organization ${args.organizationId} not found in Better Auth`);
+          return [];
+        }
+
         // Filter by specific organization
         return await ctx.db
           .query("careHomes")
@@ -388,19 +402,97 @@ export const createCareHome = mutation({
     // #endregion
     
     // Get current user
-    const { user, role, organizationId: userOrgId } = await resolveUser(ctx);
+    let { user, role, organizationId: userOrgId } = await resolveUser(ctx);
     
     // #region agent log
     fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:afterResolve',message:'after resolveUser',data:{hasUser:!!user,hasRole:!!role,hasOrgId:!!userOrgId,orgId:userOrgId||null,role:role||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
     // #endregion
 
+    // If no organizationId found, try to get it from member record or invitations
+    // This handles cases where invitation was just accepted but session hasn't updated yet
+    if (!userOrgId) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity?.subject) {
+        // Try to get from member record
+        const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "member",
+          where: [{ field: "userId", value: identity.subject }],
+          paginationOpts: {
+            cursor: null,
+            numItems: 1
+          }
+        });
+
+        if (members?.page && members.page.length > 0) {
+          const member = members.page[0];
+          // Validate organization exists
+          const orgExists = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "organization",
+            where: [{ field: "id", value: member.organizationId }]
+          });
+
+          if (orgExists) {
+            userOrgId = member.organizationId;
+            console.log(`[createCareHome] Found organizationId ${userOrgId} from member record for user ${identity.email}`);
+            
+            // Try to set it in session for future requests
+            try {
+              const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+              if (session?.token && userOrgId) {
+                await ctx.runMutation(components.betterAuth.lib.updateOne, {
+                  input: {
+                    model: "session",
+                    where: [{ field: "token", value: session.token }],
+                    update: {
+                      activeOrganizationId: userOrgId
+                    }
+                  }
+                });
+                console.log(`[createCareHome] Set activeOrganizationId to ${userOrgId} in session`);
+              }
+            } catch (error) {
+              // Don't fail if setting session fails
+              console.error("[createCareHome] Failed to set activeOrganizationId in session:", error);
+            }
+          }
+        }
+
+        // If still no organizationId, try invitations table
+        if (!userOrgId && identity.email) {
+          const invitations = await ctx.db
+            .query("invitations")
+            .withIndex("by_email", (q) => q.eq("email", identity.email!))
+            .filter((q) => q.or(
+              q.eq(q.field("status"), "accepted"),
+              q.eq(q.field("status"), "pending")
+            ))
+            .order("desc")
+            .take(1);
+
+          if (invitations.length > 0) {
+            const invitation = invitations[0];
+            // Validate organization exists
+            const invOrgExists = await ctx.runQuery(components.betterAuth.lib.findOne, {
+              model: "organization",
+              where: [{ field: "id", value: invitation.organizationId }]
+            });
+
+            if (invOrgExists) {
+              userOrgId = invitation.organizationId;
+              console.log(`[createCareHome] Found organizationId ${userOrgId} from invitation for user ${identity.email}`);
+            }
+          }
+        }
+      }
+    }
+
     // Allow creation even if role is null (during onboarding)
     // But still require organization
     if (!userOrgId) {
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:noOrgId',message:'no organizationId error',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:noOrgId',message:'no organizationId error after all attempts',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
       // #endregion
-      throw new Error("Unauthorized: You must belong to an organization to create care homes");
+      throw new Error("Unauthorized: You must belong to an organization to create care homes. Please ensure you have accepted the invitation and try again.");
     }
 
     // Check if a care home already exists for this organization
@@ -462,22 +554,40 @@ export const createCareHome = mutation({
       throw new Error("Invalid organization ID. Please contact your administrator.");
     }
 
-    // CRITICAL SAFEGUARD: Verify we are NOT creating a Better Auth organization.
-    // This function must ONLY create Convex careHomes records.
-    // If organization doesn't exist, we throw an error above - we never create one here.
+    // CRITICAL SAFEGUARDS:
+    // 1. This function MUST NEVER create a Better Auth organization
+    // 2. Care homes are stored ONLY in Convex careHomes table
+    // 3. Care homes are linked to users via:
+    //    - careHome.createdBy (Better Auth userId)
+    //    - user.activeCareHomeId (Convex user record)
+    // 4. Care homes belong to organizations (stored in Better Auth), but the care home itself is in Convex
 
-    // Get Better Auth userId
+    // Get Better Auth userId for linking the care home to the user
     const identity = await ctx.auth.getUserIdentity();
     if (!identity?.subject) {
       throw new Error("User identity not found");
     }
 
-    // Create care home in careHomes table ONLY (NOT a Better Auth organization)
-    // This is the ONLY database write operation in this function.
+    // FINAL VERIFICATION: Ensure we're not accidentally creating a Better Auth organization
+    // This is a defensive check - we should never reach this point if organization doesn't exist
+    // because we validated it above, but this ensures we never create organizations here
+    const finalOrgCheck = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "organization",
+      where: [{ field: "id", value: userOrgId }]
+    });
+    if (!finalOrgCheck) {
+      throw new Error(`CRITICAL: Organization ${userOrgId} does not exist. Cannot create care home without valid organization.`);
+    }
+
+    // CRITICAL: Create care home in Convex careHomes table ONLY
+    // This function MUST NEVER create a Better Auth organization.
+    // The care home is stored in the Convex database and linked to the user via:
+    // 1. createdBy field (Better Auth userId)
+    // 2. user.activeCareHomeId field (Convex user record)
     const careHomeId = await ctx.db.insert("careHomes", {
       organizationId: userOrgId,
       name: args.name,
-      createdBy: identity.subject,
+      createdBy: identity.subject, // Link to user via Better Auth userId
       createdAt: Date.now()
     });
     
@@ -485,11 +595,51 @@ export const createCareHome = mutation({
     fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:inserted',message:'care home inserted',data:{careHomeId:String(careHomeId),organizationId:userOrgId,name:args.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
     // #endregion
 
-    // If user doesn't have an active care home, set this one as active
+    // VERIFICATION: Ensure care home was successfully created in Convex database
+    const insertedCareHome = await ctx.db.get(careHomeId);
+    if (!insertedCareHome) {
+      console.error(`[createCareHome] CRITICAL: Care home ${careHomeId} was not found in Convex database after insertion`);
+      throw new Error("Failed to create care home: Record not found in database");
+    }
+
+    // CRITICAL VERIFICATION: Ensure organizationId is correctly associated with the care home
+    if (!insertedCareHome.organizationId || insertedCareHome.organizationId !== userOrgId) {
+      console.error(`[createCareHome] CRITICAL: Care home organizationId mismatch. Expected ${userOrgId}, got ${insertedCareHome.organizationId}`);
+      throw new Error(`Failed to create care home: Organization ID verification failed. Expected ${userOrgId}, got ${insertedCareHome.organizationId || 'null'}`);
+    }
+
+    // Verify the organization still exists (double-check after insertion)
+    const orgVerification = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "organization",
+      where: [{ field: "id", value: insertedCareHome.organizationId }]
+    });
+    if (!orgVerification) {
+      console.error(`[createCareHome] CRITICAL: Organization ${insertedCareHome.organizationId} not found after care home creation`);
+      throw new Error(`Failed to create care home: Associated organization ${insertedCareHome.organizationId} does not exist`);
+    }
+
+    // Verify the care home is properly linked to the user
+    if (insertedCareHome.createdBy !== identity.subject) {
+      console.error(`[createCareHome] CRITICAL: Care home createdBy mismatch. Expected ${identity.subject}, got ${insertedCareHome.createdBy}`);
+      throw new Error("Failed to create care home: User linkage verification failed");
+    }
+
+    console.log(`[createCareHome] Successfully created care home ${careHomeId} with organizationId ${insertedCareHome.organizationId} for user ${identity.email}`);
+
+    // Link care home to user in Convex users table via activeCareHomeId
+    // This creates a bidirectional relationship: careHome.createdBy -> user, user.activeCareHomeId -> careHome
     if (!user.activeCareHomeId) {
       await ctx.db.patch(user._id, {
         activeCareHomeId: careHomeId
       });
+      
+      // Verify the user record was updated correctly
+      const updatedUser = await ctx.db.get(user._id);
+      if (!updatedUser || updatedUser.activeCareHomeId !== careHomeId) {
+        console.error(`[createCareHome] CRITICAL: Failed to set activeCareHomeId on user ${user._id}`);
+        throw new Error("Failed to link care home to user");
+      }
+      
       // #region agent log
       fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:setActive',message:'set as active care home',data:{careHomeId:String(careHomeId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
       // #endregion

@@ -143,7 +143,41 @@ export const getCurrentUser = query({
     }
 
     // Get activeOrganizationId from session
-    const activeOrganizationId = session?.activeOrganizationId || null;
+    let activeOrganizationId = session?.activeOrganizationId || null;
+    let userRole: string | null = null;
+
+    // Get identity once for use in fallback and role lookup
+    const identity = await ctx.auth.getUserIdentity();
+
+    // FALLBACK: If session doesn't have activeOrganizationId, try to get it from member record
+    // This handles cases where invitation was just accepted but session hasn't updated yet
+    if (!activeOrganizationId && identity?.subject) {
+      const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "member",
+        where: [{ field: "userId", value: identity.subject }],
+        paginationOpts: {
+          cursor: null,
+          numItems: 1
+        }
+      });
+
+      if (members?.page && members.page.length > 0) {
+        const member = members.page[0];
+        // Validate organization exists
+        const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: member.organizationId }]
+        });
+
+        if (org) {
+          activeOrganizationId = member.organizationId;
+          userRole = member.role as string | null; // Get role from member record
+          console.log(`[getCurrentUser] Found organizationId ${activeOrganizationId} from member record for user ${identity.email}`);
+          // Note: Session update should be handled by ensureAndSetActiveOrganization mutation
+          // This fallback ensures the query returns the correct organizationId even if session hasn't updated yet
+        }
+      }
+    }
 
     // Get active organization details if activeOrganizationId exists
     let activeOrganization: { id: any; name: any } | null = null;
@@ -157,6 +191,24 @@ export const getCurrentUser = query({
           id: org.id,
           name: org.name
         };
+      }
+    }
+
+    // Get user role from member record if not already set from fallback
+    if (!userRole && identity?.subject && activeOrganizationId) {
+      try {
+        const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "member",
+          where: [
+            { field: "userId", value: identity.subject },
+            { field: "organizationId", value: activeOrganizationId }
+          ]
+        });
+        if (member?.role) {
+          userRole = member.role as string;
+        }
+      } catch (error) {
+        console.error("[getCurrentUser] Error fetching member role:", error);
       }
     }
 
@@ -177,6 +229,7 @@ export const getCurrentUser = query({
       activeTeam: activeTeam, // Include active team details
       activeOrganizationId: activeOrganizationId, // Include active organization ID from session
       activeOrganization: activeOrganization, // Include active organization details
+      role: userRole, // Include user role from member record
       // Include any other custom fields that aren't in Better Auth
       ...(customUserData && {
         customField1: customUserData.name, // Keep custom fields if needed
