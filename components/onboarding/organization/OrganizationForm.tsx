@@ -33,16 +33,37 @@ export default function OrganizationForm({
 }) {
   const [isLoading, startTransition] = useTransition();
   const { data: activeOrganization } = authClient.useActiveOrganization();
+  const userOrganization = useQuery(
+    api.auth.getCurrentUserOrganization,
+    !activeOrganization?.id ? {} : "skip"
+  );
+  const organizationFromInvitations = useQuery(
+    api.auth.getOrganizationFromAcceptedInvitations,
+    (!activeOrganization?.id && (!userOrganization || userOrganization === null)) ? {} : "skip"
+  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  // #region agent log
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const userOrgId = userOrganization && 'id' in userOrganization ? userOrganization.id : null;
+      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:componentState',message:'component state check',data:{hasActiveOrg:!!activeOrganization?.id,activeOrgId:activeOrganization?.id||null,hasUserOrg:!!userOrgId,userOrgId:userOrgId,userOrgLoading:userOrganization===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    }
+  }, [activeOrganization?.id, userOrganization]);
+  // #endregion
   const getOrganizationLogoQuery = useQuery(
     api.files.image.getOrganizationLogo,
-    activeOrganization?.name ? {} : "skip"
+    (activeOrganization?.name || userOrganization?.name) ? {} : "skip"
   );
   const generateUploadUrlMutation = useMutation(
     api.files.image.generateUploadUrl
   );
   const sendImageMutation = useMutation(api.files.image.sendImage);
   const deleteImageMutation = useMutation(api.files.image.deleteById);
+  const createCareHomeMutation = useMutation(api.rbac.careHomes.createCareHome);
+  const switchActiveCareHomeMutation = useMutation(api.rbac.careHomes.switchActiveCareHome);
+  const setActiveOrganizationMutation = useMutation(api.auth.setActiveOrganization);
+  const ensureAndSetActiveOrganizationMutation = useMutation(api.auth.ensureAndSetActiveOrganization);
 
   const form = useForm<z.infer<typeof SaveOnboardingOrganizationForm>>({
     resolver: zodResolver(SaveOnboardingOrganizationForm),
@@ -55,14 +76,41 @@ export default function OrganizationForm({
   useEffect(() => {
     if (activeOrganization?.name) {
       form.setValue("name", activeOrganization.name);
+    } else if (userOrganization && 'name' in userOrganization && userOrganization.name) {
+      form.setValue("name", userOrganization.name);
     }
-  }, [activeOrganization?.name, form]);
+  }, [activeOrganization?.name, userOrganization, form]);
 
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof SaveOnboardingOrganizationForm>) {
     startTransition(async () => {
       let organizationId: string | undefined;
-      let organizationCreated = false;
+
+      // #region agent log
+      if (typeof window !== 'undefined') {
+        const userOrgId = userOrganization && 'id' in userOrganization ? userOrganization.id : null;
+        fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:entry',message:'onSubmit called',data:{hasActiveOrg:!!activeOrganization?.id,activeOrgId:activeOrganization?.id||null,hasUserOrg:!!userOrgId,userOrgId:userOrgId,userOrgLoading:userOrganization===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+      }
+      // #endregion
+
+      // Get organization ID from activeOrganization, userOrganization query, or invitations
+      let orgId: string | undefined = activeOrganization?.id 
+        || (userOrganization && 'id' in userOrganization ? userOrganization.id : undefined)
+        || (organizationFromInvitations && 'id' in organizationFromInvitations ? organizationFromInvitations.id : undefined);
+      
+      // If userOrganization is still loading, wait a bit and check again
+      if (!orgId && userOrganization === undefined) {
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:waitingForOrg',message:'waiting for userOrganization to load',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        }
+        // #endregion
+        // Wait a bit for the query to complete
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Re-check after waiting
+        const userOrgIdAfterWait = userOrganization && typeof userOrganization === 'object' && 'id' in userOrganization ? (userOrganization as { id: string; name: string }).id : undefined;
+        orgId = activeOrganization?.id || userOrgIdAfterWait;
+      }
 
       if (activeOrganization?.name) {
         // Updating existing organization
@@ -84,33 +132,183 @@ export default function OrganizationForm({
           }
         );
       } else {
-        // Creating new organization
-        await authClient.organization.create(
-          {
-            name: values.name,
-            slug: values.name.toLowerCase().replace(/ /g, "-")
-          },
-          {
-            onError: (ctx) => {
-              if (ctx.error.code === "ORGANIZATION_ALREADY_EXISTS") {
-                form.setError("name", {
-                  message: "A Care home with this name already exists"
-                });
+        // IMPORTANT: Owners should NOT create organizations during onboarding.
+        // Organizations are created by SaaS Admin when they invite the owner.
+        // The organization should already exist at this point.
+        // If it doesn't exist in activeOrganization, try to get it from member record
+        if (!orgId) {
+          // #region agent log
+          if (typeof window !== 'undefined') {
+            const userOrgId = userOrganization && 'id' in userOrganization ? userOrganization.id : null;
+            fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:noOrgId',message:'no organization ID found, trying ensureAndSetActiveOrganization',data:{hasActiveOrg:!!activeOrganization?.id,hasUserOrg:!!userOrgId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          }
+          // #endregion
+          
+          // Last resort: try to fetch and set organization from member record or invitations
+          // Retry with delays to wait for member record creation
+          let fetchedOrg: { id: string; name: string } | null = null;
+          const maxRetries = 3;
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              // #region agent log
+              if (typeof window !== 'undefined') {
+                fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:fetchAttempt',message:`fetching organization attempt ${attempt}/${maxRetries}`,data:{attempt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              }
+              // #endregion
+              
+              if (attempt > 1) {
+                // Wait before retry (exponential backoff)
+                await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+              }
+              
+              fetchedOrg = await ensureAndSetActiveOrganizationMutation();
+              if (fetchedOrg && 'id' in fetchedOrg && fetchedOrg.id) {
+                // #region agent log
+                if (typeof window !== 'undefined') {
+                  fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:fetchedOrg',message:'fetched organization from member record or invitations',data:{orgId:fetchedOrg.id,orgName:fetchedOrg.name,attempt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                }
+                // #endregion
+                orgId = fetchedOrg.id;
+                // Wait a moment for session to propagate
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                break; // Success, exit retry loop
+              }
+            } catch (error) {
+              // #region agent log
+              if (typeof window !== 'undefined') {
+                fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:fetchError',message:`error fetching organization attempt ${attempt}`,data:{error:error instanceof Error?error.message:String(error),attempt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              }
+              // #endregion
+              console.error(`Error fetching organization (attempt ${attempt}):`, error);
+              if (attempt === maxRetries) {
+                // Last attempt failed
+                toast.error("Organization not found. Please contact your administrator.");
                 return;
               }
-              toast.error("Error creating Care home");
-            },
-            onSuccess: () => {
-              organizationCreated = true;
             }
           }
-        );
-
-        // If organization was created successfully, wait a moment for the session to update
-        if (organizationCreated) {
-          // Small delay to allow Better Auth session to update with the new active organization
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          organizationId = "session-based"; // Use a placeholder to indicate we should rely on session
+          
+          if (!orgId) {
+            // #region agent log
+            if (typeof window !== 'undefined') {
+              fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:noOrgAfterFetch',message:'no organization found after all fetch attempts',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            }
+            // #endregion
+            toast.error("Organization not found. Please contact your administrator.");
+            return;
+          }
+        }
+        
+        // If we got organization from userOrganization query but it's not active in session,
+        // set it as active BEFORE creating care home
+        if (userOrganization && 'id' in userOrganization && userOrganization.id && !activeOrganization?.id) {
+          try {
+            // #region agent log
+            if (typeof window !== 'undefined') {
+              fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:setActiveOrg',message:'setting active organization',data:{organizationId:userOrganization && 'id' in userOrganization ? userOrganization.id : null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            }
+            // #endregion
+            const orgIdToSet = userOrganization && 'id' in userOrganization ? userOrganization.id : null;
+            if (orgIdToSet) {
+              await setActiveOrganizationMutation({
+                organizationId: orgIdToSet
+              });
+              // #region agent log
+              if (typeof window !== 'undefined') {
+                fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:setActiveOrgSuccess',message:'active organization set successfully',data:{organizationId:orgIdToSet},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+              }
+              // #endregion
+            }
+            // Wait a moment for the session to be updated before proceeding
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          } catch (error) {
+            // #region agent log
+            if (typeof window !== 'undefined') {
+              fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:setActiveOrgError',message:'error setting active organization',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            }
+            // #endregion
+            console.error("Error setting active organization:", error);
+            // Continue anyway - we have the organizationId
+          }
+        }
+        
+        // Use the existing organization ID
+        organizationId = orgId;
+        
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onSubmit:beforeCreateCareHome',message:'about to create care home',data:{organizationId:organizationId||null,hasOrgId:!!organizationId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+        }
+        // #endregion
+        
+        // Create a care home (NOT an organization) during onboarding
+        // Retry logic in case role isn't set yet
+        let retries = 3;
+        let careHomeCreated = false;
+        
+        while (retries > 0 && !careHomeCreated) {
+          try {
+            // #region agent log
+            if (typeof window !== 'undefined') {
+              fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onboarding:createCareHome',message:'onboarding createCareHome attempt',data:{retries,name:values.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            }
+            // #endregion
+            const careHomeResult = await createCareHomeMutation({
+              name: values.name
+            });
+            
+            // #region agent log
+            if (typeof window !== 'undefined') {
+              fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onboarding:result',message:'onboarding createCareHome result',data:{success:careHomeResult.success,hasCareHomeId:!!careHomeResult.careHomeId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            }
+            // #endregion
+            
+            if (careHomeResult.success && careHomeResult.careHomeId) {
+              careHomeCreated = true;
+              // Set this as the active care home
+              try {
+                await switchActiveCareHomeMutation({
+                  careHomeId: careHomeResult.careHomeId
+                });
+                // #region agent log
+                if (typeof window !== 'undefined') {
+                  fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onboarding:switchSuccess',message:'switched active care home',data:{careHomeId:String(careHomeResult.careHomeId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                }
+                // #endregion
+              } catch (switchError) {
+                // #region agent log
+                if (typeof window !== 'undefined') {
+                  fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onboarding:switchError',message:'switch active care home error',data:{error:switchError instanceof Error?switchError.message:String(switchError)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                }
+                // #endregion
+                console.error("Error switching active care home:", switchError);
+                // Don't fail if switching fails
+              }
+            }
+          } catch (error) {
+            // #region agent log
+            if (typeof window !== 'undefined') {
+              fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onboarding:error',message:'onboarding createCareHome error',data:{retries,error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            }
+            // #endregion
+            console.error(`Error creating care home during onboarding (${retries} retries left):`, error);
+            retries--;
+            if (retries > 0) {
+              // Wait a bit before retrying
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+          }
+        }
+        
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrganizationForm.tsx:onboarding:final',message:'onboarding care home creation final',data:{careHomeCreated,retries},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        }
+        // #endregion
+        
+        if (!careHomeCreated) {
+          console.warn("Failed to create care home during onboarding. It will be created automatically later.");
+          // Don't fail the onboarding - care home will be created via ensureCareHomeForOrganization
         }
       }
 
@@ -195,7 +393,11 @@ export default function OrganizationForm({
           )}
         />
 
-        <Button type="submit" className="w-24 mt-4" disabled={isLoading}>
+        <Button 
+          type="submit" 
+          className="w-24 mt-4" 
+          disabled={isLoading || (!activeOrganization?.id && (userOrganization === undefined || (userOrganization !== null && userOrganization !== undefined && !('id' in userOrganization))))}
+        >
           Continue
         </Button>
       </form>

@@ -58,7 +58,9 @@ export const getCurrentUserContext = query({
         id: user._id,
         email: user.email,
         name: user.name,
-        activeTeamId: user.activeTeamId
+        activeTeamId: user.activeTeamId,
+        activeUnitId: user.activeUnitId,
+        activeCareHomeId: user.activeCareHomeId
       },
       team,
       organization
@@ -1068,10 +1070,137 @@ export const inspectData = query({
       .filter(q => q.neq(q.field("activeTeamId"), undefined))
       .collect();
 
+    // Check users with activeUnitId
+    const usersWithUnit = await ctx.db.query("users")
+      .filter(q => q.neq(q.field("activeUnitId"), undefined))
+      .collect();
+
     return {
       teamMembersCount: teamMembers.length,
       usersWithTeamCount: usersWithTeam.length,
-      usersSample: usersWithTeam.slice(0, 5).map(u => ({ id: u._id, activeTeamId: u.activeTeamId })),
+      usersWithUnitCount: usersWithUnit.length,
+      usersSample: usersWithTeam.slice(0, 5).map(u => ({ 
+        id: u._id, 
+        activeTeamId: u.activeTeamId,
+        activeUnitId: u.activeUnitId 
+      })),
     };
   },
+});
+
+/**
+ * Get user's active unit information
+ * Returns unit details if user has an activeUnitId set
+ */
+export const getActiveUnit = query({
+  args: {},
+  returns: v.union(
+    v.object({
+      unitId: v.id("units"),
+      name: v.string(),
+      careHomeId: v.id("careHomes"),
+      careHomeName: v.string(),
+      teamId: v.string()
+    }),
+    v.null()
+  ),
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.email) {
+      return null;
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user || !user.activeUnitId) {
+      return null;
+    }
+
+    const unit = await ctx.db.get(user.activeUnitId);
+    if (!unit) {
+      return null;
+    }
+
+    const careHome = await ctx.db.get(unit.careHomeId);
+    if (!careHome) {
+      return null;
+    }
+
+    return {
+      unitId: unit._id,
+      name: unit.name,
+      careHomeId: unit.careHomeId,
+      careHomeName: careHome.name,
+      teamId: unit.teamId
+    };
+  }
+});
+
+/**
+ * Get all units a user is assigned to
+ * Returns list of units the current user is assigned to via unitStaff
+ */
+export const getAssignedUnits = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      unitId: v.id("units"),
+      name: v.string(),
+      careHomeId: v.id("careHomes"),
+      careHomeName: v.string(),
+      teamId: v.string(),
+      role: v.string(),
+      isActive: v.boolean()
+    })
+  ),
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      return [];
+    }
+
+    // Get all unitStaff assignments for this user
+    const assignments = await ctx.db
+      .query("unitStaff")
+      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+      .collect();
+
+    const units: Array<{
+      unitId: Id<"units">;
+      name: string;
+      careHomeId: Id<"careHomes">;
+      careHomeName: string;
+      teamId: string;
+      role: string;
+      isActive: boolean;
+    }> = [];
+    for (const assignment of assignments) {
+      const unit = await ctx.db.get(assignment.unitId);
+      if (!unit) continue;
+
+      const careHome = await ctx.db.get(unit.careHomeId);
+      if (!careHome) continue;
+
+      // Get user to check if this is the active unit
+      const user = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", identity.email!))
+        .first();
+
+      units.push({
+        unitId: unit._id,
+        name: unit.name,
+        careHomeId: unit.careHomeId,
+        careHomeName: careHome.name,
+        teamId: unit.teamId,
+        role: assignment.role,
+        isActive: user?.activeUnitId === unit._id
+      });
+    }
+
+    return units;
+  }
 });

@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,9 +84,9 @@ export default function CreateOwnerPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-medium">Create Care Home Owner</h1>
+          <h1 className="text-2xl font-medium">Create Owner</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Create a new owner and their care home organization
+            Create a new owner and their organization
           </p>
         </div>
         <Button variant="outline" onClick={() => router.back()}>
@@ -99,7 +98,7 @@ export default function CreateOwnerPage() {
         <CardHeader>
           <CardTitle>Owner Information</CardTitle>
           <CardDescription>
-            Enter the details for the new care home owner. They will receive an invitation email to join the organization.
+            Enter the details for the new owner. They will receive an invitation email to join the organization. The owner can then create care homes within their organization.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -146,16 +145,16 @@ export default function CreateOwnerPage() {
                 name="organizationName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Care Home Name</FormLabel>
+                    <FormLabel required>Organization Name</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Sunset Care Home"
+                        placeholder="Sunset Organization"
                         {...field}
                         disabled={isPending}
                       />
                     </FormControl>
                     <FormDescription>
-                      The name of the care home organization
+                      The name of the organization. The owner can create care homes within this organization after accepting the invitation.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

@@ -1,6 +1,7 @@
 import { api } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { resolveUser, ROLES } from "./lib/rbac";
 
 export const create = mutation({
   args: {
@@ -82,6 +83,37 @@ export const create = mutation({
   },
   returns: v.id("residents"),
   handler: async (ctx, args) => {
+    // RBAC: Resolve user and check permissions
+    const { user, role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
+    
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+    
+    // Care Assistants cannot create residents
+    if (role === ROLES.CARE_ASSISTANT) {
+      throw new Error("Unauthorized: Care assistants cannot create residents");
+    }
+    
+    // Enforce organization scope (unless SaaS Admin)
+    if (role !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
+      throw new Error("Unauthorized: Cannot create resident in different organization");
+    }
+    
+    // Verify unit access for Nurse (Care Assistants already excluded above)
+    if (role === ROLES.NURSE) {
+      if (!activeUnitId) {
+        throw new Error("Unauthorized: No active unit");
+      }
+      const unit = await ctx.db
+        .query("units")
+        .withIndex("by_teamId", (q) => q.eq("teamId", args.teamId))
+        .first();
+      if (!unit || unit._id !== activeUnitId) {
+        throw new Error("Unauthorized: Cannot create resident in unit you're not assigned to");
+      }
+    }
+    
     const now = Date.now();
 
     const residentId = await ctx.db.insert("residents", {
@@ -147,17 +179,46 @@ export const createEmergencyContact = mutation({
 
 export const getByOrganization = query({
   args: {
-    organizationId: v.string()
+    organizationId: v.optional(v.string())
   },
   returns: v.array(v.any()),
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
-    const residents = await ctx.db
+    // RBAC: Resolve user and enforce tenant isolation
+    const { role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
+    
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+    
+    // Determine target organization
+    const targetOrgId = args.organizationId || userOrgId;
+    
+    if (!targetOrgId) {
+      throw new Error("Organization ID required");
+    }
+    
+    // SaaS Admin can read all, others must match their organization
+    if (role !== ROLES.SAAS_ADMIN && targetOrgId !== userOrgId) {
+      throw new Error("Unauthorized: Cannot access different organization");
+    }
+    
+    // Build query with organization filter
+    let query = ctx.db
       .query("residents")
       .withIndex("byOrganizationId", (q) =>
-        q.eq("organizationId", args.organizationId)
+        q.eq("organizationId", targetOrgId)
       )
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .collect();
+      .filter((q) => q.eq(q.field("isActive"), true));
+    
+    // Apply unit filter for Nurse/Care Assistant
+    if ((role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) && activeUnitId) {
+      const unit = await ctx.db.get(activeUnitId);
+      if (unit) {
+        query = query.filter((q) => q.eq(q.field("teamId"), unit.teamId));
+      }
+    }
+    
+    const residents = await query.collect();
 
     // Process residents with images
     const results: Array<Record<string, unknown>> = [];
@@ -182,8 +243,31 @@ export const getById = query({
   },
   returns: v.union(v.any(), v.null()),
   handler: async (ctx, args): Promise<any | null> => {
+    // RBAC: Resolve user and check access
+    const { role, organizationId, activeUnitId } = await resolveUser(ctx);
+    
     const resident = await ctx.db.get(args.residentId);
     if (!resident) return null;
+    
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+    
+    // SaaS Admin can read all
+    if (role !== ROLES.SAAS_ADMIN) {
+      // Enforce organization isolation
+      if (resident.organizationId !== organizationId) {
+        throw new Error("Unauthorized: Resident does not belong to your organization");
+      }
+      
+      // Enforce unit isolation for Nurse/Care Assistant
+      if ((role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) && activeUnitId) {
+        const unit = await ctx.db.get(activeUnitId);
+        if (!unit || resident.teamId !== unit.teamId) {
+          throw new Error("Unauthorized: Resident does not belong to your active unit");
+        }
+      }
+    }
 
     const emergencyContacts = await ctx.db
       .query("emergencyContacts")

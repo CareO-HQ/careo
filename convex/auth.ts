@@ -606,6 +606,100 @@ export const getCurrentUserOrganizationsWithStatus = query({
   }
 });
 
+/**
+ * Get current user's first organization from member record
+ * Used during onboarding when session doesn't have activeOrganizationId set yet
+ */
+export const getCurrentUserOrganization = query({
+  args: {},
+  returns: v.union(
+    v.object({
+      id: v.string(),
+      name: v.string()
+    }),
+    v.null()
+  ),
+  handler: async (ctx) => {
+    console.log('[getCurrentUserOrganization] Starting query');
+    
+    const userIdentity = await ctx.auth.getUserIdentity();
+    console.log('[getCurrentUserOrganization] User identity:', {
+      hasIdentity: !!userIdentity,
+      hasSubject: !!userIdentity?.subject,
+      subject: userIdentity?.subject || null
+    });
+    
+    if (!userIdentity || !userIdentity.subject) {
+      console.log('[getCurrentUserOrganization] No user identity or subject');
+      return null;
+    }
+
+    // Get first member record for this user
+    const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "member",
+      where: [{ field: "userId", value: userIdentity.subject }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 1
+      }
+    });
+
+    console.log('[getCurrentUserOrganization] Member records:', {
+      hasMembers: !!members?.page,
+      memberCount: members?.page?.length || 0,
+      firstMemberOrgId: members?.page?.[0]?.organizationId || null
+    });
+
+    if (!members?.page || members.page.length === 0) {
+      console.log('[getCurrentUserOrganization] No member records found for userId:', userIdentity.subject);
+      return null;
+    }
+
+    const member = members.page[0];
+    console.log('[getCurrentUserOrganization] Member record found:', {
+      memberOrgId: member.organizationId,
+      memberRole: member.role
+    });
+    
+    // Get organization details first (don't check active status during onboarding)
+    const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "organization",
+      where: [{ field: "id", value: member.organizationId }]
+    });
+
+    console.log('[getCurrentUserOrganization] Organization lookup:', {
+      hasOrg: !!org,
+      orgId: org?.id || null,
+      orgName: org?.name || null,
+      memberOrgId: member.organizationId
+    });
+
+    if (!org) {
+      console.error('[getCurrentUserOrganization] Organization not found in Better Auth for member orgId:', member.organizationId);
+      return null;
+    }
+
+    // Check if organization is active (but return org even if not active during onboarding)
+    const isActive = await ctx.runQuery(api.auth.isOrganizationActive, {
+      organizationId: member.organizationId
+    });
+
+    console.log('[getCurrentUserOrganization] Organization active check:', {
+      organizationId: member.organizationId,
+      isActive
+    });
+
+    // Return organization even if not active - let the caller decide
+    // During onboarding, we want to allow access to set it as active
+    const result = {
+      id: org.id,
+      name: org.name || ""
+    };
+    console.log('[getCurrentUserOrganization] Returning organization:', result);
+    return result;
+  }
+});
+
 // Mutation to set the active organization and clear active team
 export const setActiveOrganization = mutation({
   args: {
@@ -666,6 +760,358 @@ export const setActiveOrganization = mutation({
     });
 
     return { success: true, organizationId, teamCleared: true };
+  }
+});
+
+/**
+ * Get organizationId from accepted invitations for current user
+ * Used as fallback when member record doesn't exist yet
+ */
+export const getOrganizationFromAcceptedInvitations = query({
+  args: {},
+  returns: v.union(
+    v.object({
+      id: v.string(),
+      name: v.string()
+    }),
+    v.null()
+  ),
+  handler: async (ctx) => {
+    console.log('[getOrganizationFromAcceptedInvitations] Starting query');
+    
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      console.log('[getOrganizationFromAcceptedInvitations] No user identity or email');
+      return null;
+    }
+
+    const userEmail = userIdentity.email; // Store in variable for type narrowing
+
+    // Find accepted invitations for this user's email (try Convex table first)
+    let organizationId: string | null = null;
+    
+    const convexInvitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", userEmail))
+      .filter((q) => q.eq(q.field("status"), "accepted"))
+      .order("desc")
+      .take(1);
+
+    console.log('[getOrganizationFromAcceptedInvitations] Convex accepted invitations:', convexInvitations.length);
+
+    if (convexInvitations.length > 0) {
+      organizationId = convexInvitations[0].organizationId;
+    } else {
+      // Try pending invitations (might be accepted via Better Auth but not updated in our table)
+      const pendingInvitations = await ctx.db
+        .query("invitations")
+        .withIndex("by_email", (q) => q.eq("email", userEmail))
+        .filter((q) => q.eq(q.field("status"), "pending"))
+        .order("desc")
+        .take(1);
+
+      console.log('[getOrganizationFromAcceptedInvitations] Convex pending invitations:', pendingInvitations.length);
+
+      if (pendingInvitations.length > 0) {
+        organizationId = pendingInvitations[0].organizationId;
+      } else {
+        // Try Better Auth invitations
+        try {
+          const betterAuthInvitations = await ctx.runQuery(components.betterAuth.lib.findMany, {
+            model: "invitation",
+            where: [{ field: "email", value: userEmail }],
+            paginationOpts: {
+              cursor: null,
+              numItems: 10
+            }
+          });
+
+          console.log('[getOrganizationFromAcceptedInvitations] Better Auth invitations:', betterAuthInvitations?.page?.length || 0);
+
+          if (betterAuthInvitations?.page && betterAuthInvitations.page.length > 0) {
+            const baInvitation = betterAuthInvitations.page[0];
+            if (baInvitation.organizationId) {
+              organizationId = baInvitation.organizationId;
+            }
+          }
+        } catch (error) {
+          console.error('[getOrganizationFromAcceptedInvitations] Error querying Better Auth invitations:', error);
+        }
+      }
+    }
+
+    if (!organizationId) {
+      console.log('[getOrganizationFromAcceptedInvitations] No invitations found');
+      return null;
+    }
+
+    console.log('[getOrganizationFromAcceptedInvitations] Using invitation orgId:', organizationId);
+
+    // Get organization details
+    const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "organization",
+      where: [{ field: "id", value: organizationId }]
+    });
+
+    if (!org) {
+      console.error('[getOrganizationFromAcceptedInvitations] Organization not found:', organizationId);
+      return null;
+    }
+
+    // Better Auth might return id or _id, handle both cases
+    const orgId = org.id || org._id || organizationId;
+    if (!orgId) {
+      console.error('[getOrganizationFromAcceptedInvitations] Organization has no id field:', org);
+      return null;
+    }
+
+    return {
+      id: orgId,
+      name: org.name || ""
+    };
+  }
+});
+
+/**
+ * Ensure and set active organization from member record
+ * Used during onboarding when session doesn't have activeOrganizationId set yet
+ * This mutation fetches the organization from the user's member record and sets it as active
+ * Includes retry logic to wait for member record creation
+ */
+export const ensureAndSetActiveOrganization = mutation({
+  args: {},
+  returns: v.union(
+    v.object({
+      id: v.string(),
+      name: v.string()
+    }),
+    v.null()
+  ),
+  handler: async (ctx) => {
+    console.log('[ensureAndSetActiveOrganization] Starting mutation');
+    
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.subject) {
+      console.log('[ensureAndSetActiveOrganization] No user identity');
+      throw new Error("Not authenticated");
+    }
+
+    console.log('[ensureAndSetActiveOrganization] User identity:', {
+      email: userIdentity.email,
+      subject: userIdentity.subject
+    });
+
+    // First, check if session already has activeOrganizationId set
+    try {
+      const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+      if (session?.activeOrganizationId) {
+        console.log('[ensureAndSetActiveOrganization] Session already has activeOrganizationId:', session.activeOrganizationId);
+        
+        // Verify the organization exists
+        const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: session.activeOrganizationId }]
+        });
+
+        if (org) {
+          // Better Auth might return id or _id, handle both cases
+          const orgId = org.id || org._id || session.activeOrganizationId;
+          if (!orgId || typeof orgId !== 'string') {
+            console.error('[ensureAndSetActiveOrganization] Organization has invalid id field:', { org, sessionActiveOrgId: session.activeOrganizationId });
+            // Continue to try other methods
+          } else {
+            console.log('[ensureAndSetActiveOrganization] Returning organization from session:', org.name);
+            return {
+              id: orgId,
+              name: org.name || ""
+            };
+          }
+        } else {
+          console.warn('[ensureAndSetActiveOrganization] Session has invalid activeOrganizationId:', session.activeOrganizationId);
+        }
+      }
+    } catch (error) {
+      console.error('[ensureAndSetActiveOrganization] Error checking session:', error);
+    }
+
+    // Get first member record for this user
+    const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "member",
+      where: [{ field: "userId", value: userIdentity.subject }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 1
+      }
+    });
+
+    console.log('[ensureAndSetActiveOrganization] Member records:', {
+      hasMembers: !!members?.page,
+      memberCount: members?.page?.length || 0
+    });
+
+    if (members?.page && members.page.length > 0) {
+      const member = members.page[0];
+      console.log('[ensureAndSetActiveOrganization] Using member orgId:', member.organizationId);
+      
+      // Get organization details
+      const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "organization",
+        where: [{ field: "id", value: member.organizationId }]
+      });
+
+      if (!org) {
+        console.error('[ensureAndSetActiveOrganization] Organization not found:', member.organizationId);
+        return null;
+      }
+
+      // Set as active organization in session
+      try {
+        const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+        if (session?.token) {
+          await ctx.runMutation(components.betterAuth.lib.updateOne, {
+            input: {
+              model: "session",
+              where: [{ field: "token", value: session.token }],
+              update: {
+                activeOrganizationId: member.organizationId
+              }
+            }
+          });
+          console.log('[ensureAndSetActiveOrganization] Set activeOrganizationId to:', member.organizationId);
+        } else {
+          console.warn('[ensureAndSetActiveOrganization] No session token found');
+        }
+      } catch (error) {
+        console.error('[ensureAndSetActiveOrganization] Failed to set active organization:', error);
+        // Don't fail - return the org anyway
+      }
+
+      // Better Auth might return id or _id, handle both cases
+      const orgId = org.id || org._id || member.organizationId;
+      if (!orgId || typeof orgId !== 'string') {
+        console.error('[ensureAndSetActiveOrganization] Organization has invalid id field:', { org, memberOrgId: member.organizationId });
+        return null;
+      }
+
+      return {
+        id: orgId,
+        name: org.name || ""
+      };
+    }
+
+    // If we get here, member record still doesn't exist after retries
+    // Try fallback: get organization from accepted invitations (both Convex and Better Auth)
+    console.log('[ensureAndSetActiveOrganization] Member record not found after retries, trying invitation fallback');
+    
+    if (userIdentity.email) {
+      const userEmail = userIdentity.email; // Store in variable for type narrowing
+      
+      // First, try Convex invitations table (accepted)
+      let organizationId: string | null = null;
+      
+      const convexInvitations = await ctx.db
+        .query("invitations")
+        .withIndex("by_email", (q) => q.eq("email", userEmail))
+        .filter((q) => q.eq(q.field("status"), "accepted"))
+        .order("desc")
+        .take(1);
+
+      console.log('[ensureAndSetActiveOrganization] Convex accepted invitations:', convexInvitations.length);
+
+      if (convexInvitations.length > 0) {
+        organizationId = convexInvitations[0].organizationId;
+        console.log('[ensureAndSetActiveOrganization] Found organizationId from Convex invitation:', organizationId);
+      } else {
+        // Try pending invitations (might be accepted but not yet marked as accepted in our table)
+        const pendingInvitations = await ctx.db
+          .query("invitations")
+          .withIndex("by_email", (q) => q.eq("email", userEmail))
+          .filter((q) => q.eq(q.field("status"), "pending"))
+          .order("desc")
+          .take(1);
+
+        console.log('[ensureAndSetActiveOrganization] Convex pending invitations:', pendingInvitations.length);
+
+        if (pendingInvitations.length > 0) {
+          organizationId = pendingInvitations[0].organizationId;
+          console.log('[ensureAndSetActiveOrganization] Found organizationId from Convex pending invitation:', organizationId);
+        } else {
+          // Try Better Auth invitations
+          try {
+            const betterAuthInvitations = await ctx.runQuery(components.betterAuth.lib.findMany, {
+              model: "invitation",
+              where: [{ field: "email", value: userEmail }],
+              paginationOpts: {
+                cursor: null,
+                numItems: 10
+              }
+            });
+
+            console.log('[ensureAndSetActiveOrganization] Better Auth invitations:', betterAuthInvitations?.page?.length || 0);
+
+            if (betterAuthInvitations?.page && betterAuthInvitations.page.length > 0) {
+              // Get the most recent invitation (Better Auth might have different status values)
+              const baInvitation = betterAuthInvitations.page[0];
+              if (baInvitation.organizationId) {
+                organizationId = baInvitation.organizationId;
+                console.log('[ensureAndSetActiveOrganization] Found organizationId from Better Auth invitation:', organizationId);
+              }
+            }
+          } catch (error) {
+            console.error('[ensureAndSetActiveOrganization] Error querying Better Auth invitations:', error);
+          }
+        }
+      }
+
+      if (organizationId) {
+        const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: organizationId }]
+        });
+
+        if (org) {
+          console.log('[ensureAndSetActiveOrganization] Found organization:', org.name);
+          
+          // Better Auth might return id or _id, handle both cases
+          const orgId = org.id || org._id || organizationId;
+          if (!orgId || typeof orgId !== 'string') {
+            console.error('[ensureAndSetActiveOrganization] Organization has invalid id field:', { org, organizationId });
+            return null;
+          }
+          
+          // Set as active organization in session
+          try {
+            const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+            if (session?.token) {
+              await ctx.runMutation(components.betterAuth.lib.updateOne, {
+                input: {
+                  model: "session",
+                  where: [{ field: "token", value: session.token }],
+                  update: {
+                    activeOrganizationId: orgId
+                  }
+                }
+              });
+              console.log('[ensureAndSetActiveOrganization] Set activeOrganizationId from invitation to:', orgId);
+            }
+          } catch (error) {
+            console.error('[ensureAndSetActiveOrganization] Failed to set active organization from invitation:', error);
+          }
+
+          return {
+            id: orgId,
+            name: org.name || ""
+          };
+        } else {
+          console.error('[ensureAndSetActiveOrganization] Organization not found for ID:', organizationId);
+        }
+      } else {
+        console.log('[ensureAndSetActiveOrganization] No invitations found for email:', userEmail);
+      }
+    }
+
+    console.log('[ensureAndSetActiveOrganization] No member records or invitations found after all attempts');
+    return null;
   }
 });
 

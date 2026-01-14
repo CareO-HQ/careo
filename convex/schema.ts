@@ -79,6 +79,8 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     isOnboardingComplete: v.optional(v.boolean()),
     activeTeamId: v.optional(v.string()),
+    activeUnitId: v.optional(v.id("units")), // Active unit for staff members
+    activeCareHomeId: v.optional(v.id("careHomes")), // Active care home for users
     isSaasAdmin: v.optional(v.boolean()), // Platform super-admin flag
 
     // Staff details
@@ -102,6 +104,8 @@ export default defineSchema({
   })
     .index("byEmail", ["email"])
     .index("byActiveTeamId", ["activeTeamId"]) // Index for querying users by active team
+    .index("byActiveUnitId", ["activeUnitId"]) // Index for querying users by active unit
+    .index("byActiveCareHomeId", ["activeCareHomeId"]) // Index for querying users by active care home
     .index("bySaasAdmin", ["isSaasAdmin"]), // Index for querying SaaS admins
 
   // Passkey table for better-auth passkey plugin
@@ -3824,5 +3828,63 @@ export default defineSchema({
     .index("byOrganizationId", ["organizationId"])
     .index("byTeamId", ["teamId"]),
 
-  residentHandlingProfileForm
+  residentHandlingProfileForm,
+
+  // RBAC System Tables
+  careHomes: defineTable({
+    organizationId: v.string(),
+    name: v.string(),
+    createdBy: v.string(), // Better Auth userId
+    createdAt: v.number()
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_createdBy", ["createdBy"]),
+
+  careHomeManagers: defineTable({
+    careHomeId: v.id("careHomes"),
+    userId: v.string(), // Better Auth userId
+    assignedAt: v.number(),
+    assignedBy: v.string() // Better Auth userId
+  })
+    .index("by_careHomeId", ["careHomeId"])
+    .index("by_userId", ["userId"]),
+
+  units: defineTable({
+    careHomeId: v.id("careHomes"),
+    organizationId: v.string(), // Denormalized for queries
+    name: v.string(),
+    teamId: v.string(), // Better Auth team ID
+    createdBy: v.string(), // Better Auth userId
+    createdAt: v.number()
+  })
+    .index("by_careHomeId", ["careHomeId"])
+    .index("by_organizationId", ["organizationId"])
+    .index("by_teamId", ["teamId"]),
+
+  unitStaff: defineTable({
+    unitId: v.id("units"),
+    userId: v.string(), // Better Auth userId
+    role: v.union(v.literal("nurse"), v.literal("care_assistant")),
+    assignedAt: v.number(),
+    assignedBy: v.string() // Better Auth userId
+  })
+    .index("by_unitId", ["unitId"])
+    .index("by_userId", ["userId"]),
+
+  invitations: defineTable({
+    email: v.string(),
+    role: v.string(),
+    organizationId: v.string(),
+    careHomeId: v.optional(v.id("careHomes")),
+    unitIds: v.optional(v.array(v.id("units"))),
+    token: v.string(), // Unique invitation token
+    expiresAt: v.number(),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    createdBy: v.string(), // Better Auth userId
+    createdAt: v.number()
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"])
+    .index("by_organizationId", ["organizationId"])
+    .index("by_expiresAt", ["expiresAt"])
 });

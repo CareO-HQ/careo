@@ -73,7 +73,7 @@ export const createAuth = (ctx: GenericCtx) =>
         }
       }),
       organization({
-        allowUserToCreateOrganization: true,
+        allowUserToCreateOrganization: false, // Only SaaS Admin can create organizations via RBAC mutations
         organizationLimit: 1,
         invitationExpiresIn: 1000 * 60 * 60 * 24 * 7, // 7 days
         membershipRequireApproval: false,

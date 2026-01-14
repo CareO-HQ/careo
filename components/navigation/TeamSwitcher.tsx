@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
+import { Id } from "@/convex/_generated/dataModel";
 import CreateTeamModal from "../team/CreateTeamModal";
 import { useTransition } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
@@ -45,24 +46,24 @@ export function TeamSwitcher({
 }) {
   const router = useRouter();
   const { data: activeOrganization } = authClient.useActiveOrganization();
-  const { data: organizations } = authClient.useListOrganizations();
-  const organizationsWithStatus = useQuery(api.auth.getCurrentUserOrganizationsWithStatus);
-  
-  // Filter out deactivated organizations
-  const activeOrganizations = organizations?.filter((org: { id: string; name: string }) => {
-    const orgStatus = organizationsWithStatus?.find((o: { id: string; status: "active" | "suspended" | "deactivated" }) => o.id === org.id) as { id: string; status: "active" | "suspended" | "deactivated" } | undefined;
-    return !orgStatus || orgStatus.status === "active";
-  });
-
-  // Debug: Log the structure of activeOrganization
-  console.log("Active Organization:", activeOrganization);
   const { data: activeMember } = authClient.useActiveMember();
   const isOwner = activeMember?.role === "owner";
   const userRole = activeMember?.role as string | undefined;
+  
+  // Get care homes from careHomes table instead of organizations
+  const careHomes = useQuery(
+    api.rbac.careHomes.getCareHomes,
+    activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
+  );
+  
+  // Get current user to check active care home
+  const currentUser = useQuery(api.users.getCurrentUserContext);
+  const activeCareHomeId = currentUser?.user?.activeCareHomeId;
+
   const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
   const { activeTeamId, activeTeam } = useActiveTeam();
   const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
-  const setActiveOrganization = useMutation(api.auth.setActiveOrganization);
+  const switchActiveCareHome = useMutation(api.rbac.careHomes.switchActiveCareHome);
 
   const getActiveOrgLogoQuery = useQuery(
     api.files.image.getOrganizationLogo,
@@ -88,15 +89,17 @@ export function TeamSwitcher({
     }
   };
 
-  const handleOrganizationSwitch = async (organizationId: string) => {
+  const handleCareHomeSwitch = async (careHomeId: string) => {
     try {
-      // Use our custom mutation that clears team and sets organization
-      await setActiveOrganization({ organizationId });
-
+      // Convert string ID to Convex ID
+      await switchActiveCareHome({ careHomeId: careHomeId as Id<"careHomes"> });
       toast.success("Care home switched successfully");
+      // Refresh the page to update the UI
+      window.location.reload();
     } catch (error) {
-      console.error("Error switching organization:", error);
-      toast.error("Failed to switch organization");
+      console.error("Error switching care home:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to switch care home";
+      toast.error(errorMessage);
     }
   };
 
@@ -152,7 +155,7 @@ export function TeamSwitcher({
                   <DropdownMenuItem
                     onSelect={(e) => e.preventDefault()}
                     disabled={
-                      (organizations?.length ?? 0) >=
+                      (careHomes?.length ?? 0) >=
                       config.limits.organizations
                     }
                   >
@@ -174,18 +177,21 @@ export function TeamSwitcher({
                 </Tooltip>
               )}
             </div>
-            {activeOrganizations && activeOrganizations.length > 0 ? (
-              activeOrganizations.map((organization) => (
+            {careHomes && careHomes.length > 0 ? (
+              careHomes.map((careHome) => (
                 <OrganizationItem
-                  key={organization.id}
-                  organization={organization}
-                  isActive={activeOrganization?.id === organization.id}
-                  onSelect={handleOrganizationSwitch}
+                  key={careHome._id}
+                  organization={{
+                    id: String(careHome._id),
+                    name: careHome.name
+                  }}
+                  isActive={activeCareHomeId === careHome._id}
+                  onSelect={(id) => handleCareHomeSwitch(id)}
                 />
               ))
             ) : (
               <div className="p-2 text-xs text-muted-foreground">
-                No active care homes available
+                No care homes available. Owners can create care homes.
               </div>
             )}
             <DropdownMenuSeparator />

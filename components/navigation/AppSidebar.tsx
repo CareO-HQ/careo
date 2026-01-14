@@ -58,6 +58,27 @@ export function AppSidebar() {
   // SaaS Admin won't have activeMember, so check isSaasAdmin flag
   const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
   const userRole = isSaasAdmin ? "saas_admin" : (activeMember?.role as string | undefined);
+  
+  // Get active care home
+  const currentUserContext = useQuery(api.users.getCurrentUserContext);
+  const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppSidebar.tsx:65',message:'calling getActiveCareHome',data:{hasCurrentUserContext:!!currentUserContext,activeCareHomeId:activeCareHomeId||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D,E'})}).catch(()=>{});
+  }
+  // #endregion
+  const activeCareHome = useQuery(
+    api.rbac.careHomes.getActiveCareHome,
+    {}
+  );
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppSidebar.tsx:70',message:'getActiveCareHome result',data:{hasResult:!!activeCareHome,resultName:activeCareHome?.name||null,isError:activeCareHome===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D,E'})}).catch(()=>{});
+  }
+  // #endregion
+  
+  // Use care home name if available, otherwise fall back to organization name
+  const displayName = activeCareHome?.name || activeOrg.data?.name || "";
 
   // Extract email to a stable variable - always compute this before any conditional logic
   // This ensures React sees consistent hook call patterns across renders
@@ -138,7 +159,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <TeamSwitcher
-          orgName={activeOrg.data?.name ?? ""}
+          orgName={displayName}
           isPending={activeOrg.isPending}
           email={user?.user.email ?? ""}
         />

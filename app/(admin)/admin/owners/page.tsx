@@ -40,16 +40,14 @@ export default function OwnersPage() {
     );
   }
 
-  // Organizations represent care homes, each with an owner
-
   return (
     <div className="w-full p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-medium">Care Home Owners</h1>
+          <h1 className="text-2xl font-medium">Owners</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage care home owners and their organizations
+            Manage owners and their organizations
           </p>
         </div>
         <Link href="/admin/owners/create">
@@ -74,7 +72,7 @@ export default function OwnersPage() {
                     </span>
                   </div>
                   <CardTitle className="mt-2">{org.name}</CardTitle>
-                  <CardDescription>Care Home Organization</CardDescription>
+                  <CardDescription>Organization</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4 text-sm">
@@ -94,7 +92,7 @@ export default function OwnersPage() {
             <UserCheck className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-semibold mb-2">No Owners Yet</p>
             <p className="text-muted-foreground text-center mb-4">
-              Create the first care home owner to get started.
+              Create the first owner to get started.
             </p>
             <Link href="/admin/owners/create">
               <Button>
