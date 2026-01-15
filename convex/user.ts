@@ -277,6 +277,36 @@ export const setIsOnboardingCompleted = mutation({
   }
 });
 
+/**
+ * Reset onboarding completion status for a user
+ * Used when users accept invitations to ensure they complete role-specific onboarding
+ */
+export const resetOnboardingStatus = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity?.email) {
+      throw new Error("User not found");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found in Convex database");
+    }
+
+    await ctx.db.patch(user._id, {
+      isOnboardingComplete: false
+    });
+
+    console.log(`[resetOnboardingStatus] Reset onboarding status for ${userIdentity.email}`);
+    return { success: true };
+  }
+});
+
 export const getUserByEmail = query({
   args: {
     email: v.string()

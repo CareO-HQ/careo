@@ -195,17 +195,45 @@ export const getCurrentUser = query({
     }
 
     // Get user role from member record if not already set from fallback
-    if (!userRole && identity?.subject && activeOrganizationId) {
+    // Try with activeOrganizationId first, then try any member record if that fails
+    if (!userRole && identity?.subject) {
       try {
-        const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
-          model: "member",
-          where: [
-            { field: "userId", value: identity.subject },
-            { field: "organizationId", value: activeOrganizationId }
-          ]
-        });
-        if (member?.role) {
-          userRole = member.role as string;
+        // First try with activeOrganizationId if available
+        if (activeOrganizationId) {
+          const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "member",
+            where: [
+              { field: "userId", value: identity.subject },
+              { field: "organizationId", value: activeOrganizationId }
+            ]
+          });
+          if (member?.role) {
+            userRole = member.role as string;
+            console.log(`[getCurrentUser] Found role ${userRole} from member record for org ${activeOrganizationId}`);
+          }
+        }
+        
+        // If still no role, try to get from any member record (fallback)
+        if (!userRole) {
+          const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+            model: "member",
+            where: [{ field: "userId", value: identity.subject }],
+            paginationOpts: { cursor: null, numItems: 1 }
+          });
+          
+          if (members?.page && members.page.length > 0) {
+            const member = members.page[0];
+            if (member?.role) {
+              userRole = member.role as string;
+              // Also update activeOrganizationId if we found it from member record
+              if (!activeOrganizationId && member.organizationId) {
+                activeOrganizationId = member.organizationId;
+                console.log(`[getCurrentUser] Found organizationId ${activeOrganizationId} and role ${userRole} from member record`);
+              } else {
+                console.log(`[getCurrentUser] Found role ${userRole} from member record (org already set)`);
+              }
+            }
+          }
         }
       } catch (error) {
         console.error("[getCurrentUser] Error fetching member role:", error);

@@ -29,7 +29,7 @@ import CreateTeamModal from "../team/CreateTeamModal";
 import { useTransition } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { toast } from "sonner";
-import CreateOrgModal from "../organization/CreateOrgModal";
+import CreateCareHomeModal from "../organization/CreateCareHomeModal";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import OrganizationItem from "./OrganizationItem";
@@ -47,22 +47,40 @@ export function TeamSwitcher({
   const router = useRouter();
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: activeMember } = authClient.useActiveMember();
-  const isOwner = activeMember?.role === "owner";
-  const userRole = activeMember?.role as string | undefined;
+  const currentUser = useQuery(api.auth.getCurrentUser);
+  const isOwner = activeMember?.role === "owner" || currentUser?.role === "owner";
+  const userRole =
+    (activeMember?.role as string | undefined) ||
+    (currentUser as any)?.role ||
+    undefined;
   
   // Get care homes from careHomes table instead of organizations
+  // Always pass organizationId if available, even if query might handle it internally
   const careHomes = useQuery(
     api.rbac.careHomes.getCareHomes,
     activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
   );
+
+  // Debug logging for care homes
+  if (typeof window !== 'undefined' && isOwner) {
+    console.log('[TeamSwitcher] Care homes query state:', {
+      hasActiveOrg: !!activeOrganization,
+      orgId: activeOrganization?.id,
+      careHomesCount: careHomes?.length ?? 0,
+      careHomes: careHomes,
+      userRole: userRole,
+      isOwner
+    });
+  }
   
-  // Get current user to check active care home
-  const currentUser = useQuery(api.users.getCurrentUserContext);
-  const activeCareHomeId = currentUser?.user?.activeCareHomeId;
+  // Get current user context to check active care home and unit
+  const currentUserContext = useQuery(api.users.getCurrentUserContext);
+  const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
 
   const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
   const { activeTeamId, activeTeam } = useActiveTeam();
   const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
+  const switchActiveUnit = useMutation(api.rbac.units.switchActiveUnit);
   const switchActiveCareHome = useMutation(api.rbac.careHomes.switchActiveCareHome);
 
   const getActiveOrgLogoQuery = useQuery(
@@ -70,22 +88,63 @@ export function TeamSwitcher({
     {}
   );
 
-  // Use the query hook to get teams for current user (all teams for all roles)
-  const teamsForUser = useQuery(api.auth.getTeamsForCurrentUser, {});
+  // For Nurse/Care Assistant: get all units/teams in care home
+  // For Manager/Owner: get all teams in organization
+  const effectiveRole =
+    userRole ||
+    currentUserContext?.role ||
+    (currentUserContext?.user?.activeUnitId ? "nurse" : undefined);
+  const isNurseOrCareAssistant =
+    effectiveRole === "nurse" || effectiveRole === "care_assistant";
+  const assignedTeams = useQuery(
+    isNurseOrCareAssistant 
+      ? api.rbac.units.getAssignedTeams 
+      : api.auth.getTeamsForCurrentUser,
+    {}
+  );
+  // Process teams based on role
+  let orgTeams: Array<{
+    id: string;
+    name: string;
+    unitId?: Id<"units">;
+  }> = [];
   
-  // Filter out teams that have the same name as the organization (default teams)
-  const orgTeams = teamsForUser?.filter(
-    (team: { id: string; name: string }) =>
-      team.name !== activeOrganization?.name
-  ) || [];
+  if (isNurseOrCareAssistant && assignedTeams) {
+    // For Nurse/Care Assistant: use assignedTeams which returns unitId, teamId, name
+    orgTeams = assignedTeams
+      .filter((team: { teamId: string; name: string }) =>
+        team.name !== activeOrganization?.name
+      )
+      .map((team: { teamId: string; name: string; unitId: Id<"units"> }) => ({
+        id: team.teamId,
+        name: team.name,
+        unitId: team.unitId
+      }));
+  } else if (assignedTeams) {
+    // For Manager/Owner: filter default teams
+    orgTeams = assignedTeams.filter(
+      (team: { id: string; name: string }) =>
+        team.name !== activeOrganization?.name
+    ) || [];
+  }
 
-  const handleTeamClick = async (teamId: string) => {
+  const handleTeamClick = async (teamId: string, unitId?: Id<"units">) => {
     try {
-      await updateActiveTeam({ teamId });
-      toast.success("Team switched successfully");
+      if (isNurseOrCareAssistant && unitId) {
+        // For Nurse/Care Assistant: use switchActiveUnit which updates both activeUnitId and activeTeamId
+        await switchActiveUnit({ unitId });
+        toast.success("Team switched successfully");
+        // Reload page to refresh all team-scoped data
+        window.location.reload();
+      } else {
+        // For Manager/Owner: use updateActiveTeam
+        await updateActiveTeam({ teamId });
+        toast.success("Team switched successfully");
+      }
     } catch (error) {
       console.error("Error switching team:", error);
-      toast.error("Failed to switch team");
+      const errorMessage = error instanceof Error ? error.message : "Failed to switch team";
+      toast.error(errorMessage);
     }
   };
 
@@ -151,17 +210,21 @@ export function TeamSwitcher({
             <div className="flex flex-row items-center justify-between">
               <DropdownMenuLabel>Care homes</DropdownMenuLabel>
               {isOwner ? (
-                <CreateOrgModal>
+                <CreateCareHomeModal>
                   <DropdownMenuItem
-                    onSelect={(e) => e.preventDefault()}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      // Dialog will open via DialogTrigger
+                    }}
                     disabled={
                       (careHomes?.length ?? 0) >=
                       config.limits.organizations
                     }
+                    className="cursor-pointer"
                   >
                     <PlusIcon className="size-3 text-primary" />
                   </DropdownMenuItem>
-                </CreateOrgModal>
+                </CreateCareHomeModal>
               ) : (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -197,20 +260,35 @@ export function TeamSwitcher({
             <DropdownMenuSeparator />
             <div className="flex flex-row items-center justify-between">
               <DropdownMenuLabel>Units/House</DropdownMenuLabel>
-              <CreateTeamModal>
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  disabled={(orgTeams?.length ?? 0) >= config.limits.teams}
-                >
-                  <PlusIcon className="size-3 text-primary" />
-                </DropdownMenuItem>
-              </CreateTeamModal>
+              {isNurseOrCareAssistant ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <DropdownMenuItem disabled>
+                        <PlusIcon className="size-3 text-muted-foreground" />
+                      </DropdownMenuItem>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={4}>
+                    Only managers and owners can add teams
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <CreateTeamModal>
+                  <DropdownMenuItem
+                    onSelect={(e) => e.preventDefault()}
+                    disabled={(orgTeams?.length ?? 0) >= config.limits.teams}
+                  >
+                    <PlusIcon className="size-3 text-primary" />
+                  </DropdownMenuItem>
+                </CreateTeamModal>
+              )}
             </div>
             {orgTeams?.length ? (
-              orgTeams.map((team: { id: string; name: string }) => (
+              orgTeams.map((team: { id: string; name: string; unitId?: Id<"units"> }) => (
                 <DropdownMenuItem
                   key={team.id}
-                  onClick={() => handleTeamClick(team.id)}
+                  onClick={() => handleTeamClick(team.id, team.unitId)}
                   className={activeTeamId === team.id ? "bg-accent" : ""}
                 >
                   <div className="flex items-center justify-start gap-2 w-full">
@@ -233,7 +311,9 @@ export function TeamSwitcher({
               ))
             ) : (
               <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                {orgName} has no teams yet.
+                {isNurseOrCareAssistant 
+                  ? "No units available in your care home yet."
+                  : `${orgName} has no teams yet.`}
               </div>
             )}
 

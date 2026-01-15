@@ -627,9 +627,10 @@ export const createCareHomeOwner = mutation({
       });
       // #endregion
 
-      // Schedule the email sending action
+      // Schedule the email sending action immediately
+      // Use internal action for better reliability
       try {
-        await ctx.scheduler.runAfter(0, api.customInviteEmail.sendInvitationEmail, {
+        await ctx.scheduler.runAfter(0, internal.customInviteEmail.sendInvitationEmailInternal, {
           invitationId: invitationIdStr,
           email: args.email,
           organizationName: args.organizationName,
@@ -645,7 +646,16 @@ export const createCareHomeOwner = mutation({
         // #endregion
       } catch (schedulerError) {
         console.error("❌ Failed to schedule email sending:", schedulerError);
+        // Log the full error for debugging
+        console.error("Scheduler error details:", {
+          error: schedulerError,
+          invitationId: invitationIdStr,
+          email: args.email,
+          errorMessage: schedulerError instanceof Error ? schedulerError.message : String(schedulerError),
+          errorStack: schedulerError instanceof Error ? schedulerError.stack : undefined
+        });
         // Don't fail the invitation creation if email scheduling fails
+        // The invitation is still created and can be resent later
       }
 
       return {

@@ -165,7 +165,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
 
       // Refresh the page to show updates
       window.location.reload();
-    } catch (_error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update staff details",

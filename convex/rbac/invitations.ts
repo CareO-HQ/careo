@@ -358,6 +358,20 @@ export const acceptInvitation = mutation({
       status: "accepted"
     });
 
+    // Reset onboarding completion status for invited users
+    // This ensures they go through role-specific onboarding even if they've completed it before
+    const convexUser = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", invitation.email))
+      .first();
+
+    if (convexUser) {
+      await ctx.db.patch(convexUser._id, {
+        isOnboardingComplete: false
+      });
+      console.log(`[acceptInvitation] Reset onboarding status for ${invitation.email} to ensure role-specific onboarding`);
+    }
+
     // Set the organization as active in the session
     try {
       const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);

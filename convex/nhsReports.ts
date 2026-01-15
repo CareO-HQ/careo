@@ -8,6 +8,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { resolveUser, ROLES } from "./lib/rbac";
+import { canForwardIncident, canEditIncident } from "./lib/permissions";
 
 /**
  * Create NHS Report from Incident
@@ -40,6 +42,17 @@ export const createFromIncident = mutation({
     const resident = await ctx.db.get(incident.residentId);
     if (!resident) {
       throw new Error("Resident not found");
+    }
+
+    // RBAC: Only Managers can create/forward NHS reports
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canForwardIncident(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to create NHS report for incident ${args.incidentId} but role ${role} cannot forward`);
+      throw new Error("Unauthorized: Only Managers can create and forward NHS reports");
     }
 
     // Get current user
@@ -217,6 +230,17 @@ export const update = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can edit NHS reports
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canEditIncident(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to edit NHS report ${args.id} but role ${role} cannot edit`);
+      throw new Error("Unauthorized: Only Managers can edit NHS reports");
+    }
+
     const report = await ctx.db.get(args.id);
     if (!report) {
       throw new Error("Report not found");

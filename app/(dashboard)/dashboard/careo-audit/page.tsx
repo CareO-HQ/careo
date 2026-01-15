@@ -45,6 +45,7 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { authClient } from "@/lib/auth-client";
+import { withRoleGuard } from "@/lib/route-guards";
 
 interface Audit {
   id: string;
@@ -1381,10 +1382,13 @@ function CareOAuditPageContent() {
   );
 }
 
-export default function CareOAuditPage() {
+function CareOAuditPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
       <CareOAuditPageContent />
     </Suspense>
   );
 }
+
+// Protect route - only Managers, Owners, and SaaS Admins can access
+export default withRoleGuard(CareOAuditPage, ["manager", "owner", "saas_admin"]);

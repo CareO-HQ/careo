@@ -1,7 +1,8 @@
 import { api } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { resolveUser, ROLES } from "./lib/rbac";
+import { resolveUser, resolveCareHome, ROLES } from "./lib/rbac";
+import { Id } from "./_generated/dataModel";
 
 export const create = mutation({
   args: {
@@ -85,23 +86,26 @@ export const create = mutation({
   handler: async (ctx, args) => {
     // RBAC: Resolve user and check permissions
     const { user, role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
-    
+    const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     if (!role) {
-      throw new Error("Unauthorized: User role not found");
+      console.warn(
+        "[create] No role found for user; using fallback role",
+        { effectiveRole }
+      );
     }
     
     // Care Assistants cannot create residents
-    if (role === ROLES.CARE_ASSISTANT) {
+    if (effectiveRole === ROLES.CARE_ASSISTANT) {
       throw new Error("Unauthorized: Care assistants cannot create residents");
     }
     
     // Enforce organization scope (unless SaaS Admin)
-    if (role !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
+    if (effectiveRole !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
       throw new Error("Unauthorized: Cannot create resident in different organization");
     }
     
     // Verify unit access for Nurse (Care Assistants already excluded above)
-    if (role === ROLES.NURSE) {
+    if (effectiveRole === ROLES.NURSE) {
       if (!activeUnitId) {
         throw new Error("Unauthorized: No active unit");
       }
@@ -179,15 +183,19 @@ export const createEmergencyContact = mutation({
 
 export const getByOrganization = query({
   args: {
-    organizationId: v.optional(v.string())
+    organizationId: v.optional(v.string()),
+    careHomeId: v.optional(v.id("careHomes"))
   },
   returns: v.array(v.any()),
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     // RBAC: Resolve user and enforce tenant isolation
     const { role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
-    
+    const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     if (!role) {
-      throw new Error("Unauthorized: User role not found");
+      console.warn(
+        "[getByOrganization] No role found for user; using fallback role",
+        { effectiveRole }
+      );
     }
     
     // Determine target organization
@@ -198,8 +206,24 @@ export const getByOrganization = query({
     }
     
     // SaaS Admin can read all, others must match their organization
-    if (role !== ROLES.SAAS_ADMIN && targetOrgId !== userOrgId) {
+    if (effectiveRole !== ROLES.SAAS_ADMIN && targetOrgId !== userOrgId) {
       throw new Error("Unauthorized: Cannot access different organization");
+    }
+    
+    // Resolve care home context
+    let targetCareHomeId: Id<"careHomes"> | null = null;
+    if (args.careHomeId) {
+      // Verify user can access the specified care home
+      const careHome = await ctx.db.get(args.careHomeId);
+      if (
+        careHome &&
+        (effectiveRole === ROLES.SAAS_ADMIN || careHome.organizationId === targetOrgId)
+      ) {
+        targetCareHomeId = args.careHomeId;
+      }
+    } else {
+      // Get active care home for user
+      targetCareHomeId = await resolveCareHome(ctx);
     }
     
     // Build query with organization filter
@@ -210,12 +234,57 @@ export const getByOrganization = query({
       )
       .filter((q) => q.eq(q.field("isActive"), true));
     
-    // Apply unit filter for Nurse/Care Assistant
-    if ((role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) && activeUnitId) {
-      const unit = await ctx.db.get(activeUnitId);
-      if (unit) {
-        query = query.filter((q) => q.eq(q.field("teamId"), unit.teamId));
+    // Apply care home filter for Manager and Owner
+    if (targetCareHomeId && (effectiveRole === ROLES.MANAGER || effectiveRole === ROLES.OWNER)) {
+      // Get all units in this care home
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
+        .collect();
+      
+      const teamIds = new Set(units.map(u => u.teamId));
+      
+      // Filter residents by team IDs in this care home
+      if (teamIds.size > 0) {
+        // Get all residents first, then filter by team IDs
+        const allResidents = await query.collect();
+        const filteredResidents = allResidents.filter((resident: any) => 
+          teamIds.has(resident.teamId)
+        );
+        
+        // Process residents with images
+        const results: Array<Record<string, unknown>> = [];
+        for (const resident of filteredResidents) {
+          const residentImage: { url: string | null; storageId: string } | null =
+            await ctx.runQuery(api.files.image.getResidentImageByResidentId, {
+              residentId: resident._id as string
+            });
+          results.push({
+            ...resident,
+            imageUrl: residentImage?.url || "No image"
+          });
+        }
+
+        return results;
+      } else {
+        // No units in this care home, return empty
+        return [];
       }
+    }
+    
+    // Apply unit filter for Nurse/Care Assistant
+    if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
+      if (!activeUnitId) {
+        // Nurse/Care Assistant must have an active unit to view residents
+        console.warn(`[RBAC] Access denied: User attempted to access residents without active unit`);
+        return [];
+      }
+      const unit = await ctx.db.get(activeUnitId);
+      if (!unit) {
+        console.warn(`[RBAC] Access denied: User's active unit ${activeUnitId} not found`);
+        return [];
+      }
+      query = query.filter((q) => q.eq(q.field("teamId"), unit.teamId));
     }
     
     const residents = await query.collect();
@@ -245,25 +314,59 @@ export const getById = query({
   handler: async (ctx, args): Promise<any | null> => {
     // RBAC: Resolve user and check access
     const { role, organizationId, activeUnitId } = await resolveUser(ctx);
+    const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     
     const resident = await ctx.db.get(args.residentId);
     if (!resident) return null;
     
     if (!role) {
-      throw new Error("Unauthorized: User role not found");
+      console.warn(
+        "[getById] No role found for user; using fallback role",
+        { effectiveRole }
+      );
     }
     
     // SaaS Admin can read all
-    if (role !== ROLES.SAAS_ADMIN) {
+    if (effectiveRole !== ROLES.SAAS_ADMIN) {
       // Enforce organization isolation
       if (resident.organizationId !== organizationId) {
         throw new Error("Unauthorized: Resident does not belong to your organization");
       }
       
+      // For Manager, verify care home access
+      if (effectiveRole === ROLES.MANAGER) {
+        // Get unit for this resident
+        const unit = await ctx.db
+          .query("units")
+          .withIndex("by_teamId", (q) => q.eq("teamId", resident.teamId))
+          .first();
+        
+        if (unit) {
+          // Check if manager is assigned to this care home
+          const identity = await ctx.auth.getUserIdentity();
+          if (identity?.subject) {
+            const managerAssignment = await ctx.db
+              .query("careHomeManagers")
+              .withIndex("by_careHomeId", (q) => q.eq("careHomeId", unit.careHomeId))
+              .filter((q) => q.eq(q.field("userId"), identity.subject))
+              .first();
+            
+            if (!managerAssignment) {
+              throw new Error("Unauthorized: Resident does not belong to a care home you manage");
+            }
+          }
+        }
+      }
+      
       // Enforce unit isolation for Nurse/Care Assistant
-      if ((role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) && activeUnitId) {
+      if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+        if (!activeUnitId) {
+          console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} without active unit`);
+          throw new Error("Unauthorized: You must have an active unit to access residents");
+        }
         const unit = await ctx.db.get(activeUnitId);
         if (!unit || resident.teamId !== unit.teamId) {
+          console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} from team ${resident.teamId} but active team is ${unit?.teamId || 'none'}`);
           throw new Error("Unauthorized: Resident does not belong to your active unit");
         }
       }
@@ -293,6 +396,67 @@ export const getByTeamId = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
+    // RBAC: Resolve user and enforce access
+    const { role, organizationId, activeUnitId } = await resolveUser(ctx);
+    const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
+    if (!role) {
+      console.warn(
+        "[getByTeamId] No role found for user; using fallback role",
+        { effectiveRole }
+      );
+    }
+
+    // For Nurse/Care Assistant: verify they're accessing their active team
+    if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
+      if (!activeUnitId) {
+        console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} without active unit`);
+        return [];
+      }
+      const unit = await ctx.db.get(activeUnitId);
+      if (!unit || unit.teamId !== args.teamId) {
+        console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} but active team is ${unit?.teamId || 'none'}`);
+        return [];
+      }
+    }
+
+    // For Manager: verify team belongs to a care home they manage
+    if (effectiveRole === ROLES.MANAGER) {
+      const unit = await ctx.db
+        .query("units")
+        .withIndex("by_teamId", (q) => q.eq("teamId", args.teamId))
+        .first();
+      
+      if (unit) {
+        const identity = await ctx.auth.getUserIdentity();
+        if (identity?.subject) {
+          const managerAssignment = await ctx.db
+            .query("careHomeManagers")
+            .withIndex("by_careHomeId", (q) => q.eq("careHomeId", unit.careHomeId))
+            .filter((q) => q.eq(q.field("userId"), identity.subject))
+            .first();
+          
+          if (!managerAssignment) {
+            console.warn(`[RBAC] Access denied: Manager attempted to access team ${args.teamId} in care home they don't manage`);
+            return [];
+          }
+        }
+      }
+    }
+
+    // SaaS Admin can access all, Owner can access all in their organization
+    if (effectiveRole !== ROLES.SAAS_ADMIN && effectiveRole !== ROLES.OWNER) {
+      // Verify team belongs to user's organization
+      const unit = await ctx.db
+        .query("units")
+        .withIndex("by_teamId", (q) => q.eq("teamId", args.teamId))
+        .first();
+      
+      if (unit && unit.organizationId !== organizationId) {
+        console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} from different organization`);
+        return [];
+      }
+    }
+
     const residents = await ctx.db
       .query("residents")
       .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))

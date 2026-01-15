@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { canEditIncident, canCreateIncident } from "@/lib/permissions";
+import { canEditIncident, canCreateIncident, canForwardIncident } from "@/lib/permissions";
 
 type IncidentsPageProps = {
   params: Promise<{ id: string }>;
@@ -1473,15 +1473,17 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                             Download PDF
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleNHSReport(incident._id)}
-                            disabled={nhsReportExistsMap.get(incident._id) || false}
-                          >
-                            <FileBarChart className="w-4 h-4 mr-2" />
-                            {nhsReportExistsMap.get(incident._id)
-                              ? "NHS Report Generated"
-                              : "Generate NHS Report"}
-                          </DropdownMenuItem>
+                          {canForwardIncident(activeMember?.role as any) && (
+                            <DropdownMenuItem
+                              onClick={() => handleNHSReport(incident._id)}
+                              disabled={nhsReportExistsMap.get(incident._id) || false}
+                            >
+                              <FileBarChart className="w-4 h-4 mr-2" />
+                              {nhsReportExistsMap.get(incident._id)
+                                ? "NHS Report Generated"
+                                : "Generate NHS Report"}
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem>
                             <User className="w-4 h-4 mr-2" />
                             <span>Body Map</span>

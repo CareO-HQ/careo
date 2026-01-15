@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { resolveUser } from "./lib/rbac";
+import { canForwardIncident, canEditIncident } from "./lib/permissions";
 
 // Get all trust incident reports for an incident
 export const getByIncidentId = query({
@@ -66,6 +68,17 @@ export const create = mutation({
     reportData: v.optional(v.any())
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can create/forward trust incident reports
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canForwardIncident(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to create trust report for incident ${args.incidentId} but role ${role} cannot forward`);
+      throw new Error("Unauthorized: Only Managers can create and forward trust incident reports");
+    }
+
     const reportId = await ctx.db.insert("trustIncidentReports", {
       ...args,
       createdAt: new Date().toISOString()
@@ -83,6 +96,17 @@ export const update = mutation({
     reportData: v.optional(v.any())
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can edit trust incident reports
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canEditIncident(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to edit trust report ${args.reportId} but role ${role} cannot edit`);
+      throw new Error("Unauthorized: Only Managers can edit trust incident reports");
+    }
+
     const { reportId, ...updateData } = args;
     
     const existingReport = await ctx.db.get(reportId);

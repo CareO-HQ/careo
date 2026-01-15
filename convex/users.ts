@@ -3,6 +3,7 @@ import { query, mutation } from "./_generated/server";
 import { api } from "./_generated/api";
 import { components } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { resolveUser, resolveCareHome, ROLES } from "./lib/rbac";
 
 export const getCurrentUserContext = query({
   args: {},
@@ -20,6 +21,10 @@ export const getCurrentUserContext = query({
     if (!user) {
       return null;
     }
+
+    // Resolve role for client-side fallback logic
+    const resolved = await resolveUser(ctx);
+    const resolvedRole = resolved.role || null;
 
     // Get the active team if set
     let team: { id: string; name: string } | null = null;
@@ -62,6 +67,7 @@ export const getCurrentUserContext = query({
         activeUnitId: user.activeUnitId,
         activeCareHomeId: user.activeCareHomeId
       },
+      role: resolvedRole,
       team,
       organization
     };
@@ -71,17 +77,53 @@ export const getCurrentUserContext = query({
 // Get all users in an organization
 export const getByOrganization = query({
   args: {
-    organizationId: v.string()
+    organizationId: v.string(),
+    careHomeId: v.optional(v.id("careHomes"))
   },
   returns: v.array(v.any()),
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     console.log("getByOrganization called with:", args.organizationId);
 
+    // RBAC: Resolve user and enforce access
+    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+    
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+    
+    // Verify organization access (unless SaaS Admin)
+    if (role !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
+      throw new Error("Unauthorized: Cannot access different organization");
+    }
+    
+    // Resolve care home context
+    let targetCareHomeId: Id<"careHomes"> | null = null;
+    if (args.careHomeId) {
+      const careHome = await ctx.db.get(args.careHomeId);
+      if (careHome && (role === ROLES.SAAS_ADMIN || careHome.organizationId === args.organizationId)) {
+        targetCareHomeId = args.careHomeId;
+      }
+    } else {
+      targetCareHomeId = await resolveCareHome(ctx);
+    }
+
     // Get all team members for this organization
-    const teamMembers = await ctx.db
+    let teamMembers = await ctx.db
       .query("teamMembers")
       .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
       .collect();
+
+    // Apply care home filter for Manager and Owner
+    if (targetCareHomeId && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
+      // Get all units in this care home
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
+        .collect();
+      
+      const teamIds = new Set(units.map(u => u.teamId));
+      teamMembers = teamMembers.filter((tm: any) => teamIds.has(tm.teamId));
+    }
 
     console.log("Found team members:", teamMembers.length);
 

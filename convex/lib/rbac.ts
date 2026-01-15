@@ -98,19 +98,9 @@ export async function resolveUser(
   organizationId: string | null;
   activeUnitId: Id<"units"> | null;
 }> {
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.ts:101',message:'resolveUser entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-  // #endregion
   const identity = await ctx.auth.getUserIdentity();
   
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.ts:104',message:'identity check',data:{hasIdentity:!!identity,hasEmail:!!identity?.email,hasSubject:!!identity?.subject,email:identity?.email||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-  // #endregion
-
   if (!identity?.email) {
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.ts:107',message:'Not authenticated error thrown',data:{identity:identity?JSON.stringify(identity):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-    // #endregion
     throw new Error("Not authenticated");
   }
 
@@ -130,9 +120,6 @@ export async function resolveUser(
 
   try {
     const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.ts:123',message:'session retrieved',data:{hasSession:!!session,hasActiveOrgId:!!session?.activeOrganizationId,activeOrgId:session?.activeOrganizationId||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-    // #endregion
     if (session?.activeOrganizationId) {
       // CRITICAL: Validate that the organization exists before using it
       const orgExists = await ctx.runQuery(components.betterAuth.lib.findOne, {
@@ -153,10 +140,6 @@ export async function resolveUser(
               { field: "organizationId", value: organizationId }
             ]
           });
-          // #region agent log
-          fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.ts:135',message:'member record',data:{hasMember:!!member,memberRole:member?.role||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-          // #endregion
-          
           // If no member record but organization exists, that's OK during onboarding
           // The organizationId from session is still valid
           if (!member) {
@@ -254,14 +237,128 @@ export async function resolveUser(
       }
     }
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rbac.ts:138',message:'session/member error',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-    // #endregion
     console.error("Error fetching session/member:", error);
   }
 
-  // Get role
-  const role = await getRoleFromUser(ctx, user, member);
+  // Get role from user/member
+  let role = await getRoleFromUser(ctx, user, member);
+
+  // Fallback: derive role from latest invitation when member is missing
+  if (!role && identity.email) {
+    const userEmail = identity.email;
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", userEmail))
+      .filter((q) =>
+        q.or(q.eq(q.field("status"), "accepted"), q.eq(q.field("status"), "pending"))
+      )
+      .order("desc")
+      .take(1);
+
+    if (invitations.length > 0) {
+      const invitation = invitations[0];
+      const invitedRole = invitation.role;
+      if (Object.values(ROLES).includes(invitedRole as UserRole)) {
+        role = invitedRole as UserRole;
+        if (!organizationId) {
+          organizationId = invitation.organizationId;
+        }
+        console.warn(
+          `[resolveUser] Using role ${role} from invitation for user ${identity.email}`
+        );
+      }
+    }
+  }
+
+  // Fallback: derive role from local tables if still missing
+  if (!role && identity.subject) {
+    // Owner: created a care home in this organization
+    if (organizationId) {
+      const ownedCareHome = await ctx.db
+        .query("careHomes")
+        .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+        .filter((q) => q.eq(q.field("organizationId"), organizationId))
+        .first();
+      if (ownedCareHome) {
+        role = ROLES.OWNER;
+        console.warn(
+          `[resolveUser] Using role ${role} from careHomes.createdBy for user ${identity.email}`
+        );
+      }
+    }
+
+    // Manager: assigned to manage a care home
+    if (!role) {
+      const managerAssignment = await ctx.db
+        .query("careHomeManagers")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .first();
+      if (managerAssignment) {
+        if (organizationId) {
+          const careHome = await ctx.db.get(managerAssignment.careHomeId);
+          if (careHome?.organizationId === organizationId) {
+            role = ROLES.MANAGER;
+          }
+        } else {
+          role = ROLES.MANAGER;
+        }
+        if (role) {
+          console.warn(
+            `[resolveUser] Using role ${role} from careHomeManagers for user ${identity.email}`
+          );
+        }
+      }
+    }
+
+    // Nurse/Care Assistant: role stored on teamMembers
+    if (!role) {
+      const teamMember = await ctx.db
+        .query("teamMembers")
+        .withIndex("byUserId", (q) => q.eq("userId", identity.subject))
+        .first();
+      const teamRole = teamMember?.role;
+      if (teamRole && Object.values(ROLES).includes(teamRole as UserRole)) {
+        role = teamRole as UserRole;
+        if (!organizationId && teamMember?.organizationId) {
+          organizationId = teamMember.organizationId;
+        }
+        console.warn(
+          `[resolveUser] Using role ${role} from teamMembers for user ${identity.email}`
+        );
+      }
+    }
+
+    if (!role && identity.email && organizationId) {
+      const orgId = organizationId;
+      const teamMemberByEmail = await ctx.db
+        .query("teamMembers")
+        .withIndex("byOrganization", (q) => q.eq("organizationId", orgId))
+        .filter((q) => q.eq(q.field("email"), identity.email))
+        .first();
+      const teamRole = teamMemberByEmail?.role;
+      if (teamRole && Object.values(ROLES).includes(teamRole as UserRole)) {
+        role = teamRole as UserRole;
+        console.warn(
+          `[resolveUser] Using role ${role} from teamMembers email for user ${identity.email}`
+        );
+      }
+    }
+
+    // Fallback: derive role from unitStaff assignments
+    if (!role && identity.subject) {
+      const unitStaff = await ctx.db
+        .query("unitStaff")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .first();
+      const staffRole = unitStaff?.role;
+      if (staffRole && Object.values(ROLES).includes(staffRole as UserRole)) {
+        role = staffRole as UserRole;
+        console.warn(
+          `[resolveUser] Using role ${role} from unitStaff for user ${identity.email}`
+        );
+      }
+    }
+  }
 
   // Get active unit ID
   const activeUnitId = user.activeUnitId || null;
@@ -439,7 +536,7 @@ export async function canAccessUnit(
     return true;
   }
 
-  // Get unit to check organization
+  // Get unit to check organization and care home
   const unit = await ctx.db.get(unitId);
   if (!unit) {
     return false;
@@ -450,9 +547,25 @@ export async function canAccessUnit(
     return false;
   }
 
-  // Owner and Manager can access any unit in their organization
-  if (role === ROLES.OWNER || role === ROLES.MANAGER) {
+  // Owner can access any unit in their organization
+  if (role === ROLES.OWNER) {
     return true;
+  }
+
+  // Manager can only access units in care homes they manage
+  if (role === ROLES.MANAGER) {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      return false;
+    }
+
+    const managerAssignment = await ctx.db
+      .query("careHomeManagers")
+      .withIndex("by_careHomeId", (q) => q.eq("careHomeId", unit.careHomeId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first();
+
+    return !!managerAssignment;
   }
 
   // Nurse and Care Assistant can only access their active unit
@@ -517,4 +630,146 @@ export function scopeByUnit<T>(
   }
 
   return query;
+}
+
+/**
+ * Resolve active care home for the current user
+ * 
+ * Returns the user's active care home, or the first care home in their organization.
+ * For SaaS Admin, returns null (can access all).
+ * For Managers, verifies they're assigned to the care home.
+ */
+export async function resolveCareHome(
+  ctx: QueryCtx | MutationCtx
+): Promise<Id<"careHomes"> | null> {
+  const { user, role, organizationId } = await resolveUser(ctx);
+
+  // SaaS Admin can access all care homes - return null to indicate no filtering needed
+  if (role === ROLES.SAAS_ADMIN) {
+    return null;
+  }
+
+  if (!organizationId) {
+    return null;
+  }
+
+  // If user has activeCareHomeId set, verify access and return it
+  if (user.activeCareHomeId) {
+    const careHome = await ctx.db.get(user.activeCareHomeId);
+    if (careHome && careHome.organizationId === organizationId) {
+      // For managers, verify they're assigned to this care home
+      if (role === ROLES.MANAGER) {
+        const identity = await ctx.auth.getUserIdentity();
+        if (identity?.subject) {
+          const managerAssignment = await ctx.db
+            .query("careHomeManagers")
+            .withIndex("by_careHomeId", (q) => q.eq("careHomeId", user.activeCareHomeId!))
+            .filter((q) => q.eq(q.field("userId"), identity.subject))
+            .first();
+
+          if (managerAssignment) {
+            return user.activeCareHomeId;
+          }
+        }
+        // Manager not assigned to this care home - fall through to get first assigned care home
+      } else {
+        // Owner, Nurse, Care Assistant can access care homes in their organization
+        return user.activeCareHomeId;
+      }
+    }
+  }
+
+  // Get first care home in organization
+  // For managers, get first care home they're assigned to
+  if (role === ROLES.MANAGER) {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity?.subject) {
+      // Get all care homes the manager is assigned to
+      const managerAssignments = await ctx.db
+        .query("careHomeManagers")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .collect();
+
+      // Filter to care homes in this organization
+      for (const assignment of managerAssignments) {
+        const careHome = await ctx.db.get(assignment.careHomeId);
+        if (careHome && careHome.organizationId === organizationId) {
+          return careHome._id;
+        }
+      }
+    }
+    return null;
+  }
+
+  // For owners and others, get first care home in organization
+  const firstCareHome = await ctx.db
+    .query("careHomes")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+    .first();
+
+  return firstCareHome?._id || null;
+}
+
+/**
+ * Check if user can access a specific care home
+ */
+export async function canAccessCareHome(
+  ctx: QueryCtx | MutationCtx,
+  careHomeId: Id<"careHomes">
+): Promise<boolean> {
+  const { role, organizationId } = await resolveUser(ctx);
+
+  if (!role) {
+    return false;
+  }
+
+  // SaaS Admin can access all care homes
+  if (role === ROLES.SAAS_ADMIN) {
+    return true;
+  }
+
+  // Get care home
+  const careHome = await ctx.db.get(careHomeId);
+  if (!careHome) {
+    return false;
+  }
+
+  // Verify organization match
+  if (careHome.organizationId !== organizationId) {
+    return false;
+  }
+
+  // Owner can access all care homes in their organization
+  if (role === ROLES.OWNER) {
+    return true;
+  }
+
+  // Manager can only access care homes they're assigned to
+  if (role === ROLES.MANAGER) {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      return false;
+    }
+
+    const managerAssignment = await ctx.db
+      .query("careHomeManagers")
+      .withIndex("by_careHomeId", (q) => q.eq("careHomeId", careHomeId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first();
+
+    return !!managerAssignment;
+  }
+
+  // Nurse and Care Assistant can access care homes that contain their units
+  if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+    const { activeUnitId } = await resolveUser(ctx);
+    if (!activeUnitId) {
+      return false;
+    }
+
+    const unit = await ctx.db.get(activeUnitId);
+    return unit?.careHomeId === careHomeId;
+  }
+
+  return false;
 }

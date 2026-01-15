@@ -1,13 +1,14 @@
 /**
- * Unit Management Mutations
+ * Unit Management Mutations and Queries
  * 
  * Handles unit creation (Manager only), staff assignment, and unit switching.
+ * Provides queries to list units filtered by care home and organization.
  */
 
-import { mutation } from "../_generated/server";
+import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
-import { Id } from "../_generated/dataModel";
-import { canCreateUnit, resolveUser, ROLES } from "../lib/rbac";
+import { Doc, Id } from "../_generated/dataModel";
+import { canCreateUnit, resolveUser, resolveCareHome, ROLES } from "../lib/rbac";
 import { components } from "../_generated/api";
 
 /**
@@ -265,7 +266,6 @@ export const assignStaffToUnit = mutation({
  * Switch active unit (Nurse/Care Assistant only)
  * 
  * Allows staff members to switch their active unit context.
- * Only works if user is assigned to the target unit.
  * Does NOT change assignments, only updates activeUnitId.
  */
 export const switchActiveUnit = mutation({
@@ -278,13 +278,14 @@ export const switchActiveUnit = mutation({
   handler: async (ctx, args) => {
     // Get current user
     const { user, role, organizationId } = await resolveUser(ctx);
+    const effectiveRole = role ?? (user.activeUnitId ? ROLES.NURSE : null);
 
-    if (!role) {
+    if (!effectiveRole) {
       throw new Error("Unauthorized: User role not found");
     }
 
     // Only Nurse and Care Assistant can switch units
-    if (role !== ROLES.NURSE && role !== ROLES.CARE_ASSISTANT) {
+    if (effectiveRole !== ROLES.NURSE && effectiveRole !== ROLES.CARE_ASSISTANT) {
       throw new Error("Unauthorized: Only Nurses and Care Assistants can switch units");
     }
 
@@ -299,37 +300,406 @@ export const switchActiveUnit = mutation({
       throw new Error("Unauthorized: Unit does not belong to your organization");
     }
 
-    // Get Better Auth userId
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.subject) {
-      throw new Error("User identity not found");
-    }
-
-    // Verify user is assigned to this unit
-    const assignment = await ctx.db
-      .query("unitStaff")
-      .withIndex("by_unitId", (q) => q.eq("unitId", args.unitId))
-      .filter((q) => q.eq(q.field("userId"), identity.subject))
-      .first();
-
-    if (!assignment) {
-      throw new Error("Unauthorized: You are not assigned to this unit");
-    }
-
-    // Update user's activeUnitId
+    // Update user's activeUnitId and activeTeamId in a single operation
     await ctx.db.patch(user._id, {
-      activeUnitId: args.unitId
-    });
-
-    // Also update activeTeamId for backward compatibility
-    await ctx.db.patch(user._id, {
+      activeUnitId: args.unitId,
       activeTeamId: unit.teamId
     });
 
-    console.log(`[switchActiveUnit] User ${user.email} switched to unit ${args.unitId}`);
+    console.log(`[switchActiveUnit] User ${user.email} (${role}) switched to unit ${args.unitId} (team: ${unit.teamId})`);
 
     return {
       success: true
     };
+  }
+});
+
+/**
+ * Get units by care home
+ * 
+ * Returns all units in a specific care home.
+ * Managers can only see units in care homes they manage.
+ * Owners can see all units in their organization's care homes.
+ */
+export const getUnitsByCareHome = query({
+  args: {
+    careHomeId: v.id("careHomes")
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("units"),
+      careHomeId: v.id("careHomes"),
+      organizationId: v.string(),
+      name: v.string(),
+      teamId: v.string(),
+      createdBy: v.string(),
+      createdAt: v.number()
+    })
+  ),
+  handler: async (ctx, args) => {
+    const { role, organizationId } = await resolveUser(ctx);
+
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    // Get care home
+    const careHome = await ctx.db.get(args.careHomeId);
+    if (!careHome) {
+      throw new Error("Care home not found");
+    }
+
+    // SaaS Admin can access all
+    if (role === ROLES.SAAS_ADMIN) {
+      return await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
+        .collect();
+    }
+
+    // Verify organization access
+    if (careHome.organizationId !== organizationId) {
+      throw new Error("Unauthorized: Care home does not belong to your organization");
+    }
+
+    // For managers, verify they're assigned to this care home
+    if (role === ROLES.MANAGER) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.subject) {
+        throw new Error("User identity not found");
+      }
+
+      const managerAssignment = await ctx.db
+        .query("careHomeManagers")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
+        .filter((q) => q.eq(q.field("userId"), identity.subject))
+        .first();
+
+      if (!managerAssignment) {
+        throw new Error("Unauthorized: You are not a manager of this care home");
+      }
+    }
+
+    // Owner and Manager can see all units in the care home
+    // Nurse and Care Assistant can see units they're assigned to
+    if (role === ROLES.OWNER || role === ROLES.MANAGER) {
+      return await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
+        .collect();
+    }
+
+    // For Nurse and Care Assistant, filter by their assigned units
+    if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.subject) {
+        return [];
+      }
+
+      // Get all units user is assigned to
+      const unitStaff = await ctx.db
+        .query("unitStaff")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .collect();
+
+      const assignedUnitIds = new Set(unitStaff.map(us => us.unitId));
+
+      // Get all units in care home and filter to assigned ones
+      const allUnits = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
+        .collect();
+
+      return allUnits.filter(unit => assignedUnitIds.has(unit._id));
+    }
+
+    return [];
+  }
+});
+
+/**
+ * Get assigned teams for current user
+ * 
+ * Returns teams for the user, filtered by role:
+ * - Nurse/Care Assistant: All units in the active care home (or org fallback)
+ * - Manager: All teams in care homes they manage
+ * - Owner: All teams in their organization
+ * - SaaS Admin: All teams (not typically used)
+ */
+export const getAssignedTeams = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      unitId: v.id("units"),
+      teamId: v.string(),
+      name: v.string(),
+      careHomeId: v.id("careHomes"),
+      careHomeName: v.string()
+    })
+  ),
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const { user, role, organizationId } = await resolveUser(ctx);
+    const effectiveRole = role ?? (user.activeUnitId ? ROLES.NURSE : null);
+    if (!effectiveRole) {
+      return [];
+    }
+
+    if (!identity?.subject) {
+      return [];
+    }
+
+    // For Nurse/Care Assistant: show all units in active care home (or org fallback)
+    if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
+      let units: Array<Doc<"units">> = [];
+      const activeCareHomeId = await resolveCareHome(ctx);
+      if (activeCareHomeId) {
+        units = await ctx.db
+          .query("units")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", activeCareHomeId))
+          .collect();
+      } else if (organizationId) {
+        units = await ctx.db
+          .query("units")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .collect();
+      }
+
+      const careHomeIds = Array.from(new Set(units.map((unit) => unit.careHomeId)));
+      const careHomes = await Promise.all(
+        careHomeIds.map(async (careHomeId) => ({
+          careHomeId,
+          careHome: await ctx.db.get(careHomeId)
+        }))
+      );
+      const careHomeNameMap = new Map(
+        careHomes.map(({ careHomeId, careHome }) => [careHomeId, careHome?.name || ""])
+      );
+
+      return units.map((unit) => ({
+        unitId: unit._id,
+        teamId: unit.teamId,
+        name: unit.name,
+        careHomeId: unit.careHomeId,
+        careHomeName: careHomeNameMap.get(unit.careHomeId) || ""
+      }));
+    }
+    
+    // For Manager: all teams in care homes they manage
+    if (effectiveRole === ROLES.MANAGER) {
+      const managerAssignments = await ctx.db
+        .query("careHomeManagers")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .collect();
+
+      const careHomeIds = new Set<Id<"careHomes">>();
+      for (const assignment of managerAssignments) {
+        const careHome = await ctx.db.get(assignment.careHomeId);
+        if (careHome && careHome.organizationId === organizationId) {
+          careHomeIds.add(careHome._id);
+        }
+      }
+
+      const allTeams: Array<{
+        unitId: Id<"units">;
+        teamId: string;
+        name: string;
+        careHomeId: Id<"careHomes">;
+        careHomeName: string;
+      }> = [];
+
+      for (const careHomeId of careHomeIds) {
+        const units = await ctx.db
+          .query("units")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", careHomeId))
+          .collect();
+        
+        const careHome = await ctx.db.get(careHomeId);
+        for (const unit of units) {
+          allTeams.push({
+            unitId: unit._id,
+            teamId: unit.teamId,
+            name: unit.name,
+            careHomeId: unit.careHomeId,
+            careHomeName: careHome?.name || ""
+          });
+        }
+      }
+
+      return allTeams;
+    }
+    
+    // For Owner: all teams in organization
+    if (effectiveRole === ROLES.OWNER) {
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId!))
+        .collect();
+
+      const teams = await Promise.all(
+        units.map(async (unit) => {
+          const careHome = await ctx.db.get(unit.careHomeId);
+          return {
+            unitId: unit._id,
+            teamId: unit.teamId,
+            name: unit.name,
+            careHomeId: unit.careHomeId,
+            careHomeName: careHome?.name || ""
+          };
+        })
+      );
+
+      return teams;
+    }
+
+    // SaaS Admin: return empty (they don't use team switching)
+    return [];
+  }
+});
+
+/**
+ * Get units by organization
+ * 
+ * Returns all units in an organization, optionally filtered by care home.
+ * Managers can only see units in care homes they manage.
+ * Owners can see all units in their organization.
+ */
+export const getUnitsByOrganization = query({
+  args: {
+    organizationId: v.optional(v.string()),
+    careHomeId: v.optional(v.id("careHomes"))
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("units"),
+      careHomeId: v.id("careHomes"),
+      organizationId: v.string(),
+      name: v.string(),
+      teamId: v.string(),
+      createdBy: v.string(),
+      createdAt: v.number()
+    })
+  ),
+  handler: async (ctx, args) => {
+    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    const targetOrgId = args.organizationId || userOrgId;
+
+    if (!targetOrgId) {
+      throw new Error("Organization ID required");
+    }
+
+    // SaaS Admin can access all
+    if (role === ROLES.SAAS_ADMIN) {
+      if (args.careHomeId !== undefined) {
+        return await ctx.db
+          .query("units")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId!))
+          .collect();
+      }
+      return await ctx.db
+        .query("units")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
+        .collect();
+    }
+
+    // Verify organization access
+    if (targetOrgId !== userOrgId) {
+      throw new Error("Unauthorized: Cannot access different organization");
+    }
+
+    // Resolve care home context
+    let targetCareHomeId: Id<"careHomes"> | null = null;
+    if (args.careHomeId) {
+      const careHome = await ctx.db.get(args.careHomeId);
+      if (careHome && careHome.organizationId === targetOrgId) {
+        targetCareHomeId = args.careHomeId;
+      }
+    } else {
+      targetCareHomeId = await resolveCareHome(ctx);
+    }
+
+    // For managers, get units from care homes they manage
+    if (role === ROLES.MANAGER) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.subject) {
+        return [];
+      }
+
+      // Get all care homes the manager is assigned to
+      const managerAssignments = await ctx.db
+        .query("careHomeManagers")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .collect();
+
+      const careHomeIds = new Set<Id<"careHomes">>();
+      for (const assignment of managerAssignments) {
+        const careHome = await ctx.db.get(assignment.careHomeId);
+        if (careHome && careHome.organizationId === targetOrgId) {
+          if (!targetCareHomeId || careHome._id === targetCareHomeId) {
+            careHomeIds.add(careHome._id);
+          }
+        }
+      }
+
+      // Get units from these care homes
+      const allUnits: any[] = [];
+      for (const careHomeId of careHomeIds) {
+        const units = await ctx.db
+          .query("units")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", careHomeId))
+          .collect();
+        allUnits.push(...units);
+      }
+
+      return allUnits;
+    }
+
+    // For owners, get all units in organization (optionally filtered by care home)
+    if (role === ROLES.OWNER) {
+      if (targetCareHomeId) {
+        return await ctx.db
+          .query("units")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
+          .collect();
+      }
+      return await ctx.db
+        .query("units")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
+        .collect();
+    }
+
+    // For Nurse and Care Assistant, get units they're assigned to
+    if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.subject) {
+        return [];
+      }
+
+      const unitStaff = await ctx.db
+        .query("unitStaff")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+        .collect();
+
+      const assignedUnitIds = new Set(unitStaff.map(us => us.unitId));
+
+      // Get all units in organization and filter to assigned ones
+      const allUnits = await ctx.db
+        .query("units")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
+        .collect();
+
+      return allUnits.filter(unit => assignedUnitIds.has(unit._id));
+    }
+
+    return [];
   }
 });

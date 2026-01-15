@@ -199,6 +199,7 @@ export default defineSchema({
   invitationMetadata: defineTable({
     invitationId: v.string(),
     teamId: v.optional(v.string()),
+    careHomeId: v.optional(v.id("careHomes")),
     organizationId: v.string()
   })
     .index("byInvitationId", ["invitationId"])

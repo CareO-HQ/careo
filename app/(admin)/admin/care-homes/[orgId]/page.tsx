@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users, UsersRound, Trash2, Ban } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -231,25 +232,27 @@ export default function CareHomeDetailsPage() {
           {careHomes && careHomes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {careHomes.map((careHome) => (
-                <Card key={careHome._id} className="border">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <Building2 className="h-5 w-5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(careHome.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <CardTitle className="mt-2 text-base">{careHome.name}</CardTitle>
-                    <CardDescription className="text-xs">
-                      Care Home ID: {careHome._id}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-sm text-muted-foreground">
-                      Created: {new Date(careHome.createdAt).toLocaleDateString()}
-                    </div>
-                  </CardContent>
-                </Card>
+                <Link key={careHome._id} href={`/admin/care-homes/${orgId}/${careHome._id}`}>
+                  <Card className="border hover:bg-accent transition-colors cursor-pointer">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(careHome.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <CardTitle className="mt-2 text-base">{careHome.name}</CardTitle>
+                      <CardDescription className="text-xs">
+                        Care Home ID: {careHome._id}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm text-muted-foreground">
+                        Created: {new Date(careHome.createdAt).toLocaleDateString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           ) : careHomes === undefined ? (

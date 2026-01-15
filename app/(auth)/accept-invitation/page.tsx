@@ -22,6 +22,7 @@ function AcceptInvitationContent() {
   const convex = useConvex();
   const assignTeamFromInvitation = useMutation(api.customInvite.assignTeamFromInvitationPublic);
   const ensureAndSetActiveOrganization = useMutation(api.auth.ensureAndSetActiveOrganization);
+  const resetOnboardingStatus = useMutation(api.user.resetOnboardingStatus);
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
 
@@ -51,6 +52,16 @@ function AcceptInvitationContent() {
             console.error("[accept-invitation] Error ensuring active organization:", error);
           }
 
+          // Reset onboarding status to ensure invited users complete role-specific onboarding
+          // This is important because users might have completed onboarding for a different role
+          try {
+            await resetOnboardingStatus();
+            console.log("[accept-invitation] Reset onboarding status for invited user");
+          } catch (error) {
+            // Don't fail invitation acceptance if this fails - onboarding will handle it
+            console.error("[accept-invitation] Error resetting onboarding status:", error);
+          }
+
           // Try to assign team from invitation if it exists
           if (token) {
             try {
@@ -66,22 +77,10 @@ function AcceptInvitationContent() {
             }
           }
 
-          if (!email) {
-            router.push("/onboarding");
-            return;
-          }
-
-          const userFromDb = await convex.query(api.user.getUserByEmail, {
-            email: email!
-          });
-
-          if (userFromDb?.isOnboardingComplete) {
-            router.push("/dashboard");
-            return;
-          } else {
-            router.push("/onboarding");
-            return;
-          }
+          // Always redirect invited users to onboarding to complete role-specific onboarding
+          // Even if they've completed onboarding before, they need to complete it for their new role
+          router.push("/onboarding");
+          return;
         },
         onError: (error) => {
           toast.error("Failed to accept invitation");

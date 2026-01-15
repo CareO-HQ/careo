@@ -86,20 +86,12 @@ export function AppSidebar() {
   // Get active care home
   const currentUserContext = useQuery(api.users.getCurrentUserContext);
   const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppSidebar.tsx:65',message:'calling getActiveCareHome',data:{hasCurrentUserContext:!!currentUserContext,activeCareHomeId:activeCareHomeId||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D,E'})}).catch(()=>{});
-  }
-  // #endregion
+  // No-op: previously used for debug logging
   const activeCareHome = useQuery(
     api.rbac.careHomes.getActiveCareHome,
     {}
   );
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppSidebar.tsx:70',message:'getActiveCareHome result',data:{hasResult:!!activeCareHome,resultName:activeCareHome?.name||null,isError:activeCareHome===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D,E'})}).catch(()=>{});
-  }
-  // #endregion
+  // No-op: previously used for debug logging
   
   // Use care home name if available, otherwise fall back to organization name
   const displayName = activeCareHome?.name || activeOrg.data?.name || "";

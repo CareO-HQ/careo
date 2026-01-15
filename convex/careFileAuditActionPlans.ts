@@ -1,5 +1,7 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { resolveUser } from "./lib/rbac";
+import { canViewAudit } from "./lib/permissions";
 
 // Create a new action plan for care file audit
 export const createActionPlan = mutation({
@@ -215,6 +217,17 @@ export const getActionPlansByAudit = query({
     auditResponseId: v.id("careFileAuditCompletions"),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view audit action plans
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view care file action plans for audit ${args.auditResponseId} but role ${role} cannot view audits`);
+      return [];
+    }
+
     return await ctx.db
       .query("careFileAuditActionPlans")
       .withIndex("by_audit_response", (q) =>
@@ -230,6 +243,17 @@ export const getActionPlansByTemplate = query({
     templateId: v.id("careFileAuditTemplates"),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view audit action plans
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view care file action plans for template ${args.templateId} but role ${role} cannot view audits`);
+      return [];
+    }
+
     return await ctx.db
       .query("careFileAuditActionPlans")
       .withIndex("by_template", (q) => q.eq("templateId", args.templateId))
@@ -346,6 +370,16 @@ export const getCreatedActionPlans = query({
     ),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view created action plans
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view created care file action plans but role ${role} cannot view audits`);
+      return [];
+    }
     // Get all action plans created by this user
     const allPlans = await ctx.db
       .query("careFileAuditActionPlans")
@@ -408,8 +442,22 @@ export const getActionPlanById = query({
     actionPlanId: v.id("careFileAuditActionPlans"),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view audit action plans (unless they're the assignee)
+    const { role, user } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
     const actionPlan = await ctx.db.get(args.actionPlanId);
     if (!actionPlan) return null;
+
+    // Allow assignees to view their own action plans
+    if (actionPlan.assignedTo === user.email) {
+      // Assignee can view their own action plan
+    } else if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view care file action plan ${args.actionPlanId} but role ${role} cannot view audits`);
+      return null;
+    }
 
     const template = await ctx.db.get(actionPlan.templateId);
     const auditResponse = await ctx.db.get(actionPlan.auditResponseId);
@@ -431,6 +479,17 @@ export const getActionPlansByTeam = query({
     teamId: v.string(),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view audit action plans by team
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view care file action plans for team ${args.teamId} but role ${role} cannot view audits`);
+      return [];
+    }
+
     return await ctx.db
       .query("careFileAuditActionPlans")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
@@ -444,6 +503,17 @@ export const getOverdueActionPlans = query({
     teamId: v.string(),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view overdue action plans
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view overdue care file action plans for team ${args.teamId} but role ${role} cannot view audits`);
+      return [];
+    }
+
     const now = Date.now();
 
     const allPlans = await ctx.db
@@ -522,6 +592,24 @@ export const getActionPlanStats = query({
     teamId: v.string(),
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers can view action plan statistics
+    const { role } = await resolveUser(ctx);
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    if (!canViewAudit(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view care file action plan stats for team ${args.teamId} but role ${role} cannot view audits`);
+      return {
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        completed: 0,
+        overdue: 0,
+        highPriority: 0
+      };
+    }
+
     const allPlans = await ctx.db
       .query("careFileAuditActionPlans")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))

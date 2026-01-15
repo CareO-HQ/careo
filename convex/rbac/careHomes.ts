@@ -28,71 +28,100 @@ export const getCareHomes = query({
     })
   ),
   handler: async (ctx, args) => {
-    const { user, role, organizationId: userOrgId } = await resolveUser(ctx);
+    try {
+      const { user, role, organizationId: userOrgId } = await resolveUser(ctx);
 
-    // Determine target organization
-    const targetOrgId = args.organizationId || userOrgId;
+      // Determine target organization
+      const targetOrgId = args.organizationId || userOrgId;
 
-    if (!targetOrgId) {
-      return [];
-    }
+      if (!targetOrgId) {
+        console.warn("[getCareHomes] No organization ID available");
+        return [];
+      }
 
-    // SaaS Admin can see all care homes
-    if (role === ROLES.SAAS_ADMIN) {
-      if (args.organizationId) {
-        // CRITICAL: Validate organization exists in Better Auth before returning care homes
-        const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
-          model: "organization",
-          where: [{ field: "id", value: args.organizationId }]
-        });
+      // SaaS Admin can see all care homes
+      if (role === ROLES.SAAS_ADMIN) {
+        if (args.organizationId) {
+          // CRITICAL: Validate organization exists in Better Auth before returning care homes
+          const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "organization",
+            where: [{ field: "id", value: args.organizationId }]
+          });
 
-        if (!organization) {
-          // Organization doesn't exist - return empty array instead of error
-          // This handles cases where organization was deleted but care homes still exist
-          console.warn(`[getCareHomes] Organization ${args.organizationId} not found in Better Auth`);
+          if (!organization) {
+            // Organization doesn't exist - return empty array instead of error
+            // This handles cases where organization was deleted but care homes still exist
+            console.warn(`[getCareHomes] Organization ${args.organizationId} not found in Better Auth`);
+            return [];
+          }
+
+          // Filter by specific organization
+          return await ctx.db
+            .query("careHomes")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId!))
+            .collect();
+        } else {
+          // Return all care homes
+          return await ctx.db.query("careHomes").collect();
+        }
+      }
+
+      // If role is null but user has an organization, they're likely the owner who just created it
+      // Allow them to see care homes in their organization (common during onboarding)
+      if (!role && userOrgId) {
+        // Verify they have access to this organization
+        if (targetOrgId !== userOrgId) {
+          console.warn(`[getCareHomes] Role is null but targetOrgId (${targetOrgId}) doesn't match userOrgId (${userOrgId})`);
           return [];
         }
-
-        // Filter by specific organization
-        return await ctx.db
+        
+        // Return care homes for their organization
+        const careHomes = await ctx.db
           .query("careHomes")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId!))
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
           .collect();
-      } else {
-        // Return all care homes
-        return await ctx.db.query("careHomes").collect();
+        console.log(`[getCareHomes] Found ${careHomes.length} care homes for org ${targetOrgId} (role null)`);
+        return careHomes;
       }
-    }
 
-    // If role is null but user has an organization, they're likely the owner who just created it
-    // Allow them to see care homes in their organization (common during onboarding)
-    if (!role && userOrgId) {
-      // Verify they have access to this organization
-      if (targetOrgId !== userOrgId) {
-        throw new Error("Unauthorized: Cannot access different organization");
+      // If role is still null and no organization, return empty
+      if (!role) {
+        console.warn("[getCareHomes] No role and no organization");
+        return [];
       }
-      
-      // Return care homes for their organization
-      return await ctx.db
+
+      // Owner and Manager can see care homes in their organization
+      if (role === ROLES.OWNER || role === ROLES.MANAGER) {
+        if (targetOrgId !== userOrgId) {
+          console.warn(`[getCareHomes] Target org ${targetOrgId} doesn't match user org ${userOrgId}`);
+          return [];
+        }
+        
+        const careHomes = await ctx.db
+          .query("careHomes")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
+          .collect();
+        console.log(`[getCareHomes] Found ${careHomes.length} care homes for ${role} in org ${targetOrgId}`);
+        return careHomes;
+      }
+
+      // Others can only see care homes in their organization
+      if (targetOrgId !== userOrgId) {
+        console.warn(`[getCareHomes] Unauthorized: targetOrgId ${targetOrgId} !== userOrgId ${userOrgId}`);
+        return [];
+      }
+
+      const careHomes = await ctx.db
         .query("careHomes")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
         .collect();
-    }
-
-    // If role is still null and no organization, return empty
-    if (!role) {
+      console.log(`[getCareHomes] Found ${careHomes.length} care homes for role ${role} in org ${targetOrgId}`);
+      return careHomes;
+    } catch (error) {
+      console.error("[getCareHomes] Error:", error);
+      // Return empty array instead of throwing to prevent UI crashes
       return [];
     }
-
-    // Others can only see care homes in their organization
-    if (targetOrgId !== userOrgId) {
-      throw new Error("Unauthorized: Cannot access different organization");
-    }
-
-    return await ctx.db
-      .query("careHomes")
-      .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
-      .collect();
   }
 });
 
@@ -174,6 +203,136 @@ export const getActiveCareHome = query({
     }
 
     return null;
+  }
+});
+
+/**
+ * Get carehome details with teams and staff (for SaaS Admin)
+ * Returns carehome info, teams count, teams list, and staff list
+ */
+export const getCareHomeDetails = query({
+  args: {
+    careHomeId: v.id("careHomes")
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("careHomes"),
+      organizationId: v.string(),
+      name: v.string(),
+      createdBy: v.string(),
+      createdAt: v.number(),
+      teams: v.array(
+        v.object({
+          _id: v.id("units"),
+          name: v.string(),
+          teamId: v.string(),
+          staffCount: v.number()
+        })
+      ),
+      staff: v.array(
+        v.object({
+          userId: v.string(),
+          email: v.string(),
+          name: v.string(),
+          role: v.union(v.literal("nurse"), v.literal("care_assistant")),
+          unitId: v.id("units"),
+          unitName: v.string()
+        })
+      ),
+      teamsCount: v.number(),
+      staffCount: v.number()
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!user || user.isSaasAdmin !== true) {
+      throw new Error("Only SaaS Admin can access this function");
+    }
+
+    // Get carehome
+    const careHome = await ctx.db.get(args.careHomeId);
+    if (!careHome) {
+      return null;
+    }
+
+    // Get all units (teams) for this carehome
+    const units = await ctx.db
+      .query("units")
+      .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
+      .collect();
+
+    // Get staff for each unit
+    const staffList: Array<{
+      userId: string;
+      email: string;
+      name: string;
+      role: "nurse" | "care_assistant";
+      unitId: Id<"units">;
+      unitName: string;
+    }> = [];
+
+    const teamsWithStaffCount = await Promise.all(
+      units.map(async (unit) => {
+        // Get staff assigned to this unit
+        const unitStaff = await ctx.db
+          .query("unitStaff")
+          .withIndex("by_unitId", (q) => q.eq("unitId", unit._id))
+          .collect();
+
+        // Get user details for each staff member
+        for (const staff of unitStaff) {
+          try {
+            const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
+              model: "user",
+              where: [{ field: "id", value: staff.userId }]
+            });
+
+            if (authUser) {
+              staffList.push({
+                userId: staff.userId,
+                email: authUser.email || "",
+                name: authUser.name || authUser.email || "",
+                role: staff.role,
+                unitId: unit._id,
+                unitName: unit.name
+              });
+            }
+          } catch (error) {
+            console.warn(`Failed to get user details for ${staff.userId}:`, error);
+          }
+        }
+
+        return {
+          _id: unit._id,
+          name: unit.name,
+          teamId: unit.teamId,
+          staffCount: unitStaff.length
+        };
+      })
+    );
+
+    return {
+      _id: careHome._id,
+      organizationId: careHome.organizationId,
+      name: careHome.name,
+      createdBy: careHome.createdBy,
+      createdAt: careHome.createdAt,
+      teams: teamsWithStaffCount,
+      staff: staffList,
+      teamsCount: teamsWithStaffCount.length,
+      staffCount: staffList.length
+    };
   }
 });
 
@@ -397,16 +556,12 @@ export const createCareHome = mutation({
   handler: async (ctx, args) => {
     // CRITICAL: This function must NEVER create a Better Auth organization.
     // It only creates records in the Convex careHomes table.
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:entry',message:'createCareHome called',data:{name:args.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-    // #endregion
+    // No-op: previously used for debug logging
     
     // Get current user
     let { user, role, organizationId: userOrgId } = await resolveUser(ctx);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:afterResolve',message:'after resolveUser',data:{hasUser:!!user,hasRole:!!role,hasOrgId:!!userOrgId,orgId:userOrgId||null,role:role||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-    // #endregion
+    // No-op: previously used for debug logging
 
     // If no organizationId found, try to get it from member record or invitations
     // This handles cases where invitation was just accepted but session hasn't updated yet
@@ -490,7 +645,7 @@ export const createCareHome = mutation({
     // But still require organization
     if (!userOrgId) {
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:noOrgId',message:'no organizationId error after all attempts',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
       throw new Error("Unauthorized: You must belong to an organization to create care homes. Please ensure you have accepted the invitation and try again.");
     }
@@ -502,13 +657,13 @@ export const createCareHome = mutation({
       .first();
     
     // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:existingCheck',message:'existing care home check',data:{hasExisting:!!existingCareHome},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+    // No-op: previously used for debug logging
     // #endregion
 
     if (existingCareHome) {
       // Return existing care home instead of creating a duplicate
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:returnExisting',message:'returning existing care home',data:{careHomeId:existingCareHome._id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
       return {
         careHomeId: existingCareHome._id,
@@ -520,14 +675,14 @@ export const createCareHome = mutation({
     if (role) {
       const canCreate = await canCreateCareHome(ctx, userOrgId);
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:permissionCheck',message:'permission check result',data:{canCreate,role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
       if (!canCreate) {
         throw new Error("Unauthorized: Only Owners can create care homes");
       }
     } else {
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:noRole',message:'no role but allowing during onboarding',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
     }
 
@@ -540,7 +695,7 @@ export const createCareHome = mutation({
 
     if (!organization) {
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:orgNotFound',message:'organization not found in Better Auth',data:{organizationId:userOrgId,userEmail:user.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
       console.error(`[createCareHome] Organization ${userOrgId} not found in Better Auth for user ${user.email}`);
       throw new Error(`Organization not found. The organization with ID ${userOrgId} does not exist in Better Auth. Please contact your administrator.`);
@@ -549,7 +704,7 @@ export const createCareHome = mutation({
     // Additional validation: Ensure organization ID format is valid
     if (!userOrgId || typeof userOrgId !== 'string' || userOrgId.trim() === '') {
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:invalidOrgId',message:'invalid organizationId format',data:{organizationId:userOrgId,userEmail:user.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
       throw new Error("Invalid organization ID. Please contact your administrator.");
     }
@@ -592,7 +747,7 @@ export const createCareHome = mutation({
     });
     
     // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:inserted',message:'care home inserted',data:{careHomeId:String(careHomeId),organizationId:userOrgId,name:args.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+    // No-op: previously used for debug logging
     // #endregion
 
     // VERIFICATION: Ensure care home was successfully created in Convex database
@@ -641,14 +796,14 @@ export const createCareHome = mutation({
       }
       
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:setActive',message:'set as active care home',data:{careHomeId:String(careHomeId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // No-op: previously used for debug logging
       // #endregion
     }
 
     console.log(`[createCareHome] Care home created: ${careHomeId} by ${user.email}`);
     
     // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/8fa2ddb5-baaf-48f0-8938-c784bdded999',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'careHomes.ts:createCareHome:success',message:'care home creation success',data:{careHomeId:String(careHomeId),success:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+    // No-op: previously used for debug logging
     // #endregion
 
     return {
@@ -790,14 +945,27 @@ export const switchActiveCareHome = mutation({
     // Get current user
     const { user, role, organizationId } = await resolveUser(ctx);
 
-    if (!role) {
-      throw new Error("Unauthorized: User role not found");
-    }
-
     // Get care home
     const careHome = await ctx.db.get(args.careHomeId);
     if (!careHome) {
       throw new Error("Care home not found");
+    }
+
+    // Allow onboarding users without role to set active care home within their organization
+    if (!role) {
+      if (careHome.organizationId !== organizationId) {
+        throw new Error("Unauthorized: Care home does not belong to your organization");
+      }
+
+      await ctx.db.patch(user._id, {
+        activeCareHomeId: args.careHomeId
+      });
+
+      console.log(`[switchActiveCareHome] User ${user.email} switched to care home ${args.careHomeId} (role null)`);
+
+      return {
+        success: true
+      };
     }
 
     // Verify organization access (unless SaaS Admin)

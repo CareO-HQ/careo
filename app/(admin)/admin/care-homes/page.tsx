@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, UsersRound, Building } from "lucide-react";
+import { Users, UsersRound, Building } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";

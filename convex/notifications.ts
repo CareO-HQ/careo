@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { ROLES } from "./lib/rbac";
+import { components } from "./_generated/api";
 
 // Mark an incident as read by the current user
 export const markIncidentAsRead = mutation({
@@ -168,6 +170,9 @@ export const createNotification = mutation({
 
 // Get all notifications for a user (OPTIMIZED: Uses index)
 // Filters by user's current activeTeamId to ensure team-specific notifications
+// For Nurse/Care Assistant: Only active team notifications
+// For Manager: All teams in care home
+// For Owner: All teams in organization
 export const getUserNotifications = query({
   args: {
     userId: v.string(),
@@ -176,24 +181,60 @@ export const getUserNotifications = query({
   handler: async (ctx, args) => {
     const limit = args.limit || 50;
 
-    console.log(`[getUserNotifications] Getting notifications for userId: ${args.userId}`);
+    // Get the user record to check their role and active team
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", args.userId))
+      .first();
+    
+    if (!user) {
+      return [];
+    }
 
-    // Get user's current activeTeamId to filter team-specific notifications
-    let userActiveTeamId: string | null | undefined = null;
-    try {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("byEmail", (q) => q.eq("email", args.userId))
-        .first();
-      
-      if (user) {
-        userActiveTeamId = user.activeTeamId;
-        console.log(`[getUserNotifications] User activeTeamId: ${userActiveTeamId}`);
-      } else {
-        console.warn(`[getUserNotifications] User not found for email: ${args.userId}`);
+    // Get user's role from Better Auth member record
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      return [];
+    }
+
+    // Get session for organization context
+    const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+    const organizationId = session?.activeOrganizationId || null;
+
+    // Get member record for role
+    let role: string | null = null;
+    if (user.isSaasAdmin) {
+      role = ROLES.SAAS_ADMIN;
+    } else if (organizationId && identity.subject) {
+      const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "member",
+        where: [
+          { field: "userId", value: identity.subject },
+          { field: "organizationId", value: organizationId }
+        ]
+      });
+      role = member?.role || null;
+    }
+
+    if (!role) {
+      return [];
+    }
+
+    const userActiveTeamId = user.activeTeamId;
+    const userActiveCareHomeId = user.activeCareHomeId || null;
+    let careHomeTeamIds: Set<string> | null = null;
+
+    if (role === ROLES.MANAGER) {
+      if (!userActiveCareHomeId) {
+        return [];
       }
-    } catch (error) {
-      console.warn(`[getUserNotifications] Error getting user activeTeamId:`, error);
+
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", userActiveCareHomeId))
+        .collect();
+
+      careHomeTeamIds = new Set(units.map((unit) => unit.teamId));
     }
 
     // Get all notifications for this user
@@ -203,48 +244,35 @@ export const getUserNotifications = query({
       .order("desc")
       .take(limit * 2); // Get more to account for filtering
 
-    console.log(`[getUserNotifications] Found ${allNotifications.length} total notifications for user`);
-
-    // Filter notifications based on team membership
-    // For team-specific notifications (like care_plan_evaluation), only show if:
-    // 1. Notification has no teamId (global notification), OR
-    // 2. Notification's teamId matches user's activeTeamId, OR
-    // 3. User has no activeTeamId (hasn't switched teams yet) - show notifications from all teams they were in
+    // Filter notifications based on role and team membership
     const filteredNotifications = allNotifications.filter((notification) => {
-      // If notification has no teamId, it's a global notification - always show
+      // Global notifications (no teamId) - show to all roles
       if (!notification.teamId) {
-        console.log(`[getUserNotifications] Including notification ${notification._id} - no teamId (global notification)`);
         return true;
       }
 
-      // For team-specific notifications, check team membership
-      if (notification.type === "care_plan_evaluation" || notification.teamId) {
-        // If user has an activeTeamId, only show notifications from that team
-        if (userActiveTeamId != null) {
-          const notificationTeamIdStr = String(notification.teamId);
-          const userActiveTeamIdStr = String(userActiveTeamId);
-          const matches = notificationTeamIdStr === userActiveTeamIdStr;
-          
-          console.log(`[getUserNotifications] Team check for notification ${notification._id}:`, {
-            notificationTeamId: notification.teamId,
-            userActiveTeamId: userActiveTeamId,
-            matches: matches,
-            type: notification.type
-          });
-          
-          return matches;
-        } else {
-          // User has no activeTeamId (hasn't switched teams) - show all their notifications
-          console.log(`[getUserNotifications] Including notification ${notification._id} - user has no activeTeamId`);
-          return true;
+      // For Nurse/Care Assistant: STRICT filtering - only active team
+      if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+        if (!userActiveTeamId) {
+          // No active team - return empty (they must have an active team)
+          return false;
         }
+        return String(notification.teamId) === String(userActiveTeamId);
       }
 
-      // For other notification types, show them (non-team-specific)
-      return true;
-    });
+      // For Manager: Show notifications from all teams in their care home
+      if (role === ROLES.MANAGER) {
+        return careHomeTeamIds?.has(notification.teamId) ?? false;
+      }
 
-    console.log(`[getUserNotifications] Returning ${filteredNotifications.length} filtered notifications (filtered from ${allNotifications.length} total)`);
+      // For Owner/SaaS Admin: Show all notifications in organization
+      if (role === ROLES.OWNER || role === ROLES.SAAS_ADMIN) {
+        // Verify notification belongs to user's organization
+        return notification.organizationId === organizationId || role === ROLES.SAAS_ADMIN;
+      }
+
+      return false;
+    });
 
     // Return limited results
     return filteredNotifications.slice(0, limit);
@@ -253,24 +281,66 @@ export const getUserNotifications = query({
 
 // Get notification count for a user (OPTIMIZED: Uses composite index)
 // Filters by user's current activeTeamId to ensure team-specific notifications
+// Uses same filtering logic as getUserNotifications
 export const getNotificationCount = query({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Get user's current activeTeamId to filter team-specific notifications
-    let userActiveTeamId: string | null | undefined = null;
-    try {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("byEmail", (q) => q.eq("email", args.userId))
-        .first();
-      
-      if (user) {
-        userActiveTeamId = user.activeTeamId;
+    // Get the user record to check their role and active team
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", args.userId))
+      .first();
+    
+    if (!user) {
+      return 0;
+    }
+
+    // Get user's role from Better Auth member record
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      return 0;
+    }
+
+    // Get session for organization context
+    const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+    const organizationId = session?.activeOrganizationId || null;
+
+    // Get member record for role
+    let role: string | null = null;
+    if (user.isSaasAdmin) {
+      role = ROLES.SAAS_ADMIN;
+    } else if (organizationId && identity.subject) {
+      const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "member",
+        where: [
+          { field: "userId", value: identity.subject },
+          { field: "organizationId", value: organizationId }
+        ]
+      });
+      role = member?.role || null;
+    }
+
+    if (!role) {
+      return 0;
+    }
+
+    const userActiveTeamId = user.activeTeamId;
+    const userActiveCareHomeId = user.activeCareHomeId || null;
+    let careHomeTeamIds: Set<string> | null = null;
+
+    if (role === ROLES.MANAGER) {
+      if (!userActiveCareHomeId) {
+        return 0;
       }
-    } catch (error) {
-      console.warn(`[getNotificationCount] Error getting user activeTeamId:`, error);
+
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", userActiveCareHomeId))
+        .collect();
+
+      careHomeTeamIds = new Set(units.map((unit) => unit.teamId));
     }
 
     // Get all unread notifications for this user
@@ -281,28 +351,32 @@ export const getNotificationCount = query({
       )
       .collect();
 
-    // Filter notifications based on team membership (same logic as getUserNotifications)
+    // Filter notifications based on role and team membership (same logic as getUserNotifications)
     const filteredNotifications = allUnreadNotifications.filter((notification) => {
-      // If notification has no teamId, it's a global notification - always count
+      // Global notifications (no teamId) - show to all roles
       if (!notification.teamId) {
         return true;
       }
 
-      // For team-specific notifications, check team membership
-      if (notification.type === "care_plan_evaluation" || notification.teamId) {
-        // If user has an activeTeamId, only count notifications from that team
-        if (userActiveTeamId != null) {
-          const notificationTeamIdStr = String(notification.teamId);
-          const userActiveTeamIdStr = String(userActiveTeamId);
-          return notificationTeamIdStr === userActiveTeamIdStr;
-        } else {
-          // User has no activeTeamId (hasn't switched teams) - count all their notifications
-          return true;
+      // For Nurse/Care Assistant: STRICT filtering - only active team
+      if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+        if (!userActiveTeamId) {
+          return false;
         }
+        return String(notification.teamId) === String(userActiveTeamId);
       }
 
-      // For other notification types, count them (non-team-specific)
-      return true;
+      // For Manager: Show notifications from all teams in their care home
+      if (role === ROLES.MANAGER) {
+        return careHomeTeamIds?.has(notification.teamId) ?? false;
+      }
+
+      // For Owner/SaaS Admin: Show all notifications in organization
+      if (role === ROLES.OWNER || role === ROLES.SAAS_ADMIN) {
+        return notification.organizationId === organizationId || role === ROLES.SAAS_ADMIN;
+      }
+
+      return false;
     });
 
     return filteredNotifications.length;

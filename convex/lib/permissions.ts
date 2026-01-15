@@ -202,12 +202,18 @@ export function canViewMultidisciplinaryNotes(role?: string): boolean {
     return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
-export function canEditIncident(role?: string): boolean {
+export function canCreateIncident(role?: string): boolean {
     return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "admin" || role === "nurse";
 }
 
-export function canCreateIncident(role?: string): boolean {
-    return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "admin" || role === "nurse";
+export function canEditIncident(role?: string): boolean {
+    // Only Managers, Owners, and SaaS Admins can edit incidents
+    return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "admin";
+}
+
+export function canForwardIncident(role?: string): boolean {
+    // Only Managers, Owners, and SaaS Admins can forward incidents
+    return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "admin";
 }
 
 export function canViewAlert(alertType: string, role?: string): boolean {
@@ -232,8 +238,18 @@ export function canViewAuditLogs(role?: string): boolean {
     return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "admin";
 }
 
+export function canViewAudit(role?: string): boolean {
+    // Alias for canViewAuditLogs for consistency
+    return canViewAuditLogs(role);
+}
+
 export function canViewStaffList(role?: string): boolean {
     return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "admin";
+}
+
+export function canViewCarePlan(role?: string): boolean {
+    // Managers and Nurses can view care plans
+    return isSaasAdmin(role) || role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
 export function canManageDiet(role?: string): boolean {
