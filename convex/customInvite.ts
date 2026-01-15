@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
-import { components, api } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
+import { components, api, internal } from "./_generated/api";
 import { canInviteMembers, getAllowedRolesToInvite, type UserRole } from "./lib/permissions";
 
 /**
@@ -12,6 +13,7 @@ export const createInvitationForManager = mutation({
     email: v.string(),
     role: v.union(v.literal("manager"), v.literal("nurse"), v.literal("care_assistant")),
     teamId: v.optional(v.string()),
+    careHomeId: v.optional(v.id("careHomes")),
   },
   returns: v.union(
     v.object({
@@ -31,8 +33,8 @@ export const createInvitationForManager = mutation({
         return { success: false as const, error: "Not authenticated" };
       }
 
-      // Get the current user's member record
-      const currentMember = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      // Get the current user's member record (fallback if session org isn't set)
+      let currentMember = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "member",
         where: [
           { field: "userId", value: session.userId },
@@ -41,7 +43,71 @@ export const createInvitationForManager = mutation({
       });
 
       if (!currentMember) {
-        return { success: false as const, error: "Member record not found" };
+        const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "member",
+          where: [{ field: "userId", value: session.userId }],
+          paginationOpts: { numItems: 1, cursor: null }
+        });
+        currentMember = members?.page?.[0] || null;
+      }
+
+      if (!currentMember) {
+        const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "user",
+          where: [{ field: "id", value: session.userId }]
+        });
+        const userEmail = authUser?.email;
+
+        if (userEmail && session.activeOrganizationId) {
+          const invitation = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "invitation",
+            where: [
+              { field: "email", value: userEmail },
+              { field: "organizationId", value: session.activeOrganizationId }
+            ]
+          });
+
+          if (invitation) {
+            const member = await ctx.runMutation(components.betterAuth.lib.create, {
+              input: {
+                model: "member",
+                data: {
+                  userId: session.userId,
+                  organizationId: session.activeOrganizationId,
+                  role: invitation.role,
+                  createdAt: Date.now()
+                }
+              }
+            });
+
+            const memberId = typeof member === "object" && member !== null && "_id" in member
+              ? (member as any)._id
+              : member;
+
+            const invitationId = invitation.id || invitation._id;
+            if (invitationId) {
+              await ctx.runMutation(components.betterAuth.lib.updateOne, {
+                input: {
+                  model: "invitation",
+                  where: [{ field: "id", value: String(invitationId) }],
+                  update: { status: "accepted" }
+                }
+              });
+            }
+
+            currentMember = {
+              ...invitation,
+              id: String(memberId),
+              userId: session.userId,
+              organizationId: session.activeOrganizationId,
+              role: invitation.role
+            } as any;
+          }
+        }
+      }
+
+      if (!currentMember) {
+        return { success: false as const, error: "Member record not found. Please accept your invitation first." };
       }
 
       const userRole = currentMember.role as UserRole;
@@ -57,6 +123,55 @@ export const createInvitationForManager = mutation({
         return {
           success: false as const,
           error: `You can only invite: ${allowedRoles.join(", ")}`
+        };
+      }
+
+      let careHomeIdToUse = args.careHomeId ?? null;
+
+      if (args.role === "manager" && !careHomeIdToUse) {
+        const identity = await ctx.auth.getUserIdentity();
+        const userEmail = identity?.email;
+        if (userEmail) {
+          const convexUser = await ctx.db
+            .query("users")
+            .withIndex("byEmail", (q) => q.eq("email", userEmail))
+            .first();
+          if (convexUser?.activeCareHomeId) {
+            careHomeIdToUse = convexUser.activeCareHomeId;
+          }
+        }
+
+        if (!careHomeIdToUse) {
+          const careHome = await ctx.db
+            .query("careHomes")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", currentMember.organizationId))
+            .first();
+          if (careHome) {
+            careHomeIdToUse = careHome._id;
+          }
+        }
+      }
+
+      if (args.role === "manager" && careHomeIdToUse) {
+        const careHome = await ctx.db.get(careHomeIdToUse);
+        if (!careHome) {
+          return {
+            success: false as const,
+            error: "Care home not found"
+          };
+        }
+        if (careHome.organizationId !== currentMember.organizationId) {
+          return {
+            success: false as const,
+            error: "Care home does not belong to your organization"
+          };
+        }
+      }
+
+      if (args.role === "manager" && !careHomeIdToUse) {
+        return {
+          success: false as const,
+          error: "No care home found. Please create a care home before inviting a manager."
         };
       }
 
@@ -140,20 +255,22 @@ export const createInvitationForManager = mutation({
       const invitationIdStr = String(invitationId);
       console.log("Created invitation with ID:", invitationIdStr, "TeamId:", args.teamId);
 
-      // Store teamId in invitationMetadata table if provided
-      if (args.teamId) {
+      // Store assignment metadata (team or care home) if provided
+      if (args.teamId || careHomeIdToUse) {
         const metadataId = await ctx.db.insert("invitationMetadata", {
           invitationId: invitationIdStr,
           teamId: args.teamId,
+          careHomeId: careHomeIdToUse ?? undefined,
           organizationId: currentMember.organizationId
         });
         console.log("Stored invitation metadata with ID:", metadataId, "for invitation:", invitationIdStr);
       }
 
-      // Schedule the email sending action
+      // Schedule the email sending action immediately
+      // Use internal action for better reliability
       try {
-        await ctx.scheduler.runAfter(0, api.customInviteEmail.sendInvitationEmail, {
-          invitationId: String(invitationId),
+        await ctx.scheduler.runAfter(0, internal.customInviteEmail.sendInvitationEmailInternal, {
+          invitationId: invitationIdStr,
           email: args.email,
           organizationName: organization.name,
           inviterName: session.user?.name || "A team member",
@@ -161,6 +278,14 @@ export const createInvitationForManager = mutation({
         console.log("✅ Email sending scheduled for invitation:", invitationIdStr);
       } catch (schedulerError) {
         console.error("❌ Failed to schedule email sending:", schedulerError);
+        // Log the full error for debugging
+        console.error("Scheduler error details:", {
+          error: schedulerError,
+          invitationId: invitationIdStr,
+          email: args.email,
+          errorMessage: schedulerError instanceof Error ? schedulerError.message : String(schedulerError),
+          errorStack: schedulerError instanceof Error ? schedulerError.stack : undefined
+        });
         // Don't fail the invitation creation if email scheduling fails
         // The invitation is still created and can be resent later
       }
@@ -332,7 +457,8 @@ export const getInvitationMetadata = internalQuery({
   },
   returns: v.union(
     v.object({
-      teamId: v.string(),
+      teamId: v.optional(v.string()),
+      careHomeId: v.optional(v.id("careHomes")),
       organizationId: v.string(),
     }),
     v.null()
@@ -348,7 +474,8 @@ export const getInvitationMetadata = internalQuery({
     }
 
     return {
-      teamId: metadata.teamId!,
+      teamId: metadata.teamId ?? undefined,
+      careHomeId: metadata.careHomeId,
       organizationId: metadata.organizationId,
     };
   },
@@ -390,17 +517,18 @@ export const assignTeamFromInvitationPublic = mutation({
         .withIndex("byInvitationId", (q) => q.eq("invitationId", args.invitationId))
         .first();
 
-      const metadata: { teamId: string; organizationId: string } | null = metadataRecord
+      const metadata: { teamId?: string; careHomeId?: Id<"careHomes">; organizationId: string } | null = metadataRecord
         ? {
             teamId: metadataRecord.teamId!,
+            careHomeId: metadataRecord.careHomeId,
             organizationId: metadataRecord.organizationId,
           }
         : null;
 
-      if (!metadata) {
+      if (!metadata || (!metadata.teamId && !metadata.careHomeId)) {
         return {
           success: false as const,
-          error: "No team specified in invitation",
+          error: "No assignment specified in invitation",
         };
       }
 
@@ -417,17 +545,19 @@ export const assignTeamFromInvitationPublic = mutation({
         };
       }
 
-      // Verify the team still exists
-      const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
-        model: "team",
-        where: [{ field: "id", value: metadata.teamId }],
-      });
+      if (metadata.teamId) {
+        // Verify the team still exists
+        const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "team",
+          where: [{ field: "id", value: metadata.teamId }],
+        });
 
-      if (!team) {
-        return {
-          success: false as const,
-          error: "Team no longer exists",
-        };
+        if (!team) {
+          return {
+            success: false as const,
+            error: "Team no longer exists",
+          };
+        }
       }
 
       // Get user email for teamMembers record and activeTeamId update
@@ -442,16 +572,29 @@ export const assignTeamFromInvitationPublic = mutation({
         console.warn(`Failed to get user email for userId ${session.userId}:`, error);
       }
 
-      // Check if member is already in this team
-      const existingTeamMember = await ctx.db
-        .query("teamMembers")
-        .withIndex("byUserAndTeam", (q) =>
-          q.eq("userId", session.userId).eq("teamId", metadata.teamId)
-        )
-        .first();
+      if (metadata.teamId) {
+        // Check if member is already in this team
+        const existingTeamMember = await ctx.db
+          .query("teamMembers")
+          .withIndex("byUserAndTeam", (q) =>
+            q.eq("userId", session.userId).eq("teamId", metadata.teamId!)
+          )
+          .first();
 
-      if (existingTeamMember) {
-        // User is already in the team, but ensure activeTeamId is set
+        if (!existingTeamMember) {
+          // Create team membership
+          await ctx.db.insert("teamMembers", {
+            userId: session.userId,
+            teamId: metadata.teamId,
+            organizationId: metadata.organizationId,
+            role: member.role,
+            email: userEmail, // Store email for fallback lookup
+            createdAt: Date.now(),
+            createdBy: session.userId,
+          });
+        }
+
+        // Set activeTeamId in the users table so the team is selected in the sidebar
         if (userEmail) {
           const convexUser = await ctx.db
             .query("users")
@@ -462,44 +605,66 @@ export const assignTeamFromInvitationPublic = mutation({
             await ctx.db.patch(convexUser._id, {
               activeTeamId: metadata.teamId
             });
-            console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail} (already in team)`);
+            console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail}`);
           }
         }
-        return {
-          success: true as const,
-          teamId: metadata.teamId,
-        };
+
+        // For nurse/care_assistant, set activeUnitId and activeCareHomeId based on team
+        if (userEmail && (member.role === "nurse" || member.role === "care_assistant")) {
+          const teamId = metadata.teamId!;
+          const unit = await ctx.db
+            .query("units")
+            .withIndex("by_teamId", (q) => q.eq("teamId", teamId))
+            .first();
+          if (unit) {
+            const convexUser = await ctx.db
+              .query("users")
+              .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+              .first();
+            if (convexUser) {
+              await ctx.db.patch(convexUser._id, {
+                activeUnitId: unit._id,
+                activeCareHomeId: unit.careHomeId,
+                activeTeamId: teamId
+              });
+            }
+          }
+        }
       }
 
-      // Create team membership
-      await ctx.db.insert("teamMembers", {
-        userId: session.userId,
-        teamId: metadata.teamId,
-        organizationId: metadata.organizationId,
-        role: member.role,
-        email: userEmail, // Store email for fallback lookup
-        createdAt: Date.now(),
-        createdBy: session.userId,
-      });
-
-      // Set activeTeamId in the users table so the team is selected in the sidebar
-      if (userEmail) {
-        const convexUser = await ctx.db
-          .query("users")
-          .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+      if (metadata.careHomeId && member.role === "manager") {
+        const existingAssignment = await ctx.db
+          .query("careHomeManagers")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", metadata.careHomeId!))
+          .filter((q) => q.eq(q.field("userId"), session.userId))
           .first();
-        
-        if (convexUser) {
-          await ctx.db.patch(convexUser._id, {
-            activeTeamId: metadata.teamId
+
+        if (!existingAssignment) {
+          await ctx.db.insert("careHomeManagers", {
+            careHomeId: metadata.careHomeId,
+            userId: session.userId,
+            assignedAt: Date.now(),
+            assignedBy: session.userId
           });
-          console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail}`);
+        }
+
+        if (userEmail) {
+          const convexUser = await ctx.db
+            .query("users")
+            .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+            .first();
+
+          if (convexUser && convexUser.activeCareHomeId !== metadata.careHomeId) {
+            await ctx.db.patch(convexUser._id, {
+              activeCareHomeId: metadata.careHomeId
+            });
+          }
         }
       }
 
       return {
         success: true as const,
-        teamId: metadata.teamId,
+        teamId: metadata.teamId || "",
       };
     } catch (error) {
       console.error("Error assigning team from invitation:", error);
@@ -540,17 +705,18 @@ export const assignTeamFromInvitation = internalMutation({
         .withIndex("byInvitationId", (q) => q.eq("invitationId", args.invitationId))
         .first();
 
-      const metadata: { teamId: string; organizationId: string } | null = metadataRecord
+      const metadata: { teamId?: string; careHomeId?: Id<"careHomes">; organizationId: string } | null = metadataRecord
         ? {
             teamId: metadataRecord.teamId!,
+            careHomeId: metadataRecord.careHomeId,
             organizationId: metadataRecord.organizationId,
           }
         : null;
 
-      if (!metadata) {
+      if (!metadata || (!metadata.teamId && !metadata.careHomeId)) {
         return {
           success: false as const,
-          error: "No team specified in invitation",
+          error: "No assignment specified in invitation",
         };
       }
 
@@ -567,17 +733,19 @@ export const assignTeamFromInvitation = internalMutation({
         };
       }
 
-      // Verify the team still exists
-      const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
-        model: "team",
-        where: [{ field: "id", value: metadata.teamId }],
-      });
+      if (metadata.teamId) {
+        // Verify the team still exists
+        const team = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "team",
+          where: [{ field: "id", value: metadata.teamId }],
+        });
 
-      if (!team) {
-        return {
-          success: false as const,
-          error: "Team no longer exists",
-        };
+        if (!team) {
+          return {
+            success: false as const,
+            error: "Team no longer exists",
+          };
+        }
       }
 
       // Get user email for teamMembers record and activeTeamId update
@@ -592,16 +760,29 @@ export const assignTeamFromInvitation = internalMutation({
         console.warn(`Failed to get user email for userId ${args.userId}:`, error);
       }
 
-      // Check if member is already in this team
-      const existingTeamMember = await ctx.db
-        .query("teamMembers")
-        .withIndex("byUserAndTeam", (q) =>
-          q.eq("userId", args.userId).eq("teamId", metadata.teamId)
-        )
-        .first();
+      if (metadata.teamId) {
+        // Check if member is already in this team
+        const existingTeamMember = await ctx.db
+          .query("teamMembers")
+          .withIndex("byUserAndTeam", (q) =>
+            q.eq("userId", args.userId).eq("teamId", metadata.teamId!)
+          )
+          .first();
 
-      if (existingTeamMember) {
-        // User is already in the team, but ensure activeTeamId is set
+        if (!existingTeamMember) {
+          // Create team membership
+          await ctx.db.insert("teamMembers", {
+            userId: args.userId,
+            teamId: metadata.teamId,
+            organizationId: metadata.organizationId,
+            role: member.role,
+            email: userEmail, // Store email for fallback lookup
+            createdAt: Date.now(),
+            createdBy: "system",
+          });
+        }
+
+        // Set activeTeamId in the users table so the team is selected in the sidebar
         if (userEmail) {
           const convexUser = await ctx.db
             .query("users")
@@ -612,44 +793,66 @@ export const assignTeamFromInvitation = internalMutation({
             await ctx.db.patch(convexUser._id, {
               activeTeamId: metadata.teamId
             });
-            console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail} (already in team)`);
+            console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail}`);
           }
         }
-        return {
-          success: true as const,
-          teamId: metadata.teamId,
-        };
+
+        // For nurse/care_assistant, set activeUnitId and activeCareHomeId based on team
+        if (userEmail && (member.role === "nurse" || member.role === "care_assistant")) {
+          const teamId = metadata.teamId!;
+          const unit = await ctx.db
+            .query("units")
+            .withIndex("by_teamId", (q) => q.eq("teamId", teamId))
+            .first();
+          if (unit) {
+            const convexUser = await ctx.db
+              .query("users")
+              .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+              .first();
+            if (convexUser) {
+              await ctx.db.patch(convexUser._id, {
+                activeUnitId: unit._id,
+                activeCareHomeId: unit.careHomeId,
+                activeTeamId: teamId
+              });
+            }
+          }
+        }
       }
 
-      // Create team membership
-      await ctx.db.insert("teamMembers", {
-        userId: args.userId,
-        teamId: metadata.teamId,
-        organizationId: metadata.organizationId,
-        role: member.role,
-        email: userEmail, // Store email for fallback lookup
-        createdAt: Date.now(),
-        createdBy: "system",
-      });
-
-      // Set activeTeamId in the users table so the team is selected in the sidebar
-      if (userEmail) {
-        const convexUser = await ctx.db
-          .query("users")
-          .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+      if (metadata.careHomeId && member.role === "manager") {
+        const existingAssignment = await ctx.db
+          .query("careHomeManagers")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", metadata.careHomeId!))
+          .filter((q) => q.eq(q.field("userId"), args.userId))
           .first();
-        
-        if (convexUser) {
-          await ctx.db.patch(convexUser._id, {
-            activeTeamId: metadata.teamId
+
+        if (!existingAssignment) {
+          await ctx.db.insert("careHomeManagers", {
+            careHomeId: metadata.careHomeId,
+            userId: args.userId,
+            assignedAt: Date.now(),
+            assignedBy: "system"
           });
-          console.log(`Set activeTeamId to ${metadata.teamId} for user ${userEmail}`);
+        }
+
+        if (userEmail) {
+          const convexUser = await ctx.db
+            .query("users")
+            .withIndex("byEmail", (q) => q.eq("email", userEmail!))
+            .first();
+          
+          if (convexUser && convexUser.activeCareHomeId !== metadata.careHomeId) {
+            await ctx.db.patch(convexUser._id, {
+              activeCareHomeId: metadata.careHomeId
+            });
+          }
         }
       }
 
       return {
         success: true as const,
-        teamId: metadata.teamId,
+        teamId: metadata.teamId || "",
       };
     } catch (error) {
       console.error("Error assigning team from invitation:", error);

@@ -29,6 +29,7 @@ export default function SendInvitationForm() {
   const [isLoading, startTransition] = useTransition();
   const createInvitation = useMutation(api.customInvite.createInvitationForManager);
   const teams = useQuery(api.auth.getTeamsWithMembers, {});
+  const activeCareHome = useQuery(api.rbac.careHomes.getActiveCareHome, {});
 
   // Fallback: Get role from organization members if activeMember is not available
   const orgMemberRole = activeOrganization?.members?.find(
@@ -74,7 +75,8 @@ export default function SendInvitationForm() {
         const result = await createInvitation({
           email: values.email,
           role: values.role as any,
-          teamId: values.teamId
+          teamId: values.teamId,
+          careHomeId: values.role === "manager" ? activeCareHome?._id : undefined
         });
 
         if (result.success) {

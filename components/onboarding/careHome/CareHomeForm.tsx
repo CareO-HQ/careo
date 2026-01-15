@@ -1,0 +1,336 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import z from "zod";
+import { SaveOnboardingCareHomeForm } from "@/schemas/SaveOnboardingCareHomeForm";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import LogoSelector from "../organization/LogoSelector";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { useTransition, useEffect, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
+
+export default function CareHomeForm({
+  step,
+  setStep
+}: {
+  step: number;
+  setStep: (step: number) => void;
+}) {
+  const [isLoading, startTransition] = useTransition();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const userOrganization = useQuery(
+    api.auth.getCurrentUserOrganization,
+    !activeOrganization?.id ? {} : "skip"
+  );
+  const organizationFromInvitations = useQuery(
+    api.auth.getOrganizationFromAcceptedInvitations,
+    (!activeOrganization?.id && (!userOrganization || userOrganization === null)) ? {} : "skip"
+  );
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  useEffect(() => {
+    // No-op: previously used for debug logging
+  }, [activeOrganization?.id, userOrganization]);
+  const getOrganizationLogoQuery = useQuery(
+    api.files.image.getOrganizationLogo,
+    (activeOrganization?.name || userOrganization?.name) ? {} : "skip"
+  );
+  const generateUploadUrlMutation = useMutation(
+    api.files.image.generateUploadUrl
+  );
+  const sendImageMutation = useMutation(api.files.image.sendImage);
+  const deleteImageMutation = useMutation(api.files.image.deleteById);
+  const createCareHomeMutation = useMutation(api.rbac.careHomes.createCareHome);
+  const switchActiveCareHomeMutation = useMutation(api.rbac.careHomes.switchActiveCareHome);
+  const setActiveOrganizationMutation = useMutation(api.auth.setActiveOrganization);
+  const ensureAndSetActiveOrganizationMutation = useMutation(api.auth.ensureAndSetActiveOrganization);
+
+  const form = useForm<z.infer<typeof SaveOnboardingCareHomeForm>>({
+    resolver: zodResolver(SaveOnboardingCareHomeForm),
+    defaultValues: {
+      name: "",
+      exampleData: false
+    }
+  });
+
+  useEffect(() => {
+    if (activeOrganization?.name) {
+      form.setValue("name", activeOrganization.name);
+    } else if (userOrganization && 'name' in userOrganization && userOrganization.name) {
+      form.setValue("name", userOrganization.name);
+    }
+  }, [activeOrganization?.name, userOrganization, form]);
+
+  // 2. Define a submit handler.
+  function onSubmit(values: z.infer<typeof SaveOnboardingCareHomeForm>) {
+    startTransition(async () => {
+      // Get organization ID from activeOrganization, userOrganization query, or invitations
+      let orgId: string | undefined = activeOrganization?.id 
+        || (userOrganization && 'id' in userOrganization ? userOrganization.id : undefined)
+        || (organizationFromInvitations && 'id' in organizationFromInvitations ? organizationFromInvitations.id : undefined);
+      
+      // If userOrganization is still loading, wait a bit and check again
+      if (!orgId && userOrganization === undefined) {
+        // Wait a bit for the query to complete
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Re-check after waiting
+        const userOrgIdAfterWait = userOrganization && typeof userOrganization === 'object' && 'id' in userOrganization ? (userOrganization as { id: string; name: string }).id : undefined;
+        orgId = activeOrganization?.id || userOrgIdAfterWait;
+      }
+
+      // IMPORTANT: Owners should NOT create or update organizations during onboarding.
+      // Organizations are created by SaaS Admin when they invite the owner.
+      // The organization should already exist at this point.
+      // If it doesn't exist in activeOrganization, try to get it from member record
+      if (!orgId) {
+        // #region agent log
+        // No-op: previously used for debug logging
+        
+        // Last resort: try to fetch and set organization from member record or invitations
+        // Retry with delays to wait for member record creation
+        let fetchedOrg: { id: string; name: string } | null = null;
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            // No-op: previously used for debug logging
+            
+            if (attempt > 1) {
+              // Wait before retry (exponential backoff)
+              await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+            }
+            
+            fetchedOrg = await ensureAndSetActiveOrganizationMutation();
+            if (fetchedOrg && 'id' in fetchedOrg && fetchedOrg.id) {
+              // No-op: previously used for debug logging
+              orgId = fetchedOrg.id;
+              // Wait a moment for session to propagate
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              break; // Success, exit retry loop
+            }
+          } catch (error) {
+            console.error(`Error fetching organization (attempt ${attempt}):`, error);
+            if (attempt === maxRetries) {
+              // Last attempt failed
+              toast.error("Organization not found. Please contact your administrator.");
+              return;
+            }
+          }
+        }
+        
+        if (!orgId) {
+          // #region agent log
+          // No-op: previously used for debug logging
+          // #endregion
+          toast.error("Organization not found. Please contact your administrator.");
+          return;
+        }
+      }
+        
+        // If we got organization from userOrganization query but it's not active in session,
+        // set it as active BEFORE creating care home
+        if (userOrganization && 'id' in userOrganization && userOrganization.id && !activeOrganization?.id) {
+          try {
+            // #region agent log
+            // No-op: previously used for debug logging
+            // #endregion
+            const orgIdToSet = userOrganization && 'id' in userOrganization ? userOrganization.id : null;
+            if (orgIdToSet) {
+              await setActiveOrganizationMutation({
+                organizationId: orgIdToSet
+              });
+              // #region agent log
+              // No-op: previously used for debug logging
+              // #endregion
+            }
+            // Wait a moment for the session to be updated before proceeding
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          } catch (error) {
+            // #region agent log
+            // No-op: previously used for debug logging
+            // #endregion
+            console.error("Error setting active organization:", error);
+            // Continue anyway - we have the organizationId
+          }
+        }
+        
+        // CRITICAL: Ensure organization is set in session before creating care home
+        // This ensures resolveUser can find the organizationId
+        if (orgId && !activeOrganization?.id) {
+          try {
+            await ensureAndSetActiveOrganizationMutation();
+            // Wait a moment for session to propagate to Convex
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          } catch (error) {
+            console.error("Error ensuring active organization before care home creation:", error);
+            // Continue anyway - resolveUser has fallback logic
+          }
+        }
+        
+        // #region agent log
+        // No-op: previously used for debug logging
+        // #endregion
+        
+        // Create a care home (NOT an organization) during onboarding
+        // Retry logic in case role isn't set yet or member record isn't available yet
+        let retries = 3;
+        let careHomeCreated = false;
+        
+        while (retries > 0 && !careHomeCreated) {
+          try {
+            // #region agent log
+            // No-op: previously used for debug logging
+            // #endregion
+            const careHomeResult = await createCareHomeMutation({
+              name: values.name
+            });
+            
+            // #region agent log
+            // No-op: previously used for debug logging
+            // #endregion
+            
+            if (careHomeResult.success && careHomeResult.careHomeId) {
+              careHomeCreated = true;
+              // Set this as the active care home
+              try {
+                await switchActiveCareHomeMutation({
+                  careHomeId: careHomeResult.careHomeId
+                });
+                // #region agent log
+                // No-op: previously used for debug logging
+                // #endregion
+              } catch (switchError) {
+                // #region agent log
+                // No-op: previously used for debug logging
+                // #endregion
+                console.error("Error switching active care home:", switchError);
+                // Don't fail if switching fails
+              }
+            }
+          } catch (error) {
+            // #region agent log
+            // No-op: previously used for debug logging
+            // #endregion
+            console.error(`Error creating care home during onboarding (${retries} retries left):`, error);
+            retries--;
+            if (retries > 0) {
+              // Wait a bit before retrying
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+          }
+        }
+        
+        // #region agent log
+        // No-op: previously used for debug logging
+        // #endregion
+        
+        if (!careHomeCreated) {
+          console.warn("Failed to create care home during onboarding. Owner can create it later through the dashboard sidebar.");
+          // Don't fail the onboarding - owner can create care home later
+        }
+      // Only upload image after we have the organization ID
+        if (selectedFile && orgId) {
+        if (getOrganizationLogoQuery?.storageId) {
+          await deleteImageMutation({
+            fileId: getOrganizationLogoQuery.storageId
+          });
+        }
+        const uploadUrl = await generateUploadUrlMutation();
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedFile!.type },
+          body: selectedFile
+        });
+        const { storageId } = await result.json();
+        await sendImageMutation({
+          storageId,
+          type: "organization",
+          organizationId:
+            orgId !== "session-based" ? orgId : undefined // Pass the organization ID explicitly, or rely on session for new orgs
+        });
+        console.log("userLogo", getOrganizationLogoQuery);
+      }
+
+      // Move to next step only after everything is complete
+      setStep(step + 1);
+    });
+
+    // Do something with the form values.
+    // ✅ This will be type-safe and validated.
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full">
+        <LogoSelector
+          disabled={isLoading}
+          selectedFile={selectedFile}
+          setSelectedFile={setSelectedFile}
+          currentImageUrl={getOrganizationLogoQuery?.url}
+          fileId={getOrganizationLogoQuery?.storageId}
+        />
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel required>Care home name</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Acme Inc."
+                  className="w-full"
+                  disabled={isLoading}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="exampleData"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between">
+              <div className="space-y-0.5 mt-4">
+                <FormLabel>Example data</FormLabel>
+                <FormDescription>
+                  Recommended to test the platform.
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  disabled={isLoading}
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <Button 
+          type="submit" 
+          className="w-24 mt-4" 
+          disabled={isLoading || (!activeOrganization?.id && (userOrganization === undefined || (userOrganization !== null && userOrganization !== undefined && !('id' in userOrganization))))}
+        >
+          Continue
+        </Button>
+      </form>
+    </Form>
+  );
+}

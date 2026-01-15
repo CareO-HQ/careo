@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { components } from "./_generated/api";
+import { resolveUser, resolveCareHome, ROLES } from "./lib/rbac";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Get dashboard statistics for a specific team
@@ -137,45 +139,122 @@ export const getDashboardStatsByTeam = query({
 
 /**
  * Get dashboard statistics for entire organization
+ * Optionally filtered by care home
  */
 export const getDashboardStatsByOrganization = query({
-  args: { organizationId: v.string() },
+  args: { 
+    organizationId: v.string(),
+    careHomeId: v.optional(v.id("careHomes"))
+  },
   handler: async (ctx, args) => {
-    // Get total residents for this organization
-    const residents = await ctx.db
+    // RBAC: Resolve user and enforce access
+    // Allow role to be null during onboarding - check organizationId instead
+    let role: string | null = null;
+    let userOrgId: string | null = null;
+    
+    try {
+      const resolved = await resolveUser(ctx);
+      role = resolved.role;
+      userOrgId = resolved.organizationId;
+    } catch (error) {
+      // If resolveUser fails, try to get organizationId from session directly
+      // This handles cases during onboarding when member record might not exist yet
+      const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
+      if (session?.activeOrganizationId) {
+        userOrgId = session.activeOrganizationId;
+      } else {
+        throw new Error("Unauthorized: Not authenticated");
+      }
+    }
+    
+    // Verify organization access (unless SaaS Admin)
+    // Allow access during onboarding when role might be null but organizationId matches
+    if (role !== ROLES.SAAS_ADMIN) {
+      // If we have a userOrgId, it must match the requested organizationId
+      if (userOrgId && args.organizationId !== userOrgId) {
+        throw new Error("Unauthorized: Cannot access different organization");
+      }
+      // If we don't have userOrgId at all, deny access
+      // (This prevents unauthorized access when user has no organization)
+      if (!userOrgId) {
+        throw new Error("Unauthorized: No organization access");
+      }
+    }
+    
+    // Resolve care home context
+    let targetCareHomeId: Id<"careHomes"> | null = null;
+    if (args.careHomeId) {
+      const careHome = await ctx.db.get(args.careHomeId);
+      if (careHome && (role === ROLES.SAAS_ADMIN || careHome.organizationId === args.organizationId)) {
+        targetCareHomeId = args.careHomeId;
+      }
+    } else if (role) {
+      // Only try to resolve care home if we have a role
+      // During onboarding, role might be null
+      targetCareHomeId = await resolveCareHome(ctx);
+    }
+    
+    // Get residents - filter by care home if specified
+    let residents = await ctx.db
       .query("residents")
       .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
       .filter((q) => q.neq(q.field("isActive"), false))
       .collect();
+    
+    // Apply care home filter for Manager and Owner (only if role is set)
+    if (targetCareHomeId && role && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
+      // Get all units in this care home
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
+        .collect();
+      
+      const teamIds = new Set(units.map(u => u.teamId));
+      residents = residents.filter((resident: any) => teamIds.has(resident.teamId));
+    }
 
-    // Get total team members in organization
-    const teamMembers = await ctx.db
+    // Get total team members in organization - filter by care home if specified
+    let teamMembers = await ctx.db
       .query("teamMembers")
       .withIndex("byOrganization", (q) => q.eq("organizationId", args.organizationId))
       .collect();
+    
+    // Apply care home filter for Manager and Owner (only if role is set)
+    if (targetCareHomeId && role && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
+      // Get all units in this care home
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
+        .collect();
+      
+      const teamIds = new Set(units.map(u => u.teamId));
+      teamMembers = teamMembers.filter((tm: any) => teamIds.has(tm.teamId));
+    }
 
-    // Get all teams in the organization directly from BetterAuth
+    // Get total units - filter by care home if specified
     let totalUnits = 0;
 
-    try {
-      const teamsResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
-        model: "team",
-        where: [{ field: "organizationId", value: args.organizationId }],
-        paginationOpts: {
-          cursor: null,
-          numItems: 100 // Get up to 100 teams
-        }
-      });
-
-      const teams = teamsResult?.page || [];
-      console.log("Teams found for organization:", args.organizationId, "Count:", teams.length);
-      totalUnits = teams.length;
-    } catch (error) {
-      console.error("Error fetching teams:", error);
-      // Fallback to counting unique teams from teamMembers
-      const uniqueTeams = new Set(teamMembers.map((member) => member.teamId));
-      totalUnits = uniqueTeams.size;
-      console.log("Fallback to teamMembers count:", totalUnits);
+    if (targetCareHomeId && role && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
+      // Count units in this care home
+      const units = await ctx.db
+        .query("units")
+        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
+        .collect();
+      totalUnits = units.length;
+    } else {
+      // Count all units in organization
+      try {
+        const units = await ctx.db
+          .query("units")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
+          .collect();
+        totalUnits = units.length;
+      } catch (error) {
+        console.error("Error fetching units:", error);
+        // Fallback to counting unique teams from teamMembers
+        const uniqueTeams = new Set(teamMembers.map((member: any) => member.teamId));
+        totalUnits = uniqueTeams.size;
+      }
     }
 
     // Get latest 5 incidents for this organization

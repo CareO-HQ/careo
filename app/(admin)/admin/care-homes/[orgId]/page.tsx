@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users, UsersRound, Trash2, Ban } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export default function CareHomeDetailsPage() {
   const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
   const orgDetails = useQuery(api.saasAdmin.getOrganizationDetails, { organizationId: orgId });
   const organizations = useQuery(api.saasAdmin.getAllOrganizations);
+  const careHomes = useQuery(api.rbac.careHomes.getCareHomes, { organizationId: orgId });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
 
@@ -88,6 +90,11 @@ export default function CareHomeDetailsPage() {
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
               Created {new Date(orgDetails.createdAt).toLocaleDateString()}
+              {careHomes !== undefined && (
+                <span className="ml-2">
+                  • {careHomes.length} {careHomes.length === 1 ? "care home" : "care homes"}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -160,57 +167,48 @@ export default function CareHomeDetailsPage() {
         </Card>
       </div>
 
-      {/* Members List */}
+      {/* Care Homes List */}
       <Card>
         <CardHeader>
-          <CardTitle>Members</CardTitle>
-          <CardDescription>All users in this care home</CardDescription>
+          <CardTitle>Care Homes</CardTitle>
+          <CardDescription>Care homes in this organization</CardDescription>
         </CardHeader>
         <CardContent>
-          {orgDetails.members.length > 0 ? (
-            <div className="space-y-2">
-              {orgDetails.members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{member.name || member.email}</p>
-                    <p className="text-sm text-muted-foreground">{member.email}</p>
-                  </div>
-                  <Badge variant="outline">{member.role}</Badge>
-                </div>
+          {careHomes && careHomes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {careHomes.map((careHome) => (
+                <Link key={careHome._id} href={`/admin/care-homes/${orgId}/${careHome._id}`}>
+                  <Card className="border hover:bg-accent transition-colors cursor-pointer">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(careHome.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <CardTitle className="mt-2 text-base">{careHome.name}</CardTitle>
+                      <CardDescription className="text-xs">
+                        Care Home ID: {careHome._id}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm text-muted-foreground">
+                        Created: {new Date(careHome.createdAt).toLocaleDateString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
+          ) : careHomes === undefined ? (
+            <p className="text-muted-foreground">Loading care homes...</p>
           ) : (
-            <p className="text-muted-foreground">No members yet</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Teams List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Teams</CardTitle>
-          <CardDescription>Team structures in this care home</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {orgDetails.teams.length > 0 ? (
-            <div className="space-y-2">
-              {orgDetails.teams.map((team) => (
-                <div
-                  key={team.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{team.name}</p>
-                    <p className="text-sm text-muted-foreground">{team.memberCount} members</p>
-                  </div>
-                </div>
-              ))}
+            <div className="flex flex-col items-center justify-center py-8">
+              <Building2 className="h-12 w-12 text-muted-foreground mb-2 opacity-50" />
+              <p className="text-muted-foreground text-center">
+                No care homes yet. Care homes are created by owners during onboarding or through the dashboard sidebar.
+              </p>
             </div>
-          ) : (
-            <p className="text-muted-foreground">No teams yet</p>
           )}
         </CardContent>
       </Card>

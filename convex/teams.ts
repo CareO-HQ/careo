@@ -62,7 +62,7 @@ export const getTeam = query({
             });
 
             return {
-              id: member.id,
+              id: member.id || member._id || member.userId || "",
               userId: member.userId,
               email: user?.email || "",
               name: user?.name || "",
@@ -192,7 +192,7 @@ export const getOrganizationMembers = query({
             if (!user) return null;
 
             return {
-              id: member.id,
+              id: member.id || member._id || member.userId || "",
               userId: member.userId,
               email: user.email || "",
               name: user.name || "",
@@ -212,6 +212,136 @@ export const getOrganizationMembers = query({
     } catch (error) {
       console.error("Error getting organization members:", error);
       return [];
+    }
+  }
+});
+
+/**
+ * Get current user's role for a specific organization
+ * Used as fallback when Better Auth hooks fail
+ */
+export const getCurrentUserRole = query({
+  args: {
+    organizationId: v.string()
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, { organizationId }) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.subject) {
+        return null;
+      }
+
+      // Get member record for current user in this organization
+      const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+        model: "member",
+        where: [
+          { field: "userId", value: identity.subject },
+          { field: "organizationId", value: organizationId }
+        ]
+      });
+
+      return member?.role || null;
+    } catch (error) {
+      console.error("Error getting current user role:", error);
+      return null;
+    }
+  }
+});
+
+/**
+ * Get organization data including members and invitations
+ * Used as fallback when Better Auth hooks fail
+ */
+export const getOrganizationData = query({
+  args: {
+    organizationId: v.string()
+  },
+  returns: v.object({
+    members: v.array(
+      v.object({
+        id: v.string(),
+        userId: v.string(),
+        email: v.string(),
+        name: v.string(),
+        image: v.union(v.string(), v.null()),
+        role: v.string(),
+        createdAt: v.number()
+      })
+    ),
+    invitations: v.array(
+      v.object({
+        id: v.string(),
+        email: v.string(),
+        role: v.string(),
+        status: v.string(),
+        inviterId: v.union(v.string(), v.null()),
+        expiresAt: v.number()
+      })
+    )
+  }),
+  handler: async (ctx, { organizationId }) => {
+    try {
+      // Get all members in the organization from Better Auth
+      const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "member",
+        where: [{ field: "organizationId", value: organizationId }],
+        paginationOpts: { numItems: 100, cursor: null }
+      });
+
+      // Get user details for each member
+      const memberDetails = await Promise.all(
+        (members?.page || []).map(async (member: any) => {
+          try {
+            const user = await ctx.runQuery(components.betterAuth.lib.findOne, {
+              model: "user",
+              where: [{ field: "id", value: member.userId }]
+            });
+
+            if (!user) return null;
+
+            return {
+              id: member.id || member._id || member.userId || "",
+              userId: member.userId,
+              email: user.email || "",
+              name: user.name || "",
+              image: user.image || null,
+              role: member.role || "care_assistant",
+              createdAt: member.createdAt,
+            };
+          } catch (error) {
+            console.error(`Error getting user details for member ${member.id}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Get invitations for the organization
+      const invitationsResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "invitation",
+        where: [{ field: "organizationId", value: organizationId }],
+        paginationOpts: { numItems: 100, cursor: null }
+      });
+
+      const invitations = (invitationsResult?.page || []).map((invitation: any) => ({
+        id: invitation.id || invitation._id || "",
+        email: invitation.email || "",
+        role: invitation.role || "",
+        status: invitation.status || "pending",
+        inviterId: invitation.inviterId || null,
+        expiresAt: invitation.expiresAt || Date.now() + 7 * 24 * 60 * 60 * 1000
+      }));
+
+      return {
+        members: memberDetails.filter((member) => member !== null),
+        invitations
+      };
+    } catch (error) {
+      console.error("Error getting organization data:", error);
+      return {
+        members: [],
+        invitations: []
+      };
     }
   }
 });

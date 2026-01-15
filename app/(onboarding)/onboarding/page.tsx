@@ -1,7 +1,7 @@
 "use client";
 
 import InviteForm from "@/components/onboarding/invites/InviteForm";
-import OrganizationForm from "@/components/onboarding/organization/OrganizationForm";
+import CareHomeForm from "@/components/onboarding/careHome/CareHomeForm";
 import ProfileForm from "@/components/onboarding/profile/ProfileForm";
 import CreateMultipleTeams from "@/components/onboarding/teams/CreateMultipleTeams";
 import SelectTheme from "@/components/onboarding/theme/SelectTheme";
@@ -24,7 +24,7 @@ export default function OnboardingPage() {
   console.log(session);
 
   const { data: activeMember, isPending } = authClient.useActiveMember();
-  console.log(activeMember);
+  console.log("[onboarding] activeMember:", activeMember, "role:", activeMember?.role);
 
   const router = useRouter();
   const currentUser = useQuery(api.auth.getCurrentUser);
@@ -42,8 +42,19 @@ export default function OnboardingPage() {
     }
   }, [isSaasAdmin, currentUser?.isOnboardingComplete, router]);
 
+  // Redirect users with roles to dashboard if onboarding is already complete
+  // This ensures users who have completed onboarding don't see it again
+  useEffect(() => {
+    if (!isSaasAdmin && activeMember?.role && currentUser?.isOnboardingComplete) {
+      console.log(`[DEBUG onboarding] User with role ${activeMember.role} has completed onboarding, redirecting to dashboard`);
+      router.push("/dashboard");
+    }
+  }, [isSaasAdmin, activeMember?.role, currentUser?.isOnboardingComplete, router]);
+
   // Show loading while checking onboarding status
-  if (isPending || (isSaasAdmin && currentUser === undefined)) {
+  // Wait for queries to resolve, but don't wait indefinitely for activeMember if user doesn't have one yet
+  // New owners won't have activeMember until they create an organization during onboarding
+  if (isPending || (isSaasAdmin && currentUser === undefined) || (!isSaasAdmin && currentUser === undefined)) {
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-center items-center h-full">
@@ -121,6 +132,20 @@ export default function OnboardingPage() {
 
   // OWNER ONBOARDING
   if (activeMember?.role === "owner") {
+    // Redirect if onboarding already complete
+    if (currentUser?.isOnboardingComplete) {
+      return (
+        <ContentWrapper className="max-w-xl w-full">
+          <div className="flex flex-col justify-center items-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Redirecting to dashboard...</p>
+            </div>
+          </div>
+        </ContentWrapper>
+      );
+    }
+
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
@@ -147,7 +172,7 @@ export default function OnboardingPage() {
           </p>
           {step === 1 && <ProfileForm step={step} setStep={setStep} />}
           {step === 2 && <SelectTheme step={step} setStep={setStep} />}
-          {step === 3 && <OrganizationForm step={step} setStep={setStep} />}
+          {step === 3 && <CareHomeForm step={step} setStep={setStep} />}
           {step === 4 && <InviteForm />}
         </div>
       </ContentWrapper>
@@ -156,6 +181,20 @@ export default function OnboardingPage() {
 
   // MANAGER ONBOARDING
   if (activeMember?.role === "manager") {
+    // Redirect if onboarding already complete
+    if (currentUser?.isOnboardingComplete) {
+      return (
+        <ContentWrapper className="max-w-xl w-full">
+          <div className="flex flex-col justify-center items-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Redirecting to dashboard...</p>
+            </div>
+          </div>
+        </ContentWrapper>
+      );
+    }
+
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
@@ -187,6 +226,20 @@ export default function OnboardingPage() {
 
   // NURSE ONBOARDING
   if (activeMember?.role === "nurse") {
+    // Redirect if onboarding already complete
+    if (currentUser?.isOnboardingComplete) {
+      return (
+        <ContentWrapper className="max-w-xl w-full">
+          <div className="flex flex-col justify-center items-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Redirecting to dashboard...</p>
+            </div>
+          </div>
+        </ContentWrapper>
+      );
+    }
+
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
@@ -220,6 +273,20 @@ export default function OnboardingPage() {
 
   // CARE ASSISTANT ONBOARDING
   if (activeMember?.role === "care_assistant") {
+    // Redirect if onboarding already complete
+    if (currentUser?.isOnboardingComplete) {
+      return (
+        <ContentWrapper className="max-w-xl w-full">
+          <div className="flex flex-col justify-center items-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Redirecting to dashboard...</p>
+            </div>
+          </div>
+        </ContentWrapper>
+      );
+    }
+
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
@@ -282,7 +349,7 @@ export default function OnboardingPage() {
         </p>
         {step === 1 && <ProfileForm step={step} setStep={setStep} />}
         {step === 2 && <SelectTheme step={step} setStep={setStep} />}
-        {step === 3 && <OrganizationForm step={step} setStep={setStep} />}
+        {step === 3 && <CareHomeForm step={step} setStep={setStep} />}
         {step === 4 && <InviteForm />}
       </div>
     </ContentWrapper>

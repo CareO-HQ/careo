@@ -96,7 +96,10 @@ export default function DashboardPage() {
   };
 
   // Loading state - only show if we're still loading team info OR if we have a team/org and data is loading
-  if (isLoading) {
+  // But don't show loading forever - if we've been loading for too long, show the content anyway
+  if (isLoading && isTeamLoading) {
+    // Only show loading if we're actively loading team/org info
+    // If data is loading but we have org/team context, show the page anyway
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading dashboard...</p>
@@ -104,8 +107,9 @@ export default function DashboardPage() {
     );
   }
 
-  // No active team or organization - redirect to onboarding
-  if (!activeTeamId && !activeOrganizationId) {
+  // No active team or organization - but only show this if we're sure (not loading)
+  // If we're still loading, the loading state above will handle it
+  if (!isTeamLoading && !activeTeamId && !activeOrganizationId) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <Building2 className="h-16 w-16 text-muted-foreground" />

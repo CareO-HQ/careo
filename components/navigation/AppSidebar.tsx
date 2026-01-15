@@ -57,14 +57,61 @@ export function AppSidebar() {
   const currentUser = useQuery(api.auth.getCurrentUser);
   // SaaS Admin won't have activeMember, so check isSaasAdmin flag
   const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
-  const userRole = isSaasAdmin ? "saas_admin" : (activeMember?.role as string | undefined);
+  // Use role from getCurrentUser as fallback if activeMember is not available (common after onboarding)
+  // During loading, currentUser is undefined, so we need to handle that case
+  const userRole = currentUser === undefined
+    ? undefined // Still loading
+    : isSaasAdmin 
+      ? "saas_admin" 
+      : (activeMember?.role as string | undefined) || (currentUser as any)?.role || undefined;
+  
+  // Debug logging to help diagnose issues
+  if (typeof window !== 'undefined') {
+    console.log('[AppSidebar] State check:', {
+      currentUserLoading: currentUser === undefined,
+      isSaasAdmin,
+      activeMemberRole: activeMember?.role,
+      activeMemberLoading: isActiveMemberPending,
+      currentUserRole: currentUser ? (currentUser as any)?.role : 'loading',
+      finalUserRole: userRole,
+      hasActiveMember: !!activeMember,
+      hasCurrentUser: !!currentUser,
+      activeOrganizationId,
+      activeTeamId,
+      activeOrgPending: activeOrg.isPending,
+      activeOrgData: activeOrg.data
+    });
+  }
+  
+  // Get active care home
+  const currentUserContext = useQuery(api.users.getCurrentUserContext);
+  const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
+  // No-op: previously used for debug logging
+  const activeCareHome = useQuery(
+    api.rbac.careHomes.getActiveCareHome,
+    {}
+  );
+  // No-op: previously used for debug logging
+  
+  // Use care home name if available, otherwise fall back to organization name
+  const displayName = activeCareHome?.name || activeOrg.data?.name || "";
 
   // Extract email to a stable variable - always compute this before any conditional logic
   // This ensures React sees consistent hook call patterns across renders
   const userEmail = user?.user?.email || null;
 
+  // If we have a user but no role yet, and we're not still loading, try to show basic items
+  // This handles the case where role might be temporarily unavailable but user is authenticated
+  const isAuthenticated = !!user;
+  const isStillLoading = currentUser === undefined || (isActiveMemberPending && !activeMember);
+  
+  // If we have organizationId but no role, assume owner role (common after onboarding)
+  // This prevents empty sidebar while role is being resolved
+  const effectiveRole = userRole || (activeOrganizationId && !isStillLoading ? "owner" : undefined);
+
   // For owners and managers, always use organization-based queries; for other roles, use team if available
-  const shouldUseOrganization = userRole === "manager" || userRole === "owner";
+  // Use effectiveRole to handle cases where role is temporarily unavailable
+  const shouldUseOrganization = effectiveRole === "manager" || effectiveRole === "owner";
 
   // Get unread notification count - dynamic based on selection and role
   const unreadCount = useQuery(
@@ -138,7 +185,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <TeamSwitcher
-          orgName={activeOrg.data?.name ?? ""}
+          orgName={displayName}
           isPending={activeOrg.isPending}
           email={user?.user.email ?? ""}
         />
@@ -148,7 +195,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             {/* Home */}
-            {canViewSidebarHome(userRole) && (
+            {canViewSidebarHome(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard">
@@ -160,7 +207,7 @@ export function AppSidebar() {
             )}
 
             {/* Residents */}
-            {canViewSidebarResidents(userRole) && (
+            {canViewSidebarResidents(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/residents">
@@ -176,7 +223,7 @@ export function AppSidebar() {
             )}
 
             {/* Staff */}
-            {canViewSidebarStaff(userRole) && (
+            {canViewSidebarStaff(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/staff">
@@ -194,7 +241,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             {/* Handover */}
-            {canViewSidebarHandover(userRole) && (
+            {canViewSidebarHandover(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/handover">
@@ -206,7 +253,7 @@ export function AppSidebar() {
             )}
 
             {/* Appointment */}
-            {canViewSidebarAppointment(userRole) && (
+            {canViewSidebarAppointment(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/appointment" className="flex items-center justify-between w-full">
@@ -225,7 +272,7 @@ export function AppSidebar() {
             )}
 
             {/* Incidents */}
-            {canViewSidebarIncidents(userRole) && (
+            {canViewSidebarIncidents(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
@@ -244,7 +291,7 @@ export function AppSidebar() {
             )}
 
             {/* Action Plans */}
-            {canViewSidebarActionPlans(userRole) && (
+            {canViewSidebarActionPlans(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/action-plans" className="flex items-center justify-between w-full">
@@ -263,7 +310,7 @@ export function AppSidebar() {
             )}
 
             {/* Notification */}
-            {canViewSidebarNotification(userRole) && (
+            {canViewSidebarNotification(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
@@ -284,7 +331,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* Audit Section */}
-        {canViewSidebarAudit(userRole) && (
+        {canViewSidebarAudit(effectiveRole) && (
           <SidebarGroup className="mt-0">
             <SidebarGroupLabel>Audit</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -293,7 +340,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/careo-audit">
                     <ClipboardListIcon />
-                    <span>{getAuditLabel(userRole) ?? "Audit"}</span>
+                    <span>{getAuditLabel(effectiveRole) ?? "Audit"}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

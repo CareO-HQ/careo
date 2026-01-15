@@ -72,11 +72,89 @@ export const setIsOnboardingCompleted = mutation({
 
     // Get the current session to find organization
     const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
-    if (session && session.activeOrganizationId) {
+    
+    // If session doesn't have activeOrganizationId, try to get it from member record or invitations
+    let organizationId = session?.activeOrganizationId;
+    
+    if (!organizationId && userIdentity.subject) {
+      // Try to get from member record
+      const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "member",
+        where: [{ field: "userId", value: userIdentity.subject }],
+        paginationOpts: {
+          cursor: null,
+          numItems: 1
+        }
+      });
+
+      if (members?.page && members.page.length > 0) {
+        const firstMember = members.page[0];
+        // Validate the organization exists
+        const orgExists = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: firstMember.organizationId }]
+        });
+
+        if (orgExists) {
+          organizationId = firstMember.organizationId;
+          console.log(`[setIsOnboardingCompleted] Found organizationId ${organizationId} from member record`);
+        }
+      }
+    }
+    
+    // If still no organizationId, try invitations
+    if (!organizationId && userIdentity.email) {
+      try {
+        const invitations = await ctx.db
+          .query("invitations")
+          .withIndex("by_email", (q) => q.eq("email", userIdentity.email as string))
+          .filter((q) => q.or(
+            q.eq(q.field("status"), "accepted"),
+            q.eq(q.field("status"), "pending")
+          ))
+          .order("desc")
+          .take(1);
+
+        if (invitations.length > 0) {
+          const invitation = invitations[0];
+          const orgExists = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "organization",
+            where: [{ field: "id", value: invitation.organizationId }]
+          });
+
+          if (orgExists) {
+            organizationId = invitation.organizationId;
+            console.log(`[setIsOnboardingCompleted] Found organizationId ${organizationId} from invitation`);
+          }
+        }
+      } catch (error) {
+        console.error("[setIsOnboardingCompleted] Error checking invitations:", error);
+      }
+    }
+    
+    // Set activeOrganizationId in session if we found one and it's not already set
+    if (organizationId && session?.token && !session.activeOrganizationId) {
+      try {
+        await ctx.runMutation(components.betterAuth.lib.updateOne, {
+          input: {
+            model: "session",
+            where: [{ field: "token", value: session.token }],
+            update: {
+              activeOrganizationId: organizationId
+            }
+          }
+        });
+        console.log(`[setIsOnboardingCompleted] Set activeOrganizationId to ${organizationId} in session`);
+      } catch (error) {
+        console.error("[setIsOnboardingCompleted] Failed to set activeOrganizationId:", error);
+      }
+    }
+    
+    if (session && organizationId) {
       // Find all invitation metadata for this organization
       const allMetadata = await ctx.db
         .query("invitationMetadata")
-        .withIndex("byOrganization", (q) => q.eq("organizationId", session.activeOrganizationId!))
+        .withIndex("byOrganization", (q) => q.eq("organizationId", organizationId!))
         .collect();
 
       console.log("Found metadata records:", allMetadata.length, "for org:", session.activeOrganizationId);
@@ -118,7 +196,7 @@ export const setIsOnboardingCompleted = mutation({
         model: "invitation",
         where: [
           { field: "email", value: userIdentity.email as string },
-          { field: "organizationId", value: session.activeOrganizationId }
+          { field: "organizationId", value: organizationId }
         ],
         paginationOpts: {
           cursor: null,
@@ -126,7 +204,7 @@ export const setIsOnboardingCompleted = mutation({
         }
       });
 
-      console.log("Looking for invitations for:", userIdentity.email, "in org:", session.activeOrganizationId);
+      console.log("Looking for invitations for:", userIdentity.email, "in org:", organizationId);
       console.log("Found invitations:", invitations?.page?.length || 0);
 
       // Check invitations in reverse order (most recent first) for team metadata
@@ -195,6 +273,36 @@ export const setIsOnboardingCompleted = mutation({
       isOnboardingComplete: true
     });
 
+    return { success: true };
+  }
+});
+
+/**
+ * Reset onboarding completion status for a user
+ * Used when users accept invitations to ensure they complete role-specific onboarding
+ */
+export const resetOnboardingStatus = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity?.email) {
+      throw new Error("User not found");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found in Convex database");
+    }
+
+    await ctx.db.patch(user._id, {
+      isOnboardingComplete: false
+    });
+
+    console.log(`[resetOnboardingStatus] Reset onboarding status for ${userIdentity.email}`);
     return { success: true };
   }
 });

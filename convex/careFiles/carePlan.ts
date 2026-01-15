@@ -10,6 +10,8 @@ import { Id, Doc } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { api } from "../_generated/api";
 import { components } from "../_generated/api";
+import { resolveUser, ROLES } from "../lib/rbac";
+import { canViewCarePlan } from "../lib/permissions";
 
 export const submitCarePlanAssessment = mutation({
   args: {
@@ -631,7 +633,49 @@ export const getCarePlanAssessment = query({
     assessmentId: v.id("carePlanAssessments")
   },
   handler: async (ctx, args) => {
+    // RBAC: Only Managers and Nurses can view care plans
+    const { role, activeUnitId, organizationId } = await resolveUser(ctx);
+    
+    if (!role) {
+      throw new Error("Unauthorized: User role not found");
+    }
+
+    // Check permission
+    if (!canViewCarePlan(role)) {
+      console.warn(`[RBAC] Access denied: User attempted to view care plan ${args.assessmentId} but role ${role} cannot view care plans`);
+      return null;
+    }
+
     const assessment = await ctx.db.get(args.assessmentId);
+    if (!assessment) {
+      return null;
+    }
+
+    const resident = await ctx.db.get(assessment.residentId);
+    if (!resident) {
+      return null;
+    }
+
+    // Verify organization access (unless SaaS Admin)
+    if (role !== ROLES.SAAS_ADMIN && resident.organizationId !== organizationId) {
+      console.warn(`[RBAC] Access denied: User attempted to view care plan ${args.assessmentId} from different organization`);
+      return null;
+    }
+
+    // For Nurse/Care Assistant: verify resident belongs to their active team
+    if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+      if (!activeUnitId) {
+        console.warn(`[RBAC] Access denied: User attempted to view care plan ${args.assessmentId} without active unit`);
+        return null;
+      }
+
+      const unit = await ctx.db.get(activeUnitId);
+      if (!unit || resident.teamId !== unit.teamId) {
+        console.warn(`[RBAC] Access denied: User attempted to view care plan ${args.assessmentId} for resident from different team`);
+        return null;
+      }
+    }
+
     return assessment;
   }
 });

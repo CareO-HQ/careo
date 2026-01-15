@@ -4,9 +4,6 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   typescript: {
     ignoreBuildErrors: false
-  },
-  turbopack: {
-    root: process.cwd()
   }
 };
 

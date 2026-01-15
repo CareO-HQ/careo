@@ -10,6 +10,7 @@ import { useQuery } from "convex/react";
 import { formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
 import { useEffect } from "react";
+import { withRoleGuard } from "@/lib/route-guards";
 import {
   ArrowLeft,
   Bell,
@@ -29,7 +30,7 @@ type StaffPageProps = {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-export default function StaffProfilePage({ params }: StaffPageProps) {
+function StaffProfilePage({ params }: StaffPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const { data: activeOrg, isPending: isActiveOrgLoading } = authClient.useActiveOrganization();
@@ -43,14 +44,6 @@ export default function StaffProfilePage({ params }: StaffPageProps) {
     api.files.image.getUserImageByUserId,
     staffMember?.userId ? { userId: staffMember.userId } : "skip"
   );
-
-  useEffect(() => {
-    if (!isActiveMemberLoading && activeMember) {
-      if (!canViewStaffList(activeMember.role as UserRole)) {
-        router.push("/dashboard");
-      }
-    }
-  }, [activeMember, isActiveMemberLoading, router]);
 
   if (isActiveOrgLoading || isActiveMemberLoading) {
     return (
@@ -276,3 +269,6 @@ export default function StaffProfilePage({ params }: StaffPageProps) {
     </div>
   );
 }
+
+// Protect route - only Owners, Managers, and SaaS Admins can access
+export default withRoleGuard(StaffProfilePage, ["owner", "manager", "saas_admin"]);

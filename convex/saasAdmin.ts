@@ -66,7 +66,126 @@ export const getSaasAdmin = query({
 });
 
 /**
- * List all organizations (care homes) with statistics
+ * Get all care homes with organization details (for SaaS Admin)
+ * 
+ * IMPORTANT: This function ONLY returns records from the Convex careHomes table.
+ * It NEVER returns Better Auth organizations. Organizations are returned by getAllOrganizations.
+ */
+export const getAllCareHomes = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("careHomes"),
+      organizationId: v.string(),
+      name: v.string(),
+      organizationName: v.string(),
+      createdAt: v.number(),
+      memberCount: v.number(),
+      teamCount: v.number(),
+      residentCount: v.optional(v.number())
+    })
+  ),
+  handler: async (ctx) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!user || user.isSaasAdmin !== true) {
+      throw new Error("Only SaaS Admin can access this function");
+    }
+
+    // CRITICAL: Get ONLY care homes from Convex careHomes table
+    // This must NEVER return Better Auth organizations
+    const careHomes = await ctx.db.query("careHomes").collect();
+    
+    // Validate that we're only getting careHomes records (not organizations)
+    // All records must have _id that is an id("careHomes")
+    const validCareHomes = careHomes.filter((ch) => {
+      const isValid = ch._id && typeof ch._id === "string" && ch._id.startsWith("careHomes");
+      if (!isValid) {
+        console.error("[getAllCareHomes] Invalid care home record detected:", ch);
+      }
+      return isValid;
+    });
+
+    // Get organization details and statistics for each care home
+    const careHomesWithDetails = await Promise.all(
+      validCareHomes.map(async (careHome) => {
+        // Get organization name
+        let organizationName = careHome.name;
+        try {
+          const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
+            model: "organization",
+            where: [{ field: "id", value: careHome.organizationId }]
+          });
+          if (organization?.name) {
+            organizationName = organization.name;
+          }
+        } catch (error) {
+          console.warn(`Failed to get organization name for ${careHome.organizationId}:`, error);
+        }
+
+        // Count members
+        const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "member",
+          where: [{ field: "organizationId", value: careHome.organizationId }],
+          paginationOpts: {
+            cursor: null,
+            numItems: 1000
+          }
+        });
+
+        // Count teams (units)
+        const teams = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "team",
+          where: [{ field: "organizationId", value: careHome.organizationId }],
+          paginationOpts: {
+            cursor: null,
+            numItems: 1000
+          }
+        });
+
+        // Count residents
+        let residentCount = 0;
+        try {
+          const residents = await ctx.db
+            .query("residents")
+            .withIndex("byOrganizationId", (q) => q.eq("organizationId", careHome.organizationId))
+            .collect();
+          residentCount = residents.length;
+        } catch (error) {
+          console.warn("Could not count residents:", error);
+        }
+
+        return {
+          _id: careHome._id,
+          organizationId: careHome.organizationId,
+          name: careHome.name,
+          organizationName,
+          createdAt: careHome.createdAt,
+          memberCount: members?.page?.length || 0,
+          teamCount: teams?.page?.length || 0,
+          residentCount
+        };
+      })
+    );
+
+    return careHomesWithDetails;
+  }
+});
+
+/**
+ * List all organizations with statistics
+ * 
+ * IMPORTANT: This function ONLY returns Better Auth organizations.
+ * It NEVER returns Convex careHomes records. Care homes are returned by getAllCareHomes.
  */
 export const getAllOrganizations = query({
   args: {},
@@ -99,15 +218,20 @@ export const getAllOrganizations = query({
       throw new Error("Only SaaS Admin can access this function");
     }
 
-    // Get all organizations from Better Auth
+    // CRITICAL: Get ONLY organizations from Better Auth
+    // This must NEVER return Convex careHomes records
     const organizations = await ctx.runQuery(components.betterAuth.lib.findMany, {
-      model: "organization",
+      model: "organization", // Must be "organization" model from Better Auth
       where: [],
       paginationOpts: {
         cursor: null,
         numItems: 1000
       }
     });
+    
+    // Validate that we're getting Better Auth organizations, not Convex careHomes
+    // Better Auth organizations have 'id' or '_id' as string (not Convex Id type)
+    // They should NOT have Convex _id fields that start with "careHomes"
 
     if (!organizations?.page) {
       return [];
@@ -120,9 +244,20 @@ export const getAllOrganizations = query({
           // Filter out organizations without a valid ID
           const hasValidId = !!(org.id || org._id);
           if (!hasValidId) {
-            console.warn("[DEBUG getAllOrganizations] Skipping organization without valid ID:", org);
+            console.warn("[getAllOrganizations] Skipping organization without valid ID:", org);
+            return false;
           }
-          return hasValidId;
+          
+          // CRITICAL SAFEGUARD: Ensure this is a Better Auth organization, not a Convex careHome
+          // Better Auth organizations should NOT have Convex _id fields
+          // If it has an _id that looks like a Convex careHome ID, reject it
+          const orgId = org.id || org._id;
+          if (typeof orgId === "string" && orgId.startsWith("careHomes")) {
+            console.error("[getAllOrganizations] ERROR: Found Convex careHome in organizations list! Rejecting:", org);
+            return false;
+          }
+          
+          return true;
         })
         .map(async (org: any) => {
           // #region agent log
@@ -444,6 +579,9 @@ export const createCareHomeOwner = mutation({
       });
       // #endregion
 
+      // NOTE: Care homes are NOT created automatically here.
+      // The owner will create care homes during onboarding or through the dashboard sidebar.
+
       // Check if invitation already exists for this email and organization
       const existingInvitation = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "invitation",
@@ -489,9 +627,10 @@ export const createCareHomeOwner = mutation({
       });
       // #endregion
 
-      // Schedule the email sending action
+      // Schedule the email sending action immediately
+      // Use internal action for better reliability
       try {
-        await ctx.scheduler.runAfter(0, api.customInviteEmail.sendInvitationEmail, {
+        await ctx.scheduler.runAfter(0, internal.customInviteEmail.sendInvitationEmailInternal, {
           invitationId: invitationIdStr,
           email: args.email,
           organizationName: args.organizationName,
@@ -507,7 +646,16 @@ export const createCareHomeOwner = mutation({
         // #endregion
       } catch (schedulerError) {
         console.error("❌ Failed to schedule email sending:", schedulerError);
+        // Log the full error for debugging
+        console.error("Scheduler error details:", {
+          error: schedulerError,
+          invitationId: invitationIdStr,
+          email: args.email,
+          errorMessage: schedulerError instanceof Error ? schedulerError.message : String(schedulerError),
+          errorStack: schedulerError instanceof Error ? schedulerError.stack : undefined
+        });
         // Don't fail the invitation creation if email scheduling fails
+        // The invitation is still created and can be resent later
       }
 
       return {
@@ -531,6 +679,43 @@ export const createCareHomeOwner = mutation({
         error: error instanceof Error ? error.message : "Failed to create care home owner"
       };
     }
+  }
+});
+
+/**
+ * Populate care homes for all existing organizations
+ * This is a one-time migration helper
+ */
+export const populateCareHomes = mutation({
+  args: {},
+  returns: v.object({
+    careHomesCreated: v.number(),
+    organizationsProcessed: v.number(),
+    success: v.boolean()
+  }),
+  handler: async (ctx) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!user || user.isSaasAdmin !== true) {
+      throw new Error("Only SaaS Admin can run this migration");
+    }
+
+    // Call the internal mutation
+    const result: { careHomesCreated: number; organizationsProcessed: number } = await ctx.runMutation(internal.rbac.careHomes.populateCareHomesForAllOrganizations, {});
+
+    return {
+      ...result,
+      success: true
+    };
   }
 });
 

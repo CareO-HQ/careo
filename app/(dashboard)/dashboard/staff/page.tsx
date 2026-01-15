@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
 import { useEffect } from "react";
+import { withRoleGuard } from "@/lib/route-guards";
 
 interface TeamStaffMember {
   _id: string;
@@ -55,20 +56,12 @@ interface OrgStaffMember {
   activeTeamId?: string; // Active team ID for reference
 }
 
-export default function StaffPage() {
+function StaffPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
   const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
   const { data: session } = authClient.useSession();
-
-  useEffect(() => {
-    if (!isActiveMemberLoading && activeMember) {
-      if (!canViewStaffList(activeMember.role as UserRole)) {
-        router.push("/dashboard");
-      }
-    }
-  }, [activeMember, isActiveMemberLoading, router]);
 
   // Fetch staff by team if team is selected
   const teamStaff = useQuery(
@@ -413,3 +406,6 @@ export default function StaffPage() {
     </div>
   );
 }
+
+// Protect route - only Owners, Managers, and SaaS Admins can access
+export default withRoleGuard(StaffPage, ["owner", "manager", "saas_admin"]);

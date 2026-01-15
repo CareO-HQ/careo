@@ -82,7 +82,7 @@ export default function ImageSelector({
         }
       );
       setSelectedFile(croppedFile);
-    } catch (error) {
+    } catch {
       toast.error("Failed to process cropped image");
     }
   };

@@ -210,6 +210,10 @@ export function canCreateIncident(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "admin" || role === "nurse";
 }
 
+export function canForwardIncident(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "admin";
+}
+
 export function canViewAlert(alertType: string, role?: string): boolean {
   if (!role) return false;
 

@@ -65,12 +65,12 @@ export default function CreateMultipleTeams({
         for (const team of finalData.teams) {
           if (!team?.name) continue;
           try {
-            const { data, error } = await authClient.organization.createTeam({
+            const { error } = await authClient.organization.createTeam({
               name: team.name,
               organizationId: organization?.data?.id
             });
 
-            if (data && !error) {
+            if (!error) {
               successCount++;
             } else {
               errorCount++;

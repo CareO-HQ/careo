@@ -89,7 +89,6 @@ export const columns: ColumnDef<Member>[] = [
   },
   {
     id: "actions",
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     cell: ({ row }) => {
       return (
         <div className="flex flex-row justify-end items-center">

@@ -20,7 +20,7 @@ import { api, components } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { InviteUsersOnboardingForm } from "@/schemas/InviteUsersOnboardingForm";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { PlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -39,6 +39,7 @@ export default function InviteForm() {
     api.user.setIsOnboardingCompleted
   );
   const createInvitation = useMutation(api.customInvite.createInvitationForManager);
+  const activeCareHome = useQuery(api.rbac.careHomes.getActiveCareHome, {});
 
   // Get the first allowed role as default
   const inviterRole = (member?.role as UserRole) || "owner";
@@ -82,7 +83,8 @@ export default function InviteForm() {
         try {
           const result = await createInvitation({
             email: user.email,
-            role: user.role as any
+            role: user.role as any,
+            careHomeId: user.role === "manager" ? activeCareHome?._id : undefined
           });
           
           if (result.success) {
