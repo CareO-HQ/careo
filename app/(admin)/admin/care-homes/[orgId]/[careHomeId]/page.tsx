@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UsersRound, ArrowLeft } from "lucide-react";
+import { Users, UsersRound, ArrowLeft, Building2 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,20 @@ export default function CareHomeDetailsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Members</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{careHomeDetails.staffCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Members in this care home
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Teams</CardTitle>
@@ -109,14 +122,13 @@ export default function CareHomeDetailsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Staff</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Care Home ID</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{careHomeDetails.staffCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Staff members assigned to units
-            </p>
+            <div className="text-sm font-mono text-muted-foreground truncate">
+              {careHomeDetails._id}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -162,19 +174,19 @@ export default function CareHomeDetailsPage() {
       {/* Staff List */}
       <Card>
         <CardHeader>
-          <CardTitle>Staff</CardTitle>
+          <CardTitle>Members</CardTitle>
           <CardDescription>
             {careHomeDetails.staffCount === 0
-              ? "No staff assigned yet"
-              : `${careHomeDetails.staffCount} staff member${careHomeDetails.staffCount === 1 ? "" : "s"} assigned to units in this care home`}
+              ? "No members yet"
+              : `${careHomeDetails.staffCount} member${careHomeDetails.staffCount === 1 ? "" : "s"} in this care home`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {careHomeDetails.staff.length > 0 ? (
             <div className="space-y-2">
-              {careHomeDetails.staff.map((staffMember, index) => (
+              {careHomeDetails.staff.map((staffMember) => (
                 <div
-                  key={`${staffMember.userId}-${staffMember.unitId}-${index}`}
+                  key={staffMember.userId}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div>
@@ -183,7 +195,7 @@ export default function CareHomeDetailsPage() {
                       {staffMember.email}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Unit: {staffMember.unitName}
+                      Units: {staffMember.unitNames.join(", ")}
                     </p>
                   </div>
                   <Badge variant="outline">{staffMember.role}</Badge>
@@ -194,7 +206,7 @@ export default function CareHomeDetailsPage() {
             <div className="flex flex-col items-center justify-center py-8">
               <Users className="h-12 w-12 text-muted-foreground mb-2 opacity-50" />
               <p className="text-muted-foreground text-center">
-                No staff assigned yet. Staff are assigned to units by managers.
+                No members yet. Members are added via invitations and teams.
               </p>
             </div>
           )}

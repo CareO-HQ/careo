@@ -703,14 +703,17 @@ export const getIncidentsByOrganization = query({
     const limit = args.limit || 50;
 
     // RBAC: Resolve user and enforce access
-    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+    const { role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
+    const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     
     if (!role) {
-      throw new Error("Unauthorized: User role not found");
+      console.warn("[getIncidentsByOrganization] No role found for user; using fallback role", {
+        effectiveRole
+      });
     }
     
     // Verify organization access (unless SaaS Admin)
-    if (role !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
+    if (effectiveRole !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
       throw new Error("Unauthorized: Cannot access different organization");
     }
     
@@ -742,7 +745,7 @@ export const getIncidentsByOrganization = query({
       .collect();
     
     // Apply care home filter for Manager and Owner
-    if (targetCareHomeId && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
+    if (targetCareHomeId && (effectiveRole === ROLES.MANAGER || effectiveRole === ROLES.OWNER)) {
       // Get all units in this care home
       const units = await ctx.db
         .query("units")
@@ -754,7 +757,7 @@ export const getIncidentsByOrganization = query({
     }
     
     // For Nurse/Care Assistant, STRICT filtering - only their active unit
-    if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+    if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
       const { activeUnitId } = await resolveUser(ctx);
       if (!activeUnitId) {
         console.warn(`[RBAC] Access denied: User attempted to access incidents without active unit`);

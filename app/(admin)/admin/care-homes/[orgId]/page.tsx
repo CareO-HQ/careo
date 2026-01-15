@@ -167,61 +167,6 @@ export default function CareHomeDetailsPage() {
         </Card>
       </div>
 
-      {/* Members List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Members</CardTitle>
-          <CardDescription>All users in this organization</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {orgDetails.members.length > 0 ? (
-            <div className="space-y-2">
-              {orgDetails.members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{member.name || member.email}</p>
-                    <p className="text-sm text-muted-foreground">{member.email}</p>
-                  </div>
-                  <Badge variant="outline">{member.role}</Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">No members yet</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Teams List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Teams</CardTitle>
-          <CardDescription>Team structures in this organization</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {orgDetails.teams.length > 0 ? (
-            <div className="space-y-2">
-              {orgDetails.teams.map((team) => (
-                <div
-                  key={team.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{team.name}</p>
-                    <p className="text-sm text-muted-foreground">{team.memberCount} members</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">No teams yet</p>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Care Homes List */}
       <Card>
         <CardHeader>

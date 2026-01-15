@@ -74,13 +74,19 @@ export const getCareHomes = query({
           console.warn(`[getCareHomes] Role is null but targetOrgId (${targetOrgId}) doesn't match userOrgId (${userOrgId})`);
           return [];
         }
-        
-        // Return care homes for their organization
+
+        // During onboarding, allow users to see care homes they created
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity?.subject) {
+          return [];
+        }
+
         const careHomes = await ctx.db
           .query("careHomes")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
+          .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+          .filter((q) => q.eq(q.field("organizationId"), targetOrgId))
           .collect();
-        console.log(`[getCareHomes] Found ${careHomes.length} care homes for org ${targetOrgId} (role null)`);
+        console.log(`[getCareHomes] Found ${careHomes.length} care homes created by user (role null) in org ${targetOrgId}`);
         return careHomes;
       }
 
@@ -90,22 +96,89 @@ export const getCareHomes = query({
         return [];
       }
 
-      // Owner and Manager can see care homes in their organization
-      if (role === ROLES.OWNER || role === ROLES.MANAGER) {
+      // Owner can see all care homes they created
+      if (role === ROLES.OWNER) {
         if (targetOrgId !== userOrgId) {
           console.warn(`[getCareHomes] Target org ${targetOrgId} doesn't match user org ${userOrgId}`);
           return [];
         }
-        
+
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity?.subject) {
+          return [];
+        }
+
         const careHomes = await ctx.db
           .query("careHomes")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", targetOrgId))
+          .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+          .filter((q) => q.eq(q.field("organizationId"), targetOrgId))
           .collect();
-        console.log(`[getCareHomes] Found ${careHomes.length} care homes for ${role} in org ${targetOrgId}`);
+        console.log(`[getCareHomes] Found ${careHomes.length} care homes created by owner in org ${targetOrgId}`);
         return careHomes;
       }
 
-      // Others can only see care homes in their organization
+      // Managers, nurses, care assistants can only see care homes they were invited to
+      if (role === ROLES.MANAGER || role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
+        if (targetOrgId !== userOrgId) {
+          console.warn(`[getCareHomes] Target org ${targetOrgId} doesn't match user org ${userOrgId}`);
+          return [];
+        }
+
+        const identity = await ctx.auth.getUserIdentity();
+        const invitedCareHomeIds = new Set<Id<"careHomes">>();
+
+        if (identity?.email) {
+          const invitations = await ctx.db
+            .query("invitations")
+            .withIndex("by_email", (q) => q.eq("email", identity.email!))
+            .filter((q) =>
+              q.or(q.eq(q.field("status"), "accepted"), q.eq(q.field("status"), "pending"))
+            )
+            .collect();
+
+          invitations.forEach((invitation) => {
+            if (invitation.careHomeId) {
+              invitedCareHomeIds.add(invitation.careHomeId);
+            }
+          });
+        }
+
+        // Managers may be assigned via careHomeManagers
+        if (role === ROLES.MANAGER && identity?.subject) {
+          const managerAssignments = await ctx.db
+            .query("careHomeManagers")
+            .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+            .collect();
+          managerAssignments.forEach((assignment) => {
+            invitedCareHomeIds.add(assignment.careHomeId);
+          });
+        }
+
+        // Fallback to activeCareHomeId if no invitations were found
+        if (invitedCareHomeIds.size === 0 && user.activeCareHomeId) {
+          invitedCareHomeIds.add(user.activeCareHomeId);
+        }
+
+        if (invitedCareHomeIds.size === 0) {
+          console.log(`[getCareHomes] No invited care homes found for role ${role}`);
+          return [];
+        }
+
+        const careHomes = await Promise.all(
+          Array.from(invitedCareHomeIds).map(async (careHomeId) => {
+            const careHome = await ctx.db.get(careHomeId);
+            return careHome && careHome.organizationId === targetOrgId ? careHome : null;
+          })
+        );
+
+        const filteredCareHomes = careHomes.filter(
+          (careHome): careHome is Doc<"careHomes"> => careHome !== null
+        );
+        console.log(`[getCareHomes] Found ${filteredCareHomes.length} invited care homes for role ${role} in org ${targetOrgId}`);
+        return filteredCareHomes;
+      }
+
+      // Default: restrict to organization only
       if (targetOrgId !== userOrgId) {
         console.warn(`[getCareHomes] Unauthorized: targetOrgId ${targetOrgId} !== userOrgId ${userOrgId}`);
         return [];
@@ -183,6 +256,74 @@ export const getActiveCareHome = query({
       }
     }
 
+    const identity = await ctx.auth.getUserIdentity();
+
+    // Role-null users (onboarding owners) should default to their created care homes
+    if (!role && identity?.subject) {
+      const firstCreatedCareHome = await ctx.db
+        .query("careHomes")
+        .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+        .filter((q) => q.eq(q.field("organizationId"), organizationId))
+        .first();
+
+      if (firstCreatedCareHome) {
+        return {
+          _id: firstCreatedCareHome._id as Id<"careHomes">,
+          organizationId: firstCreatedCareHome.organizationId,
+          name: firstCreatedCareHome.name,
+          createdBy: firstCreatedCareHome.createdBy,
+          createdAt: firstCreatedCareHome.createdAt
+        };
+      }
+    }
+
+    // Owners should default to one of their created care homes
+    if (role === ROLES.OWNER && identity?.subject) {
+      const firstOwnerCareHome = await ctx.db
+        .query("careHomes")
+        .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+        .filter((q) => q.eq(q.field("organizationId"), organizationId))
+        .first();
+
+      if (firstOwnerCareHome) {
+        return {
+          _id: firstOwnerCareHome._id as Id<"careHomes">,
+          organizationId: firstOwnerCareHome.organizationId,
+          name: firstOwnerCareHome.name,
+          createdBy: firstOwnerCareHome.createdBy,
+          createdAt: firstOwnerCareHome.createdAt
+        };
+      }
+    }
+
+    // Managers/nurses/care assistants should default to invited care homes
+    if (
+      (role === ROLES.MANAGER || role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) &&
+      identity?.email
+    ) {
+      const invitations = await ctx.db
+        .query("invitations")
+        .withIndex("by_email", (q) => q.eq("email", identity.email!))
+        .filter((q) =>
+          q.or(q.eq(q.field("status"), "accepted"), q.eq(q.field("status"), "pending"))
+        )
+        .collect();
+
+      const invitedCareHome = invitations.find((invitation) => invitation.careHomeId);
+      if (invitedCareHome?.careHomeId) {
+        const careHome = await ctx.db.get(invitedCareHome.careHomeId);
+        if (careHome && careHome.organizationId === organizationId) {
+          return {
+            _id: careHome._id as Id<"careHomes">,
+            organizationId: careHome.organizationId,
+            name: careHome.name,
+            createdBy: careHome.createdBy,
+            createdAt: careHome.createdAt
+          };
+        }
+      }
+    }
+
     // Otherwise, get the first care home in the organization
     // Allow this even if role is null (common during onboarding)
     const firstCareHome = await ctx.db
@@ -223,7 +364,7 @@ export const getCareHomeDetails = query({
       createdAt: v.number(),
       teams: v.array(
         v.object({
-          _id: v.id("units"),
+          _id: v.string(),
           name: v.string(),
           teamId: v.string(),
           staffCount: v.number()
@@ -234,9 +375,8 @@ export const getCareHomeDetails = query({
           userId: v.string(),
           email: v.string(),
           name: v.string(),
-          role: v.union(v.literal("nurse"), v.literal("care_assistant")),
-          unitId: v.id("units"),
-          unitName: v.string()
+          role: v.string(),
+          unitNames: v.array(v.string())
         })
       ),
       teamsCount: v.number(),
@@ -272,17 +412,78 @@ export const getCareHomeDetails = query({
       .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
       .collect();
 
-    // Get staff for each unit
-    const staffList: Array<{
-      userId: string;
-      email: string;
-      name: string;
-      role: "nurse" | "care_assistant";
-      unitId: Id<"units">;
-      unitName: string;
-    }> = [];
+    const useOrgFallback = units.length === 0;
 
-    const teamsWithStaffCount = await Promise.all(
+    // Get staff for each unit
+    const staffByUser = new Map<
+      string,
+      {
+        userId: string;
+        email: string;
+        name: string;
+        roles: Set<string>;
+        unitNames: Set<string>;
+      }
+    >();
+
+    const getUserInfo = async (userId: string, fallbackEmail?: string) => {
+      try {
+        const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "user",
+          where: [{ field: "id", value: userId }]
+        });
+
+        const email = authUser?.email || fallbackEmail || "";
+        let name = authUser?.name || authUser?.email || fallbackEmail || "";
+
+        if (email) {
+          const localUser = await ctx.db
+            .query("users")
+            .withIndex("byEmail", (q) => q.eq("email", email))
+            .first();
+          if (localUser?.name) {
+            name = localUser.name;
+          }
+        }
+
+        return { email, name };
+      } catch (error) {
+        return {
+          email: fallbackEmail || "",
+          name: fallbackEmail || ""
+        };
+      }
+    };
+
+    const upsertStaffMember = (
+      userId: string,
+      userInfo: { email: string; name: string },
+      role: string,
+      unitName: string
+    ) => {
+      const existing = staffByUser.get(userId);
+      if (existing) {
+        existing.roles.add(role);
+        existing.unitNames.add(unitName);
+        if (!existing.name && userInfo.name) {
+          existing.name = userInfo.name;
+        }
+        if (!existing.email && userInfo.email) {
+          existing.email = userInfo.email;
+        }
+        return;
+      }
+
+      staffByUser.set(userId, {
+        userId,
+        email: userInfo.email,
+        name: userInfo.name,
+        roles: new Set([role]),
+        unitNames: new Set([unitName])
+      });
+    };
+
+    let teamsWithStaffCount = await Promise.all(
       units.map(async (unit) => {
         // Get staff assigned to this unit
         const unitStaff = await ctx.db
@@ -290,37 +491,99 @@ export const getCareHomeDetails = query({
           .withIndex("by_unitId", (q) => q.eq("unitId", unit._id))
           .collect();
 
-        // Get user details for each staff member
         for (const staff of unitStaff) {
-          try {
-            const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
-              model: "user",
-              where: [{ field: "id", value: staff.userId }]
-            });
+          const userInfo = await getUserInfo(staff.userId);
+          upsertStaffMember(staff.userId, userInfo, staff.role, unit.name);
+        }
 
-            if (authUser) {
-              staffList.push({
-                userId: staff.userId,
-                email: authUser.email || "",
-                name: authUser.name || authUser.email || "",
-                role: staff.role,
-                unitId: unit._id,
-                unitName: unit.name
-              });
-            }
-          } catch (error) {
-            console.warn(`Failed to get user details for ${staff.userId}:`, error);
-          }
+        // Include team members for this unit's team
+        const teamMembers = await ctx.db
+          .query("teamMembers")
+          .withIndex("byTeamId", (q) => q.eq("teamId", unit.teamId))
+          .collect();
+
+        for (const member of teamMembers) {
+          const userInfo = await getUserInfo(member.userId, member.email);
+          upsertStaffMember(member.userId, userInfo, member.role || "member", unit.name);
         }
 
         return {
-          _id: unit._id,
+          _id: String(unit._id),
           name: unit.name,
           teamId: unit.teamId,
           staffCount: unitStaff.length
         };
       })
     );
+
+    if (useOrgFallback) {
+      const teamsResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "team",
+        where: [{ field: "organizationId", value: careHome.organizationId }],
+        paginationOpts: {
+          cursor: null,
+          numItems: 1000
+        }
+      });
+
+      teamsWithStaffCount = await Promise.all(
+        (teamsResult?.page || []).map(async (team: any) => {
+          const teamId = team.id || team._id;
+          const teamMembers = await ctx.db
+            .query("teamMembers")
+            .withIndex("byTeamId", (q) => q.eq("teamId", teamId))
+            .collect();
+
+          return {
+            _id: String(teamId),
+            name: team.name || "",
+            teamId: String(teamId),
+            staffCount: teamMembers.length
+          };
+        })
+      );
+    }
+
+    // Include care home managers
+    const careHomeManagers = await ctx.db
+      .query("careHomeManagers")
+      .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
+      .collect();
+
+    for (const manager of careHomeManagers) {
+      const userInfo = await getUserInfo(manager.userId);
+      upsertStaffMember(manager.userId, userInfo, "manager", "Care home");
+    }
+
+    // Include care home owner (createdBy)
+    if (careHome.createdBy) {
+      const ownerInfo = await getUserInfo(careHome.createdBy);
+      upsertStaffMember(careHome.createdBy, ownerInfo, "owner", "Care home");
+    }
+
+    if (useOrgFallback) {
+      const membersResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+        model: "member",
+        where: [{ field: "organizationId", value: careHome.organizationId }],
+        paginationOpts: {
+          cursor: null,
+          numItems: 1000
+        }
+      });
+
+      for (const member of membersResult?.page || []) {
+        const userInfo = await getUserInfo(member.userId);
+        upsertStaffMember(member.userId, userInfo, member.role || "member", "Organization");
+      }
+    }
+
+    const staffList = Array.from(staffByUser.values()).map((member) => ({
+      userId: member.userId,
+      email: member.email,
+      name: member.name,
+      role: Array.from(member.roles).join(", "),
+      unitNames: Array.from(member.unitNames)
+    }));
 
     return {
       _id: careHome._id,
@@ -648,27 +911,6 @@ export const createCareHome = mutation({
       // No-op: previously used for debug logging
       // #endregion
       throw new Error("Unauthorized: You must belong to an organization to create care homes. Please ensure you have accepted the invitation and try again.");
-    }
-
-    // Check if a care home already exists for this organization
-    const existingCareHome = await ctx.db
-      .query("careHomes")
-      .withIndex("by_organizationId", (q) => q.eq("organizationId", userOrgId))
-      .first();
-    
-    // #region agent log
-    // No-op: previously used for debug logging
-    // #endregion
-
-    if (existingCareHome) {
-      // Return existing care home instead of creating a duplicate
-      // #region agent log
-      // No-op: previously used for debug logging
-      // #endregion
-      return {
-        careHomeId: existingCareHome._id,
-        success: true
-      };
     }
 
     // Check permission - Owner can create care homes (or during onboarding)
