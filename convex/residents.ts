@@ -106,15 +106,51 @@ export const create = mutation({
     
     // Verify unit access for Nurse (Care Assistants already excluded above)
     if (effectiveRole === ROLES.NURSE) {
-      if (!activeUnitId) {
-        throw new Error("Unauthorized: No active unit");
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.subject) {
+        throw new Error("Unauthorized: User identity not found");
       }
+
       const unit = await ctx.db
         .query("units")
         .withIndex("by_teamId", (q) => q.eq("teamId", args.teamId))
         .first();
-      if (!unit || unit._id !== activeUnitId) {
-        throw new Error("Unauthorized: Cannot create resident in unit you're not assigned to");
+
+      if (!unit) {
+        // No unit linked to this team yet: allow if user is a team member.
+        const teamMembership = await ctx.db
+          .query("teamMembers")
+          .withIndex("byUserAndTeam", (q) =>
+            q.eq("userId", identity.subject).eq("teamId", args.teamId)
+          )
+          .first();
+
+        if (!teamMembership) {
+          throw new Error("Unauthorized: Unit not found for selected team");
+        }
+
+        // Team membership is enough when units are not configured.
+      } else {
+        // If activeUnitId is set, ensure it matches the selected team/unit.
+        if (activeUnitId && unit._id !== activeUnitId) {
+          throw new Error("Unauthorized: Cannot create resident in unit you're not assigned to");
+        }
+
+        // If activeUnitId is missing, validate assignment via unitStaff.
+        if (!activeUnitId) {
+          const assignments = await ctx.db
+            .query("unitStaff")
+            .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+            .collect();
+
+          const isAssignedToUnit = assignments.some(
+            (assignment) => assignment.unitId === unit._id
+          );
+
+          if (!isAssignedToUnit) {
+            throw new Error("Unauthorized: Cannot create resident in unit you're not assigned to");
+          }
+        }
       }
     }
     
@@ -189,7 +225,7 @@ export const getByOrganization = query({
   returns: v.array(v.any()),
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     // RBAC: Resolve user and enforce tenant isolation
-    const { role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
+    const { user, role, organizationId: userOrgId, activeUnitId } = await resolveUser(ctx);
     const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     if (!role) {
       console.warn(
@@ -274,17 +310,20 @@ export const getByOrganization = query({
     
     // Apply unit filter for Nurse/Care Assistant
     if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
-      if (!activeUnitId) {
-        // Nurse/Care Assistant must have an active unit to view residents
-        console.warn(`[RBAC] Access denied: User attempted to access residents without active unit`);
+      if (activeUnitId) {
+        const unit = await ctx.db.get(activeUnitId);
+        if (!unit) {
+          console.warn(`[RBAC] Access denied: User's active unit ${activeUnitId} not found`);
+          return [];
+        }
+        query = query.filter((q) => q.eq(q.field("teamId"), unit.teamId));
+      } else if (user.activeTeamId) {
+        // Allow team-based access when unit context isn't set
+        query = query.filter((q) => q.eq(q.field("teamId"), user.activeTeamId));
+      } else {
+        console.warn(`[RBAC] Access denied: User has no active unit or team`);
         return [];
       }
-      const unit = await ctx.db.get(activeUnitId);
-      if (!unit) {
-        console.warn(`[RBAC] Access denied: User's active unit ${activeUnitId} not found`);
-        return [];
-      }
-      query = query.filter((q) => q.eq(q.field("teamId"), unit.teamId));
     }
     
     const residents = await query.collect();
@@ -313,7 +352,7 @@ export const getById = query({
   returns: v.union(v.any(), v.null()),
   handler: async (ctx, args): Promise<any | null> => {
     // RBAC: Resolve user and check access
-    const { role, organizationId, activeUnitId } = await resolveUser(ctx);
+    const { user, role, organizationId, activeUnitId } = await resolveUser(ctx);
     const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     
     const resident = await ctx.db.get(args.residentId);
@@ -360,14 +399,20 @@ export const getById = query({
       
       // Enforce unit isolation for Nurse/Care Assistant
       if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
-        if (!activeUnitId) {
-          console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} without active unit`);
-          throw new Error("Unauthorized: You must have an active unit to access residents");
-        }
-        const unit = await ctx.db.get(activeUnitId);
-        if (!unit || resident.teamId !== unit.teamId) {
-          console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} from team ${resident.teamId} but active team is ${unit?.teamId || 'none'}`);
-          throw new Error("Unauthorized: Resident does not belong to your active unit");
+        if (activeUnitId) {
+          const unit = await ctx.db.get(activeUnitId);
+          if (!unit || resident.teamId !== unit.teamId) {
+            console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} from team ${resident.teamId} but active team is ${unit?.teamId || 'none'}`);
+            throw new Error("Unauthorized: Resident does not belong to your active unit");
+          }
+        } else if (user.activeTeamId) {
+          if (resident.teamId !== user.activeTeamId) {
+            console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} from team ${resident.teamId} but active team is ${user.activeTeamId}`);
+            throw new Error("Unauthorized: Resident does not belong to your active team");
+          }
+        } else {
+          console.warn(`[RBAC] Access denied: User attempted to access resident ${args.residentId} without active unit or team`);
+          throw new Error("Unauthorized: You must have an active team to access residents");
         }
       }
     }
@@ -397,7 +442,7 @@ export const getByTeamId = query({
   returns: v.array(v.any()),
   handler: async (ctx, args): Promise<Array<Record<string, unknown>>> => {
     // RBAC: Resolve user and enforce access
-    const { role, organizationId, activeUnitId } = await resolveUser(ctx);
+    const { user, role, organizationId, activeUnitId } = await resolveUser(ctx);
     const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
     if (!role) {
       console.warn(
@@ -408,13 +453,19 @@ export const getByTeamId = query({
 
     // For Nurse/Care Assistant: verify they're accessing their active team
     if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
-      if (!activeUnitId) {
-        console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} without active unit`);
-        return [];
-      }
-      const unit = await ctx.db.get(activeUnitId);
-      if (!unit || unit.teamId !== args.teamId) {
-        console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} but active team is ${unit?.teamId || 'none'}`);
+      if (activeUnitId) {
+        const unit = await ctx.db.get(activeUnitId);
+        if (!unit || unit.teamId !== args.teamId) {
+          console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} but active team is ${unit?.teamId || 'none'}`);
+          return [];
+        }
+      } else if (user.activeTeamId) {
+        if (user.activeTeamId !== args.teamId) {
+          console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} but active team is ${user.activeTeamId}`);
+          return [];
+        }
+      } else {
+        console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} without active unit or team`);
         return [];
       }
     }

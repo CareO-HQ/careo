@@ -80,7 +80,6 @@ export function TeamSwitcher({
   const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
   const { activeTeamId, activeTeam } = useActiveTeam();
   const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
-  const switchActiveUnit = useMutation(api.rbac.units.switchActiveUnit);
   const switchActiveCareHome = useMutation(api.rbac.careHomes.switchActiveCareHome);
 
   const getActiveOrgLogoQuery = useQuery(
@@ -96,51 +95,27 @@ export function TeamSwitcher({
     (currentUserContext?.user?.activeUnitId ? "nurse" : undefined);
   const isNurseOrCareAssistant =
     effectiveRole === "nurse" || effectiveRole === "care_assistant";
-  const assignedTeams = useQuery(
-    isNurseOrCareAssistant 
-      ? api.rbac.units.getAssignedTeams 
-      : api.auth.getTeamsForCurrentUser,
-    {}
-  );
+  const assignedTeams = useQuery(api.auth.getTeamsForCurrentUser, {});
   // Process teams based on role
   let orgTeams: Array<{
     id: string;
     name: string;
-    unitId?: Id<"units">;
   }> = [];
   
-  if (isNurseOrCareAssistant && assignedTeams) {
-    // For Nurse/Care Assistant: use assignedTeams which returns unitId, teamId, name
-    orgTeams = assignedTeams
-      .filter((team: { teamId: string; name: string }) =>
-        team.name !== activeOrganization?.name
-      )
-      .map((team: { teamId: string; name: string; unitId: Id<"units"> }) => ({
-        id: team.teamId,
-        name: team.name,
-        unitId: team.unitId
-      }));
-  } else if (assignedTeams) {
-    // For Manager/Owner: filter default teams
-    orgTeams = assignedTeams.filter(
-      (team: { id: string; name: string }) =>
-        team.name !== activeOrganization?.name
-    ) || [];
+  if (assignedTeams) {
+    // Use the same team list as managers/owners for all roles
+    orgTeams =
+      assignedTeams.filter(
+        (team: { id: string; name: string }) =>
+          team.name !== activeOrganization?.name
+      ) || [];
   }
 
-  const handleTeamClick = async (teamId: string, unitId?: Id<"units">) => {
+  const handleTeamClick = async (teamId: string) => {
     try {
-      if (isNurseOrCareAssistant && unitId) {
-        // For Nurse/Care Assistant: use switchActiveUnit which updates both activeUnitId and activeTeamId
-        await switchActiveUnit({ unitId });
-        toast.success("Team switched successfully");
-        // Reload page to refresh all team-scoped data
-        window.location.reload();
-      } else {
-        // For Manager/Owner: use updateActiveTeam
-        await updateActiveTeam({ teamId });
-        toast.success("Team switched successfully");
-      }
+      // Use the same team switching logic as managers/owners
+      await updateActiveTeam({ teamId });
+      toast.success("Team switched successfully");
     } catch (error) {
       console.error("Error switching team:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to switch team";
@@ -285,10 +260,10 @@ export function TeamSwitcher({
               )}
             </div>
             {orgTeams?.length ? (
-              orgTeams.map((team: { id: string; name: string; unitId?: Id<"units"> }) => (
+              orgTeams.map((team: { id: string; name: string }) => (
                 <DropdownMenuItem
                   key={team.id}
-                  onClick={() => handleTeamClick(team.id, team.unitId)}
+                  onClick={() => handleTeamClick(team.id)}
                   className={activeTeamId === team.id ? "bg-accent" : ""}
                 >
                   <div className="flex items-center justify-start gap-2 w-full">

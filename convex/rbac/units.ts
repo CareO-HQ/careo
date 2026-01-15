@@ -456,7 +456,30 @@ export const getAssignedTeams = query({
     // For Nurse/Care Assistant: show all units in active care home (or org fallback)
     if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
       let units: Array<Doc<"units">> = [];
-      const activeCareHomeId = await resolveCareHome(ctx);
+      let activeCareHomeId = await resolveCareHome(ctx);
+
+      // Fallback: derive care home from active unit if care home isn't set yet
+      if (!activeCareHomeId && user.activeUnitId) {
+        const activeUnit = await ctx.db.get(user.activeUnitId);
+        activeCareHomeId = activeUnit?.careHomeId || null;
+      }
+
+      // Fallback: derive care home from unitStaff assignments if org/care home missing
+      if (!activeCareHomeId && !organizationId) {
+        const unitAssignments = await ctx.db
+          .query("unitStaff")
+          .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+          .collect();
+        const assignedUnitIds = unitAssignments.map((assignment) => assignment.unitId);
+        const assignedUnits = await Promise.all(
+          assignedUnitIds.map((unitId) => ctx.db.get(unitId))
+        );
+        const careHomeIds = assignedUnits
+          .filter((unit): unit is Doc<"units"> => !!unit)
+          .map((unit) => unit.careHomeId);
+        activeCareHomeId = careHomeIds.length > 0 ? careHomeIds[0] : null;
+      }
+
       if (activeCareHomeId) {
         units = await ctx.db
           .query("units")
