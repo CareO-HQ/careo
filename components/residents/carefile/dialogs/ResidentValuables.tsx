@@ -245,7 +245,7 @@ export default function ResidentValuables({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Resident valuables updated successfully!");
           } else {
@@ -258,7 +258,7 @@ export default function ResidentValuables({
             teamId,
             organizationId,
             userId
-          });
+          } as any);
           toast.success("Resident valuables saved successfully");
         }
 

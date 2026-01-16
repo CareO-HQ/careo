@@ -157,7 +157,7 @@ export default function NutritionalAssessmentDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Form reviewed and updated successfully!");
           } else {
@@ -168,7 +168,7 @@ export default function NutritionalAssessmentDialog({
             ...values,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Nutritional assessment submitted successfully");
         }
         setTimeout(() => {

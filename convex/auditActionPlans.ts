@@ -390,7 +390,7 @@ export const getActionPlanById = query({
     const auditResponse = await ctx.db.get(actionPlan.auditResponseId);
 
     // Get resident info if available
-    let residentInfo = null;
+    let residentInfo: any = null;
     if (actionPlan.residentId) {
       residentInfo = await ctx.db.get(actionPlan.residentId);
     }

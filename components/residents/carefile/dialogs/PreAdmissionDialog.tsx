@@ -273,7 +273,7 @@ export default function PreAdmissionDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           console.log("Review submission successful:", data);
           if (data.hasChanges) {
             toast.success("Form reviewed and updated successfully!");
@@ -287,7 +287,7 @@ export default function PreAdmissionDialog({
             residentId: residentId as Id<"residents">,
             teamId,
             organizationId
-          });
+          } as any);
           console.log("Form submission successful:", data);
           if (data) {
             toast.success(

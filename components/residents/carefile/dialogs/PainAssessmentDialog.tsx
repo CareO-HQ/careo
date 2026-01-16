@@ -139,7 +139,7 @@ export default function PainAssessmentDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Form reviewed and updated successfully!");
           } else {
@@ -150,7 +150,7 @@ export default function PainAssessmentDialog({
             ...values,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Pain assessment submitted successfully");
         }
         setTimeout(() => {

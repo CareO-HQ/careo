@@ -301,7 +301,7 @@ export default function TimlDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("TIML assessment updated successfully!");
           } else {
@@ -311,7 +311,7 @@ export default function TimlDialog({
           await submitAssessment({
             ...formData,
             residentId: residentId as Id<"residents">
-          });
+          } as any);
           toast.success("TIML assessment saved successfully");
         }
 

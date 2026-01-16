@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -42,10 +41,8 @@ import {
   Check,
   Filter,
   ArrowLeft,
-  ListTodo,
   Calendar,
   User,
-  Clock,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -72,18 +69,10 @@ export default function NotificationPage() {
     userEmail ? { userId: userEmail, limit: 100 } : "skip"
   );
 
-  // Determine which table the action plan belongs to based on the ID
-  const getActionPlanTable = (actionPlanId: string): string => {
-    // Convex IDs are prefixed with the table name
-    // We need to parse metadata or use a different approach
-    // For now, we'll rely on notification metadata to tell us
-    return selectedNotification?.metadata?.auditCategory || "resident";
-  };
-
   // Get action plan details - dynamically choose which query based on category
   const residentActionPlanDetails = useQuery(
     api.auditActionPlans.getActionPlanById,
-    selectedNotification?.metadata?.actionPlanId && getActionPlanTable(selectedNotification.metadata.actionPlanId) === "resident"
+    selectedNotification?.metadata?.actionPlanId && (selectedNotification?.metadata?.auditCategory || "resident") === "resident"
       ? { actionPlanId: selectedNotification.metadata.actionPlanId as Id<"residentAuditActionPlans"> }
       : "skip"
   );
@@ -234,25 +223,22 @@ export default function NotificationPage() {
       }
 
       // If we have a category, use it directly
-      let updateMutation;
       switch (auditCategory) {
         case "clinical":
-          updateMutation = updateClinicalStatus;
+          await updateClinicalStatus(updateData as any);
           break;
         case "governance":
-          updateMutation = updateGovernanceStatus;
+          await updateGovernanceStatus(updateData as any);
           break;
         case "environment":
-          updateMutation = updateEnvironmentStatus;
+          await updateEnvironmentStatus(updateData as any);
           break;
         case "carefile":
-          updateMutation = updateCareFileStatus;
+          await updateCareFileStatus(updateData as any);
           break;
         default:
-          updateMutation = updateResidentStatus;
+          await updateResidentStatus(updateData as any);
       }
-
-      await updateMutation(updateData);
       toast.success("Status updated successfully");
       setIsDetailModalOpen(false);
       setSelectedNotification(null);
@@ -312,35 +298,6 @@ export default function NotificationPage() {
     }
   };
 
-  // Get notification type icon/color
-  const getNotificationTypeInfo = (type: string) => {
-    switch (type) {
-      case "action_plan":
-        return {
-          icon: <ListTodo className="w-4 h-4" />,
-          label: "Action Plan Assigned",
-          color: "text-blue-600",
-        };
-      case "action_plan_status_updated":
-        return {
-          icon: <ListTodo className="w-4 h-4" />,
-          label: "Action Plan Updated",
-          color: "text-green-600",
-        };
-      case "action_plan_completed":
-        return {
-          icon: <ListTodo className="w-4 h-4" />,
-          label: "Action Plan Completed",
-          color: "text-green-600",
-        };
-      default:
-        return {
-          icon: <Bell className="w-4 h-4" />,
-          label: "Notification",
-          color: "text-gray-600",
-        };
-    }
-  };
 
   // Mark individual as read
   const markNotificationAsRead = async (notificationId: Id<"notifications">, e: React.MouseEvent) => {
@@ -443,15 +400,6 @@ export default function NotificationPage() {
           </div>
         ) : (
           filteredNotifications.map((notification) => {
-            const typeInfo = getNotificationTypeInfo(notification.type);
-            const initials = notification.senderName
-              ? notification.senderName
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-              : "S";
-
             return (
               <div
                 key={notification._id}

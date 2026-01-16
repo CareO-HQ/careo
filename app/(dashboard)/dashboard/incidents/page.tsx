@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Filter, Bell, ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
+import { Check, Filter, Bell, ArrowLeft, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -55,7 +55,6 @@ export default function NotificationPage() {
 
   // Only show loading if we're waiting for team info, not if no team is selected
   const isLoading = isTeamLoading;
-  const hasMarkedAsRead = useRef(false);
 
   // Removed auto-mark as read functionality - incidents only marked as read when clicked
 
@@ -126,9 +125,6 @@ export default function NotificationPage() {
     }
   };
 
-  const getTypeBadgeText = (type: NotificationType) => {
-    return type.charAt(0).toUpperCase() + type.slice(1);
-  };
 
   const formatIncidentLevel = (level: string) => {
     return level

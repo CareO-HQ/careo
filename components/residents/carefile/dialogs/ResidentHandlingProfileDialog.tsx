@@ -214,7 +214,7 @@ export default function ResidentHandlingProfile({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Handling profile updated successfully!");
           } else {
@@ -224,7 +224,7 @@ export default function ResidentHandlingProfile({
           await submitProfile({
             ...formData,
             residentId: residentId as Id<"residents">
-          });
+          } as any);
           toast.success("Handling profile saved successfully");
         }
 

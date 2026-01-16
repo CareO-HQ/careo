@@ -334,8 +334,8 @@ export default function CareFileFolder({
   }, {} as Record<string, typeof archivedItemsInFolder>);
 
   // Take only the first (most recent) archived item per form type
-  const filteredArchivedItems = Object.values(formKeyGroups).map(group =>
-    group.sort((a, b) => b._creationTime - a._creationTime)[0]
+  const filteredArchivedItems = Object.values(formKeyGroups).map((group: any) =>
+    group.sort((a: any, b: any) => b._creationTime - a._creationTime)[0]
   );
 
   const totalArchivedCount = archivedItemsInFolder.length;
@@ -868,7 +868,7 @@ export default function CareFileFolder({
           break;
         case "resident-handling-profile-form":
           await deleteHandlingProfileMutation({
-            assessmentId: formId as Id<"residentHandlingProfileForms">
+            assessmentId: formId as any
           });
           break;
         case "nutritional-assessment-form":
@@ -903,7 +903,7 @@ export default function CareFileFolder({
           break;
         case "best-interest-decision-form":
           await deleteBestInterestDecisionMutation({
-            decisionId: formId as Id<"bestInterestDecisions">
+            id: formId as Id<"bestInterestDecisions">
           });
           break;
         default:
@@ -1341,11 +1341,11 @@ export default function CareFileFolder({
                   return (
                     <a
                       key={form.key}
-                      href={form.url}
+                      href={(form as any).url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group cursor-pointer hover:bg-muted/50 hover:text-primary"
-                      title={form.description}
+                      title={(form as any).description}
                     >
                       <div className="flex flex-row items-center gap-2">
                         <svg
@@ -1708,9 +1708,6 @@ export default function CareFileFolder({
           onEscapeKeyDown={(e) => {
             e.stopPropagation();
           }}
-          onPointerDownOutside={(e) => {
-            e.stopPropagation();
-          }}
         >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Care Plan</AlertDialogTitle>
@@ -1753,9 +1750,6 @@ export default function CareFileFolder({
       >
         <AlertDialogContent
           onEscapeKeyDown={(e) => {
-            e.stopPropagation();
-          }}
-          onPointerDownOutside={(e) => {
             e.stopPropagation();
           }}
         >

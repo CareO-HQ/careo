@@ -391,7 +391,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   const bestInterestDecisionPdfUrl = useQuery(
     api.careFiles.bestInterestDecision.getPdfUrl,
     latestBestInterestDecisionForm
-      ? { decisionId: latestBestInterestDecisionForm._id }
+      ? { assessmentId: latestBestInterestDecisionForm._id }
       : "skip"
   );
 
@@ -692,7 +692,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       pdfUrl: bedRailsRiskAssessmentPdfUrl,
       lastUpdated: latestBedRailsRiskAssessmentForm?._creationTime,
       completedAt: !latestBedRailsRiskAssessmentForm?.savedAsDraft
-        ? latestBedRailsRiskAssessmentForm?.createdAt
+        ? (latestBedRailsRiskAssessmentForm?.createdAt ? new Date(latestBedRailsRiskAssessmentForm.createdAt).getTime() : undefined)
         : undefined,
       isAudited: bedRailsRiskAssessmentAudit?.isAudited || false,
       auditedAt: bedRailsRiskAssessmentAudit?.auditedAt,
@@ -1198,7 +1198,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       pdfUrl: bestInterestDecisionPdfUrl,
       lastUpdated: latestBestInterestDecisionForm?._creationTime,
       completedAt: !latestBestInterestDecisionForm?.savedAsDraft
-        ? latestBestInterestDecisionForm?.createdAt
+        ? (latestBestInterestDecisionForm?.createdAt ? new Date(latestBestInterestDecisionForm.createdAt).getTime() : undefined)
         : undefined,
       isAudited: bestInterestDecisionAudit?.isAudited || false,
       auditedAt: bestInterestDecisionAudit?.auditedAt,

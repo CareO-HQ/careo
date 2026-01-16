@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -30,11 +29,8 @@ import { TodoList } from "@/components/dashboard/TodoList";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { data: session } = authClient.useSession();
   const {
-    activeTeam,
     activeTeamId,
-    activeOrganization,
     activeOrganizationId,
     isLoading: isTeamLoading,
   } = useActiveTeam();
@@ -53,9 +49,6 @@ export default function DashboardPage() {
   const dashboardData = activeTeamId ? teamDashboard : orgDashboard;
 
   const isLoading = isTeamLoading || dashboardData === undefined;
-
-  // Get user's first name
-  const userName = session?.user?.name?.split(" ")[0] || "User";
 
   // Format today's date
   const today = format(new Date(), "EEEE, MMMM dd, yyyy");

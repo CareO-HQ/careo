@@ -144,6 +144,24 @@ const PDF_URL_CONFIG: Record<CareFileFormKey, PdfUrlConfig> = {
       assessmentId: formId as Id<"cornellDepressionScales">,
       organizationId: organizationId ?? ""
     })
+  },
+  "best-interest-decision-form": {
+    query: api.careFiles.bestInterestDecision.getPdfUrl,
+    buildArgs: (formId) => ({
+      assessmentId: formId as Id<"bestInterestDecisions">
+    })
+  },
+  "bedrail-consent-form": {
+    query: api.careFiles.bedrailConsent.getPDFUrl,
+    buildArgs: (formId) => ({
+      consentId: formId as Id<"bedrailConsents">
+    })
+  },
+  "bed-rails-risk-assessment-form": {
+    query: api.careFiles.bedRailsRiskAssessment.getPdfUrl,
+    buildArgs: (formId) => ({
+      assessmentId: formId as Id<"bedRailsRiskAssessments">
+    })
   }
 };
 

@@ -116,7 +116,7 @@ export default function ChokingRiskAssessmentDialog({
         userId,
         ...data,
         savedAsDraft: false
-      });
+      } as any);
 
       toast.success("Choking Risk Assessment submitted successfully");
       onClose();

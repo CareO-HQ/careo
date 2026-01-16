@@ -249,7 +249,7 @@ export default function PhotographyConsentDialog({
             ...formData,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
 
           setLoadingState("Generating PDF document...");
 

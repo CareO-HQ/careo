@@ -173,7 +173,7 @@ export default function DependencyDialog({
             completedBySignature: formData.completedBySignature,
             date: formData.date,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Dependency assessment saved successfully");
         }
         onClose?.();

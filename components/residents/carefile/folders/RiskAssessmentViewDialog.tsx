@@ -91,7 +91,7 @@ export default function RiskAssessmentViewDialog({
     if (formKey === "moving-handling-form") return { id: assessment.formId as Id<"movingHandlingAssessments"> };
     if (formKey === "bedrail-consent-form") return { id: assessment.formId as Id<"bedrailConsents"> };
     if (formKey === "bed-rails-risk-assessment-form") return { assessmentId: assessment.formId as Id<"bedRailsRiskAssessments"> };
-    if (formKey === "long-term-fall-risk-form") return { id: assessment.formId as Id<"longTermFallsAssessments"> };
+    if (formKey === "long-term-fall-risk-form") return { id: assessment.formId as any };
     if (formKey === "blader-bowel-form") return { id: assessment.formId as Id<"bladderBowelAssessments"> };
     if (formKey === "preAdmission-form") return { id: assessment.formId as Id<"preAdmissionCareFiles"> };
     if (formKey === "admission-form") return { assessmentId: assessment.formId as Id<"admissionAssesments"> };
@@ -113,7 +113,7 @@ export default function RiskAssessmentViewDialog({
     return "skip";
   };
 
-  const assessmentData = useQuery(getQueryFunction(), getQueryParams());
+  const assessmentData = useQuery(getQueryFunction() as any, getQueryParams());
 
   if (!assessmentData) {
     return (
@@ -219,7 +219,7 @@ export default function RiskAssessmentViewDialog({
               return (
                 <div key={key} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Type of Bed</p>
-                  <p className="text-sm leading-relaxed">{bedTypeMap[value as string] || value}</p>
+                  <p className="text-sm leading-relaxed">{(bedTypeMap[value as string] || value) as string}</p>
                 </div>
               );
             }
@@ -235,7 +235,7 @@ export default function RiskAssessmentViewDialog({
               return (
                 <div key={key} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Type of Mattress</p>
-                  <p className="text-sm leading-relaxed">{mattressTypeMap[value as string] || value}</p>
+                  <p className="text-sm leading-relaxed">{(mattressTypeMap[value as string] || value) as string}</p>
                 </div>
               );
             }
@@ -250,7 +250,7 @@ export default function RiskAssessmentViewDialog({
               return (
                 <div key={key} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Type of Bedrails</p>
-                  <p className="text-sm leading-relaxed">{bedrailTypeMap[value as string] || value}</p>
+                  <p className="text-sm leading-relaxed">{(bedrailTypeMap[value as string] || value) as string}</p>
                 </div>
               );
             }
@@ -286,7 +286,7 @@ export default function RiskAssessmentViewDialog({
               <div key={key} className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Consent Type</p>
                 <p className="text-sm leading-relaxed">
-                  {consentTypeMap[value as string] || value}
+                  {(consentTypeMap[value as string] || value) as string}
                 </p>
               </div>
             );
@@ -399,7 +399,7 @@ export default function RiskAssessmentViewDialog({
               <div key={key} className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Dependency Level</p>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words font-medium">
-                  {dependencyLevelMap[value as string] || value}
+                  {(dependencyLevelMap[value as string] || value) as string}
                 </p>
               </div>
             );
@@ -548,20 +548,20 @@ export default function RiskAssessmentViewDialog({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Number of Staff</p>
-                        <p className="text-sm">{value.nStaff}</p>
+                        <p className="text-sm">{(value as any).nStaff}</p>
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Date for Review</p>
-                        <p className="text-sm">{format(new Date(value.dateForReview), "dd MMM yyyy")}</p>
+                        <p className="text-sm">{format(new Date((value as any).dateForReview), "dd MMM yyyy")}</p>
                       </div>
                     </div>
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Equipment</p>
-                      <p className="text-sm">{value.equipment}</p>
+                      <p className="text-sm">{(value as any).equipment}</p>
                     </div>
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Handling Plan</p>
-                      <p className="text-sm">{value.handlingPlan}</p>
+                      <p className="text-sm">{(value as any).handlingPlan}</p>
                     </div>
                   </div>
                 </div>

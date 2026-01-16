@@ -71,7 +71,7 @@ export default function DietNotificationDialog({
         userId,
         ...data,
         savedAsDraft: false
-      });
+      } as any);
       toast.success("Diet Notification submitted successfully");
       onClose();
     } catch (error) {

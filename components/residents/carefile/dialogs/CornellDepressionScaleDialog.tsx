@@ -102,7 +102,7 @@ export default function CornellDepressionScaleDialog({
         userId,
         ...data,
         savedAsDraft: false
-      });
+      } as any);
 
       toast.success("Cornell Depression Scale submitted successfully");
       onClose();

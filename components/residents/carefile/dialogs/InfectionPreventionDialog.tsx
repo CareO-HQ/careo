@@ -350,7 +350,7 @@ export default function InfectionPreventionDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           console.log("Review submitted successfully:", data);
           if (data.hasChanges) {
             toast.success("Form reviewed and updated successfully!");
@@ -362,7 +362,7 @@ export default function InfectionPreventionDialog({
         } else {
           // Normal submission for new forms
           const assessmentId =
-            await submitInfectionPreventionAssessmentMutation(formattedValues);
+            await submitInfectionPreventionAssessmentMutation(formattedValues as any);
           console.log("Assessment submitted successfully:", assessmentId);
           toast.success(
             "Infection Prevention Assessment submitted successfully!"

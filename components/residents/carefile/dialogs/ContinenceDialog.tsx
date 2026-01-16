@@ -301,7 +301,7 @@ export default function BladderBowelDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Form reviewed and updated successfully!");
           } else {
@@ -313,7 +313,7 @@ export default function BladderBowelDialog({
             ...values,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Bladder bowel assessment submitted successfully");
         }
         // Close the dialog after successful submission with slight delay to allow data refresh
@@ -334,7 +334,7 @@ export default function BladderBowelDialog({
         ...values,
         residentId: residentId as Id<"residents">,
         savedAsDraft: true
-      });
+      } as any);
       toast.success("Draft saved successfully");
       onClose?.();
     } catch (error) {

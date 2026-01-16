@@ -201,14 +201,14 @@ export default function CarePlanDialog({
             auditedBy: userId,
             teamId: "placeholder", // Will be filled from context
             organizationId: "placeholder" // Will be filled from context
-          });
+          } as any);
           toast.success("Care plan assessment updated successfully");
         } else {
           await submitAssessment({
             ...values,
             residentId: residentId as Id<"residents">,
             folderKey
-          });
+          } as any);
           toast.success("Care plan assessment submitted successfully");
         }
 

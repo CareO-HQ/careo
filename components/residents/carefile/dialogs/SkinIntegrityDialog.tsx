@@ -179,7 +179,7 @@ export default function SkinIntegrityDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Skin integrity assessment updated successfully!");
           } else {
@@ -190,7 +190,7 @@ export default function SkinIntegrityDialog({
             ...formData,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Skin integrity assessment saved successfully");
         }
 

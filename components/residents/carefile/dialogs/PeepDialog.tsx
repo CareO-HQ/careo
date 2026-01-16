@@ -234,7 +234,7 @@ export default function PeepDialog({
             organizationId,
             userId,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("PEEP saved successfully");
         }
 

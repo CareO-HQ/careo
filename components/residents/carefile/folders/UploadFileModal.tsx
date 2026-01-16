@@ -99,9 +99,9 @@ export default function UploadFileModal({
         fileName: fileName.trim(),
         folderName,
         residentId,
-        organizationId: activeOrg.id,
+        organizationId: activeOrg?.id,
         teamId: activeTeamId,
-        uploadedBy: currentUser.user.email
+        uploadedBy: currentUser?.user.email
       });
 
       // Generate upload URL
@@ -136,9 +136,9 @@ export default function UploadFileModal({
         originalName: selectedFile.name,
         folderName,
         residentId,
-        organizationId: activeOrg.id,
+        organizationId: activeOrg?.id ?? "",
         teamId: activeTeamId,
-        uploadedBy: currentUser.user.email,
+        uploadedBy: currentUser?.user.email ?? "",
         size: selectedFile.size
       });
 

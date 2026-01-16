@@ -92,7 +92,7 @@ export const sendEmailWithMultiplePDFs = action({
   handler: async (ctx, args) => {
     try {
       // Get PDF files metadata and content
-      const attachments = [];
+      const attachments: any[] = [];
 
       for (const fileId of args.pdfStorageIds) {
         // Get file metadata from your files table

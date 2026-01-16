@@ -177,7 +177,7 @@ export default function BestInterestDecisionDialog({
   const onSubmit = async (data: BestInterestDecisionFormData) => {
     try {
       setIsSubmitting(true);
-      await submitDecision(data);
+      await submitDecision(data as any);
       toast.success("Best interest decision submitted successfully");
       setTimeout(() => {
         onClose?.();

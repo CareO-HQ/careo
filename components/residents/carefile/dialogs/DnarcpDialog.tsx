@@ -264,7 +264,7 @@ export default function DnacprDialog({
           await submitDnacpr({
             ...formData,
             residentId: residentId as Id<"residents">
-          });
+          } as any);
           toast.success("DNACPR form saved successfully");
         }
 

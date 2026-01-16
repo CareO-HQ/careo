@@ -252,7 +252,7 @@ export default function BedrailConsentDialog({
             ableToConsentSection: preparedData.ableToConsentSection,
             unableToConsentSection: preparedData.unableToConsentSection,
             savedAsDraft: false
-          });
+          } as any);
 
           setLoadingState("Generating PDF document...");
           await new Promise((resolve) => setTimeout(resolve, 1000));

@@ -190,7 +190,7 @@ export const getArchivedCarePlansForResident = query({
     }
 
     // Collect all non-latest care plans (archived)
-    const archivedPlans = [];
+    const archivedPlans: any[] = [];
 
     for (const [folderKey, plans] of groupedByFolder.entries()) {
       // Skip the first one (latest) and add the rest to archived

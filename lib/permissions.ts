@@ -62,7 +62,7 @@ export const SENSITIVE_FIELDS = {
  */
 export function canViewField(field: keyof typeof SENSITIVE_FIELDS, userRole: UserRole): boolean {
   const allowedRoles = SENSITIVE_FIELDS[field];
-  return allowedRoles.includes(userRole);
+  return allowedRoles.includes(userRole as any);
 }
 
 /**

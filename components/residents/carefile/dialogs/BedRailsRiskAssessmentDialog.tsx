@@ -62,7 +62,7 @@ export default function BedRailsRiskAssessmentDialog({
   );
 
   const form = useForm<BedRailsRiskAssessmentFormData>({
-    resolver: zodResolver(bedRailsRiskAssessmentSchema),
+    resolver: zodResolver(bedRailsRiskAssessmentSchema) as any,
     defaultValues: initialData ? {
       residentId: initialData.residentId,
       teamId: initialData.teamId,
@@ -204,7 +204,7 @@ export default function BedRailsRiskAssessmentDialog({
 
       const formData = form.getValues();
 
-      await submitAssessment(formData);
+      await submitAssessment(formData as any);
       toast.success("Risk assessment submitted successfully");
       onClose?.();
     } catch (error) {

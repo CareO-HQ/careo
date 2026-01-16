@@ -210,7 +210,7 @@ export default function OralAssessmentDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           if (data.hasChanges) {
             toast.success("Form reviewed and updated successfully!");
           } else {
@@ -221,7 +221,7 @@ export default function OralAssessmentDialog({
             ...values,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Oral assessment submitted successfully");
         }
         setTimeout(() => {
