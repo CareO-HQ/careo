@@ -1,6 +1,7 @@
 import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { getUKTodayDateString } from "./utils/dateUtils";
 
 /**
  * Helper function to format time duration into human-readable string
@@ -58,7 +59,7 @@ export const generateFoodFluidAlerts = internalMutation({
       .collect();
 
     console.log(
-      `[Alert Generation] Checking ${residents.length} residents for food/fluid alerts at ${now.toISOString()}`
+      `[Alert Generation] Checking ${residents.length} residents for food/fluid alerts at ${new Date(now).toISOString()}`
     );
 
     let alertsCreated = 0;
@@ -171,16 +172,19 @@ export const generateFoodFluidAlerts = internalMutation({
 export const generateNightCheckAlerts = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const now = new Date();
-    const today = now.toISOString().split("T")[0]; // YYYY-MM-DD
-    const currentHour = now.getHours();
-    const currentTimeMs = now.getTime();
+    const now = Date.now();
+    const today = getUKTodayDateString(); // YYYY-MM-DD (UK timezone)
+    // Get current hour in UK timezone
+    const ukDate = new Date(now);
+    const ukTimeString = ukDate.toLocaleString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', hour12: false });
+    const currentHour = parseInt(ukTimeString.split(':')[0]);
+    const currentTimeMs = now;
 
     // Only run during night shift hours (10 PM - 6 AM)
     const isNightShift = currentHour >= 22 || currentHour < 6;
 
     console.log(
-      `[Night Check Alerts] Running at ${now.toISOString()}, isNightShift: ${isNightShift}`
+      `[Night Check Alerts] Running at ${new Date(now).toISOString()}, isNightShift: ${isNightShift}`
     );
 
     // Get all active residents

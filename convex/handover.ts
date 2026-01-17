@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getUKTodayDateString } from "./utils/dateUtils";
 
 // Get handover report for a resident (food intake, fluid total, incidents)
 export const getHandoverReport = query({
@@ -9,7 +10,7 @@ export const getHandoverReport = query({
     afterTimestamp: v.optional(v.number()), // Only get data after this timestamp
   },
   handler: async (ctx, args) => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const today = getUKTodayDateString(); // YYYY-MM-DD format (UK timezone)
 
     // Get today's food/fluid logs
     let foodFluidLogsQuery = ctx.db

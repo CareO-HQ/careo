@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { api } from "./_generated/api";
+import { getUKTodayDateString, getUKDateString } from "./utils/dateUtils";
 
 // Create a new night check recording
 export const create = mutation({
@@ -290,7 +291,7 @@ export const getPaginatedNightCheckReports = query({
     currentDate.setHours(0, 0, 0, 0);
 
     while (currentDate <= today) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = getUKDateString(currentDate.getTime());
 
       // Apply month/year filters
       let includeDate = true;
@@ -323,7 +324,7 @@ export const getPaginatedNightCheckReports = query({
       dates: paginatedDates,
       totalCount: allDates.length,
       hasMore: endIndex < allDates.length,
-      earliestDate: earliestDataDate.toISOString().split('T')[0]
+      earliestDate: getUKDateString(earliestDataDate.getTime())
     };
   }
 });

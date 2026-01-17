@@ -10,6 +10,7 @@ import { betterAuthComponent } from "./auth";
 import { components, internal } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { api } from "./_generated/api";
+import { createUKTimestamp, getUKDateString, getUKTimeString } from "./utils/dateUtils";
 
 // Helper function to create medication intake records for up to 7 days or until end date
 async function createMedicationIntakes(
@@ -36,34 +37,18 @@ async function createMedicationIntakes(
     return;
   }
 
-  // Create date object and ensure we're working with the correct date
-  // Handle timezone issues by reconstructing the date from the original timestamp
-  const originalStartDate = new Date(medication.startDate);
-  console.log(
-    `Original start date from timestamp: ${originalStartDate.toISOString()}`
-  );
-  console.log(
-    `Original start date local: ${originalStartDate.toLocaleDateString()}`
-  );
-
-  // Create a new date using the local date components to avoid timezone shifts
-  const startDate = new Date(
-    originalStartDate.getFullYear(),
-    originalStartDate.getMonth(),
-    originalStartDate.getDate(),
-    12, // Set to noon to be safe
-    0,
-    0,
-    0
-  );
-
-  console.log(`Corrected start date: ${startDate.toLocaleDateString()}`);
+  // Convert start date timestamp to UK timezone date string
+  // This ensures we work with the correct UK date regardless of server timezone
+  const startDateStr = getUKDateString(medication.startDate);
+  const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+  
+  console.log(`Start date (UK timezone): ${startDateStr}`);
   const medicationTimes = medication.times || [];
 
   console.log(
     `Creating medication intake records for "${medication.name}" (${medication.frequency})`
   );
-  console.log(`Start date: ${startDate.toLocaleDateString()}`);
+  console.log(`Start date (UK): ${startDateStr}`);
   console.log(`Times per day: ${medicationTimes.join(", ")}`);
 
   // Calculate how many days to increment based on frequency
@@ -76,74 +61,47 @@ async function createMedicationIntakes(
 
   const intakeRecords: any[] = [];
 
-  // Determine the end date for creating intakes
-  const endDate = medication.endDate ? new Date(medication.endDate) : null;
-
-  if (endDate) {
-    console.log(`Original end date from timestamp: ${endDate.toISOString()}`);
-    console.log(`Original end date local: ${endDate.toLocaleDateString()}`);
+  // Determine the end date for creating intakes (in UK timezone)
+  const endDateStr = medication.endDate ? getUKDateString(medication.endDate) : null;
+  if (endDateStr) {
+    console.log(`End date (UK timezone): ${endDateStr}`);
   }
-  const maxDate = endDate
-    ? new Date(
-        Math.min(
-          endDate.getTime(),
-          startDate.getTime() + 7 * 24 * 60 * 60 * 1000
-        )
-      ) // 7 days from start
-    : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000); // Default 7 days
-
-  console.log(
-    `Creating intakes until: ${endDate ? endDate.toLocaleDateString() : "7 days from start"}`
-  );
 
   // Generate intake records until end date or 7 days, whichever comes first
   for (let day = 0; day < 7; day++) {
-    const currentDate = new Date(startDate);
-    currentDate.setDate(startDate.getDate() + day * dayIncrement);
+    // Calculate current date in UK timezone
+    const currentDate = new Date(startYear, startMonth - 1, startDay);
+    currentDate.setDate(currentDate.getDate() + day * dayIncrement);
+    const currentDateStr = getUKDateString(currentDate.getTime());
 
     // Skip if this frequency doesn't apply to this day
     if (medication.frequency === "Weekly" && day > 0) break;
     if (medication.frequency === "Monthly" && day > 0) break;
     if (medication.frequency === "One time (STAT)" && day > 0) break;
 
+    // Check if we've reached the end date BEFORE creating intakes
+    if (endDateStr && currentDateStr > endDateStr) {
+      console.log(`Reached end date: ${endDateStr}`);
+      break;
+    }
+
     // Create intake record for each scheduled time on this day
     for (const time of medicationTimes) {
-      const [hours, minutes] = time.split(":");
-      const scheduledDateTime = new Date(currentDate);
-      scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-      // Create date in local timezone, then adjust for UTC storage
-      // This ensures the stored time represents the intended local time
-      const correctScheduledDateTime = new Date(
+      const [hours, minutes] = time.split(":").map(Number);
+      
+      // Create UK timezone timestamp for this date and time
+      const scheduledTime = createUKTimestamp(
         currentDate.getFullYear(),
-        currentDate.getMonth(),
+        currentDate.getMonth() + 1,
         currentDate.getDate(),
-        parseInt(hours),
-        parseInt(minutes),
-        0,
-        0
+        hours,
+        minutes
       );
 
-      // If you want to store as "intended local time" regardless of timezone:
-      // Uncomment the next 3 lines to offset the timezone difference
-      // const timezoneOffset = correctScheduledDateTime.getTimezoneOffset() * 60000;
-      // const localTimeAsUTC = new Date(correctScheduledDateTime.getTime() + timezoneOffset);
-      // correctScheduledDateTime = localTimeAsUTC;
-
       console.log(
-        `Creating intake for: ${correctScheduledDateTime.toLocaleDateString()} at ${correctScheduledDateTime.toLocaleTimeString(
-          "en-GB",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false
-          }
-        )} (Local time)`
+        `Creating intake for: ${currentDateStr} at ${time} (UK timezone)`
       );
-      console.log(`UTC time: ${correctScheduledDateTime.toISOString()}`);
-      console.log(
-        `Timestamp being saved: ${correctScheduledDateTime.getTime()}`
-      );
+      console.log(`UTC timestamp: ${scheduledTime}`);
 
       // Get quantity for this specific time (default to 1 if not specified)
       const quantity = medication.timeQuantities?.[time] || 1;
@@ -153,7 +111,7 @@ async function createMedicationIntakes(
         const intakeRecord = {
           medicationId,
           residentId: medication.residentId!!,
-          scheduledTime: correctScheduledDateTime.getTime(),
+          scheduledTime: scheduledTime,
           state: "scheduled" as const,
           teamId,
           organizationId,
@@ -164,14 +122,6 @@ async function createMedicationIntakes(
         const intakeId = await ctx.db.insert("medicationIntake", intakeRecord);
         intakeRecords.push(intakeId);
       }
-    }
-
-    // Check if we've reached the end date AFTER creating intakes for this day
-    if (endDate && currentDate >= endDate) {
-      console.log(
-        `Reached end date after creating intakes for: ${currentDate.toLocaleDateString()}`
-      );
-      break;
     }
   }
 
@@ -1172,9 +1122,11 @@ export const createNextDayMedicationIntakes = internalMutation({
       return [];
     }
 
-    const lastScheduledDate: Date = new Date(lastScheduledTime);
+    // Convert last scheduled time to UK timezone date string
+    const lastScheduledDateStr = getUKDateString(lastScheduledTime);
+    const [lastYear, lastMonth, lastDay] = lastScheduledDateStr.split('-').map(Number);
     console.log(
-      `Last scheduled date for ${medication.name}: ${lastScheduledDate.toLocaleDateString()} ${lastScheduledDate.toLocaleTimeString()}`
+      `Last scheduled date for ${medication.name} (UK): ${lastScheduledDateStr}`
     );
 
     // Calculate the next day based on frequency
@@ -1190,26 +1142,27 @@ export const createNextDayMedicationIntakes = internalMutation({
       return [];
     }
 
-    // Calculate next scheduled date
-    const nextDate: Date = new Date(lastScheduledDate);
-    nextDate.setDate(lastScheduledDate.getDate() + dayIncrement);
+    // Calculate next scheduled date in UK timezone
+    const nextDate = new Date(lastYear, lastMonth - 1, lastDay);
+    nextDate.setDate(nextDate.getDate() + dayIncrement);
+    const nextDateStr = getUKDateString(nextDate.getTime());
 
     // Check if next date is within medication's end date range
     if (medication.endDate) {
-      const endDate = new Date(medication.endDate);
-      console.log(`Medication end date: ${endDate.toLocaleDateString()}`);
-      console.log(`Next scheduled date: ${nextDate.toLocaleDateString()}`);
+      const endDateStr = getUKDateString(medication.endDate);
+      console.log(`Medication end date (UK): ${endDateStr}`);
+      console.log(`Next scheduled date (UK): ${nextDateStr}`);
 
-      if (nextDate > endDate) {
+      if (nextDateStr > endDateStr) {
         console.log(
-          `Next scheduled date (${nextDate.toLocaleDateString()}) is beyond medication end date (${endDate.toLocaleDateString()}) - skipping`
+          `Next scheduled date (${nextDateStr}) is beyond medication end date (${endDateStr}) - skipping`
         );
         return [];
       }
     }
 
     console.log(
-      `Creating intakes for ${medication.name} on ${nextDate.toLocaleDateString()}`
+      `Creating intakes for ${medication.name} on ${nextDateStr} (UK timezone)`
     );
     console.log(`Medication times: ${medication.times?.join(", ") || "No times scheduled"}`);
 
@@ -1217,32 +1170,25 @@ export const createNextDayMedicationIntakes = internalMutation({
 
     // Create intake record for each scheduled time on the next day
     for (const time of (medication.times || [])) {
-      const [hours, minutes] = time.split(":");
-      const scheduledDateTime: Date = new Date(
+      const [hours, minutes] = time.split(":").map(Number);
+      
+      // Create UK timezone timestamp for this date and time
+      const scheduledTime = createUKTimestamp(
         nextDate.getFullYear(),
-        nextDate.getMonth(),
+        nextDate.getMonth() + 1,
         nextDate.getDate(),
-        parseInt(hours),
-        parseInt(minutes),
-        0,
-        0
+        hours,
+        minutes
       );
 
       console.log(
-        `Creating intake for: ${scheduledDateTime.toLocaleDateString()} at ${scheduledDateTime.toLocaleTimeString(
-          "en-GB",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false
-          }
-        )} (Local time)`
+        `Creating intake for: ${nextDateStr} at ${time} (UK timezone)`
       );
 
       const intakeRecord = {
         medicationId: args.medicationId,
         residentId: medication.residentId!,
-        scheduledTime: scheduledDateTime.getTime(),
+        scheduledTime: scheduledTime,
         state: "scheduled" as const,
         teamId: args.teamId,
         organizationId: args.organizationId,
@@ -1259,7 +1205,7 @@ export const createNextDayMedicationIntakes = internalMutation({
     }
 
     console.log(
-      `Created ${intakeRecords.length} medication intake records for "${medication.name}" on ${nextDate.toLocaleDateString()}`
+      `Created ${intakeRecords.length} medication intake records for "${medication.name}" on ${nextDateStr}`
     );
     return intakeRecords;
   }
@@ -2014,12 +1960,8 @@ export const completeMedicationRound = mutation({
     // Filter intakes for the specific date and time
     const targetIntakes = intakes.filter((intake) => {
       const scheduledDate = new Date(intake.scheduledTime);
-      const scheduledTimeStr = scheduledDate.toLocaleTimeString("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false
-      });
-      const scheduledDateStr = scheduledDate.toISOString().split("T")[0];
+      const scheduledTimeStr = getUKTimeString(intake.scheduledTime);
+      const scheduledDateStr = getUKDateString(intake.scheduledTime);
 
       return scheduledDateStr === args.date && scheduledTimeStr === args.time;
     });
@@ -2130,12 +2072,8 @@ export const getMedicationRoundStatus = query({
     // Filter intakes for the specific date and time
     const targetIntakes = intakes.filter((intake) => {
       const scheduledDate = new Date(intake.scheduledTime);
-      const scheduledTimeStr = scheduledDate.toLocaleTimeString("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false
-      });
-      const scheduledDateStr = scheduledDate.toISOString().split("T")[0];
+      const scheduledTimeStr = getUKTimeString(intake.scheduledTime);
+      const scheduledDateStr = getUKDateString(intake.scheduledTime);
 
       const matches = scheduledDateStr === args.date && scheduledTimeStr === args.time;
 
