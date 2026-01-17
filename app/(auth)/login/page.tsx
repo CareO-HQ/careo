@@ -68,7 +68,7 @@ function LoginContent() {
         </div>
 
         {/* Testimonial at bottom */}
-        <div className="space-y-4 mt-8 max-w-md">
+        <div className="space-y-4 mt-8 max-w-sm">
           <blockquote className="text-lg leading-relaxed text-zinc-900">
             &quot;Care simplified, an empathy driven tool for care teams, freedom a few clicks away&quot;
           </blockquote>
