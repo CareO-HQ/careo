@@ -52,20 +52,8 @@ function LoginContent() {
 
   return (
     <div className="grid lg:grid-cols-2 h-screen w-full overflow-hidden">
-      {/* Left Panel - Dark Side with Image and Testimonial */}
-      <div className="hidden lg:flex flex-col justify-between bg-zinc-900 text-white p-12 relative">
-        {/* Logo at top */}
-        <div className="flex items-center gap-2">
-          <Image
-            src="/logo.svg"
-            alt="CareO Logo"
-            width={40}
-            height={40}
-            className="brightness-0 invert"
-          />
-          <span className="text-2xl font-semibold">CareO</span>
-        </div>
-
+      {/* Left Panel - White Background with Image and Testimonial */}
+      <div className="hidden lg:flex flex-col justify-center bg-white p-12 relative">
         {/* Center Image */}
         <div className="flex-1 flex items-center justify-center">
           <div className="relative w-full max-w-md aspect-square">
@@ -80,12 +68,12 @@ function LoginContent() {
         </div>
 
         {/* Testimonial at bottom */}
-        <div className="space-y-4">
-          <blockquote className="text-lg leading-relaxed">
-            &quot;CareO has transformed how we manage resident care. The digital documentation saves our staff hours every day and improves care quality dramatically.&quot;
+        <div className="space-y-4 mt-8">
+          <blockquote className="text-lg leading-relaxed text-zinc-900">
+            &quot;Care simplified, an empathy driven tool for care teams, freedom a few clicks away&quot;
           </blockquote>
-          <p className="text-sm text-zinc-400">
-            Sarah Mitchell, Care Home Manager
+          <p className="text-sm text-zinc-600">
+            - Team CareO
           </p>
         </div>
       </div>
