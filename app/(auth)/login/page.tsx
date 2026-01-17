@@ -1,9 +1,11 @@
 "use client";
 
-import AuthCard from "@/components/auth/AuthCard";
+import LoginForm from "@/components/auth/forms/LoginForm";
 import { authClient } from "@/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
 
 function LoginContent() {
   const router = useRouter();
@@ -33,7 +35,7 @@ function LoginContent() {
   // Show loading while checking session or redirecting
   if (isPending) {
     return (
-      <div className="flex flex-col justify-center items-center h-dvh w-full">
+      <div className="flex flex-col justify-center items-center h-screen w-full">
         <div>Loading...</div>
       </div>
     );
@@ -42,21 +44,127 @@ function LoginContent() {
   // If already logged in, show loading while redirecting
   if (session) {
     return (
-      <div className="flex flex-col justify-center items-center h-dvh w-full">
+      <div className="flex flex-col justify-center items-center h-screen w-full">
         <div>Redirecting...</div>
       </div>
     );
   }
 
-  return <AuthCard action="login" google microsoft />;
+  return (
+    <div className="grid lg:grid-cols-2 h-screen w-full overflow-hidden">
+      {/* Left Panel - Dark Side with Image and Testimonial */}
+      <div className="hidden lg:flex flex-col justify-between bg-zinc-900 text-white p-12 relative">
+        {/* Logo at top */}
+        <div className="flex items-center gap-2">
+          <Image
+            src="/logo.svg"
+            alt="CareO Logo"
+            width={40}
+            height={40}
+            className="brightness-0 invert"
+          />
+          <span className="text-2xl font-semibold">CareO</span>
+        </div>
+
+        {/* Center Image */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="relative w-full max-w-md aspect-square">
+            <Image
+              src="/cade.png"
+              alt="Healthcare Management"
+              fill
+              className="object-contain rounded-lg"
+              priority
+            />
+          </div>
+        </div>
+
+        {/* Testimonial at bottom */}
+        <div className="space-y-4">
+          <blockquote className="text-lg leading-relaxed">
+            &quot;CareO has transformed how we manage resident care. The digital documentation saves our staff hours every day and improves care quality dramatically.&quot;
+          </blockquote>
+          <p className="text-sm text-zinc-400">
+            Sarah Mitchell, Care Home Manager
+          </p>
+        </div>
+      </div>
+
+      {/* Right Panel - Login Form */}
+      <div className="flex flex-col justify-center items-center p-8 bg-white">
+        <div className="w-full max-w-md space-y-8">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
+            <Image
+              src="/logo.svg"
+              alt="CareO Logo"
+              width={40}
+              height={40}
+            />
+            <span className="text-2xl font-semibold">CareO</span>
+          </div>
+
+          {/* Header */}
+          <div className="space-y-2 text-center">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Sign in to your account
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Enter your credentials below to access your account
+            </p>
+          </div>
+
+          {/* Login Form */}
+          <div className="space-y-6">
+            <LoginForm />
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-muted-foreground">
+                  New to CareO?
+                </span>
+              </div>
+            </div>
+
+            {/* Sign up link */}
+            <div className="text-center">
+              <Link
+                href="/signup"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Create an account
+              </Link>
+            </div>
+          </div>
+
+          {/* Footer Links */}
+          <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-8">
+            <Link href="/terms" className="hover:text-primary hover:underline">
+              Terms of Service
+            </Link>
+            <span>•</span>
+            <Link href="/privacy" className="hover:text-primary hover:underline">
+              Privacy Policy
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function LoginPage() {
   return (
-    <div className="flex flex-col justify-center items-center h-dvh w-full">
-      <Suspense fallback={<div>Loading...</div>}>
-        <LoginContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={
+      <div className="flex flex-col justify-center items-center h-screen w-full">
+        <div>Loading...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
