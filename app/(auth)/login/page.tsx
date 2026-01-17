@@ -53,10 +53,10 @@ function LoginContent() {
   return (
     <div className="grid lg:grid-cols-2 min-h-screen w-full">
       {/* Left Panel - White Background with Image and Testimonial (Desktop Only) */}
-      <div className="hidden lg:flex flex-col items-center justify-center bg-white p-12 relative space-y-8">
+      <div className="hidden lg:flex flex-col items-center justify-center bg-white p-12 relative space-y-12">
         {/* Center Image */}
         <div className="flex items-center justify-center">
-          <div className="relative w-full max-w-md aspect-square">
+          <div className="relative w-full max-w-sm aspect-square">
             <Image
               src="/cade.png"
               alt="Healthcare Management"
@@ -68,7 +68,7 @@ function LoginContent() {
         </div>
 
         {/* Testimonial in middle */}
-        <div className="space-y-4 max-w-sm text-center">
+        <div className="space-y-4 max-w-sm text-center mx-auto">
           <blockquote className="text-lg leading-relaxed text-zinc-900">
             &quot;An empathy driven tool for care teams, freedom a few clicks away&quot;
           </blockquote>
