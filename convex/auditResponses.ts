@@ -88,8 +88,6 @@ export const completeResponse = mutation({
     let nextAuditDue: number | undefined;
     if (response.frequency) {
       const frequencyDays: { [key: string]: number } = {
-        daily: 1,
-        weekly: 7,
         monthly: 30,
         quarterly: 90,
         yearly: 365,

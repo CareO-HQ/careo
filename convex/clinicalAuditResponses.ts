@@ -233,7 +233,6 @@ export const completeAudit = mutation({
     const frequencyDays: { [key: string]: number } = {
       monthly: 30,
       quarterly: 90,
-      "6months": 180,
       yearly: 365,
     };
     const days = frequencyDays[template.frequency] || 30;

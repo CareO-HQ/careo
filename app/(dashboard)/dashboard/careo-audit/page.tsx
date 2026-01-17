@@ -55,7 +55,7 @@ interface Audit {
   lastAudited: string;
   dueDate: string;
   category: string;
-  frequency?: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
+  frequency?: "monthly" | "quarterly" | "yearly";
 }
 
 interface Resident {
@@ -189,7 +189,7 @@ function CareOAuditPageContent() {
             ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
             : "-",
           category: "governance",
-          frequency: template.frequency === "6months" ? "quarterly" : template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
+          frequency: template.frequency as "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -217,7 +217,7 @@ function CareOAuditPageContent() {
             ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
             : "-",
           category: "clinical",
-          frequency: template.frequency === "6months" ? "quarterly" : template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
+          frequency: template.frequency as "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -245,7 +245,7 @@ function CareOAuditPageContent() {
             ? new Date(latestCompletion.nextAuditDue).toLocaleDateString()
             : "-",
           category: "environment",
-          frequency: template.frequency === "6months" ? "quarterly" : template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
+          frequency: template.frequency as "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -301,7 +301,7 @@ function CareOAuditPageContent() {
           lastAudited,
           dueDate: nextAudit,
           category: "resident",
-          frequency: template.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | undefined,
+          frequency: template.frequency as "monthly" | "quarterly" | "yearly" | undefined,
         };
       });
       setAudits(templatesAsAudits);
@@ -374,8 +374,6 @@ function CareOAuditPageContent() {
     }
 
     const frequencyDays: { [key: string]: number } = {
-      daily: 1,
-      weekly: 7,
       monthly: 30,
       quarterly: 90,
       yearly: 365,
@@ -489,7 +487,7 @@ function CareOAuditPageContent() {
           name: formData.auditName,
           category: "resident",
           questions: [], // Start with empty questions, user will add them
-          frequency: formData.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly",
+          frequency: formData.frequency as "monthly" | "quarterly" | "yearly",
           teamId: activeTeamId, // Team where it was created (for tracking purposes)
           organizationId: activeOrganizationId, // Organization-wide template
           createdBy: session.user.name || session.user.email || "Unknown",
@@ -512,7 +510,7 @@ function CareOAuditPageContent() {
         const templateId = await createGovernanceTemplate({
           name: formData.auditName,
           items: [], // Start with empty items, user will add them in the editor
-          frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
+          frequency: formData.frequency as "monthly" | "quarterly" | "yearly",
           organizationId: activeOrganizationId,
           createdBy: session.user.name || session.user.email || "Unknown",
         });
@@ -534,7 +532,7 @@ function CareOAuditPageContent() {
         const templateId = await createClinicalTemplate({
           name: formData.auditName,
           items: [], // Start with empty items, user will add them in the editor
-          frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
+          frequency: formData.frequency as "monthly" | "quarterly" | "yearly",
           organizationId: activeOrganizationId,
           createdBy: session.user.name || session.user.email || "Unknown",
         });
@@ -556,7 +554,7 @@ function CareOAuditPageContent() {
         const templateId = await createEnvironmentTemplate({
           name: formData.auditName,
           items: [], // Start with empty items, user will add them in the editor
-          frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
+          frequency: formData.frequency as "monthly" | "quarterly" | "yearly",
           organizationId: activeOrganizationId,
           createdBy: session.user.name || session.user.email || "Unknown",
         });
@@ -582,7 +580,7 @@ function CareOAuditPageContent() {
         lastAudited: "--",
         dueDate: "--",
         category: activeTab,
-        frequency: formData.frequency as "daily" | "weekly" | "monthly" | "quarterly" | "yearly",
+        frequency: formData.frequency as "monthly" | "quarterly" | "yearly",
       };
 
       const updatedAudits = [...audits, newAudit];
@@ -1001,8 +999,6 @@ function CareOAuditPageContent() {
     if (!frequency) return "--";
 
     const frequencyDays: { [key: string]: number } = {
-      daily: 1,
-      weekly: 7,
       monthly: 30,
       quarterly: 90,
       yearly: 365,
@@ -1288,8 +1284,6 @@ function CareOAuditPageContent() {
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="quarterly">Quarterly</SelectItem>
                   <SelectItem value="yearly">Yearly</SelectItem>

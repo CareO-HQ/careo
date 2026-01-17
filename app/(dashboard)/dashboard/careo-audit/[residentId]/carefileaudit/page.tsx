@@ -76,7 +76,7 @@ function CareFileAuditPageContent() {
   const [newAuditForm, setNewAuditForm] = useState({
     name: "",
     description: "",
-    frequency: "6months" as "3months" | "6months" | "yearly",
+    frequency: "monthly" as "monthly" | "quarterly" | "yearly",
   });
 
   // Mutations
@@ -119,7 +119,7 @@ function CareFileAuditPageContent() {
       setNewAuditForm({
         name: "",
         description: "",
-        frequency: "6months",
+        frequency: "monthly",
       });
 
       // Navigate to the audit editor
@@ -414,7 +414,7 @@ function CareFileAuditPageContent() {
               <Label htmlFor="frequency">Frequency</Label>
               <Select
                 value={newAuditForm.frequency}
-                onValueChange={(value: "3months" | "6months" | "yearly") =>
+                onValueChange={(value: "monthly" | "quarterly" | "yearly") =>
                   setNewAuditForm({ ...newAuditForm, frequency: value })
                 }
               >
@@ -422,8 +422,8 @@ function CareFileAuditPageContent() {
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="3months">3 Months</SelectItem>
-                  <SelectItem value="6months">6 Months</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
                   <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>

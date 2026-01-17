@@ -49,7 +49,6 @@ export const createTemplate = mutation({
     frequency: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
-      v.literal("6months"),
       v.literal("yearly")
     ),
     organizationId: v.string(),
@@ -95,7 +94,6 @@ export const updateTemplate = mutation({
       v.union(
         v.literal("monthly"),
         v.literal("quarterly"),
-        v.literal("6months"),
         v.literal("yearly")
       )
     ),

@@ -22,12 +22,9 @@ export const createTemplate = mutation({
     ),
     questions: v.array(questionValidator),
     frequency: v.union(
-      v.literal("daily"),
-      v.literal("weekly"),
       v.literal("monthly"),
       v.literal("quarterly"),
-      v.literal("yearly"),
-      v.literal("adhoc")
+      v.literal("yearly")
     ),
     teamId: v.string(),
     organizationId: v.string(),
@@ -60,12 +57,9 @@ export const updateTemplate = mutation({
     questions: v.optional(v.array(questionValidator)),
     frequency: v.optional(
       v.union(
-        v.literal("daily"),
-        v.literal("weekly"),
         v.literal("monthly"),
         v.literal("quarterly"),
-        v.literal("yearly"),
-        v.literal("adhoc")
+        v.literal("yearly")
       )
     ),
     isActive: v.optional(v.boolean()),

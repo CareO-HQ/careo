@@ -93,11 +93,11 @@ export const completeResponse = mutation({
     let nextAuditDue: number | undefined;
     if (response.frequency) {
       const frequencyDays: { [key: string]: number } = {
-        "3months": 90,
-        "6months": 180,
-        "yearly": 365,
+        monthly: 30,
+        quarterly: 90,
+        yearly: 365,
       };
-      const days = frequencyDays[response.frequency] || 180;
+      const days = frequencyDays[response.frequency] || 30;
       nextAuditDue = now + days * 24 * 60 * 60 * 1000;
     }
 

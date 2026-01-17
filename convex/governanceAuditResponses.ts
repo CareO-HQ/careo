@@ -242,9 +242,6 @@ export const completeAudit = mutation({
         case "quarterly":
           nextAuditDue = now + 90 * 24 * 60 * 60 * 1000; // 90 days
           break;
-        case "6months":
-          nextAuditDue = now + 180 * 24 * 60 * 60 * 1000; // 180 days
-          break;
         case "yearly":
           nextAuditDue = now + 365 * 24 * 60 * 60 * 1000; // 365 days
           break;
