@@ -26,9 +26,10 @@ export const createFoodFluidLog = mutation({
   args: {
     residentId: v.id("residents"),
     section: v.string(),
+    exactTime: v.optional(v.string()),
     typeOfFoodDrink: v.string(),
     portionServed: v.string(),
-    amountEaten: v.string(),
+    amountEaten: v.optional(v.string()),
     fluidConsumedMl: v.optional(v.number()),
     signature: v.string(),
     organizationId: v.string(),
@@ -77,6 +78,7 @@ export const createFoodFluidLog = mutation({
       residentId: args.residentId,
       timestamp: now,
       section: args.section,
+      exactTime: args.exactTime,
       typeOfFoodDrink: sanitized.typeOfFoodDrink,
       portionServed: sanitized.portionServed,
       amountEaten: args.amountEaten,
@@ -203,6 +205,7 @@ export const updateFoodFluidLog = mutation({
   args: {
     logId: v.id("foodFluidLogs"),
     section: v.optional(v.string()),
+    exactTime: v.optional(v.string()),
     typeOfFoodDrink: v.optional(v.string()),
     portionServed: v.optional(v.string()),
     amountEaten: v.optional(v.string()),

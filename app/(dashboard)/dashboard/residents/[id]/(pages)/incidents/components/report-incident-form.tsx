@@ -121,8 +121,6 @@ export function ReportIncidentForm({
       
       await createIncident({
         residentId: residentId as Id<"residents">,
-        type: values.type,
-        severity: values.severity,
         date: values.date.toISOString(),
         time: values.time,
         location: values.location,

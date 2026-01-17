@@ -444,7 +444,7 @@ export default function GovernanceAuditPage() {
       const items = auditDetailItems.map((item) => ({
         itemId: item.id,
         itemName: item.itemName,
-        status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
+        status: (item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined) || undefined,
         notes: item.notes || undefined,
         date: item.lastReviewed || undefined,
       }));
@@ -501,9 +501,9 @@ export default function GovernanceAuditPage() {
       const items = auditDetailItems.map((item) => ({
         itemId: item.id,
         itemName: item.itemName,
-        status: item.status && item.status.trim() !== ""
+        status: (item.status && item.status.trim() !== ""
           ? (item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked")
-          : undefined,
+          : undefined),
         notes: item.notes || undefined,
         date: item.lastReviewed || undefined,
       }));

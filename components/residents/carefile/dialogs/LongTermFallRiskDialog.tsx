@@ -135,13 +135,13 @@ export default function LongTermFallRiskDialog({
           await submitReviewedFormMutation({
             formType: "longTermFallsRiskAssessment",
             formData: data,
-            originalFormData: initialData,
+            originalFormData: initialData || {},
             originalFormId: initialData?._id || "",
             residentId: data.residentId as Id<"residents">,
             auditedBy: userName,
             teamId: data.teamId,
             organizationId: data.organizationId
-          });
+          } as any);
           toast.success(
             "Long Term Falls Risk Assessment reviewed successfully"
           );
@@ -149,7 +149,7 @@ export default function LongTermFallRiskDialog({
           await submitAssessment({
             ...data,
             residentId: data.residentId as Id<"residents">
-          });
+          } as any);
           toast.success(
             "Long Term Falls Risk Assessment submitted successfully"
           );

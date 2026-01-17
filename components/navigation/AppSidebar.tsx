@@ -187,7 +187,6 @@ export function AppSidebar() {
         <TeamSwitcher
           orgName={displayName}
           isPending={activeOrg.isPending}
-          email={user?.user.email ?? ""}
         />
 
         {/* Management Section */}

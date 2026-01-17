@@ -18,7 +18,7 @@ async function createMedicationIntakes(
   medication: {
     name: string;
     frequency: string;
-    times: string[];
+    times?: string[];
     startDate: number;
     endDate?: number;
     scheduleType: string;
@@ -58,7 +58,7 @@ async function createMedicationIntakes(
   );
 
   console.log(`Corrected start date: ${startDate.toLocaleDateString()}`);
-  const medicationTimes = medication.times;
+  const medicationTimes = medication.times || [];
 
   console.log(
     `Creating medication intake records for "${medication.name}" (${medication.frequency})`
@@ -226,7 +226,7 @@ export const createMedication = mutation({
         v.literal("Scheduled"),
         v.literal("PRN (As Needed)")
       ),
-      times: v.array(v.string()),
+      times: v.optional(v.array(v.string())),
       timeQuantities: v.optional(v.record(v.string(), v.number())),
       instructions: v.optional(v.string()),
       prescriberName: v.string(),
@@ -1024,7 +1024,7 @@ export const getAllActiveMedications = internalQuery({
         v.literal("Scheduled"),
         v.literal("PRN (As Needed)")
       ),
-      times: v.array(v.string()),
+      times: v.optional(v.array(v.string())),
       timeQuantities: v.optional(v.record(v.string(), v.number())),
       instructions: v.optional(v.string()),
       prescriberName: v.string(),
@@ -1211,12 +1211,12 @@ export const createNextDayMedicationIntakes = internalMutation({
     console.log(
       `Creating intakes for ${medication.name} on ${nextDate.toLocaleDateString()}`
     );
-    console.log(`Medication times: ${medication.times.join(", ")}`);
+    console.log(`Medication times: ${medication.times?.join(", ") || "No times scheduled"}`);
 
     const intakeRecords: any[] = [];
 
     // Create intake record for each scheduled time on the next day
-    for (const time of medication.times) {
+    for (const time of (medication.times || [])) {
       const [hours, minutes] = time.split(":");
       const scheduledDateTime: Date = new Date(
         nextDate.getFullYear(),
@@ -1729,7 +1729,9 @@ export const getAllMedicationIntakesByResidentId = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       medication: v.optional(v.any()),
-      resident: v.optional(v.any())
+      resident: v.optional(v.any()),
+      givenByName: v.optional(v.string()),
+      witnessedByName: v.optional(v.string())
     })
   ),
   handler: async (ctx, args): Promise<any[]> => {
@@ -1740,13 +1742,31 @@ export const getAllMedicationIntakesByResidentId = query({
       .order("desc") // Most recent first
       .collect();
 
-    // Include medication and resident details
+    // Include medication, resident, and staff names
     const intakesWithDetails = await Promise.all(
       intakes.map(async (intake) => {
         const medication = await ctx.db.get(intake.medicationId);
         const resident = await ctx.db.get(intake.residentId as Id<"residents">);
 
-        return { ...intake, medication, resident };
+        // Fetch the name of the person who dispensed the medication
+        let givenByName: string | undefined = undefined;
+        if (intake.poppedOutByUserId) {
+          const givenByUser = await ctx.db.get(
+            intake.poppedOutByUserId as Id<"users">
+          );
+          givenByName = givenByUser?.name;
+        }
+
+        // Fetch the name of the witness
+        let witnessedByName: string | undefined = undefined;
+        if (intake.witnessByUserId) {
+          const witnessUser = await ctx.db.get(
+            intake.witnessByUserId as Id<"users">
+          );
+          witnessedByName = witnessUser?.name;
+        }
+
+        return { ...intake, medication, resident, givenByName, witnessedByName };
       })
     );
 

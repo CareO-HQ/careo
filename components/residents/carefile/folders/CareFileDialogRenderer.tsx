@@ -1,6 +1,8 @@
 import { Id } from "@/convex/_generated/dataModel";
 import { CareFileFormKey } from "@/types/care-files";
 import AdmissionDialog from "@/components/residents/carefile/dialogs/AdmissionDialog";
+import BedrailConsentDialog from "@/components/residents/carefile/dialogs/BedrailConsentDialog";
+import BedRailsRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BedRailsRiskAssessmentDialog";
 import BladderBowelDialog from "@/components/residents/carefile/dialogs/ContinenceDialog";
 import CarePlanDialog from "@/components/residents/carefile/dialogs/CarePlanDialog";
 import DependencyDialog from "@/components/residents/carefile/dialogs/DependencyDialog";
@@ -8,6 +10,7 @@ import DnacprDialog from "@/components/residents/carefile/dialogs/DnarcpDialog";
 import InfectionPreventionDialog from "@/components/residents/carefile/dialogs/InfectionPreventionDialog";
 import LongTermFallRiskDialog from "@/components/residents/carefile/dialogs/LongTermFallRiskDialog";
 import MovingHandlingDialog from "@/components/residents/carefile/dialogs/MovingHandlingDialog";
+import PainAssessmentDialog from "@/components/residents/carefile/dialogs/PainAssessmentDialog";
 import PeepDialog from "@/components/residents/carefile/dialogs/PeepDialog";
 import PhotographyConsentDialog from "@/components/residents/carefile/dialogs/PhotographyConsentDialog";
 import PreAdmissionDialog from "@/components/residents/carefile/dialogs/PreAdmissionDialog";
@@ -15,6 +18,12 @@ import ResidentValuablesDialog from "@/components/residents/carefile/dialogs/Res
 import SkinIntegrityDialog from "@/components/residents/carefile/dialogs/SkinIntegrityDialog";
 import TimlDialog from "@/components/residents/carefile/dialogs/TimlDialog";
 import ResidentHandlingProfileDialog from "@/components/residents/carefile/dialogs/ResidentHandlingProfileDialog";
+import NutritionalAssessmentDialog from "@/components/residents/carefile/dialogs/NutritionalAssessmentDialog";
+import OralAssessmentDialog from "@/components/residents/carefile/dialogs/OralAssessmentDialog";
+import DietNotificationDialog from "@/components/residents/carefile/dialogs/DietNotificationDialog";
+import ChokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/ChokingRiskAssessmentDialog";
+import CornellDepressionScaleDialog from "@/components/residents/carefile/dialogs/CornellDepressionScaleDialog";
+import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
 
 interface BaseDialogProps {
   residentId: Id<"residents">;
@@ -120,7 +129,12 @@ export function CareFileDialogRenderer({
 
     case "long-term-fall-risk-form":
       return (
-        <LongTermFallRiskDialog {...commonProps} userName={userName ?? ""} />
+        <LongTermFallRiskDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+          isEditMode={!!editData}
+        />
       );
 
     case "care-plan-form":
@@ -146,25 +160,106 @@ export function CareFileDialogRenderer({
       return <DnacprDialog {...commonProps} initialData={editData} />;
 
     case "peep":
-      return <PeepDialog {...commonProps} initialData={editData} />;
+      return <PeepDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "dependency-assessment":
-      return <DependencyDialog {...commonProps} initialData={editData} />;
+      return <DependencyDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "timl":
-      return <TimlDialog {...commonProps} initialData={editData} />;
+      return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "skin-integrity-form":
-      return <SkinIntegrityDialog {...commonProps} initialData={editData} />;
+      return <SkinIntegrityDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
     case "resident-valuables-form":
       return (
-        <ResidentValuablesDialog {...commonProps} initialData={editData} />
+        <ResidentValuablesDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
       );
 
     case "resident-handling-profile-form":
       return (
-        <ResidentHandlingProfileDialog {...commonProps} initialData={editData} />
+        <ResidentHandlingProfileDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
+      );
+
+    case "bedrail-consent-form":
+      return (
+        <BedrailConsentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "bed-rails-risk-assessment-form":
+      return (
+        <BedRailsRiskAssessmentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "best-interest-decision-form":
+      return (
+        <BestInterestDecisionDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "pain-assessment-form":
+      return (
+        <PainAssessmentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          careHomeName={careHomeName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "nutritional-assessment-form":
+      return (
+        <NutritionalAssessmentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          careHomeName={careHomeName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "oral-assessment-form":
+      return (
+        <OralAssessmentDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          careHomeName={careHomeName ?? ""}
+          initialData={editData}
+        />
+      );
+
+    case "diet-notification-form":
+      return (
+        <DietNotificationDialog
+          {...commonProps}
+          initialData={editData}
+        />
+      );
+
+    case "choking-risk-assessment-form":
+      return (
+        <ChokingRiskAssessmentDialog
+          {...commonProps}
+          initialData={editData}
+        />
+      );
+
+    case "cornell-depression-scale-form":
+      return (
+        <CornellDepressionScaleDialog
+          {...commonProps}
+          initialData={editData}
+        />
       );
 
     default:

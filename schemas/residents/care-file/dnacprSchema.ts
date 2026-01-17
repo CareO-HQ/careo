@@ -10,7 +10,9 @@ export const DnacprSchema = z.object({
   // Resident information
   residentName: z.string().min(1, "Resident name is required"),
   bedroomNumber: z.string().min(1, "Bedroom number is required"),
-  dateOfBirth: z.number().positive("Date of birth must be a valid timestamp"),
+  dateOfBirth: z.number().refine((val) => !isNaN(val), {
+    message: "Date of birth must be a valid timestamp"
+  }),
 
   // Questions
   dnacpr: z.boolean(),

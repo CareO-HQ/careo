@@ -180,7 +180,7 @@ export default function HandoverPage() {
         teamId: activeTeamId,
         teamName: activeTeam.name,
         organizationId: currentUser.organizationId || "",
-        residentHandovers,
+        residentHandovers: residentHandovers as any,
         createdBy: currentUser.userId,
         createdByName: currentUser.name || "Unknown",
         updatedBy: currentUser.userId,

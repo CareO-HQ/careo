@@ -95,6 +95,25 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     id ? { residentId: id } : "skip"
   );
 
+  const normalizedPrnOrTopicalMedications = (prnOrTopicalMedications || []).map(
+    (med) => ({
+      ...med,
+      times: med.times ?? []
+    })
+  );
+  const normalizedAllActiveMedications = (allActiveMedications || []).map(
+    (med) => ({
+      ...med,
+      times: med.times ?? []
+    })
+  );
+  const normalizedDiscontinuedMedications = (discontinuedMedications || []).map(
+    (med) => ({
+      ...med,
+      times: med.times ?? []
+    })
+  );
+
   const teamWithMembers = useQuery(
     api.teams.getTeam,
     activeTeamId ? { teamId: activeTeamId } : "skip"
@@ -479,7 +498,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <div className="w-full">
           <DataTable
             columns={prnTopicalColumns}
-            data={prnOrTopicalMedications || []}
+            data={normalizedPrnOrTopicalMedications}
           />
         </div>
       </div>
@@ -491,7 +510,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <div className="w-full">
           <DataTable
             columns={allActiveMedicationColumns}
-            data={allActiveMedications || []}
+            data={normalizedAllActiveMedications}
           />
         </div>
       </div>
@@ -508,7 +527,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <div className="w-full">
             <DataTable
               columns={allActiveMedicationColumns}
-              data={discontinuedMedications}
+              data={normalizedDiscontinuedMedications}
             />
           </div>
         </div>

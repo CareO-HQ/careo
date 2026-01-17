@@ -393,9 +393,10 @@ export const updateTimlAssessment = mutation({
     date: v.number(),
 
     // Metadata
-    savedAsDraft: v.optional(v.boolean())
+    savedAsDraft: v.optional(v.boolean()),
+    userId: v.string()
   },
-  returns: v.null(),
+  returns: v.id("timlAssessments"),
   handler: async (ctx, args) => {
     const now = Date.now();
 
@@ -405,13 +406,23 @@ export const updateTimlAssessment = mutation({
       throw new Error("Assessment not found");
     }
 
-    // Update the assessment
-    await ctx.db.patch(args.assessmentId, {
+    // Create a NEW version instead of patching the old one
+    const newAssessmentId = await ctx.db.insert("timlAssessments", {
+      residentId: existingAssessment.residentId,
+      teamId: existingAssessment.teamId,
+      organizationId: existingAssessment.organizationId,
+      userId: args.userId,
+
+      // Agreement
       agree: args.agree,
+
+      // Resident details
       firstName: args.firstName,
       lastName: args.lastName,
       dateOfBirth: args.dateOfBirth,
       desiredName: args.desiredName,
+
+      // Childhood
       born: args.born,
       parentsSiblingsNames: args.parentsSiblingsNames,
       familyMembersOccupation: args.familyMembersOccupation,
@@ -420,12 +431,16 @@ export const updateTimlAssessment = mutation({
       favouriteSubject: args.favouriteSubject,
       pets: args.pets,
       petsNames: args.petsNames,
+
+      // Adolescence
       whenLeavingSchool: args.whenLeavingSchool,
       whatWork: args.whatWork,
       whereWorked: args.whereWorked,
       specialTraining: args.specialTraining,
       specialMemoriesWork: args.specialMemoriesWork,
       nationalService: args.nationalService,
+
+      // Adulthood
       partner: args.partner,
       partnerName: args.partnerName,
       whereMet: args.whereMet,
@@ -438,16 +453,27 @@ export const updateTimlAssessment = mutation({
       grandchildrenAndNames: args.grandchildrenAndNames,
       specialFriendsAndNames: args.specialFriendsAndNames,
       specialFriendsMetAndStillTouch: args.specialFriendsMetAndStillTouch,
+
+      // Retirement
       whenRetired: args.whenRetired,
       lookingForwardTo: args.lookingForwardTo,
       hobbiesInterests: args.hobbiesInterests,
       biggestChangesRetirement: args.biggestChangesRetirement,
+
+      // Current preferences
       whatEnjoyNow: args.whatEnjoyNow,
       whatLikeRead: args.whatLikeRead,
+
+      // Completion
       completedBy: args.completedBy,
       completedByJobRole: args.completedByJobRole,
       completedBySignature: args.completedBySignature,
-      date: args.date
+      date: args.date,
+
+      // Metadata
+      status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
     });
 
     // Schedule PDF generation if not saving as draft
@@ -455,11 +481,11 @@ export const updateTimlAssessment = mutation({
       await ctx.scheduler.runAfter(
         1000, // 1 second delay
         internal.careFiles.timl.generatePDFAndUpdateRecord,
-        { assessmentId: args.assessmentId }
+        { assessmentId: newAssessmentId }
       );
     }
 
-    return null;
+    return newAssessmentId;
   }
 });
 
@@ -844,5 +870,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(assessment.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) TIML assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("timlAssessments")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

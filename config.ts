@@ -111,14 +111,6 @@ export const config = {
     },
     {
       type: "folder",
-      key: "progress-notes",
-      value: "Progress Notes",
-      description: "Progress Notes",
-      carePlan: true,
-      forms: []
-    },
-    {
-      type: "folder",
       key: "my-life",
       value: "This is my life",
       description: "This is my life",
@@ -135,10 +127,17 @@ export const config = {
     {
       type: "folder",
       key: "capacity-consent",
-      value: "Capacity Consent",
-      description: "Capacity Consent",
+      value: "Capacity & Consent",
+      description: "Capacity & Consent Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "best-interest-decision-form",
+          value: "Best Interest Decision",
+          description: "Best Interest Decision Form"
+        }
+      ]
     },
     {
       type: "folder",
@@ -146,7 +145,14 @@ export const config = {
       value: "Medication",
       description: "Medication",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "pain-assessment-form",
+          value: "Pain Assessment and Evaluation",
+          description: "Pain Assessment and Evaluation"
+        }
+      ]
     },
     {
       type: "folder",
@@ -172,6 +178,18 @@ export const config = {
           key: "resident-handling-profile-form",
           value: "Resident Handling Profile",
           description: "Resident Handling Profile"
+        },
+        {
+          type: "form",
+          key: "bedrail-consent-form",
+          value: "Bedrails Consent / Agreement",
+          description: "Bedrails Consent / Agreement"
+        },
+        {
+          type: "form",
+          key: "bed-rails-risk-assessment-form",
+          value: "Risk Assessment for Use of Bed Rails",
+          description: "Risk Assessment for Use of Bed Rails"
         }
       ]
     },
@@ -181,7 +199,39 @@ export const config = {
       value: "Nutrition & Hydration",
       description: "Nutrition & Hydration Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "nutritional-assessment-form",
+          value: "Nutritional Assessment",
+          description: "Nutritional Assessment"
+        },
+        {
+          type: "form",
+          key: "oral-assessment-form",
+          value: "Oral Assessment",
+          description: "Oral Assessment"
+        },
+        {
+          type: "form",
+          key: "diet-notification-form",
+          value: "Diet Notification",
+          description: "Resident Diet Notification"
+        },
+        {
+          type: "form",
+          key: "choking-risk-assessment-form",
+          value: "Choking Risk Assessment",
+          description: "Choking Risk Assessment"
+        },
+        {
+          type: "link",
+          key: "must-calculator",
+          value: "MUST Calculator",
+          description: "Malnutrition Universal Screening Tool Calculator",
+          url: "https://www.bapen.org.uk/must-and-self-screening/must-calculator/"
+        }
+      ]
     },
     {
       type: "folder",
@@ -227,21 +277,20 @@ export const config = {
       value: "Psychological & Emotional needs",
       description: "Psychological & Emotional needs Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "cornell-depression-scale-form",
+          value: "Cornell Scale for Depression in Dementia",
+          description: "Cornell Scale for Depression in Dementia"
+        }
+      ]
     },
     {
       type: "folder",
       key: "additional-care-plans",
       value: "Additional Care Plans",
       description: "Additional Care Plans",
-      carePlan: true,
-      forms: []
-    },
-    {
-      type: "folder",
-      key: "multidisciplinary",
-      value: "Multidisciplinary and Relative communication notes",
-      description: "Multidisciplinary and Relative communication notes",
       carePlan: true,
       forms: []
     },

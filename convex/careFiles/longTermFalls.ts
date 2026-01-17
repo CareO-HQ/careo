@@ -349,6 +349,47 @@ export const getLatestAssessmentByResident = query({
 });
 
 /**
+ * Delete a long term falls assessment
+ */
+export const deleteLongTermFallsAssessment = mutation({
+  args: {
+    assessmentId: v.id("longTermFallsRiskAssessments")
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const assessment = await ctx.db.get(args.assessmentId);
+    if (!assessment) {
+      throw new Error("Assessment not found");
+    }
+
+    await ctx.db.delete(args.assessmentId);
+    return null;
+  }
+});
+
+/**
+ * Get archived (non-latest) long term falls assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("longTermFallsRiskAssessments")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
+  }
+});
+
+/**
  * Get PDF URL for a long term falls assessment
  */
 export const getPDFUrl = query({

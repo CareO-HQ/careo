@@ -77,6 +77,8 @@ export const createAudit = mutation({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -86,7 +88,18 @@ export const createAudit = mutation({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("residentHandlingProfileForm"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formId: v.string(),
     residentId: v.id("residents"),
@@ -140,6 +153,8 @@ export const getAuditsByForm = query({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -149,7 +164,18 @@ export const getAuditsByForm = query({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("residentHandlingProfileForm"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formId: v.string()
   },
@@ -337,10 +363,18 @@ export const getUnauditedForms = query({
         peep: {
           formType: "peep",
           table: "peeps"
+        },
+        "best-interest-decision": {
+          formType: "bestInterestDecision",
+          table: "bestInterestDecisions"
         }
       };
 
-    const unauditedForms: Array<{ formType: string; formId: any; lastUpdated: any }> = [];
+    const unauditedForms: Array<{
+      formType: string;
+      formId: string;
+      lastUpdated: number;
+    }> = [];
 
     // Check which form keys to process (all if not specified)
     const keysToCheck = args.formKeys || Object.keys(formTypeMapping);
@@ -514,6 +548,21 @@ export const getUnauditedForms = query({
             // Get only the latest submission
             completedForms = allPeepForms.length > 0 ? [allPeepForms[0]] : [];
             break;
+          case "bestInterestDecisions":
+            const allBestInterestForms = await ctx.db
+              .query("bestInterestDecisions")
+              .withIndex("by_resident", (q) =>
+                q.eq("residentId", args.residentId)
+              )
+              .filter((q) =>
+                q.eq(q.field("organizationId"), args.organizationId)
+              )
+              .filter((q) => q.neq(q.field("savedAsDraft"), true))
+              .order("desc")
+              .collect();
+            // Get only the latest submission
+            completedForms = allBestInterestForms.length > 0 ? [allBestInterestForms[0]] : [];
+            break;
         }
       } catch (error) {
         // If table doesn't exist or other error, skip this form type
@@ -604,6 +653,8 @@ export const getFormDataForReview = query({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -614,7 +665,17 @@ export const getFormDataForReview = query({
       v.literal("dnacpr"),
       v.literal("peep"),
       v.literal("dependencyAssessment"),
-      v.literal("residentHandlingProfileForm")
+      v.literal("residentHandlingProfileForm"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formId: v.string()
   },
@@ -623,6 +684,10 @@ export const getFormDataForReview = query({
     try {
       switch (args.formType) {
         case "movingHandlingAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "bedrailConsent":
+          return await ctx.db.get(args.formId as any);
+        case "bedRailsRiskAssessment":
           return await ctx.db.get(args.formId as any);
         case "infectionPreventionAssessment":
           return await ctx.db.get(args.formId as any);
@@ -646,6 +711,26 @@ export const getFormDataForReview = query({
           return await ctx.db.get(args.formId as any);
         case "residentHandlingProfileForm":
           return await ctx.db.get(args.formId as any);
+        case "timlAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "skinIntegrityAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "residentValuablesAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "painAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "nutritionalAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "oralAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "dietNotification":
+          return await ctx.db.get(args.formId as any);
+        case "chokingRiskAssessment":
+          return await ctx.db.get(args.formId as any);
+        case "cornellDepressionScale":
+          return await ctx.db.get(args.formId as any);
+        case "bestInterestDecision":
+          return await ctx.db.get(args.formId as any);
         default:
           return null;
       }
@@ -663,6 +748,8 @@ export const submitReviewedForm = mutation({
   args: {
     formType: v.union(
       v.literal("movingHandlingAssessment"),
+      v.literal("bedrailConsent"),
+      v.literal("bedRailsRiskAssessment"),
       v.literal("infectionPreventionAssessment"),
       v.literal("carePlanAssessment"),
       v.literal("bladderBowelAssessment"),
@@ -672,7 +759,18 @@ export const submitReviewedForm = mutation({
       v.literal("photographyConsent"),
       v.literal("dnacpr"),
       v.literal("peep"),
-      v.literal("dependencyAssessment")
+      v.literal("dependencyAssessment"),
+      v.literal("timlAssessment"),
+      v.literal("skinIntegrityAssessment"),
+      v.literal("residentValuablesAssessment"),
+      v.literal("residentHandlingProfileForm"),
+      v.literal("painAssessment"),
+      v.literal("nutritionalAssessment"),
+      v.literal("oralAssessment"),
+      v.literal("dietNotification"),
+      v.literal("chokingRiskAssessment"),
+      v.literal("cornellDepressionScale"),
+      v.literal("bestInterestDecision")
     ),
     formData: v.any(), // The form data to be submitted
     originalFormData: v.any(), // The original form data for comparison
@@ -702,6 +800,18 @@ export const submitReviewedForm = mutation({
         case "movingHandlingAssessment":
           newFormId = await ctx.runMutation(
             api.careFiles.movingHandling.submitMovingHandlingAssessment,
+            args.formData
+          );
+          break;
+        case "bedrailConsent":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bedrailConsent.submitBedrailConsent,
+            args.formData
+          );
+          break;
+        case "bedRailsRiskAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bedRailsRiskAssessment.submitBedRailsRiskAssessment,
             args.formData
           );
           break;
@@ -763,6 +873,72 @@ export const submitReviewedForm = mutation({
         case "dependencyAssessment":
           newFormId = await ctx.runMutation(
             api.careFiles.dependency.submitDependencyAssessment,
+            args.formData
+          );
+          break;
+        case "timlAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.timl.submitTimlAssessment,
+            args.formData
+          );
+          break;
+        case "skinIntegrityAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.skinIntegrity.submitSkinIntegrityAssessment,
+            args.formData
+          );
+          break;
+        case "residentValuablesAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.residentValuables.submitResidentValuables,
+            args.formData
+          );
+          break;
+        case "residentHandlingProfileForm":
+          newFormId = await ctx.runMutation(
+            api.careFiles.handlingProfile.submitHandlingProfile,
+            args.formData
+          );
+          break;
+        case "painAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.painAssessment.submitPainAssessment,
+            args.formData
+          );
+          break;
+        case "nutritionalAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.nutritionalAssessment.submitNutritionalAssessment,
+            args.formData
+          );
+          break;
+        case "oralAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.oralAssessment.submitOralAssessment,
+            args.formData
+          );
+          break;
+        case "dietNotification":
+          newFormId = await ctx.runMutation(
+            api.careFiles.dietNotification.submitDietNotification,
+            args.formData
+          );
+          break;
+        case "chokingRiskAssessment":
+          newFormId = await ctx.runMutation(
+            api.careFiles.chokingRiskAssessment.submitChokingRiskAssessment,
+            args.formData
+          );
+          break;
+        case "cornellDepressionScale":
+          newFormId = await ctx.runMutation(
+            api.careFiles.cornellDepressionScale.submitCornellDepressionScale,
+            args.formData
+          );
+          break;
+        case "bestInterestDecision":
+          newFormId = await ctx.runMutation(
+            api.careFiles.bestInterestDecision.submitBestInterestDecision,
             args.formData
           );
           break;

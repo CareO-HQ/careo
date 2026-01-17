@@ -42,6 +42,7 @@ interface ResidentHandlingProfileProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -52,6 +53,7 @@ export default function ResidentHandlingProfile({
   teamId,
   residentId,
   organizationId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -64,14 +66,15 @@ export default function ResidentHandlingProfile({
     Record<string, boolean>
   >({});
 
-  // TODO: Implement submitHandlingProfile and updateHandlingProfile functions in convex/careFiles/handlingProfile.ts
-  // These mutations don't exist yet, so commenting out for now
-  // const submitProfile = useMutation(
-  //   api.careFiles.handlingProfile.submitHandlingProfile
-  // );
-  // const updateProfile = useMutation(
-  //   api.careFiles.handlingProfile.updateHandlingProfile
-  // );
+  const submitProfile = useMutation(
+    api.careFiles.handlingProfile.submitHandlingProfile
+  );
+  const updateProfile = useMutation(
+    api.careFiles.handlingProfile.updateHandlingProfile
+  );
+  const submitReviewedFormMutation = useMutation(
+    api.managerAudits.submitReviewedForm
+  );
 
   const getDefaultActivityValues = () => ({
     nStaff: 0,
@@ -196,26 +199,36 @@ export default function ResidentHandlingProfile({
       try {
         const formData = form.getValues();
 
-        // TODO: Implement mutations in convex/careFiles/handlingProfile.ts
-        toast.error("Handling profile save functionality is not yet implemented. Please implement submitHandlingProfile and updateHandlingProfile mutations.");
-        
-        // Uncomment when mutations are implemented:
-        // if (isEditMode && initialData) {
-        //   await updateProfile({
-        //     profileId: initialData._id,
-        //     ...formData,
-        //     residentId: residentId as Id<"residents">
-        //   });
-        //   toast.success("Handling profile updated successfully");
-        // } else {
-        //   await submitProfile({
-        //     ...formData,
-        //     residentId: residentId as Id<"residents">
-        //   });
-        //   toast.success("Handling profile saved successfully");
-        // }
+        if (isEditMode && initialData) {
+          // In review mode, use the special submission that creates audit automatically
+          const data = await submitReviewedFormMutation({
+            formType: "residentHandlingProfileForm",
+            formData: {
+              ...formData,
+              residentId: residentId as Id<"residents">
+            },
+            originalFormData: initialData,
+            originalFormId: initialData?._id,
+            residentId: residentId as Id<"residents">,
+            auditedBy: userName,
+            auditNotes: "Form reviewed and updated",
+            teamId,
+            organizationId
+          } as any);
+          if (data.hasChanges) {
+            toast.success("Handling profile updated successfully!");
+          } else {
+            toast.success("Handling profile reviewed and approved without changes!");
+          }
+        } else {
+          await submitProfile({
+            ...formData,
+            residentId: residentId as Id<"residents">
+          } as any);
+          toast.success("Handling profile saved successfully");
+        }
 
-        // onClose?.();
+        onClose?.();
       } catch (error) {
         console.error("Error submitting form:", error);
         toast.error("Failed to save handling profile");

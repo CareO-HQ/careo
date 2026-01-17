@@ -226,7 +226,7 @@ export default function MovingHandlingDialog({
             auditNotes: "Form reviewed and updated",
             teamId,
             organizationId
-          });
+          } as any);
           console.log("Review submission successful:", data);
           if (data.hasChanges) {
             toast.success(
@@ -241,7 +241,7 @@ export default function MovingHandlingDialog({
             ...values,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           console.log("Form submitted successfully:", result);
           toast.success(
             "Moving and handling assessment submitted successfully"

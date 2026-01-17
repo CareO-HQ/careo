@@ -26,10 +26,39 @@ function AcceptInvitationContent() {
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
 
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+      return error.message || "Unknown error";
+    }
+    if (typeof error === "string") {
+      return error;
+    }
+    if (error && typeof error === "object") {
+      const maybeMessage = (error as { message?: string }).message;
+      if (maybeMessage) return maybeMessage;
+      const nestedMessage =
+        (error as { error?: { message?: string } }).error?.message;
+      if (nestedMessage) return nestedMessage;
+      try {
+        const serialized = JSON.stringify(error);
+        if (serialized && serialized !== "{}") {
+          return serialized;
+        }
+      } catch {
+        // ignore serialization failures
+      }
+    }
+    return "Unknown error";
+  };
+
   const handleAcceptInvitation = async () => {
+    if (!token) {
+      toast.error("Missing invitation token");
+      return;
+    }
     await authClient.organization.acceptInvitation(
       {
-        invitationId: token!
+        invitationId: token
       },
       {
         onSuccess: async () => {
@@ -83,8 +112,9 @@ function AcceptInvitationContent() {
           return;
         },
         onError: (error) => {
-          toast.error("Failed to accept invitation");
-          console.error(error);
+          const message = getErrorMessage(error);
+          toast.error(message ? `Failed to accept invitation: ${message}` : "Failed to accept invitation");
+          console.error("[accept-invitation] acceptInvitation error:", error);
         }
       }
     );

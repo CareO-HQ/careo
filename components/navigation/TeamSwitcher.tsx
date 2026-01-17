@@ -37,12 +37,10 @@ import { config } from "@/config";
 
 export function TeamSwitcher({
   orgName,
-  isPending,
-  email
+  isPending
 }: {
   orgName: string;
   isPending: boolean;
-  email: string;
 }) {
   const router = useRouter();
   const { data: activeOrganization } = authClient.useActiveOrganization();
@@ -165,10 +163,11 @@ export function TeamSwitcher({
                     {isPending ? (
                       <Skeleton className="w-20 h-4 bg-muted-foreground/10" />
                     ) : (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {/* Organization 1 - Team 1 */}
-                        {activeTeam ? activeTeam.name : email}
-                      </p>
+                      activeTeam && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {activeTeam.name}
+                        </p>
+                      )
                     )}
                   </div>
                 </div>
@@ -264,7 +263,7 @@ export function TeamSwitcher({
                 <DropdownMenuItem
                   key={team.id}
                   onClick={() => handleTeamClick(team.id)}
-                  className={activeTeamId === team.id ? "bg-accent" : ""}
+                  className={activeTeamId === team.id ? "bg-accent border-l-2 border-sky-400" : ""}
                 >
                   <div className="flex items-center justify-start gap-2 w-full">
                     <Avatar className="size-6 rounded">

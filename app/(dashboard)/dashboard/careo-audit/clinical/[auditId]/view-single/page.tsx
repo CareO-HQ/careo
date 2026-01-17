@@ -33,7 +33,7 @@ import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 interface ItemResponse {
   itemId: string;
   itemName: string;
-  status?: "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
+  status?: "" | "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
   notes?: string;
   date?: string;
 }
