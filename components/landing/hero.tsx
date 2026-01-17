@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export const Hero = () => {
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
-    () => ["efficient", "secure", "comprehensive", "modern", "trusted"],
+    () => ["peace of mind", "more time", "more freedom", "inspection ready"],
     []
   );
 
@@ -32,13 +32,13 @@ export const Hero = () => {
         <div className="container mx-auto">
           <div className="flex items-center justify-between py-3 px-4 sm:px-6">
             {/* Logo */}
-            <Link href="/" className="mt-1">
+            <Link href="/">
               <Image
-                src="/Logo_CareO.png"
+                src="/Logo_CareO.png .png"
                 alt="CareO Logo"
-                width={90}
-                height={24}
-                className="object-cover max-h-6"
+                width={120}
+                height={32}
+                className="object-cover max-h-8"
               />
             </Link>
 
@@ -55,17 +55,16 @@ export const Hero = () => {
       </header>
 
       <div className="container mx-auto h-[calc(100vh-4rem)]">
-        <div className="flex gap-4 h-full items-center justify-center flex-col py-4">
+        <div className="flex gap-4 h-full items-center justify-center flex-col py-4 -mt-16">
           <div className="flex gap-3 flex-col">
-            <h1 className="text-4xl md:text-5xl max-w-2xl tracking-tighter text-center font-regular">
-              <span className="text-primary">Care simplified with</span>
-              <span className="relative flex w-full justify-center overflow-hidden text-center md:pb-2 md:pt-1">
-                &nbsp;
+            <h1 className="text-4xl md:text-5xl max-w-2xl tracking-tighter text-center font-regular flex flex-col">
+              <span className="text-muted-foreground font-light">CareO promise</span>
+              <span className="relative flex w-full justify-center overflow-hidden text-center h-12 md:h-16 items-center">
                 {titles.map((title, index) => (
                   <motion.span
                     key={index}
                     className="absolute font-semibold"
-                    initial={{ opacity: 0, y: "-100" }}
+                    initial={{ opacity: 0, y: -150 }}
                     transition={{ type: "spring", stiffness: 50 }}
                     animate={
                       titleNumber === index
@@ -74,7 +73,7 @@ export const Hero = () => {
                             opacity: 1,
                           }
                         : {
-                            y: titleNumber > index ? -150 : 150,
+                            y: titleNumber > index ? 150 : -150,
                             opacity: 0,
                           }
                     }

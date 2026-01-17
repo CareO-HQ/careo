@@ -85,13 +85,15 @@ function LoginContent() {
           <div className="lg:hidden space-y-6">
             {/* Logo */}
             <div className="flex items-center justify-center">
-              <Image
-                src="/Logo_CareO.png"
-                alt="CareO Logo"
-                width={140}
-                height={47}
-                className="object-contain"
-              />
+              <Link href="/">
+                <Image
+                  src="/Logo_CareO.png"
+                  alt="CareO Logo"
+                  width={140}
+                  height={47}
+                  className="object-contain cursor-pointer"
+                />
+              </Link>
             </div>
 
             {/* Mobile Image */}
@@ -120,13 +122,15 @@ function LoginContent() {
 
           {/* Desktop Logo */}
           <div className="hidden lg:flex items-center justify-center">
-            <Image
-              src="/Logo_CareO.png"
-              alt="CareO Logo"
-              width={150}
-              height={50}
-              className="object-contain"
-            />
+            <Link href="/">
+              <Image
+                src="/Logo_CareO.png"
+                alt="CareO Logo"
+                width={150}
+                height={50}
+                className="object-contain cursor-pointer"
+              />
+            </Link>
           </div>
 
           {/* Header */}
