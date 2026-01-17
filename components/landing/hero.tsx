@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export const Hero = () => {
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
-    () => ["peace of mind", "more time", "more freedom", "inspection ready"],
+    () => ["peace of mind", "more time", "more freedom"],
     []
   );
 
@@ -59,28 +59,33 @@ export const Hero = () => {
           <div className="flex gap-3 flex-col">
             <h1 className="text-4xl md:text-5xl max-w-2xl tracking-tighter text-center font-regular flex flex-col">
               <span className="text-muted-foreground font-light">CareO promise</span>
-              <span className="relative flex w-full justify-center overflow-hidden text-center h-12 md:h-16 items-center">
-                {titles.map((title, index) => (
-                  <motion.span
-                    key={index}
-                    className="absolute font-semibold"
-                    initial={{ opacity: 0, y: -150 }}
-                    transition={{ type: "spring", stiffness: 50 }}
-                    animate={
-                      titleNumber === index
-                        ? {
-                            y: 0,
-                            opacity: 1,
-                          }
-                        : {
-                            y: titleNumber > index ? 150 : -150,
-                            opacity: 0,
-                          }
-                    }
-                  >
-                    {title}
-                  </motion.span>
-                ))}
+
+              <span className="flex flex-wrap w-full justify-center items-center gap-2 md:gap-3 h-12 md:h-16">
+
+                <span className="relative flex overflow-hidden items-center justify-center h-full min-w-[250px] md:min-w-[350px]">
+                  {titles.map((title, index) => (
+                    <motion.span
+                      key={index}
+                      className="absolute font-semibold whitespace-nowrap"
+                      initial={{ opacity: 0, y: -150 }}
+                      transition={{ type: "spring", stiffness: 50 }}
+                      animate={
+                        titleNumber === index
+                          ? {
+                              y: 0,
+                              opacity: 1,
+                            }
+                          : {
+                              y: titleNumber > index ? 150 : -150,
+                              opacity: 0,
+                            }
+                      }
+                    >
+                      {title}
+                    </motion.span>
+                  ))}
+                </span>
+                <span className="text-muted-foreground font-light text-2xl md:text-3xl whitespace-nowrap">for your care team</span>
               </span>
             </h1>
 
