@@ -64,20 +64,28 @@ interface CreateAppointmentFormProps {
   onClose: () => void;
 }
 
-export function CreateAppointmentForm({ 
-  residentId, 
-  residentName, 
-  isOpen, 
-  onClose 
+export function CreateAppointmentForm({
+  residentId,
+  residentName,
+  isOpen,
+  onClose
 }: CreateAppointmentFormProps) {
   const [createAppointmentLoading, setCreateAppointmentLoading] = React.useState(false);
-
-  // Get all users for staff selection
-  const allUsers = useQuery(api.user.getAllUsers);
 
   // Auth data
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+
+  // Get all users for staff selection (using enriched members to get roles and filtering)
+  const allUsers = useQuery(api.users.getEnrichedOrgMembers,
+    activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
+  );
+
+  // Helper to format role name
+  const formatRole = (role?: string) => {
+    if (!role) return "";
+    return role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
 
   // Create Appointment Form setup
   const createAppointmentForm = useForm<z.infer<typeof CreateAppointmentSchema>>({
@@ -95,10 +103,20 @@ export function CreateAppointmentForm({
   const createAppointment = useMutation(api.appointments.createAppointment);
 
   // Get other staff (excluding current user) for assisted staff dropdown
-  const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => ({
-    key: u.name,
-    label: u.name,
-    email: u.email
+  const otherStaffOptions = allUsers?.filter((u: any) => u.user?.email !== user?.user?.email).map((u: any) => ({
+    key: u.user.id || u.id,
+    label: `${u.user.name} (${formatRole(u.role)})`,
+    email: u.user.email,
+    id: u.user.id, // Store ID if needed, but currently form uses email or id? Form schema says staffId string
+    // Schema says staffId: z.string().optional()
+    // Original code used u.email in value={staff.email}. But update used u.key=u.name
+    // Let's stick to using what the backend expects. appointments.ts creates appointment with staffId: v.optional(v.string())
+    // Is it expecting an ID or an Email?
+    // In createAppointment mutation: staffId: v.optional(v.string())
+    // Let's check appointments.ts handler:
+    // It doesn't use staffId for logic much, just stores it.
+    // However, notifications use it? No, notifications use senderId.
+    // Let's preserve the existing behavior: value={staff.email}
   })) || [];
 
   // Handle create appointment submission

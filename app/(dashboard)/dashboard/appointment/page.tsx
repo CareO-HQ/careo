@@ -35,14 +35,14 @@ export default function AppointmentPage() {
   const organizationAppointments = useQuery(
     api.appointments.getAppointmentsByOrganization,
     (shouldUseOrganization && activeOrganizationId) || (!activeTeamId && activeOrganizationId)
-      ? { organizationId: activeOrganizationId }
+      ? { organizationId: activeOrganizationId, includeAll: true }
       : "skip"
   );
 
   const teamAppointments = useQuery(
     api.appointments.getAppointmentsByTeam,
     !shouldUseOrganization && activeTeamId
-      ? { teamId: activeTeamId }
+      ? { teamId: activeTeamId, includeAll: true }
       : "skip"
   );
 

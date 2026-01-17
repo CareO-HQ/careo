@@ -86,16 +86,16 @@ export const getByOrganization = query({
 
     // RBAC: Resolve user and enforce access
     const { role, organizationId: userOrgId } = await resolveUser(ctx);
-    
+
     if (!role) {
       throw new Error("Unauthorized: User role not found");
     }
-    
+
     // Verify organization access (unless SaaS Admin)
     if (role !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
       throw new Error("Unauthorized: Cannot access different organization");
     }
-    
+
     // Resolve care home context
     let targetCareHomeId: Id<"careHomes"> | null = null;
     if (args.careHomeId) {
@@ -120,7 +120,7 @@ export const getByOrganization = query({
         .query("units")
         .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
         .collect();
-      
+
       const teamIds = new Set(units.map(u => u.teamId));
       teamMembers = teamMembers.filter((tm: any) => teamIds.has(tm.teamId));
     }
@@ -284,7 +284,7 @@ export const getEnrichedOrgMembers = query({
     // Get current session to identify current user and exclude them from results
     const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
     const currentUserId = session?.userId || null;
-    
+
     // Log session info for debugging
     console.log(`[getEnrichedOrgMembers] Session info:`, {
       hasSession: !!session,
@@ -292,7 +292,7 @@ export const getEnrichedOrgMembers = query({
       currentUserIdType: typeof currentUserId,
       sessionKeys: session ? Object.keys(session) : []
     });
-    
+
     // Get organization members from better-auth
     const membersResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
       model: "member",
@@ -317,7 +317,7 @@ export const getEnrichedOrgMembers = query({
         // Skip current user - check by userId first, then by email as fallback
         const matchesByUserId = currentUserId && String(member.userId) === String(currentUserId);
         const matchesByEmail = session?.user && authUser.email === session.user.email;
-        
+
         // Get current user's email from session if available
         let currentUserEmail: string | null = null;
         if (session?.user) {
@@ -335,7 +335,7 @@ export const getEnrichedOrgMembers = query({
           }
         }
         const matchesByEmailFallback = currentUserEmail && authUser.email === currentUserEmail;
-        
+
         if (matchesByUserId || matchesByEmail || matchesByEmailFallback) {
           console.log(`[getEnrichedOrgMembers] ⏭️ Skipping current user:`, {
             email: authUser.email,
@@ -348,7 +348,7 @@ export const getEnrichedOrgMembers = query({
           });
           continue;
         }
-        
+
         // Get our local user record with extended fields
         const localUser = await ctx.db
           .query("users")
@@ -358,7 +358,7 @@ export const getEnrichedOrgMembers = query({
         // Get user role from Better Auth member record - trust it as the source of truth
         // Only validate that it's a non-empty string, not that it's in a specific list
         let userRole: string | null | undefined = member.role;
-        
+
         // Log initial role value for debugging
         console.log(`[getEnrichedOrgMembers] ========== ROLE RETRIEVAL START for ${authUser.email} ==========`);
         console.log(`[getEnrichedOrgMembers] Step 1: Initial member record check:`, {
@@ -374,14 +374,14 @@ export const getEnrichedOrgMembers = query({
           memberRoleTrimmedLength: member.role?.trim()?.length,
           fullMember: member
         });
-        
+
         // Check if member.role is a valid non-empty string
         // Trust Better Auth - don't validate against a specific list of roles
-        const isMemberRoleValid = userRole && 
-          typeof userRole === 'string' && 
-          userRole.trim() !== '' && 
+        const isMemberRoleValid = userRole &&
+          typeof userRole === 'string' &&
+          userRole.trim() !== '' &&
           userRole !== "unknown";
-        
+
         console.log(`[getEnrichedOrgMembers] Step 1: Validation result:`, {
           isMemberRoleValid: isMemberRoleValid,
           checks: {
@@ -391,7 +391,7 @@ export const getEnrichedOrgMembers = query({
             notUnknown: userRole !== "unknown"
           }
         });
-        
+
         // If role is missing from member record, try to get it from teamMembers table
         if (!isMemberRoleValid) {
           console.log(`[getEnrichedOrgMembers] Step 2: Role missing/invalid in member record, trying teamMembers table...`);
@@ -399,14 +399,14 @@ export const getEnrichedOrgMembers = query({
             userId: member.userId,
             organizationId: args.organizationId
           });
-          
+
           try {
             // Query teamMembers table by userId and organizationId to find role
             const teamMembers = await ctx.db
               .query("teamMembers")
               .withIndex("byUserId", (q) => q.eq("userId", member.userId))
               .collect();
-            
+
             console.log(`[getEnrichedOrgMembers] Step 2: Found ${teamMembers.length} teamMember records`);
             console.log(`[getEnrichedOrgMembers] Step 2: TeamMember records:`, teamMembers.map(tm => ({
               teamId: tm.teamId,
@@ -415,39 +415,39 @@ export const getEnrichedOrgMembers = query({
               roleType: typeof tm.role,
               matchesOrg: tm.organizationId === args.organizationId
             })));
-            
+
             // Filter teamMembers by organizationId and get the first valid role (non-empty string)
-            const orgTeamMember = teamMembers.find(tm => 
-              tm.organizationId === args.organizationId && 
-              tm.role && 
-              typeof tm.role === 'string' && 
+            const orgTeamMember = teamMembers.find(tm =>
+              tm.organizationId === args.organizationId &&
+              tm.role &&
+              typeof tm.role === 'string' &&
               tm.role.trim() !== ''
             );
-            
+
             console.log(`[getEnrichedOrgMembers] Step 2: Organization match result:`, {
               orgTeamMemberFound: !!orgTeamMember,
               orgTeamMemberRole: orgTeamMember?.role,
               orgTeamMemberRoleType: typeof orgTeamMember?.role
             });
-            
+
             if (orgTeamMember?.role) {
               userRole = orgTeamMember.role;
               console.log(`[getEnrichedOrgMembers] ✅ Step 2 SUCCESS: Found role from teamMembers table (org match): "${userRole}"`);
             } else {
               // Try to find any valid role from teamMembers
               console.log(`[getEnrichedOrgMembers] Step 2: No org match, trying any valid teamMember...`);
-              const validTeamMember = teamMembers.find(tm => 
-                tm.role && 
-                typeof tm.role === 'string' && 
+              const validTeamMember = teamMembers.find(tm =>
+                tm.role &&
+                typeof tm.role === 'string' &&
                 tm.role.trim() !== ''
               );
-              
+
               console.log(`[getEnrichedOrgMembers] Step 2: Any valid teamMember result:`, {
                 validTeamMemberFound: !!validTeamMember,
                 validTeamMemberRole: validTeamMember?.role,
                 validTeamMemberRoleType: typeof validTeamMember?.role
               });
-              
+
               if (validTeamMember?.role) {
                 userRole = validTeamMember.role;
                 console.log(`[getEnrichedOrgMembers] ✅ Step 2 SUCCESS: Found role from teamMembers table (fallback): "${userRole}"`);
@@ -466,7 +466,7 @@ export const getEnrichedOrgMembers = query({
           console.log(`[getEnrichedOrgMembers] ✅ Step 1 SUCCESS: Using role from Better Auth member record: "${userRole}"`);
           console.log(`[getEnrichedOrgMembers] Step 2: Skipped - role already valid from Step 1`);
         }
-        
+
         // Only default to "care_assistant" if we've exhausted all options and confirmed no role exists
         console.log(`[getEnrichedOrgMembers] Step 3: Final validation and default check...`);
         console.log(`[getEnrichedOrgMembers] Step 3: Current state:`, {
@@ -478,7 +478,7 @@ export const getEnrichedOrgMembers = query({
           userRoleTrimmed: userRole?.trim(),
           needsDefault: !userRole || typeof userRole !== 'string' || userRole.trim() === ''
         });
-        
+
         if (!userRole || typeof userRole !== 'string' || userRole.trim() === '') {
           console.warn(`[getEnrichedOrgMembers] ⚠️ Step 3: Role still missing after all attempts!`);
           console.warn(`[getEnrichedOrgMembers] Step 3: Attempt summary:`, {
@@ -493,7 +493,7 @@ export const getEnrichedOrgMembers = query({
         } else {
           console.log(`[getEnrichedOrgMembers] ✅ Step 3: Role found, no default needed`);
         }
-        
+
         // Final validation - ensure it's a string
         const finalRole = String(userRole).trim();
         console.log(`[getEnrichedOrgMembers] ========== ROLE RETRIEVAL END for ${authUser.email} ==========`);
@@ -504,7 +504,7 @@ export const getEnrichedOrgMembers = query({
           finalRole: finalRole,
           roleSource: member.role ? 'Better Auth member record' : 'teamMembers table or default'
         });
-        
+
         userRole = finalRole;
 
         // Get user's image
@@ -530,9 +530,9 @@ export const getEnrichedOrgMembers = query({
         // Final check - ensure role is a non-empty string before adding to results
         // At this point, userRole should already be validated and set (either from member.role, teamMember, or default)
         // userRole was already set to finalRole at line 429, so we can use it directly
-        
+
         console.log(`[getEnrichedOrgMembers] Adding ${authUser.email} to results with role: "${userRole}"`);
-        
+
         results.push({
           id: member.id,
           userId: member.userId,
@@ -557,25 +557,60 @@ export const getEnrichedOrgMembers = query({
       }
     }
 
-    // Log final results summary
-    const roleSummary: Record<string, number> = {};
-    results.forEach((result) => {
-      const role = (result.role as string) || "unknown";
-      roleSummary[role] = (roleSummary[role] || 0) + 1;
+
+    // Filter out excluded roles (saas_admin, owner)
+    // And ensure only valid team members are returned
+    const filteredResults = results.filter(member => {
+      const role = (member.role as string)?.toLowerCase();
+      // Exclude saas_admin and owner
+      if (role === 'saas_admin' || role === 'owner') {
+        return false;
+      }
+      return true;
     });
-    console.log(`[getEnrichedOrgMembers] Returning ${results.length} members with roles:`, roleSummary);
-    
-    // Log sample of results to verify role is present
-    if (results.length > 0) {
-      console.log(`[getEnrichedOrgMembers] Sample result (first member):`, {
-        email: (results[0] as any).user?.email,
-        role: (results[0] as any).role,
-        roleType: typeof (results[0] as any).role,
-        hasRole: !!(results[0] as any).role
-      });
+
+    // Sort results:
+    // 1. Staff in current team (if we can determine it - passed via args or inferred)
+    // Since this query is for the whole org, we prioritze by name for now, 
+    // unless the UI logic handles "current team" highlighting.
+    // The requirement is "ordered by staff in current team + alphabetical order".
+    // "Current team" usually triggers `getByTeamId`, but for org-wide lists (like assignable staff),
+    // we might want to prioritize the user's OWN team if they are looking?
+    // Let's assume alphabetical first as "current team" context isn't fully passed here yet without extra args.
+    // However, the prompt implies "staff in current team" should come first.
+    // We can infer "current team" if the requester has an activeTeamId.
+
+    // Get current user's active team to prioritize their team members
+    let currentUserActiveTeamId: string | null = null;
+    if (session?.userId) {
+      // We might need to fetch the caller's activeTeamId here if not in session
+      // Optimisation: reuse `localUser` if we fetched the caller earlier, but we fetched *members*.
+      // Let's do a quick lookup if needed, or rely on client-side sorting if complex.
+      // The user prompt is specific: "ordered by staff in current team".
+      const callerUser = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", session.user?.email || ""))
+        .first();
+      currentUserActiveTeamId = callerUser?.activeTeamId || null;
     }
 
-    return results;
+    filteredResults.sort((a: any, b: any) => {
+      // 1. Prioritize members of the current user's team
+      if (currentUserActiveTeamId) {
+        const aIsMinTeam = a.activeTeamId === currentUserActiveTeamId;
+        const bIsMinTeam = b.activeTeamId === currentUserActiveTeamId;
+        if (aIsMinTeam && !bIsMinTeam) return -1;
+        if (!aIsMinTeam && bIsMinTeam) return 1;
+      }
+
+      // 2. Alphabetical by name
+      const nameA = (a.user?.name || "").toLowerCase();
+      const nameB = (b.user?.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    console.log(`[getEnrichedOrgMembers] Returning ${filteredResults.length} members (filtered & sorted)`);
+    return filteredResults;
   },
 });
 
@@ -591,7 +626,7 @@ export const getByTeamId = query({
     // Get current session to identify current user and exclude them from results
     const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
     const currentUserId = session?.userId || null;
-    
+
     // Log session info for debugging
     console.log(`[getByTeamId] Session info:`, {
       hasSession: !!session,
@@ -628,7 +663,7 @@ export const getByTeamId = query({
 
       // Try multiple methods to get user from Better Auth
       let authUser: any = null;
-      
+
       // Method 1: Try findOne with id field
       try {
         authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
@@ -663,12 +698,12 @@ export const getByTeamId = query({
       if (!authUser) {
         console.log(`[getByTeamId] User not found via Better Auth, trying fallback methods...`);
         let teamMemberEmail = teamMember.email;
-        
+
         // If email not in teamMember, try to find user in local table by querying all users
         // and matching by checking if any user has this userId in their teamMembers
         if (!teamMemberEmail) {
           console.log(`[getByTeamId] Email not in teamMember, trying to find user in local table...`);
-          
+
           // Try to find user by checking all teamMembers with this userId to get organization context
           // Then try to find the user by querying local users table
           // Actually, we can't easily match userId to email without Better Auth
@@ -677,14 +712,14 @@ export const getByTeamId = query({
           console.log(`[getByTeamId] Suggestion: User should switch teams again to trigger email update in teamMembers`);
           continue;
         }
-        
+
         if (teamMemberEmail) {
           // Try to find user in local Convex table by email
           const localUser = await ctx.db
             .query("users")
             .withIndex("byEmail", (q) => q.eq("email", teamMemberEmail!))
             .first();
-          
+
           if (localUser) {
             // Create a minimal authUser object from local user data
             authUser = {
@@ -723,7 +758,7 @@ export const getByTeamId = query({
       // Exclude users ONLY if activeTeamId is explicitly set to a DIFFERENT team (they switched away)
       const userActiveTeamId = user?.activeTeamId;
       const shouldExclude = userActiveTeamId !== null && userActiveTeamId !== undefined && userActiveTeamId !== args.teamId;
-      
+
       console.log(`[getByTeamId] Filter check for ${authUser.email}:`, {
         userActiveTeamId,
         requestedTeamId: args.teamId,
@@ -743,9 +778,9 @@ export const getByTeamId = query({
         // If we don't have authUser, we can't properly filter, so skip this iteration
         continue;
       }
-      
+
       const matchesByUserId = currentUserId && String(userId) === String(currentUserId);
-      
+
       // Get current user's email from session for email-based comparison
       let currentUserEmail: string | null = null;
       if (session?.user) {
@@ -762,10 +797,10 @@ export const getByTeamId = query({
           // Ignore error, will use userId comparison only
         }
       }
-      
+
       // Check if this user matches current user by email (fallback for when userId doesn't match)
       const matchesByEmail = currentUserEmail && authUser.email === currentUserEmail;
-      
+
       if (matchesByUserId || matchesByEmail) {
         console.log(`[getByTeamId] ⏭️ Skipping current user:`, {
           email: authUser.email,
@@ -778,7 +813,7 @@ export const getByTeamId = query({
         });
         continue;
       }
-      
+
       // Include this user (passed activeTeamId filter)
       const inclusionReason = !user
         ? "user record not found (fallback)"
@@ -792,7 +827,7 @@ export const getByTeamId = query({
       // Get user role - prioritize Better Auth member record since roles are organization-level, not team-level
       // teamMember.role might be missing when users switch teams, so always check member record first
       let userRole: string | null | undefined = null;
-      
+
       // Log initial values for debugging
       console.log(`[getByTeamId] ========== ROLE RETRIEVAL START for ${authUser.email} ==========`);
       console.log(`[getByTeamId] Initial state:`, {
@@ -807,7 +842,7 @@ export const getByTeamId = query({
         teamMemberRoleIsEmpty: teamMember.role === '',
         teamMemberFull: teamMember
       });
-      
+
       // First, try to get role from Better Auth member record (organization-level, always accurate)
       // Try by userId first, then fallback to finding by email if userId doesn't match
       console.log(`[getByTeamId] Step 1: Attempting to fetch Better Auth member record...`);
@@ -818,7 +853,7 @@ export const getByTeamId = query({
         userIdType: typeof userId,
         organizationIdType: typeof teamMember.organizationId
       });
-      
+
       let member: any = null;
       try {
         member = await ctx.runQuery(components.betterAuth.lib.findOne, {
@@ -828,7 +863,7 @@ export const getByTeamId = query({
             { field: "organizationId", value: teamMember.organizationId }
           ]
         });
-        
+
         console.log(`[getByTeamId] Step 1a Result (by userId):`, {
           memberFound: !!member,
           memberId: member?.id,
@@ -843,7 +878,7 @@ export const getByTeamId = query({
           errorMessage: error instanceof Error ? error.message : String(error)
         });
       }
-      
+
       // If member not found by userId, try to find by email (fallback for when userId doesn't match)
       // This happens when users switch teams and teamMember.userId might be outdated
       if (!member) {
@@ -856,9 +891,9 @@ export const getByTeamId = query({
             where: [{ field: "organizationId", value: teamMember.organizationId }],
             paginationOpts: { cursor: null, numItems: 100 }
           });
-          
+
           console.log(`[getByTeamId] Step 1b: Found ${allMembers?.page?.length || 0} members in organization`);
-          
+
           // Find member by matching user email
           if (allMembers?.page && allMembers.page.length > 0) {
             for (const orgMember of allMembers.page) {
@@ -867,7 +902,7 @@ export const getByTeamId = query({
                   model: "user",
                   where: [{ field: "id", value: orgMember.userId }]
                 });
-                
+
                 if (orgUser?.email === authUser.email) {
                   member = orgMember;
                   console.log(`[getByTeamId] ✅ Step 1b SUCCESS: Found member by email match:`, {
@@ -885,7 +920,7 @@ export const getByTeamId = query({
               }
             }
           }
-          
+
           if (!member) {
             console.log(`[getByTeamId] ⚠️ Step 1b: No member found by email either`);
           }
@@ -896,11 +931,11 @@ export const getByTeamId = query({
           });
         }
       }
-      
+
       // Check if we found a member and extract role
-      if (member?.role && 
-          typeof member.role === 'string' && 
-          member.role.trim() !== '') {
+      if (member?.role &&
+        typeof member.role === 'string' &&
+        member.role.trim() !== '') {
         userRole = member.role;
         console.log(`[getByTeamId] ✅ Step 1 SUCCESS: Found role from Better Auth member record: "${userRole}"`);
       } else {
@@ -913,7 +948,7 @@ export const getByTeamId = query({
           memberRoleTrimmedLength: member?.role?.trim()?.length
         });
       }
-      
+
       // Fallback to teamMember.role only if member record lookup failed or returned no role
       console.log(`[getByTeamId] Step 2: Checking if fallback to teamMember.role is needed...`);
       console.log(`[getByTeamId] Current userRole value:`, {
@@ -924,7 +959,7 @@ export const getByTeamId = query({
         userRoleIsEmpty: userRole === '',
         needsFallback: !userRole || typeof userRole !== 'string' || userRole.trim() === ''
       });
-      
+
       if (!userRole || typeof userRole !== 'string' || userRole.trim() === '') {
         const teamMemberRole = teamMember.role;
         console.log(`[getByTeamId] Step 2: Evaluating teamMember.role as fallback:`, {
@@ -936,12 +971,12 @@ export const getByTeamId = query({
           teamMemberRoleTrimmed: teamMemberRole?.trim(),
           teamMemberRoleIsUnknown: teamMemberRole === "unknown"
         });
-        
-        const isTeamMemberRoleValid = teamMemberRole && 
-          typeof teamMemberRole === 'string' && 
-          teamMemberRole.trim() !== '' && 
+
+        const isTeamMemberRoleValid = teamMemberRole &&
+          typeof teamMemberRole === 'string' &&
+          teamMemberRole.trim() !== '' &&
           teamMemberRole !== "unknown";
-        
+
         console.log(`[getByTeamId] Step 2: teamMember.role validation result:`, {
           isTeamMemberRoleValid: isTeamMemberRoleValid,
           checks: {
@@ -951,7 +986,7 @@ export const getByTeamId = query({
             notUnknown: teamMemberRole !== "unknown"
           }
         });
-        
+
         if (isTeamMemberRoleValid) {
           userRole = teamMemberRole;
           console.log(`[getByTeamId] ✅ Step 2 SUCCESS: Using role from teamMember (fallback): "${userRole}"`);
@@ -961,7 +996,7 @@ export const getByTeamId = query({
       } else {
         console.log(`[getByTeamId] Step 2: Skipped - userRole already set from Step 1: "${userRole}"`);
       }
-      
+
       // Only default to "care_assistant" if we've exhausted all options and confirmed no role exists
       console.log(`[getByTeamId] Step 3: Final validation and default check...`);
       console.log(`[getByTeamId] Step 3: Current state:`, {
@@ -973,7 +1008,7 @@ export const getByTeamId = query({
         userRoleTrimmed: userRole?.trim(),
         needsDefault: !userRole || typeof userRole !== 'string' || userRole.trim() === ''
       });
-      
+
       if (!userRole || typeof userRole !== 'string' || userRole.trim() === '') {
         console.warn(`[getByTeamId] ⚠️ Step 3: Role still missing after all attempts!`);
         console.warn(`[getByTeamId] Step 3: Attempt summary:`, {
@@ -988,7 +1023,7 @@ export const getByTeamId = query({
       } else {
         console.log(`[getByTeamId] ✅ Step 3: Role found, no default needed`);
       }
-      
+
       // Final validation - ensure it's a string
       const finalRole = String(userRole).trim();
       console.log(`[getByTeamId] ========== ROLE RETRIEVAL END for ${authUser.email} ==========`);
@@ -999,9 +1034,9 @@ export const getByTeamId = query({
         finalRole: finalRole,
         roleSource: member?.role ? 'Better Auth member record' : (teamMember.role ? 'teamMember record' : 'default (care_assistant)')
       });
-      
+
       userRole = finalRole;
-      
+
       const isOnboardingComplete = user?.isOnboardingComplete;
 
       console.log(`[getByTeamId] Onboarding check for ${authUser.email}:`, {
@@ -1051,7 +1086,7 @@ export const getByTeamId = query({
       // Final check - ensure role is a non-empty string before adding to results
       // At this point, userRole should already be validated and set (either from teamMember.role, member.role, or default)
       // userRole was already set to finalRole at line 833, so we can use it directly
-      
+
       // Check for duplicates by email - skip if this user has already been added
       if (addedUserEmails.has(authUser.email)) {
         console.log(`[getByTeamId] ⚠️ DUPLICATE DETECTED: Skipping ${authUser.email} - already added to results`);
@@ -1063,12 +1098,12 @@ export const getByTeamId = query({
         });
         continue;
       }
-      
+
       // Mark this email as added
       addedUserEmails.add(authUser.email);
-      
+
       console.log(`[getByTeamId] Adding ${authUser.email} to results with role: "${userRole}"`);
-      
+
       results.push({
         _id: user?._id || authUser.id,
         userId: userId,
@@ -1096,7 +1131,7 @@ export const getByTeamId = query({
       console.log(`[getByTeamId] ⚠️ Filtered out ${duplicatesFiltered} duplicate entries (users with multiple teamMembers records)`);
     }
     console.log(`[getByTeamId] Role breakdown:`, roleBreakdown);
-    
+
     // Log sample of results to verify role is present
     if (results.length > 0) {
       console.log(`[getByTeamId] Sample result (first member):`, {
@@ -1106,8 +1141,26 @@ export const getByTeamId = query({
         hasRole: !!(results[0] as any).role
       });
     }
-    
-    return results;
+
+
+    // Filter out excluded roles (saas_admin, owner)
+    // And ensure only valid team members are returned
+    const filteredResults = results.filter(member => {
+      const role = (member.role as string)?.toLowerCase();
+      // Exclude saas_admin and owner
+      if (role === 'saas_admin' || role === 'owner') {
+        return false;
+      }
+      return true;
+    }).sort((a: any, b: any) => {
+      // Alphabetical sort by name
+      const nameA = (a.name || a.user?.name || "").toLowerCase();
+      const nameB = (b.name || b.user?.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    console.log(`[getByTeamId] Returning ${filteredResults.length} members (filtered & sorted)`);
+    return filteredResults;
   },
 });
 
@@ -1130,10 +1183,10 @@ export const inspectData = query({
       teamMembersCount: teamMembers.length,
       usersWithTeamCount: usersWithTeam.length,
       usersWithUnitCount: usersWithUnit.length,
-      usersSample: usersWithTeam.slice(0, 5).map(u => ({ 
-        id: u._id, 
+      usersSample: usersWithTeam.slice(0, 5).map(u => ({
+        id: u._id,
         activeTeamId: u.activeTeamId,
-        activeUnitId: u.activeUnitId 
+        activeUnitId: u.activeUnitId
       })),
     };
   },

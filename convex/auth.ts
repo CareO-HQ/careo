@@ -370,11 +370,49 @@ export const updateActiveTeam = mutation({
     const previousTeamId = convexUser.activeTeamId;
     console.log(`[TEAM-SWITCH] Previous team: ${previousTeamId || 'none'}, New team: ${teamId}`);
 
-    // Update the activeTeamId in the Convex users table
-    // This ensures the user's current team ID is updated (core functionality)
-    await ctx.db.patch(convexUser._id, {
+    // For nurses/care assistants, also need to set activeUnitId when switching teams
+    // Find the unit associated with this team
+    const unit = await ctx.db
+      .query("units")
+      .withIndex("by_teamId", (q) => q.eq("teamId", teamId))
+      .first();
+
+    // Prepare update object
+    const updateData: { activeTeamId: string; activeUnitId?: Id<"units">; activeCareHomeId?: Id<"careHomes"> } = {
       activeTeamId: teamId
-    });
+    };
+
+    // If unit found, also update activeUnitId and activeCareHomeId for nurses/care assistants
+    if (unit) {
+      // Get member role to determine if we should update activeUnitId
+      let member: any = null;
+      try {
+        member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "member",
+          where: [
+            { field: "userId", value: betterAuthUserId },
+            { field: "organizationId", value: session.activeOrganizationId }
+          ]
+        });
+      } catch (error) {
+        // If member lookup fails, try to infer from existing user data
+        console.warn(`[TEAM-SWITCH] Could not get member record, will check user's existing activeUnitId`);
+      }
+
+      const userRole = member?.role || (convexUser.activeUnitId ? "nurse" : undefined);
+      
+      // For nurses and care assistants, set activeUnitId and activeCareHomeId
+      if (userRole === "nurse" || userRole === "care_assistant" || convexUser.activeUnitId) {
+        updateData.activeUnitId = unit._id;
+        updateData.activeCareHomeId = unit.careHomeId;
+        console.log(`[TEAM-SWITCH] Setting activeUnitId: ${unit._id} and activeCareHomeId: ${unit.careHomeId} for ${userRole || 'user with existing activeUnitId'}`);
+      }
+    } else {
+      console.warn(`[TEAM-SWITCH] No unit found for teamId: ${teamId}. activeUnitId will not be updated.`);
+    }
+
+    // Update the activeTeamId (and activeUnitId/activeCareHomeId if applicable) in the Convex users table
+    await ctx.db.patch(convexUser._id, updateData);
 
     // Verify the update was successful
     const updatedUser = await ctx.db.get(convexUser._id);

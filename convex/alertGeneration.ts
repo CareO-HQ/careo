@@ -1,5 +1,5 @@
 import { internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { internal, components } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getUKTodayDateString } from "./utils/dateUtils";
 
@@ -427,6 +427,80 @@ export const generateMedicationAlerts = internalMutation({
           teamId: resident.teamId,
         });
         if (result.created) alertsCreated++;
+
+        // Also create notifications for nurses when medication is overdue
+        if (alertSeverity === "critical" && scheduledTime < fifteenMinutesAgo) {
+          try {
+            // Get all nurses in the resident's team
+            const teamMembers = await ctx.db
+              .query("teamMembers")
+              .withIndex("byTeamId", (q) => q.eq("teamId", resident.teamId))
+              .collect();
+
+            // Get Better Auth members to find nurses
+            let nurseEmails: string[] = [];
+
+            for (const teamMember of teamMembers) {
+              try {
+                // Get Better Auth member to check role
+                const member = await ctx.runQuery(components.betterAuth.lib.findOne, {
+                  model: "member",
+                  where: [
+                    { field: "userId", value: teamMember.userId },
+                    { field: "organizationId", value: resident.organizationId }
+                  ]
+                });
+
+                if (member?.role === "nurse") {
+                  // Get user email from Better Auth
+                  const user = await ctx.runQuery(components.betterAuth.lib.findOne, {
+                    model: "user",
+                    where: [{ field: "id", value: teamMember.userId }]
+                  });
+
+                  if (user?.email) {
+                    nurseEmails.push(user.email);
+                  }
+                }
+              } catch (error) {
+                console.error(`[Medication Notifications] Error getting nurse email for userId ${teamMember.userId}:`, error);
+              }
+            }
+
+            // Create notifications for each nurse
+            for (const nurseEmail of nurseEmails) {
+              try {
+                await ctx.db.insert("notifications", {
+                  userId: nurseEmail,
+                  senderId: undefined,
+                  senderName: "System",
+                  type: "medication_overdue",
+                  title: "Medication Overdue",
+                  message: `${medication.name} (${medication.strength}${medication.strengthUnit}) for ${resident.firstName} ${resident.lastName} is overdue by ${formatOverdueTime(now - scheduledTime)}.`,
+                  link: `/dashboard/residents/${resident._id}/medication`,
+                  metadata: {
+                    intakeId: intake._id,
+                    medicationId: medication._id,
+                    medicationName: medication.name,
+                    residentId: resident._id,
+                    residentName: `${resident.firstName} ${resident.lastName}`,
+                    scheduledTime: scheduledTime,
+                    overdueBy: now - scheduledTime,
+                  },
+                  organizationId: resident.organizationId,
+                  teamId: resident.teamId,
+                  isRead: false,
+                  createdAt: now,
+                });
+                console.log(`[Medication Notifications] Created notification for nurse: ${nurseEmail}`);
+              } catch (notificationError) {
+                console.error(`[Medication Notifications] Error creating notification for nurse ${nurseEmail}:`, notificationError);
+              }
+            }
+          } catch (error) {
+            console.error("[Medication Notifications] Error creating notifications for overdue medication:", error);
+          }
+        }
       }
     }
 

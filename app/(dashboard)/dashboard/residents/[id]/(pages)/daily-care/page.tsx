@@ -60,6 +60,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { getUKTodayDate, formatTimestampToUKTime, formatTimestampToUKDate, formatTimestampToUKDateTime, formatDateForDisplay } from "@/lib/date-utils";
+import { TimePicker } from "@/components/ui/date-time-picker";
 
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
@@ -1700,10 +1701,11 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                       <FormItem>
                         <FormLabel className="text-sm font-medium">Time</FormLabel>
                         <FormControl>
-                          <Input
-                            type="time"
+                          <TimePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Select time"
                             className="h-9"
-                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -1831,10 +1833,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
             <div className="space-y-2">
               <Label className="text-sm font-medium">Time</Label>
-              <Input
-                type="time"
+              <TimePicker
                 value={activityRecordTime}
-                onChange={(e) => setActivityRecordTime(e.target.value)}
+                onChange={setActivityRecordTime}
                 placeholder="Select time"
                 className="h-9"
               />

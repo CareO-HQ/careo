@@ -36,102 +36,77 @@ export function TimePicker({
   placeholder = "Select time",
   className,
 }: TimePickerProps) {
-  const [open, setOpen] = React.useState(false)
+  // Generate all time options in 5-minute intervals (00:00 to 23:55)
+  const timeOptions = React.useMemo(() => {
+    const options: Array<{ value: string; label: string }> = []
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 5) {
+        const hourStr = hour.toString().padStart(2, "0")
+        const minuteStr = minute.toString().padStart(2, "0")
+        const timeValue = `${hourStr}:${minuteStr}`
+        
+        // Format for display: "HH:MM AM/PM"
+        const period = hour >= 12 ? "PM" : "AM"
+        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+        const label = `${displayHour.toString().padStart(2, "0")}:${minuteStr} ${period}`
+        
+        options.push({ value: timeValue, label })
+      }
+    }
+    return options
+  }, [])
 
-  // Generate hours (00-23)
-  const hours = Array.from({ length: 24 }, (_, i) => 
-    i.toString().padStart(2, "0")
-  )
-
-  // Generate minutes (00-59 in 15-minute intervals)
-  const minutes = Array.from({ length: 4 }, (_, i) => 
-    (i * 15).toString().padStart(2, "0")
-  )
-
-  // Parse current value
-  const [selectedHour, selectedMinute] = React.useMemo(() => {
-    if (!value) return ["09", "00"]
+  // Find the current value in options, or round to nearest 5-minute interval
+  const selectedValue = React.useMemo(() => {
+    if (!value) return undefined
+    
     const parts = value.split(":")
-    return [parts[0] || "09", parts[1] || "00"]
+    const hour = parseInt(parts[0] || "9", 10)
+    const minute = parseInt(parts[1] || "0", 10)
+    
+    // Round minute to nearest 5-minute interval
+    const roundedMinute = Math.round(minute / 5) * 5
+    const hourStr = hour.toString().padStart(2, "0")
+    const minuteStr = roundedMinute.toString().padStart(2, "0")
+    
+    return `${hourStr}:${minuteStr}`
   }, [value])
-
-  const handleTimeChange = (hour: string, minute: string) => {
-    const timeValue = `${hour}:${minute}`
-    onChange?.(timeValue)
-    setOpen(false)
-  }
 
   // Format display value
   const displayValue = React.useMemo(() => {
     if (!value) return ""
-    const [h, m] = value.split(":")
-    const hour = parseInt(h)
-    const period = hour >= 12 ? "PM" : "AM"
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-    return `${displayHour.toString().padStart(2, "0")}:${m} ${period}`
-  }, [value])
+    const option = timeOptions.find(opt => opt.value === selectedValue)
+    return option?.label || value
+  }, [value, selectedValue, timeOptions])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "w-full justify-start font-normal",
-            !value && "text-muted-foreground",
-            className
-          )}
-          disabled={disabled}
-          type="button"
-        >
-          <ClockIcon className="mr-2 h-4 w-4" />
+    <Select
+      value={selectedValue}
+      onValueChange={(timeValue) => {
+        onChange?.(timeValue)
+      }}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        className={cn(
+          "w-full justify-start font-normal",
+          !value && "text-muted-foreground",
+          className
+        )}
+      >
+        <ClockIcon className="mr-2 h-4 w-4" />
+        <SelectValue placeholder={placeholder}>
           {displayValue || placeholder}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-4" align="start">
-        <div className="flex items-center space-x-2">
-          <div className="flex flex-col space-y-2">
-            <Label className="text-xs font-medium text-center">Hour</Label>
-            <Select
-              value={selectedHour}
-              onValueChange={(hour) => handleTimeChange(hour, selectedMinute)}
-            >
-              <SelectTrigger className="w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {hours.map((hour) => (
-                  <SelectItem key={hour} value={hour}>
-                    {hour}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="text-lg font-semibold pt-6">:</div>
-
-          <div className="flex flex-col space-y-2">
-            <Label className="text-xs font-medium text-center">Minute</Label>
-            <Select
-              value={selectedMinute}
-              onValueChange={(minute) => handleTimeChange(selectedHour, minute)}
-            >
-              <SelectTrigger className="w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {minutes.map((minute) => (
-                  <SelectItem key={minute} value={minute}>
-                    {minute}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent className="max-h-[300px]">
+        {timeOptions.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -347,18 +322,17 @@ export function FormDateTimePicker({
         </Popover>
       </div>
 
-      {/* Time Input */}
+      {/* Time Picker */}
       <div className="flex flex-col gap-3 flex-1 min-w-0">
         <Label className="px-1 text-sm">
           {timeLabel}
         </Label>
-        <Input
-          type="time"
+        <TimePicker
           value={timeValue}
-          onChange={(e) => handleTimeChange(e.target.value)}
+          onChange={handleTimeChange}
           disabled={disabled}
           placeholder={placeholder?.time || "Select time"}
-          className="bg-background"
+          className="w-full"
         />
       </div>
     </div>
