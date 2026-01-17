@@ -7,6 +7,9 @@ import { Suspense, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
+import { MessageCircle } from "lucide-react";
+
 function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,7 +54,19 @@ function SignupContent() {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 min-h-screen w-full">
+
+<div className="grid lg:grid-cols-2 min-h-screen w-full relative">
+      {/* Helpline Button - Fixed Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <Link href="https://wa.me/447741068115" target="_blank" rel="noopener noreferrer">
+          <Button variant="secondary" size="sm" className="gap-2">
+            <MessageCircle className="w-4 h-4" />
+            <span className="hidden sm:inline">Helpline 24x7</span>
+            <span className="sm:hidden">24x7</span>
+          </Button>
+        </Link>
+      </div>
+
       {/* Left Panel - White Background with Image and Testimonial (Desktop Only) */}
       <div className="hidden lg:flex flex-col items-center justify-center bg-white p-12 relative space-y-12">
         {/* Center Image */}
