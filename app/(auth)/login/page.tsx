@@ -35,7 +35,7 @@ function LoginContent() {
   // Show loading while checking session or redirecting
   if (isPending) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen w-full">
+      <div className="flex flex-col justify-center items-center min-h-screen w-full">
         <div>Loading...</div>
       </div>
     );
@@ -44,14 +44,14 @@ function LoginContent() {
   // If already logged in, show loading while redirecting
   if (session) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen w-full">
+      <div className="flex flex-col justify-center items-center min-h-screen w-full">
         <div>Redirecting...</div>
       </div>
     );
   }
 
   return (
-    <div className="grid lg:grid-cols-2 h-screen w-full overflow-hidden">
+    <div className="grid lg:grid-cols-2 min-h-screen w-full">
       {/* Left Panel - White Background with Image and Testimonial */}
       <div className="hidden lg:flex flex-col justify-center bg-white p-12 relative">
         {/* Center Image */}
@@ -79,10 +79,10 @@ function LoginContent() {
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex flex-col justify-center items-center p-8 bg-white">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex flex-col justify-center items-center p-4 sm:p-8 bg-white min-h-screen">
+        <div className="w-full max-w-md space-y-6 sm:space-y-8">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
+          <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
             <Image
               src="/logo.svg"
               alt="CareO Logo"
@@ -94,7 +94,7 @@ function LoginContent() {
 
           {/* Header */}
           <div className="space-y-2 text-center">
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Sign in to your account
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -130,7 +130,7 @@ function LoginContent() {
           </div>
 
           {/* Footer Links */}
-          <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-8">
+          <div className="flex items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground pt-4 sm:pt-8">
             <Link href="/terms" className="hover:text-primary hover:underline">
               Terms of Service
             </Link>
@@ -148,7 +148,7 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex flex-col justify-center items-center h-screen w-full">
+      <div className="flex flex-col justify-center items-center min-h-screen w-full">
         <div>Loading...</div>
       </div>
     }>
