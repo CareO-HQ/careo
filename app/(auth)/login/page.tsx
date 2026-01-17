@@ -52,7 +52,7 @@ function LoginContent() {
 
   return (
     <div className="grid lg:grid-cols-2 min-h-screen w-full">
-      {/* Left Panel - White Background with Image and Testimonial */}
+      {/* Left Panel - White Background with Image and Testimonial (Desktop Only) */}
       <div className="hidden lg:flex flex-col justify-center bg-white p-12 relative">
         {/* Center Image */}
         <div className="flex-1 flex items-center justify-center">
@@ -81,15 +81,41 @@ function LoginContent() {
       {/* Right Panel - Login Form */}
       <div className="flex flex-col justify-center items-center p-4 sm:p-8 bg-white min-h-screen">
         <div className="w-full max-w-md space-y-6 sm:space-y-8">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
-            <Image
-              src="/logo.svg"
-              alt="CareO Logo"
-              width={40}
-              height={40}
-            />
-            <span className="text-2xl font-semibold">CareO</span>
+          {/* Mobile Logo and Image */}
+          <div className="lg:hidden space-y-6">
+            {/* Logo */}
+            <div className="flex items-center justify-center gap-2">
+              <Image
+                src="/logo.svg"
+                alt="CareO Logo"
+                width={40}
+                height={40}
+              />
+              <span className="text-2xl font-semibold">CareO</span>
+            </div>
+
+            {/* Mobile Image */}
+            <div className="flex items-center justify-center">
+              <div className="relative w-48 h-48">
+                <Image
+                  src="/cade.png"
+                  alt="Healthcare Management"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+            </div>
+
+            {/* Mobile Testimonial */}
+            <div className="space-y-2 text-center px-4">
+              <p className="text-sm leading-relaxed text-zinc-700">
+                &quot;Care simplified, an empathy driven tool for care teams, freedom a few clicks away&quot;
+              </p>
+              <p className="text-xs text-zinc-500">
+                - Team CareO
+              </p>
+            </div>
           </div>
 
           {/* Header */}
