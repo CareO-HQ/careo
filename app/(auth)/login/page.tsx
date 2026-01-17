@@ -84,14 +84,14 @@ function LoginContent() {
           {/* Mobile Logo and Image */}
           <div className="lg:hidden space-y-6">
             {/* Logo */}
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center">
               <Image
-                src="/logo.svg"
+                src="/Logo_CareO.png"
                 alt="CareO Logo"
-                width={40}
-                height={40}
+                width={180}
+                height={60}
+                className="object-contain"
               />
-              <span className="text-2xl font-semibold">CareO</span>
             </div>
 
             {/* Mobile Image */}
@@ -116,6 +116,17 @@ function LoginContent() {
                 - Team CareO
               </p>
             </div>
+          </div>
+
+          {/* Desktop Logo */}
+          <div className="hidden lg:flex items-center justify-center">
+            <Image
+              src="/Logo_CareO.png"
+              alt="CareO Logo"
+              width={200}
+              height={67}
+              className="object-contain"
+            />
           </div>
 
           {/* Header */}
