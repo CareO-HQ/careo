@@ -55,8 +55,8 @@ function LoginContent() {
       {/* Left Panel - White Background with Image and Testimonial (Desktop Only) */}
       <div className="hidden lg:flex flex-col items-center justify-center bg-white p-12 relative space-y-12">
         {/* Center Image */}
-        <div className="flex items-center justify-center">
-          <div className="relative w-full max-w-sm aspect-square">
+        <div className="flex items-center justify-center w-full">
+          <div className="relative w-80 h-80">
             <Image
               src="/cade.png"
               alt="Healthcare Management"
