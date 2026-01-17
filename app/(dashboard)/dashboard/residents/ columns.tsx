@@ -16,6 +16,7 @@ import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useMutation } from "convex/react";
 import { Bell, Clock } from "lucide-react";
+import { formatTimestampToUKTime, formatTimestampToUKDate, getUKTodayDate } from "@/lib/date-utils";
 
 // Component for displaying allergies
 const AllergiesCell = ({ residentId }: { residentId: string }) => {
@@ -105,13 +106,11 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
     return <Badge variant="outline">None</Badge>;
   }
 
-  const scheduledDate = new Date(nextIntake.scheduledTime);
-  const now = new Date();
-  const isToday = scheduledDate.toDateString() === now.toDateString();
-  const timeString = scheduledDate.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  // Format times in UK timezone
+  const scheduledDateStr = formatTimestampToUKDate(nextIntake.scheduledTime);
+  const timeString = formatTimestampToUKTime(nextIntake.scheduledTime);
+  const today = getUKTodayDate();
+  const isToday = scheduledDateStr === today;
 
   console.log("NEXT INTAKE", nextIntake);
 
@@ -126,7 +125,7 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
           )}
         >
           <Clock className="w-3 h-3" />
-          {isToday ? `Today ${timeString}` : scheduledDate.toLocaleDateString()}
+          {isToday ? `Today ${timeString}` : scheduledDateStr}
         </Badge>
       </TooltipTrigger>
       <TooltipContent className="bg-white border">
@@ -140,11 +139,7 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
             {nextIntake.medication?.dosageForm}
           </p>
           <p className="text-sm text-muted-foreground">
-            Scheduled:{" "}
-            {scheduledDate.toLocaleString("en-GB", {
-              hour: "2-digit",
-              minute: "2-digit"
-            })}
+            Scheduled: {timeString} (UK time)
           </p>
         </div>
       </TooltipContent>

@@ -10,6 +10,7 @@ import {
   validateFoodFluidLog,
   logFoodFluidAccess,
 } from "./lib/authHelpers";
+import { getUKTodayDateString, getUKDateString } from "./utils/dateUtils";
 
 /**
  * Create a new food/fluid log entry
@@ -67,7 +68,7 @@ export const createFoodFluidLog = mutation({
     };
 
     const now = Date.now();
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+    const today = getUKTodayDateString(); // YYYY-MM-DD format (UK timezone)
 
     // 6. CALCULATE RETENTION SCHEDULE (UK Healthcare: 7 years)
     const retentionPeriodYears = 7;
@@ -170,7 +171,7 @@ export const getCurrentDayLogs = query({
     residentId: v.id("residents"),
   },
   handler: async (ctx, args) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getUKTodayDateString();
     
     return await ctx.db
       .query("foodFluidLogs")
@@ -260,7 +261,9 @@ export const archivePreviousDayLogs = internalMutation({
     targetDate: v.optional(v.string()), // YYYY-MM-DD format, defaults to yesterday
   },
   handler: async (ctx, args) => {
-    const targetDate = args.targetDate || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Get yesterday's date in UK timezone
+    const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
+    const targetDate = args.targetDate || getUKDateString(yesterdayTimestamp);
     const now = Date.now();
     
     // Get all non-archived logs for the target date
@@ -457,7 +460,7 @@ export const getTodayFoodLogs = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getUKTodayDateString();
 
     const logs = await ctx.db
       .query("foodFluidLogs")
@@ -488,7 +491,7 @@ export const getTodayFluidLogs = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getUKTodayDateString();
 
     const logs = await ctx.db
       .query("foodFluidLogs")

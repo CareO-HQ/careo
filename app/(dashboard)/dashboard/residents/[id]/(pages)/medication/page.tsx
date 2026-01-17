@@ -18,6 +18,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { config } from "@/config";
 import { toast } from "sonner";
+import { formatTimestampToUKTime, formatTimestampToUKDateTime } from "@/lib/date-utils";
 
 type MedicationPageProps = {
   params: Promise<{ id: string }>;
@@ -260,22 +261,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   useEffect(() => {
     if (selectedTime && selectedDateIntakes) {
       const filteredIntakes = selectedDateIntakes.filter((intake) => {
-        // The scheduledTime is stored as a UTC timestamp, but it was created from local time
-        // We need to interpret it as if it were stored as "local time as UTC"
-        const scheduledDateUTC = new Date(intake.scheduledTime);
-
-        // Convert back to the intended local time by applying timezone offset
-        const timezoneOffset = scheduledDateUTC.getTimezoneOffset() * 60000;
-        const scheduledDateLocal = new Date(
-          scheduledDateUTC.getTime() + timezoneOffset
-        );
-
-        // Check if the time matches selected time
-        const intakeTime = scheduledDateLocal.toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false
-        });
+        // scheduledTime is stored as UTC timestamp representing UK timezone
+        // Format it to UK timezone to match with selectedTime
+        const intakeTime = formatTimestampToUKTime(intake.scheduledTime);
         const isSelectedTime = intakeTime === selectedTime;
 
         return isSelectedTime;
@@ -446,7 +434,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                     </p>
                     <p className="text-sm text-green-700">
                       Completed by {medicationRoundStatus.completedByName} on{" "}
-                      {new Date(medicationRoundStatus.completedAt).toLocaleString()}
+                      {formatTimestampToUKDateTime(medicationRoundStatus.completedAt, 'dd/MM/yyyy HH:mm')}
                     </p>
                     <p className="text-sm text-green-600 mt-1">
                       Given: {medicationRoundStatus.givenCount} | Refused:{" "}

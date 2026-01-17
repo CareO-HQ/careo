@@ -119,6 +119,7 @@ import type * as todos from "../todos.js";
 import type * as trustIncidentReports from "../trustIncidentReports.js";
 import type * as user from "../user.js";
 import type * as users from "../users.js";
+import type * as utils_dateUtils from "../utils/dateUtils.js";
 
 import type {
   ApiFromModules,
@@ -246,6 +247,7 @@ declare const fullApi: ApiFromModules<{
   trustIncidentReports: typeof trustIncidentReports;
   user: typeof user;
   users: typeof users;
+  "utils/dateUtils": typeof utils_dateUtils;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

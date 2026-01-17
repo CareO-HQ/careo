@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getUKTodayDateString } from "./utils/dateUtils";
 
 export const upsertAuditItem = mutation({
   args: {
@@ -77,7 +78,7 @@ export const getOverdueCountByResident = query({
       .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
       .collect();
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getUKTodayDateString();
 
     // Count items that are overdue (have a due date in the past and not completed/n/a)
     const overdueCount = items.filter(item => {

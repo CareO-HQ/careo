@@ -518,14 +518,15 @@ export default function ResidentAuditPage() {
 
     // Determine if audit is due based on frequency
     const frequencyDays: { [key: string]: number } = {
-      daily: 1,
-      weekly: 7,
+      daily: 30, // Convert daily to monthly
+      weekly: 30, // Convert weekly to monthly
       monthly: 30,
       quarterly: 90,
       yearly: 365,
     };
 
-    const daysUntilDue = frequencyDays[frequency.toLowerCase()] || 30;
+    const freq = frequency.toLowerCase();
+    const daysUntilDue = frequencyDays[freq] || 30;
 
     // If past due date, update previous audit status to "due"
     if (daysPassed >= daysUntilDue && matchingAudits.length > 1) {

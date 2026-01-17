@@ -1,5 +1,6 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getUKTodayDateString, getUKDateString } from "./utils/dateUtils";
 
 // Query to get daily personal care record for a resident
 export const getDailyPersonalCare = query({
@@ -736,7 +737,7 @@ export const createDailyActivityRecord = mutation({
 export const generateDayReports = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getUKTodayDateString();
     
     // Get all residents
     const residents = await ctx.db.query("residents").collect();
@@ -766,10 +767,9 @@ export const generateDayReports = internalMutation({
 export const generateNightReports = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const today = getUKTodayDateString();
+    const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
+    const yesterdayStr = getUKDateString(yesterdayTimestamp);
     
     // Get all residents
     const residents = await ctx.db.query("residents").collect();

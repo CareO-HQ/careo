@@ -41,6 +41,7 @@ import { canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissi
 import { Route } from "next";
 import { useRouter } from "next/navigation";
 import React from "react";
+import { formatTimestampToUKDateTime } from "@/lib/date-utils";
 
 type ResidentPageProps = {
   params: Promise<{ id: string }>;
@@ -639,7 +640,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                               : "Info"}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(alert.timestamp).toLocaleString()}
+                          {formatTimestampToUKDateTime(alert.timestamp, 'dd/MM/yyyy HH:mm')}
                         </span>
                       </div>
                       <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>

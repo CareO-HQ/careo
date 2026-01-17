@@ -48,7 +48,7 @@ export function formatDateToLocal(date: Date): string {
 }
 
 /**
- * Parse a timestamp to local Date object
+ * Parse a timestamp to Date object (UTC timestamp)
  */
 export function parseTimestampToLocal(timestamp: number | string): Date {
   if (typeof timestamp === 'string') {
@@ -58,15 +58,50 @@ export function parseTimestampToLocal(timestamp: number | string): Date {
 }
 
 /**
- * Get the hour from a timestamp in local timezone (0-23)
+ * Format UTC timestamp to UK timezone time string (HH:mm)
+ * 
+ * @param timestamp - UTC timestamp in milliseconds
+ * @returns Time string in HH:mm format (UK timezone)
  */
-export function getLocalHour(timestamp: number | string): number {
-  const date = parseTimestampToLocal(timestamp);
-  return date.getHours();
+export function formatTimestampToUKTime(timestamp: number | string): string {
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
+  return formatInTimeZone(ts, UK_TIMEZONE, 'HH:mm');
 }
 
 /**
- * Check if a timestamp falls within day shift (8am-8pm)
+ * Format UTC timestamp to UK timezone date-time string
+ * 
+ * @param timestamp - UTC timestamp in milliseconds
+ * @param format - Optional format string (default: 'yyyy-MM-dd HH:mm')
+ * @returns Date-time string in UK timezone
+ */
+export function formatTimestampToUKDateTime(timestamp: number | string, format: string = 'yyyy-MM-dd HH:mm'): string {
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
+  return formatInTimeZone(ts, UK_TIMEZONE, format);
+}
+
+/**
+ * Format UTC timestamp to UK timezone date string (YYYY-MM-DD)
+ * 
+ * @param timestamp - UTC timestamp in milliseconds
+ * @returns Date string in YYYY-MM-DD format (UK timezone)
+ */
+export function formatTimestampToUKDate(timestamp: number | string): string {
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
+  return formatInTimeZone(ts, UK_TIMEZONE, 'yyyy-MM-dd');
+}
+
+/**
+ * Get the hour from a timestamp in UK timezone (0-23)
+ */
+export function getLocalHour(timestamp: number | string): number {
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
+  const ukDate = toZonedTime(ts, UK_TIMEZONE);
+  return ukDate.getHours();
+}
+
+/**
+ * Check if a timestamp falls within day shift (8am-8pm UK time)
  */
 export function isDayShift(timestamp: number | string): boolean {
   const hour = getLocalHour(timestamp);
@@ -74,7 +109,7 @@ export function isDayShift(timestamp: number | string): boolean {
 }
 
 /**
- * Check if a timestamp falls within night shift (8pm-8am)
+ * Check if a timestamp falls within night shift (8pm-8am UK time)
  */
 export function isNightShift(timestamp: number | string): boolean {
   const hour = getLocalHour(timestamp);
@@ -82,15 +117,12 @@ export function isNightShift(timestamp: number | string): boolean {
 }
 
 /**
- * Format time to 12-hour format with AM/PM
+ * Format time to 12-hour format with AM/PM in UK timezone
  */
 export function formatTimeTo12Hour(timestamp: number | string): string {
-  const date = parseTimestampToLocal(timestamp);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
+  const ukDate = toZonedTime(ts, UK_TIMEZONE);
+  return formatInTimeZone(ts, UK_TIMEZONE, 'h:mm a');
 }
 
 /**
@@ -103,13 +135,10 @@ export function getYesterdayDate(date: string): string {
 }
 
 /**
- * Format date for display with weekday
+ * Format date for display with weekday in UK timezone
  */
 export function formatDateForDisplay(date: string): string {
-  return new Date(date).toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
+  // Parse date string as UK timezone date
+  const ukDate = toZonedTime(new Date(date + 'T00:00:00'), UK_TIMEZONE);
+  return formatInTimeZone(ukDate, UK_TIMEZONE, 'EEEE, MMMM d, yyyy');
 }
