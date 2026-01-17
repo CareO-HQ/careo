@@ -5,6 +5,9 @@ export type CareFileFormKey =
   | "blader-bowel-form"
   | "moving-handling-form"
   | "long-term-fall-risk-form"
+  | "bedrail-consent-form"
+  | "bed-rails-risk-assessment-form"
+  | "best-interest-decision-form"
   | "care-plan-form"
   | "photography-consent"
   | "dnacpr"
@@ -13,7 +16,13 @@ export type CareFileFormKey =
   | "timl"
   | "skin-integrity-form"
   | "resident-valuables-form"
-  | "resident-handling-profile-form";
+  | "resident-handling-profile-form"
+  | "pain-assessment-form"
+  | "nutritional-assessment-form"
+  | "oral-assessment-form"
+  | "diet-notification-form"
+  | "choking-risk-assessment-form"
+  | "cornell-depression-scale-form";
 
 export type CareFileFormStatus =
   | "not-started"

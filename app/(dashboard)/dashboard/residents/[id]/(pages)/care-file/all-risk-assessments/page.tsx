@@ -39,21 +39,33 @@ export default function AllRiskAssessmentsPage() {
     residentId: residentId as Id<"residents">
   });
 
-  // Fetch forms from different folders containing risk assessments
-  const { allInfectionPreventionForms } = useFolderForms({
+  // Fetch all assessment forms (excluding risk assessments and care plans)
+  const {
+    allPreAdmissionForms,
+    allAdmissionForms,
+    allPhotographyConsentForms,
+    allDnacprForms,
+    allPeepForms,
+    allDependencyAssessmentForms,
+    allTimlAssessmentForms,
+    allSkinIntegrityForms,
+    allResidentValuablesForms,
+    allHandlingProfileForms
+  } = useFolderForms({
     residentId,
-    folderFormKeys: ["infection-prevention"]
-  });
-
-  const { allMovingHandlingForms, allLongTermFallsForms } = useFolderForms({
-    residentId,
-    folderFormKeys: ["moving-handling-form", "long-term-fall-risk-form"],
+    folderFormKeys: [
+      "preAdmission-form",
+      "admission-form",
+      "photography-consent",
+      "dnacpr",
+      "peep",
+      "dependency-assessment",
+      "timl",
+      "skin-integrity-form",
+      "resident-valuables-form",
+      "resident-handling-profile-form"
+    ],
     organizationId: resident?.organizationId
-  });
-
-  const { allBladderBowelForms } = useFolderForms({
-    residentId,
-    folderFormKeys: ["blader-bowel-form"]
   });
 
   if (resident === undefined) {
@@ -61,7 +73,7 @@ export default function AllRiskAssessmentsPage() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading risk assessments...</p>
+          <p className="mt-2 text-muted-foreground">Loading assessments...</p>
         </div>
       </div>
     );
@@ -88,51 +100,118 @@ export default function AllRiskAssessmentsPage() {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
-  // Collect all risk assessments from different folders
-  const riskAssessments = [
-    // Pre-admission - Infection Risk Assessment
-    ...(allInfectionPreventionForms?.map(form => ({
-      _id: form._id,
-      key: "infection-prevention",
-      name: "Infection Prevention Assessment",
-      completedAt: form._creationTime,
+  // Helper function to get only the latest form from an array
+  const getLatestForm = (forms: any[] | undefined | null) => {
+    if (!forms || forms.length === 0) return null;
+    // Forms are already sorted by creation time (newest first) from the hook
+    return forms[0];
+  };
+
+  // Collect all assessments (excluding risk assessments and care plans)
+  const assessments = [
+    // Pre-Admission Form
+    ...(allPreAdmissionForms && allPreAdmissionForms.length > 0 ? [{
+      _id: getLatestForm(allPreAdmissionForms)?._id,
+      key: "preAdmission-form",
+      name: "Pre-Admission Assessment",
+      completedAt: getLatestForm(allPreAdmissionForms)?._creationTime,
       folderName: "Pre-Admission",
-      category: "Infection Control"
-    })) || []),
-
-    // Mobility/Fall - Moving & Handling Risk Assessment
-    ...(allMovingHandlingForms?.map(form => ({
-      _id: form._id,
-      key: "moving-handling-form",
-      name: "Moving & Handling Assessment",
-      completedAt: form._creationTime,
-      folderName: "Mobility & Fall",
-      category: "Moving & Handling"
-    })) || []),
-
-    // Mobility/Fall - Fall Risk Assessment
-    ...(allLongTermFallsForms ? [{
-      _id: allLongTermFallsForms._id,
-      key: "long-term-fall-risk-form",
-      name: "Long Term Falls Risk Assessment",
-      completedAt: allLongTermFallsForms._creationTime,
-      folderName: "Mobility & Fall",
-      category: "Fall Risk"
+      category: "Pre-Admission"
     }] : []),
 
-    // Continence - Continence Risk Assessment
-    ...(allBladderBowelForms?.map(form => ({
-      _id: form._id,
-      key: "blader-bowel-form",
-      name: "Bladder & Bowel Assessment",
-      completedAt: form._creationTime,
-      folderName: "Continence",
-      category: "Continence"
-    })) || [])
-  ];
+    // Admission Form
+    ...(allAdmissionForms && allAdmissionForms.length > 0 ? [{
+      _id: getLatestForm(allAdmissionForms)?._id,
+      key: "admission-form",
+      name: "Admission Assessment",
+      completedAt: getLatestForm(allAdmissionForms)?._creationTime,
+      folderName: "Admission",
+      category: "Admission"
+    }] : []),
+
+    // Photography Consent
+    ...(allPhotographyConsentForms && allPhotographyConsentForms.length > 0 ? [{
+      _id: getLatestForm(allPhotographyConsentForms)?._id,
+      key: "photography-consent",
+      name: "Photography Consent",
+      completedAt: getLatestForm(allPhotographyConsentForms)?._creationTime,
+      folderName: "Admission",
+      category: "Consent"
+    }] : []),
+
+    // DNACPR
+    ...(allDnacprForms && allDnacprForms.length > 0 ? [{
+      _id: getLatestForm(allDnacprForms)?._id,
+      key: "dnacpr",
+      name: "DNACPR",
+      completedAt: getLatestForm(allDnacprForms)?._creationTime,
+      folderName: "DNACPR",
+      category: "Medical"
+    }] : []),
+
+    // PEEP
+    ...(allPeepForms && allPeepForms.length > 0 ? [{
+      _id: getLatestForm(allPeepForms)?._id,
+      key: "peep",
+      name: "PEEP Assessment",
+      completedAt: getLatestForm(allPeepForms)?._creationTime,
+      folderName: "PEEP",
+      category: "Emergency"
+    }] : []),
+
+    // Dependency Assessment
+    ...(allDependencyAssessmentForms && allDependencyAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allDependencyAssessmentForms)?._id,
+      key: "dependency-assessment",
+      name: "Dependency Assessment",
+      completedAt: getLatestForm(allDependencyAssessmentForms)?._creationTime,
+      folderName: "Dependency",
+      category: "Care Assessment"
+    }] : []),
+
+    // This Is My Life
+    ...(allTimlAssessmentForms && allTimlAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allTimlAssessmentForms)?._id,
+      key: "timl",
+      name: "This Is My Life",
+      completedAt: getLatestForm(allTimlAssessmentForms)?._creationTime,
+      folderName: "My Life",
+      category: "Personal"
+    }] : []),
+
+    // Skin Integrity
+    ...(allSkinIntegrityForms && allSkinIntegrityForms.length > 0 ? [{
+      _id: getLatestForm(allSkinIntegrityForms)?._id,
+      key: "skin-integrity-form",
+      name: "Skin Integrity Assessment",
+      completedAt: getLatestForm(allSkinIntegrityForms)?._creationTime,
+      folderName: "Skin Integrity",
+      category: "Clinical"
+    }] : []),
+
+    // Resident Valuables
+    ...(allResidentValuablesForms && allResidentValuablesForms.length > 0 ? [{
+      _id: getLatestForm(allResidentValuablesForms)?._id,
+      key: "resident-valuables-form",
+      name: "Resident Valuables",
+      completedAt: getLatestForm(allResidentValuablesForms)?._creationTime,
+      folderName: "Resident Valuables",
+      category: "Property"
+    }] : []),
+
+    // Resident Handling Profile
+    ...(allHandlingProfileForms && allHandlingProfileForms.length > 0 ? [{
+      _id: getLatestForm(allHandlingProfileForms)?._id,
+      key: "resident-handling-profile-form",
+      name: "Resident Handling Profile",
+      completedAt: getLatestForm(allHandlingProfileForms)?._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Handling"
+    }] : [])
+  ].filter(assessment => assessment._id); // Remove any null entries
 
   // Sort by completion date (most recent first)
-  const sortedAssessments = riskAssessments.sort((a, b) => {
+  const sortedAssessments = assessments.sort((a, b) => {
     const aDate = a.completedAt || 0;
     const bDate = b.completedAt || 0;
     return bDate - aDate;
@@ -140,14 +219,26 @@ export default function AllRiskAssessmentsPage() {
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "Infection Control":
+      case "Pre-Admission":
         return "bg-blue-50 text-blue-700";
-      case "Moving & Handling":
-        return "bg-orange-50 text-orange-700";
-      case "Fall Risk":
-        return "bg-red-50 text-red-700";
-      case "Continence":
+      case "Admission":
+        return "bg-green-50 text-green-700";
+      case "Consent":
         return "bg-purple-50 text-purple-700";
+      case "Medical":
+        return "bg-red-50 text-red-700";
+      case "Emergency":
+        return "bg-orange-50 text-orange-700";
+      case "Care Assessment":
+        return "bg-cyan-50 text-cyan-700";
+      case "Personal":
+        return "bg-pink-50 text-pink-700";
+      case "Clinical":
+        return "bg-indigo-50 text-indigo-700";
+      case "Property":
+        return "bg-amber-50 text-amber-700";
+      case "Handling":
+        return "bg-teal-50 text-teal-700";
       default:
         return "bg-gray-50 text-gray-700";
     }
@@ -182,21 +273,21 @@ export default function AllRiskAssessmentsPage() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">All Risk Assessments</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">All Assessments</h1>
           <p className="text-muted-foreground text-sm">
-            View all risk assessments for {resident.firstName} {resident.lastName}
+            View all assessments for {resident.firstName} {resident.lastName}
           </p>
         </div>
       </div>
 
-      {/* Risk Assessments Table */}
+      {/* Assessments Table */}
       <div className="rounded-lg border bg-card">
         {sortedAssessments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-semibold mb-2">No Risk Assessments Found</p>
+            <p className="text-lg font-semibold mb-2">No Assessments Found</p>
             <p className="text-sm text-muted-foreground text-center max-w-md">
-              No risk assessments have been completed for this resident yet. Risk assessments will appear here once they are created from the care file folders.
+              No assessments have been completed for this resident yet. Assessments will appear here once they are created from the care file folders.
             </p>
           </div>
         ) : (

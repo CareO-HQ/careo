@@ -205,7 +205,10 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   });
 
   // Daily Activity Record state variables
-  const [activityRecordTime, setActivityRecordTime] = React.useState("");
+  const [activityRecordTime, setActivityRecordTime] = React.useState(() => {
+    // Get current time in HH:MM format
+    return new Date().toTimeString().slice(0, 5);
+  });
   const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
 
   // Dialog state management
@@ -213,11 +216,22 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const [isActivityRecordDialogOpen, setIsActivityRecordDialogOpen] = React.useState(false);
   const [activeLogTab, setActiveLogTab] = React.useState<string>("personal_care");
 
-  // Update staff fields when user data loads or when dialog opens
+  // Update activity record time to current time when dialog opens
+  React.useEffect(() => {
+    if (isActivityRecordDialogOpen) {
+      setActivityRecordTime(new Date().toTimeString().slice(0, 5));
+    }
+  }, [isActivityRecordDialogOpen]);
+
+  // Update staff fields and time when user data loads or when dialog opens
   React.useEffect(() => {
     if (user?.user && isPersonalCareDialogOpen) {
       const staffName = user.user.name || user.user.email?.split('@')[0] || "";
       form.setValue('staff', staffName);
+
+      // Set current time
+      const currentTime = new Date().toTimeString().slice(0, 5);
+      form.setValue('time', currentTime);
     }
   }, [user, form, isPersonalCareDialogOpen]);
 
@@ -227,35 +241,25 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   const createQuickCareNote = useMutation(api.quickCareNotes.createQuickCareNote);
   const deleteQuickCareNote = useMutation(api.quickCareNotes.deleteQuickCareNote);
 
-  // Define activity options in logical daily care routine order
+  // Personal Care Activities
   const activityOptions = [
-    // Morning routine - Hygiene & Grooming
-    { id: "mouth_care", label: "Oral Care", category: "Hygiene" },
-    { id: "brushed", label: "Teeth Brushed/Dentures Cleaned", category: "Hygiene" },
-    { id: "toileting", label: "Toileting", category: "Hygiene" },
-    { id: "continence", label: "Continence Support (Pad Change)", category: "Hygiene" },
-
-    // Washing & Bathing
-    { id: "shower", label: "Shower", category: "Washing" },
-    { id: "bath", label: "Bath", category: "Washing" },
-
-    // Grooming
-    { id: "shaved", label: "Shaved", category: "Grooming" },
-    { id: "hair_care", label: "Hair Combed", category: "Grooming" },
-    { id: "hair_dried", label: "Hair Dried", category: "Grooming" },
-    { id: "nails_care", label: "Nail Care", category: "Grooming" },
-
-    // Dressing
-    { id: "dressed", label: "Dressed", category: "Dressing" },
-    { id: "changed", label: "Changed Clothes", category: "Dressing" },
-
-    // Skin & Medical Care
-    { id: "skin_care", label: "Skin Care", category: "Medical" },
-    { id: "cream_applied", label: "Creams Applied", category: "Medical" },
-
-    // Positioning & Comfort
-    { id: "position_change", label: "Position Change", category: "Positioning" },
-    { id: "Bed_changed", label: "Bed Cover Changed", category: "Positioning" }
+    { id: "bed_bath", label: "Bed Bath", category: "Personal Care" },
+    { id: "shampoo_in_bed", label: "Shampoo In Bed", category: "Personal Care" },
+    { id: "shower_shampoo", label: "Shower + shampoo", category: "Personal Care" },
+    { id: "wash_upper_body", label: "Wash Upper body", category: "Personal Care" },
+    { id: "wash_lower_body", label: "Wash Lower Body", category: "Personal Care" },
+    { id: "creams_applied", label: "Creams Applied", category: "Personal Care" },
+    { id: "shaved", label: "Shaved", category: "Personal Care" },
+    { id: "oral_care", label: "Oral Care", category: "Personal Care" },
+    { id: "fingernails_trimmed", label: "Fingernails Trimmed", category: "Personal Care" },
+    { id: "fingernails_cleaned", label: "Fingernails Cleaned", category: "Personal Care" },
+    { id: "hair_brushed", label: "Hair Brushed", category: "Personal Care" },
+    { id: "hair_washed_hairdresser", label: "Hair washed/set by hairdresser", category: "Personal Care" },
+    { id: "clothing_changed", label: "Clothing Changed", category: "Personal Care" },
+    { id: "bed_linens_changed", label: "Bed Linens Changed", category: "Personal Care" },
+    { id: "bed_made", label: "Bed Made", category: "Personal Care" },
+    { id: "eyeglasses_care", label: "Eyeglasses Care", category: "Personal Care" },
+    { id: "footwear_care", label: "Foot Wear Care", category: "Personal Care" }
   ] as const;
 
 
@@ -315,7 +319,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       });
 
       // Clear form and close dialog (keep current user as staff)
-      setActivityRecordTime("");
+      setActivityRecordTime(new Date().toTimeString().slice(0, 5));
       setActivityRecordNotes("");
       setIsActivityRecordDialogOpen(false);
       toast.success("Daily activity record saved successfully");
@@ -1136,28 +1140,48 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
               <div className="text-2xl font-bold text-amber-600">
                 {(() => {
-                  const dayShiftCount = allTasks.filter(task => {
-                    const taskTime = new Date(task.createdAt);
-                    const hour = taskTime.getHours();
-                    return hour >= 8 && hour < 20;
-                  }).length || 0;
-                  return dayShiftCount;
+                  const personalCareCount = allTasks.filter(task => task.taskType !== 'daily_activity_record').length || 0;
+                  return personalCareCount;
                 })()}
               </div>
-              <p className="text-sm text-amber-700">Day Shift Activities</p>
+              <p className="text-sm text-amber-700">Personal Care</p>
+              {(() => {
+                const personalCareTasks = allTasks.filter(task => task.taskType !== 'daily_activity_record');
+                if (personalCareTasks.length > 0) {
+                  const lastTask = personalCareTasks.reduce((latest, task) =>
+                    task.createdAt > latest.createdAt ? task : latest
+                  );
+                  return (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Last: {new Date(lastTask.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
               <div className="text-2xl font-bold text-indigo-600">
                 {(() => {
-                  const nightShiftCount = allTasks.filter(task => {
-                    const taskTime = new Date(task.createdAt);
-                    const hour = taskTime.getHours();
-                    return hour >= 20 || hour < 8;
-                  }).length || 0;
-                  return nightShiftCount;
+                  const dailyActivityCount = allTasks.filter(task => task.taskType === 'daily_activity_record').length || 0;
+                  return dailyActivityCount;
                 })()}
               </div>
-              <p className="text-sm text-indigo-700">Night Shift Activities</p>
+              <p className="text-sm text-indigo-700">Daily Activity</p>
+              {(() => {
+                const activityRecords = allTasks.filter(task => task.taskType === 'daily_activity_record');
+                if (activityRecords.length > 0) {
+                  const lastActivity = activityRecords.reduce((latest, task) =>
+                    task.createdAt > latest.createdAt ? task : latest
+                  );
+                  return (
+                    <p className="text-xs text-indigo-600 mt-1">
+                      Last: {new Date(lastActivity.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-gray-600">
@@ -1823,16 +1847,6 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Primary Staff</Label>
-              <Input
-                value={currentUserName}
-                disabled
-                className="h-9 bg-gray-50 text-gray-600"
-                placeholder="Current user"
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label className="text-sm font-medium">Time</Label>
               <Input
                 type="time"
@@ -1843,13 +1857,23 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Primary Staff</Label>
+              <Input
+                value={currentUserName}
+                disabled
+                className="h-9 bg-gray-50 text-gray-600"
+                placeholder="Current user"
+              />
+            </div>
+
             <div className="flex justify-end space-x-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
                   setIsActivityRecordDialogOpen(false);
-                  setActivityRecordTime("");
+                  setActivityRecordTime(new Date().toTimeString().slice(0, 5));
                   setActivityRecordNotes("");
                 }}
               >

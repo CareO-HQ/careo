@@ -49,6 +49,20 @@ export function useFolderForms({
       : "skip"
   );
 
+  const allBedrailConsentForms = useQuery(
+    api.careFiles.bedrailConsent.getBedrailConsentsByResident,
+    folderFormKeys.includes("bedrail-consent-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
+  const allBedRailsRiskAssessmentForms = useQuery(
+    api.careFiles.bedRailsRiskAssessment.getBedRailsRiskAssessmentsByResident,
+    folderFormKeys.includes("bed-rails-risk-assessment-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   const allLongTermFallsForms = useQuery(
     api.careFiles.longTermFalls.getLatestAssessmentByResident,
     folderFormKeys.includes("long-term-fall-risk-form") &&
@@ -120,6 +134,67 @@ export function useFolderForms({
       : "skip"
   );
 
+  const allPainAssessmentForms = useQuery(
+    api.careFiles.painAssessment.getPainAssessmentsByResident,
+    folderFormKeys.includes("pain-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allNutritionalAssessmentForms = useQuery(
+    api.careFiles.nutritionalAssessment.getNutritionalAssessmentsByResident,
+    folderFormKeys.includes("nutritional-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allOralAssessmentForms = useQuery(
+    api.careFiles.oralAssessment.getOralAssessmentsByResident,
+    folderFormKeys.includes("oral-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allDietNotificationForms = useQuery(
+    api.careFiles.dietNotification.getDietNotificationsByResident,
+    folderFormKeys.includes("diet-notification-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allChokingRiskAssessmentForms = useQuery(
+    api.careFiles.chokingRiskAssessment.getChokingRiskAssessmentsByResident,
+    folderFormKeys.includes("choking-risk-assessment-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allCornellDepressionScaleForms = useQuery(
+    api.careFiles.cornellDepressionScale.getCornellDepressionScalesByResident,
+    folderFormKeys.includes("cornell-depression-scale-form") &&
+      residentId &&
+      organizationId
+      ? { residentId, organizationId }
+      : "skip"
+  );
+
+  const allBestInterestDecisionForms = useQuery(
+    api.careFiles.bestInterestDecision.getBestInterestDecisionsByResident,
+    folderFormKeys.includes("best-interest-decision-form") && residentId
+      ? { residentId }
+      : "skip"
+  );
+
   const latestCarePlanForm = useQuery(
     api.careFiles.carePlan.getLatestCarePlanByResidentAndFolder,
     includeCarePlans && residentId && folderKey
@@ -145,23 +220,23 @@ export function useFolderForms({
       isLatest: boolean;
     }> = [];
 
-    // Process Pre-admission forms
+    // Process Pre-admission forms (only show latest)
     if (allPreAdmissionForms && folderFormKeys.includes("preAdmission-form")) {
       const sortedForms = [...allPreAdmissionForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "preAdmission-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Pre-Admission Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Infection Prevention forms
+    // Process Infection Prevention forms (only show latest)
     if (
       allInfectionPreventionForms &&
       folderFormKeys.includes("infection-prevention")
@@ -169,34 +244,34 @@ export function useFolderForms({
       const sortedForms = [...allInfectionPreventionForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "infection-prevention",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Infection Prevention Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Bladder/Bowel forms
+    // Process Bladder/Bowel forms (only show latest)
     if (allBladderBowelForms && folderFormKeys.includes("blader-bowel-form")) {
       const sortedForms = [...allBladderBowelForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "blader-bowel-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Bladder & Bowel Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Moving & Handling forms
+    // Process Moving & Handling forms (only show latest)
     if (
       allMovingHandlingForms &&
       folderFormKeys.includes("moving-handling-form")
@@ -204,15 +279,56 @@ export function useFolderForms({
       const sortedForms = [...allMovingHandlingForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "moving-handling-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Moving & Handling Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
+    }
+
+    // Process Bedrail Consent forms (only show latest)
+    if (
+      allBedrailConsentForms &&
+      folderFormKeys.includes("bedrail-consent-form")
+    ) {
+      const sortedForms = [...allBedrailConsentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "bedrail-consent-form",
+          formId: sortedForms[0]._id,
+          name: "Bedrails Consent / Agreement",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Bed Rails Risk Assessment forms (only show latest)
+    if (
+      allBedRailsRiskAssessmentForms &&
+      folderFormKeys.includes("bed-rails-risk-assessment-form")
+    ) {
+      const sortedForms = [...allBedRailsRiskAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "bed-rails-risk-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Risk Assessment for Use of Bed Rails",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
     }
 
     // Process Long Term Falls forms
@@ -229,23 +345,24 @@ export function useFolderForms({
       });
     }
 
-    // Process Admission forms
+    // Process Admission forms (only show latest)
     if (allAdmissionForms && folderFormKeys.includes("admission-form")) {
       const sortedForms = [...allAdmissionForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "admission-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Admission Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Photography Consent forms
+    // Process Photography Consent forms (only show latest)
     if (
       allPhotographyConsentForms &&
       folderFormKeys.includes("photography-consent")
@@ -253,50 +370,50 @@ export function useFolderForms({
       const sortedForms = [...allPhotographyConsentForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "photography-consent",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Photography Consent Form",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process DNACPR forms
+    // Process DNACPR forms (only show latest)
     if (allDnacprForms && folderFormKeys.includes("dnacpr")) {
       const sortedForms = [...allDnacprForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "dnacpr",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "DNACPR Form",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process PEEP forms
+    // Process PEEP forms (only show latest)
     if (allPeepForms && folderFormKeys.includes("peep")) {
       const sortedForms = [...allPeepForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "peep",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Personal Emergency Evacuation Plan",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Dependency Assessment forms
+    // Process Dependency Assessment forms (only show latest)
     if (
       allDependencyAssessmentForms &&
       folderFormKeys.includes("dependency-assessment")
@@ -304,34 +421,34 @@ export function useFolderForms({
       const sortedForms = [...allDependencyAssessmentForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "dependency-assessment",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Dependency Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process TIML Assessment forms
+    // Process TIML Assessment forms (only show latest)
     if (allTimlAssessmentForms && folderFormKeys.includes("timl")) {
       const sortedForms = [...allTimlAssessmentForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "timl",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "This Is My Life Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Skin Integrity Assessment forms
+    // Process Skin Integrity Assessment forms (only show latest)
     if (
       allSkinIntegrityForms &&
       folderFormKeys.includes("skin-integrity-form")
@@ -339,18 +456,18 @@ export function useFolderForms({
       const sortedForms = [...allSkinIntegrityForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "skin-integrity-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Skin Integrity Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Resident Valuables forms
+    // Process Resident Valuables forms (only show latest)
     if (
       allResidentValuablesForms &&
       folderFormKeys.includes("resident-valuables-form")
@@ -358,18 +475,18 @@ export function useFolderForms({
       const sortedForms = [...allResidentValuablesForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "resident-valuables-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Resident Valuables Assessment",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
     }
 
-    // Process Resident Handling Profile forms
+    // Process Resident Handling Profile forms (only show latest)
     if (
       allHandlingProfileForms &&
       folderFormKeys.includes("resident-handling-profile-form")
@@ -377,15 +494,150 @@ export function useFolderForms({
       const sortedForms = [...allHandlingProfileForms].sort(
         (a, b) => b._creationTime - a._creationTime
       );
-      sortedForms.forEach((form, index) => {
+      if (sortedForms.length > 0) {
         pdfFiles.push({
           formKey: "resident-handling-profile-form",
-          formId: form._id,
+          formId: sortedForms[0]._id,
           name: "Resident Handling Profile",
-          completedAt: form._creationTime,
-          isLatest: index === 0
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
         });
-      });
+      }
+    }
+
+    // Process Pain Assessment forms (only show latest)
+    if (
+      allPainAssessmentForms &&
+      folderFormKeys.includes("pain-assessment-form")
+    ) {
+      const sortedForms = [...allPainAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "pain-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Pain Assessment and Evaluation",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Nutritional Assessment forms (only show latest)
+    if (
+      allNutritionalAssessmentForms &&
+      folderFormKeys.includes("nutritional-assessment-form")
+    ) {
+      const sortedForms = [...allNutritionalAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      // Only add the latest form to Files section, older ones go to Archive
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "nutritional-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Nutritional Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Oral Assessment forms (only show latest)
+    if (
+      allOralAssessmentForms &&
+      folderFormKeys.includes("oral-assessment-form")
+    ) {
+      const sortedForms = [...allOralAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "oral-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Oral Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Diet Notification forms (only show latest)
+    if (
+      allDietNotificationForms &&
+      folderFormKeys.includes("diet-notification-form")
+    ) {
+      const sortedForms = [...allDietNotificationForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "diet-notification-form",
+          formId: sortedForms[0]._id,
+          name: "Diet Notification",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Choking Risk Assessment forms (only show latest)
+    if (
+      allChokingRiskAssessmentForms &&
+      folderFormKeys.includes("choking-risk-assessment-form")
+    ) {
+      const sortedForms = [...allChokingRiskAssessmentForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "choking-risk-assessment-form",
+          formId: sortedForms[0]._id,
+          name: "Choking Risk Assessment",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Cornell Depression Scale forms (only show latest)
+    if (
+      allCornellDepressionScaleForms &&
+      folderFormKeys.includes("cornell-depression-scale-form")
+    ) {
+      const sortedForms = [...allCornellDepressionScaleForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "cornell-depression-scale-form",
+          formId: sortedForms[0]._id,
+          name: "Cornell Scale for Depression in Dementia",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
+    }
+
+    // Process Best Interest Decision forms (only show latest)
+    if (
+      allBestInterestDecisionForms &&
+      folderFormKeys.includes("best-interest-decision-form")
+    ) {
+      const sortedForms = [...allBestInterestDecisionForms].sort(
+        (a, b) => b._creationTime - a._creationTime
+      );
+      if (sortedForms.length > 0) {
+        pdfFiles.push({
+          formKey: "best-interest-decision-form",
+          formId: sortedForms[0]._id,
+          name: "Best Interest Decision",
+          completedAt: sortedForms[0]._creationTime,
+          isLatest: true
+        });
+      }
     }
 
     // Sort all PDFs by completion date (newest first)
@@ -399,6 +651,8 @@ export function useFolderForms({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
+    allBedrailConsentForms,
+    allBedRailsRiskAssessmentForms,
     allLongTermFallsForms,
     allAdmissionForms,
     allPhotographyConsentForms,
@@ -409,6 +663,13 @@ export function useFolderForms({
     allSkinIntegrityForms,
     allResidentValuablesForms,
     allHandlingProfileForms,
+    allPainAssessmentForms,
+    allNutritionalAssessmentForms,
+    allOralAssessmentForms,
+    allDietNotificationForms,
+    allChokingRiskAssessmentForms,
+    allCornellDepressionScaleForms,
+    allBestInterestDecisionForms,
     folderFormKeys
   ]);
 
@@ -418,6 +679,7 @@ export function useFolderForms({
     allInfectionPreventionForms,
     allBladderBowelForms,
     allMovingHandlingForms,
+    allBedrailConsentForms,
     allLongTermFallsForms,
     allAdmissionForms,
     allPhotographyConsentForms,
@@ -428,6 +690,13 @@ export function useFolderForms({
     allSkinIntegrityForms,
     allResidentValuablesForms,
     allHandlingProfileForms,
+    allPainAssessmentForms,
+    allNutritionalAssessmentForms,
+    allOralAssessmentForms,
+    allDietNotificationForms,
+    allChokingRiskAssessmentForms,
+    allCornellDepressionScaleForms,
+    allBestInterestDecisionForms,
     latestCarePlanForm,
     archivedCarePlans,
     // Computed data

@@ -1,6 +1,142 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalAction, internalMutation, query } from "../_generated/server";
+import { internalAction, internalMutation, mutation, query } from "../_generated/server";
+
+// Schema for activity details
+const activitySchema = v.object({
+  nStaff: v.number(),
+  equipment: v.string(),
+  handlingPlan: v.string(),
+  dateForReview: v.number()
+});
+
+/**
+ * Submit a new handling profile
+ */
+export const submitHandlingProfile = mutation({
+  args: {
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    completedBy: v.string(),
+    jobRole: v.string(),
+    date: v.number(),
+    residentName: v.string(),
+    bedroomNumber: v.string(),
+    weight: v.number(),
+    weightBearing: v.string(),
+    transferBed: activitySchema,
+    transferChair: activitySchema,
+    walking: activitySchema,
+    toileting: activitySchema,
+    movementInBed: activitySchema,
+    bath: activitySchema,
+    outdoorMobility: activitySchema
+  },
+  returns: v.id("residentHandlingProfileForm"),
+  handler: async (ctx, args) => {
+    const profileId = await ctx.db.insert("residentHandlingProfileForm", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      completedBy: args.completedBy,
+      jobRole: args.jobRole,
+      date: args.date,
+      residentName: args.residentName,
+      bedroomNumber: args.bedroomNumber,
+      weight: args.weight,
+      weightBearing: args.weightBearing,
+      transferBed: args.transferBed,
+      transferChair: args.transferChair,
+      walking: args.walking,
+      toileting: args.toileting,
+      movementInBed: args.movementInBed,
+      bath: args.bath,
+      outdoorMobility: args.outdoorMobility,
+      createdBy: args.completedBy
+    });
+
+    // Schedule PDF generation
+    await ctx.scheduler.runAfter(0, internal.careFiles.handlingProfile.generatePDFAndUpdateRecord, {
+      profileId
+    });
+
+    return profileId;
+  }
+});
+
+/**
+ * Update an existing handling profile
+ */
+export const updateHandlingProfile = mutation({
+  args: {
+    profileId: v.id("residentHandlingProfileForm"),
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    completedBy: v.string(),
+    jobRole: v.string(),
+    date: v.number(),
+    residentName: v.string(),
+    bedroomNumber: v.string(),
+    weight: v.number(),
+    weightBearing: v.string(),
+    transferBed: activitySchema,
+    transferChair: activitySchema,
+    walking: activitySchema,
+    toileting: activitySchema,
+    movementInBed: activitySchema,
+    bath: activitySchema,
+    outdoorMobility: activitySchema,
+    userId: v.string(),
+    savedAsDraft: v.optional(v.boolean())
+  },
+  returns: v.id("residentHandlingProfileForm"),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Verify profile exists
+    const existingProfile = await ctx.db.get(args.profileId);
+    if (!existingProfile) {
+      throw new Error("Handling profile not found");
+    }
+
+    // Create a NEW version instead of patching the old one
+    const newProfileId = await ctx.db.insert("residentHandlingProfileForm", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      completedBy: args.completedBy,
+      jobRole: args.jobRole,
+      date: args.date,
+      residentName: args.residentName,
+      bedroomNumber: args.bedroomNumber,
+      weight: args.weight,
+      weightBearing: args.weightBearing,
+      transferBed: args.transferBed,
+      transferChair: args.transferChair,
+      walking: args.walking,
+      toileting: args.toileting,
+      movementInBed: args.movementInBed,
+      bath: args.bath,
+      outdoorMobility: args.outdoorMobility,
+
+      // Metadata
+      status: args.savedAsDraft ? ("draft" as const) : ("submitted" as const),
+      submittedAt: args.savedAsDraft ? undefined : now,
+      createdBy: args.userId
+    });
+
+    // Regenerate PDF
+    if (!args.savedAsDraft) {
+      await ctx.scheduler.runAfter(0, internal.careFiles.handlingProfile.generatePDFAndUpdateRecord, {
+        profileId: newProfileId
+      });
+    }
+
+    return newProfileId;
+  }
+});
 
 /**
  * Get all handling profiles for a resident
@@ -47,6 +183,51 @@ export const getHandlingProfilesByResident = query({
       weightBearing: profile.weightBearing,
       pdfFileId: profile.pdfFileId
     }));
+  }
+});
+
+/**
+ * Get a single handling profile by ID
+ */
+export const getHandlingProfileById = query({
+  args: {
+    profileId: v.id("residentHandlingProfileForm")
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("residentHandlingProfileForm"),
+      _creationTime: v.number(),
+      residentId: v.id("residents"),
+      teamId: v.string(),
+      organizationId: v.string(),
+      completedBy: v.string(),
+      jobRole: v.string(),
+      date: v.number(),
+      residentName: v.string(),
+      bedroomNumber: v.string(),
+      weight: v.number(),
+      weightBearing: v.string(),
+      transferBed: activitySchema,
+      transferChair: activitySchema,
+      walking: activitySchema,
+      toileting: activitySchema,
+      movementInBed: activitySchema,
+      bath: activitySchema,
+      outdoorMobility: activitySchema,
+      createdBy: v.optional(v.string()),
+      lastModifiedAt: v.optional(v.number()),
+      lastModifiedBy: v.optional(v.string()),
+      pdfFileId: v.optional(v.id("_storage")),
+      pdfUrl: v.optional(v.string())
+    })
+  ),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) {
+      return null;
+    }
+    return profile;
   }
 });
 
@@ -131,6 +312,25 @@ export const updatePDFFileId = internalMutation({
 });
 
 /**
+ * Delete a handling profile assessment
+ */
+export const deleteHandlingProfileAssessment = mutation({
+  args: {
+    assessmentId: v.id("residentHandlingProfileForm")
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const assessment = await ctx.db.get(args.assessmentId);
+    if (!assessment) {
+      throw new Error("Assessment not found");
+    }
+
+    await ctx.db.delete(args.assessmentId);
+    return null;
+  }
+});
+
+/**
  * Get PDF URL for a handling profile
  */
 export const getPDFUrl = query({
@@ -146,5 +346,27 @@ export const getPDFUrl = query({
     }
 
     return await ctx.storage.getUrl(profile.pdfFileId);
+  }
+});
+
+/**
+ * Get archived (non-latest) handling profile assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("residentHandlingProfileForm")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

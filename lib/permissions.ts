@@ -21,6 +21,28 @@ export function canViewSidebarHome(role?: string): boolean {
   );
 }
 
+/**
+ * Define which fields require elevated permissions
+ */
+export const SENSITIVE_FIELDS = {
+  nhsHealthNumber: ["owner", "admin", "nurse"],
+  medicalConditions: ["owner", "admin", "nurse"],
+  medications: ["owner", "admin", "nurse"],
+  allergies: ["owner", "admin", "nurse", "care_assistant"],
+  risks: ["owner", "admin", "nurse", "care_assistant"],
+  emergencyContacts: ["owner", "admin", "nurse", "care_assistant"],
+  gpDetails: ["owner", "admin", "nurse"],
+  careManagerDetails: ["owner", "admin", "nurse", "care_assistant"],
+} as const;
+
+/**
+ * Check if user has permission to view a specific field
+ */
+export function canViewField(field: keyof typeof SENSITIVE_FIELDS, userRole: UserRole): boolean {
+  const allowedRoles = SENSITIVE_FIELDS[field];
+  return allowedRoles.includes(userRole as any);
+}
+
 export function canViewSidebarResidents(role?: string): boolean {
   return (
     role === "owner" ||

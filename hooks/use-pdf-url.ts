@@ -102,6 +102,66 @@ const PDF_URL_CONFIG: Record<CareFileFormKey, PdfUrlConfig> = {
     buildArgs: (formId) => ({
       profileId: formId as Id<"residentHandlingProfileForm">
     })
+  },
+  "pain-assessment-form": {
+    query: api.careFiles.painAssessment.getPDFUrl,
+    buildArgs: (formId, organizationId) => ({
+      assessmentId: formId as Id<"painAssessments">,
+      organizationId: organizationId ?? ""
+    })
+  },
+  "nutritional-assessment-form": {
+    query: api.careFiles.nutritionalAssessment.getPDFUrl,
+    buildArgs: (formId, organizationId) => ({
+      assessmentId: formId as Id<"nutritionalAssessments">,
+      organizationId: organizationId ?? ""
+    })
+  },
+  "oral-assessment-form": {
+    query: api.careFiles.oralAssessment.getPDFUrl,
+    buildArgs: (formId, organizationId) => ({
+      assessmentId: formId as Id<"oralAssessments">,
+      organizationId: organizationId ?? ""
+    })
+  },
+  "diet-notification-form": {
+    query: api.careFiles.dietNotification.getPDFUrl,
+    buildArgs: (formId, organizationId) => ({
+      notificationId: formId as Id<"dietNotifications">,
+      organizationId: organizationId ?? ""
+    })
+  },
+  "choking-risk-assessment-form": {
+    query: api.careFiles.chokingRiskAssessment.getPDFUrl,
+    buildArgs: (formId, organizationId) => ({
+      assessmentId: formId as Id<"chokingRiskAssessments">,
+      organizationId: organizationId ?? ""
+    })
+  },
+  "cornell-depression-scale-form": {
+    query: api.careFiles.cornellDepressionScale.getPDFUrl,
+    buildArgs: (formId, organizationId) => ({
+      assessmentId: formId as Id<"cornellDepressionScales">,
+      organizationId: organizationId ?? ""
+    })
+  },
+  "best-interest-decision-form": {
+    query: api.careFiles.bestInterestDecision.getPdfUrl,
+    buildArgs: (formId) => ({
+      assessmentId: formId as Id<"bestInterestDecisions">
+    })
+  },
+  "bedrail-consent-form": {
+    query: api.careFiles.bedrailConsent.getPDFUrl,
+    buildArgs: (formId) => ({
+      consentId: formId as Id<"bedrailConsents">
+    })
+  },
+  "bed-rails-risk-assessment-form": {
+    query: api.careFiles.bedRailsRiskAssessment.getPdfUrl,
+    buildArgs: (formId) => ({
+      assessmentId: formId as Id<"bedRailsRiskAssessments">
+    })
   }
 };
 

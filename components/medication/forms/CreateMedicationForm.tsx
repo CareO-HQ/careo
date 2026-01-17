@@ -82,6 +82,9 @@ export default function CreateMedicationForm({
     }
   });
 
+  // Watch schedule type to disable frequency field for PRN medications
+  const scheduleType = form.watch("scheduleType");
+
   async function onSubmit(values: z.infer<typeof CreateMedicationSchema>) {
     console.log("Form submitted with values:", values);
 
@@ -163,13 +166,19 @@ export default function CreateMedicationForm({
       return;
     }
 
-    setStep(step + 1);
+    // Skip time selection step if medication is PRN
+    const scheduleType = form.getValues("scheduleType");
+    if (scheduleType === "PRN (As Needed)") {
+      setStep(3); // Skip to step 3
+    } else {
+      setStep(2); // Go to time selection
+    }
   };
 
   const handleSecondStep = async () => {
     const fieldsToValidate = ["times"] as const;
     // At least one time is required
-    if (form.getValues("times").length === 0) {
+    if (form.getValues("times")?.length === 0) {
       toast.error("Please add at least one time");
       return;
     }
@@ -347,6 +356,32 @@ export default function CreateMedicationForm({
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
+                  name="scheduleType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Schedule Type</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a schedule type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Scheduled">Scheduled</SelectItem>
+                          <SelectItem value="PRN (As Needed)">
+                            PRN (As Needed)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="frequency"
                   render={({ field }) => (
                     <FormItem>
@@ -354,6 +389,7 @@ export default function CreateMedicationForm({
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={scheduleType === "PRN (As Needed)"}
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
@@ -384,32 +420,6 @@ export default function CreateMedicationForm({
                           </SelectItem>
                           <SelectItem value="Weekly">Weekly</SelectItem>
                           <SelectItem value="Monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="scheduleType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Schedule Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a schedule type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Scheduled">Scheduled</SelectItem>
-                          <SelectItem value="PRN (As Needed)">
-                            PRN (As Needed)
-                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -465,7 +475,7 @@ export default function CreateMedicationForm({
                                 name="times"
                                 render={({ field }) => {
                                   const isSelected = field.value?.includes(time);
-                                  const isDisabled = !isSelected && field.value?.length >= maxTimes;
+                                  const isDisabled = !isSelected && (field.value?.length || 0) >= maxTimes;
                                   const timeQuantities = form.watch("timeQuantities") || {};
 
                                   return (
@@ -478,7 +488,7 @@ export default function CreateMedicationForm({
                                             onClick={() => {
                                               const checked = !isSelected;
                                               if (checked) {
-                                                field.onChange([...field.value, time]);
+                                                field.onChange([...(field.value || []), time]);
                                                 // Set default quantity to 1 when time is selected
                                                 form.setValue("timeQuantities", {
                                                   ...timeQuantities,
@@ -686,7 +696,11 @@ export default function CreateMedicationForm({
               <div className="flex justify-between items-center">
                 <Button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={() => {
+                    // If PRN, go back to step 1; otherwise go to step 2
+                    const scheduleType = form.getValues("scheduleType");
+                    setStep(scheduleType === "PRN (As Needed)" ? 1 : 2);
+                  }}
                   variant="outline"
                 >
                   Back

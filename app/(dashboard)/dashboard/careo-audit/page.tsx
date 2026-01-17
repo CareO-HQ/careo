@@ -55,7 +55,7 @@ interface Audit {
   lastAudited: string;
   dueDate: string;
   category: string;
-  frequency?: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
+  frequency?: "daily" | "weekly" | "monthly" | "quarterly" | "6months" | "yearly" | "adhoc";
 }
 
 interface Resident {
@@ -603,7 +603,7 @@ function CareOAuditPageContent() {
     const isConvexId = /^[a-z]/.test(audit.id);
     if (isConvexId) {
       try {
-        let impact: { auditCount: number; actionPlanCount: number; } | null = null;
+        let impact: { auditCount: number; actionPlanCount: number } | null = null;
         if (audit.category === "resident") {
           impact = await convex.query(api.auditTemplates.getDeletionImpact, {
             templateId: audit.id as Id<"residentAuditTemplates">
@@ -876,7 +876,7 @@ function CareOAuditPageContent() {
       const completions: {[residentId: string]: number} = {};
       const dates: {[residentId: string]: {lastAudited: string, nextAudit: string}} = {};
 
-      residents.forEach(resident => {
+      residents.forEach((resident) => {
         const residentId = resident._id as string;
         completions[residentId] = calculateResidentCareFileCompletion(residentId);
         dates[residentId] = calculateResidentDates(residentId);

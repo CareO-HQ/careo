@@ -3,7 +3,9 @@ import { z } from "zod";
 export const peepSchema = z.object({
   // Resident information
   residentName: z.string().min(1, "Resident name is required"),
-  residentDateOfBirth: z.number().positive("Date of birth is required"),
+  residentDateOfBirth: z.number().refine((val) => !isNaN(val), {
+    message: "Date of birth is required"
+  }),
   bedroomNumber: z.string().min(1, "Bedroom number is required"),
 
   // Questions

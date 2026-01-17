@@ -10,6 +10,7 @@ import { internal } from "../_generated/api";
 
 /**
  * Submit an infection prevention assessment form
+ * Updated: ongoingFollowUpRequired changed to boolean type
  */
 export const submitInfectionPreventionAssessment = mutation({
   args: {
@@ -240,6 +241,7 @@ export const getInfectionPreventionAssessment = query({
       // Metadata
       createdAt: v.number(),
       createdBy: v.id("users"),
+      createdByName: v.optional(v.string()),
       updatedAt: v.optional(v.number()),
       updatedBy: v.optional(v.id("users")),
       pdfFileId: v.optional(v.id("_storage"))
@@ -248,7 +250,19 @@ export const getInfectionPreventionAssessment = query({
   ),
   handler: async (ctx, args) => {
     const assessment = await ctx.db.get(args.id);
-    return assessment;
+    if (!assessment) return null;
+
+    // Fetch creator's name
+    let createdByName;
+    if (assessment.createdBy) {
+      const creator = await ctx.db.get(assessment.createdBy);
+      createdByName = creator?.name || "Unknown User";
+    }
+
+    return {
+      ...assessment,
+      createdByName
+    };
   }
 });
 
@@ -311,90 +325,90 @@ export const getInfectionPreventionAssessmentsByResident = query({
 export const updateInfectionPreventionAssessment = mutation({
   args: {
     id: v.id("infectionPreventionAssessments"),
-    updates: v.object({
-      savedAsDraft: v.optional(v.boolean()),
 
-      // Person's details
-      name: v.optional(v.string()),
-      dateOfBirth: v.optional(v.string()),
-      homeAddress: v.optional(v.string()),
-      assessmentType: v.optional(
-        v.union(v.literal("Pre-admission"), v.literal("Admission"))
-      ),
-      informationProvidedBy: v.optional(v.string()),
-      admittedFrom: v.optional(v.string()),
-      consultantGP: v.optional(v.string()),
-      reasonForAdmission: v.optional(v.string()),
-      dateOfAdmission: v.optional(v.string()),
+    residentId: v.id("residents"),
+    teamId: v.string(),
+    organizationId: v.string(),
+    savedAsDraft: v.optional(v.boolean()),
 
-      // Acute Respiratory Illness (ARI)
-      newContinuousCough: v.optional(v.boolean()),
-      worseningCough: v.optional(v.boolean()),
-      temperatureHigh: v.optional(v.boolean()),
-      otherRespiratorySymptoms: v.optional(v.string()),
-      testedForCovid19: v.optional(v.boolean()),
-      testedForInfluenzaA: v.optional(v.boolean()),
-      testedForInfluenzaB: v.optional(v.boolean()),
-      testedForRespiratoryScreen: v.optional(v.boolean()),
-      influenzaB: v.boolean(),
-      respiratoryScreen: v.boolean(),
+    // Person's details
+    name: v.string(),
+    dateOfBirth: v.string(),
+    homeAddress: v.string(),
+    assessmentType: v.union(v.literal("Pre-admission"), v.literal("Admission")),
+    informationProvidedBy: v.optional(v.string()),
+    admittedFrom: v.optional(v.string()),
+    consultantGP: v.optional(v.string()),
+    reasonForAdmission: v.optional(v.string()),
+    dateOfAdmission: v.optional(v.string()),
 
-      // Exposure
-      exposureToPatientsCovid: v.optional(v.boolean()),
-      exposureToStaffCovid: v.optional(v.boolean()),
-      isolationRequired: v.optional(v.boolean()),
-      isolationDetails: v.optional(v.string()),
-      furtherTreatmentRequired: v.optional(v.boolean()),
+    // Acute Respiratory Illness (ARI)
+    newContinuousCough: v.boolean(),
+    worseningCough: v.boolean(),
+    temperatureHigh: v.boolean(),
+    otherRespiratorySymptoms: v.optional(v.string()),
+    testedForCovid19: v.boolean(),
+    testedForInfluenzaA: v.boolean(),
+    testedForInfluenzaB: v.boolean(),
+    testedForRespiratoryScreen: v.boolean(),
+    influenzaB: v.boolean(),
+    respiratoryScreen: v.boolean(),
 
-      // Infective Diarrhoea / Vomiting
-      diarrheaVomitingCurrentSymptoms: v.optional(v.boolean()),
-      diarrheaVomitingContactWithOthers: v.optional(v.boolean()),
-      diarrheaVomitingFamilyHistory72h: v.optional(v.boolean()),
+    // Exposure
+    exposureToPatientsCovid: v.boolean(),
+    exposureToStaffCovid: v.boolean(),
+    isolationRequired: v.boolean(),
+    isolationDetails: v.optional(v.string()),
+    furtherTreatmentRequired: v.boolean(),
 
-      // Clostridium Difficile
-      clostridiumActive: v.optional(v.boolean()),
-      clostridiumHistory: v.optional(v.boolean()),
-      clostridiumStoolCount72h: v.optional(v.string()),
-      clostridiumLastPositiveSpecimenDate: v.optional(v.string()),
-      clostridiumResult: v.optional(v.string()),
-      clostridiumTreatmentReceived: v.optional(v.string()),
-      clostridiumTreatmentComplete: v.optional(v.boolean()),
-      ongoingDetails: v.optional(v.string()),
-      ongoingDateCommenced: v.optional(v.string()),
-      ongoingLengthOfCourse: v.optional(v.string()),
-      ongoingFollowUpRequired: v.optional(v.string()),
+    // Infective Diarrhoea / Vomiting
+    diarrheaVomitingCurrentSymptoms: v.boolean(),
+    diarrheaVomitingContactWithOthers: v.boolean(),
+    diarrheaVomitingFamilyHistory72h: v.boolean(),
 
-      // MRSA / MSSA
-      mrsaMssaColonised: v.optional(v.boolean()),
-      mrsaMssaInfected: v.optional(v.boolean()),
-      mrsaMssaLastPositiveSwabDate: v.optional(v.string()),
-      mrsaMssaSitesPositive: v.optional(v.string()),
-      mrsaMssaTreatmentReceived: v.optional(v.string()),
-      mrsaMssaTreatmentComplete: v.optional(v.string()),
-      mrsaMssaDetails: v.optional(v.string()),
-      mrsaMssaDateCommenced: v.optional(v.string()),
-      mrsaMssaLengthOfCourse: v.optional(v.string()),
-      mrsaMssaFollowUpRequired: v.optional(v.string()),
+    // Clostridium Difficile
+    clostridiumActive: v.boolean(),
+    clostridiumHistory: v.boolean(),
+    clostridiumStoolCount72h: v.optional(v.string()),
+    clostridiumLastPositiveSpecimenDate: v.optional(v.string()),
+    clostridiumResult: v.optional(v.string()),
+    clostridiumTreatmentReceived: v.optional(v.string()),
+    clostridiumTreatmentComplete: v.optional(v.boolean()),
+    ongoingDetails: v.optional(v.string()),
+    ongoingDateCommenced: v.optional(v.string()),
+    ongoingLengthOfCourse: v.optional(v.string()),
+    ongoingFollowUpRequired: v.optional(v.string()),
 
-      // Multi-drug resistant organisms
-      esbl: v.optional(v.boolean()),
-      vreGre: v.optional(v.boolean()),
-      cpe: v.optional(v.boolean()),
-      otherMultiDrugResistance: v.optional(v.string()),
-      relevantInformationMultiDrugResistance: v.optional(v.string()),
+    // MRSA / MSSA
+    mrsaMssaColonised: v.boolean(),
+    mrsaMssaInfected: v.boolean(),
+    mrsaMssaLastPositiveSwabDate: v.optional(v.string()),
+    mrsaMssaSitesPositive: v.optional(v.string()),
+    mrsaMssaTreatmentReceived: v.optional(v.string()),
+    mrsaMssaTreatmentComplete: v.optional(v.string()),
+    mrsaMssaDetails: v.optional(v.string()),
+    mrsaMssaDateCommenced: v.optional(v.string()),
+    mrsaMssaLengthOfCourse: v.optional(v.string()),
+    mrsaMssaFollowUpRequired: v.optional(v.string()),
 
-      // Other Information
-      awarenessOfInfection: v.optional(v.boolean()),
-      lastFluVaccinationDate: v.optional(v.string()),
+    // Multi-drug resistant organisms
+    esbl: v.boolean(),
+    vreGre: v.boolean(),
+    cpe: v.boolean(),
+    otherMultiDrugResistance: v.optional(v.string()),
+    relevantInformationMultiDrugResistance: v.optional(v.string()),
 
-      // Assessment Completion
-      completedBy: v.optional(v.string()),
-      jobRole: v.optional(v.string()),
-      signature: v.optional(v.string()),
-      completionDate: v.optional(v.string())
-    })
+    // Other Information
+    awarenessOfInfection: v.boolean(),
+    lastFluVaccinationDate: v.optional(v.string()),
+
+    // Assessment Completion
+    completedBy: v.string(),
+    jobRole: v.string(),
+    signature: v.string(),
+    completionDate: v.string()
   },
-  returns: v.null(),
+  returns: v.id("infectionPreventionAssessments"),
   handler: async (ctx, args) => {
     // Verify the assessment exists
     const existingAssessment = await ctx.db.get(args.id);
@@ -417,28 +431,107 @@ export const updateInfectionPreventionAssessment = mutation({
       throw new Error("User not found");
     }
 
-    // Update the assessment
-    await ctx.db.patch(args.id, {
-      ...args.updates,
-      updatedAt: Date.now(),
-      updatedBy: user._id
+    // Create a NEW version instead of patching the old one
+    const newAssessmentId = await ctx.db.insert("infectionPreventionAssessments", {
+      residentId: args.residentId,
+      teamId: args.teamId,
+      organizationId: args.organizationId,
+      savedAsDraft: args.savedAsDraft ?? false,
+
+      // Person's details
+      name: args.name,
+      dateOfBirth: args.dateOfBirth,
+      homeAddress: args.homeAddress,
+      assessmentType: args.assessmentType,
+      informationProvidedBy: args.informationProvidedBy,
+      admittedFrom: args.admittedFrom,
+      consultantGP: args.consultantGP,
+      reasonForAdmission: args.reasonForAdmission,
+      dateOfAdmission: args.dateOfAdmission,
+
+      // Acute Respiratory Illness (ARI)
+      newContinuousCough: args.newContinuousCough,
+      worseningCough: args.worseningCough,
+      temperatureHigh: args.temperatureHigh,
+      otherRespiratorySymptoms: args.otherRespiratorySymptoms,
+      testedForCovid19: args.testedForCovid19,
+      testedForInfluenzaA: args.testedForInfluenzaA,
+      testedForInfluenzaB: args.testedForInfluenzaB,
+      testedForRespiratoryScreen: args.testedForRespiratoryScreen,
+      influenzaB: args.influenzaB,
+      respiratoryScreen: args.respiratoryScreen,
+
+      // Exposure
+      exposureToPatientsCovid: args.exposureToPatientsCovid,
+      exposureToStaffCovid: args.exposureToStaffCovid,
+      isolationRequired: args.isolationRequired,
+      isolationDetails: args.isolationDetails,
+      furtherTreatmentRequired: args.furtherTreatmentRequired,
+
+      // Infective Diarrhoea / Vomiting
+      diarrheaVomitingCurrentSymptoms: args.diarrheaVomitingCurrentSymptoms,
+      diarrheaVomitingContactWithOthers: args.diarrheaVomitingContactWithOthers,
+      diarrheaVomitingFamilyHistory72h: args.diarrheaVomitingFamilyHistory72h,
+
+      // Clostridium Difficile
+      clostridiumActive: args.clostridiumActive,
+      clostridiumHistory: args.clostridiumHistory,
+      clostridiumStoolCount72h: args.clostridiumStoolCount72h,
+      clostridiumLastPositiveSpecimenDate: args.clostridiumLastPositiveSpecimenDate,
+      clostridiumResult: args.clostridiumResult,
+      clostridiumTreatmentReceived: args.clostridiumTreatmentReceived,
+      clostridiumTreatmentComplete: args.clostridiumTreatmentComplete,
+      ongoingDetails: args.ongoingDetails,
+      ongoingDateCommenced: args.ongoingDateCommenced,
+      ongoingLengthOfCourse: args.ongoingLengthOfCourse,
+      ongoingFollowUpRequired: args.ongoingFollowUpRequired,
+
+      // MRSA / MSSA
+      mrsaMssaColonised: args.mrsaMssaColonised,
+      mrsaMssaInfected: args.mrsaMssaInfected,
+      mrsaMssaLastPositiveSwabDate: args.mrsaMssaLastPositiveSwabDate,
+      mrsaMssaSitesPositive: args.mrsaMssaSitesPositive,
+      mrsaMssaTreatmentReceived: args.mrsaMssaTreatmentReceived,
+      mrsaMssaTreatmentComplete: args.mrsaMssaTreatmentComplete,
+      mrsaMssaDetails: args.mrsaMssaDetails,
+      mrsaMssaDateCommenced: args.mrsaMssaDateCommenced,
+      mrsaMssaLengthOfCourse: args.mrsaMssaLengthOfCourse,
+      mrsaMssaFollowUpRequired: args.mrsaMssaFollowUpRequired,
+
+      // Multi-drug resistant organisms
+      esbl: args.esbl,
+      vreGre: args.vreGre,
+      cpe: args.cpe,
+      otherMultiDrugResistance: args.otherMultiDrugResistance,
+      relevantInformationMultiDrugResistance: args.relevantInformationMultiDrugResistance,
+
+      // Other Information
+      awarenessOfInfection: args.awarenessOfInfection,
+      lastFluVaccinationDate: args.lastFluVaccinationDate,
+
+      // Assessment Completion
+      completedBy: args.completedBy,
+      jobRole: args.jobRole,
+      signature: args.signature,
+      completionDate: args.completionDate,
+
+      // Metadata
+      createdAt: Date.now(),
+      createdBy: user._id
     });
 
-    // Schedule PDF generation if the draft is being finalized
-    if (
-      args.updates.savedAsDraft === false &&
-      existingAssessment.savedAsDraft
-    ) {
+    // Schedule PDF generation if not a draft
+    if (!args.savedAsDraft) {
       await ctx.scheduler.runAfter(
         0,
         internal.careFiles.infectionPrevention.generatePDFAndUpdateRecord,
         {
-          assessmentId: args.id
+          assessmentId: newAssessmentId
         }
       );
     }
 
-    return null;
+    return newAssessmentId;
   }
 });
 
@@ -601,5 +694,27 @@ export const getPDFUrl = query({
 
     const url = await ctx.storage.getUrl(assessment.pdfFileId);
     return url;
+  }
+});
+
+/**
+ * Get archived (non-latest) infection prevention assessments for a resident
+ * Returns all assessments except the most recent one
+ */
+export const getArchivedForResident = query({
+  args: {
+    residentId: v.id("residents")
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // Get all assessments for this resident, ordered by creation time (newest first)
+    const allAssessments = await ctx.db
+      .query("infectionPreventionAssessments")
+      .withIndex("by_resident", (q) => q.eq("residentId", args.residentId))
+      .order("desc")
+      .collect();
+
+    // Return all except the first one (the latest)
+    return allAssessments.length > 1 ? allAssessments.slice(1) : [];
   }
 });

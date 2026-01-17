@@ -50,14 +50,14 @@ export const InfectionPreventionAssessmentSchema = z.object({
   clostridiumTreatmentReceived: z.string().optional(),
   clostridiumTreatmentComplete: z.boolean().optional(),
   ongoingDetails: z.string().optional(),
-  ongoingDateCommenced: z.string().optional(),
+  ongoingDateCommenced: z.number().optional(),
   ongoingLengthOfCourse: z.string().optional(),
-  ongoingFollowUpRequired: z.string().optional(),
+  ongoingFollowUpRequired: z.enum(["yes", "no"]).optional(),
 
   // 6 MRSA / MSSA
   mrsaMssaColonised: z.boolean(),
   mrsaMssaInfected: z.boolean(),
-  mrsaMssaLastPositiveSwabDate: z.string().optional(),
+  mrsaMssaLastPositiveSwabDate: z.number().optional(),
   mrsaMssaSitesPositive: z.string().optional(),
   mrsaMssaTreatmentReceived: z.string().optional(),
   mrsaMssaTreatmentComplete: z.string().optional(),

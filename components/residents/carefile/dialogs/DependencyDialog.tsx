@@ -47,6 +47,7 @@ interface DependencyDialogProps {
   residentId: string;
   organizationId: string;
   userId: string;
+  userName: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -58,6 +59,7 @@ export default function DependencyDialog({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -81,16 +83,16 @@ export default function DependencyDialog({
       ? {
           // Use existing data for editing
           dependencyLevel: initialData.dependencyLevel ?? "A",
-          completedBy: initialData.completedBy ?? "",
-          completedBySignature: initialData.completedBySignature ?? "",
+          completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
+          completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
           date: initialData.date ?? Date.now(),
           status: initialData.status ?? "draft"
         }
       : {
           // Default values for new forms
           dependencyLevel: undefined,
-          completedBy: "",
-          completedBySignature: "",
+          completedBy: userName,
+          completedBySignature: userName,
           date: Date.now(),
           status: "draft"
         }
@@ -152,6 +154,7 @@ export default function DependencyDialog({
         if (isEditMode && initialData) {
           await updateAssessment({
             assessmentId: initialData._id,
+            userId,
             dependencyLevel: formData.dependencyLevel,
             completedBy: formData.completedBy,
             completedBySignature: formData.completedBySignature,
@@ -170,7 +173,7 @@ export default function DependencyDialog({
             completedBySignature: formData.completedBySignature,
             date: formData.date,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Dependency assessment saved successfully");
         }
         onClose?.();
@@ -266,7 +269,7 @@ export default function DependencyDialog({
                 <FormItem>
                   <FormLabel required>Completed By</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Enter your full name" />
+                    <Input {...field} placeholder="Enter your full name" readOnly disabled className="bg-muted" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -283,6 +286,9 @@ export default function DependencyDialog({
                     <Input
                       {...field}
                       placeholder="Type your full name as digital signature"
+                      readOnly
+                      disabled
+                      className="bg-muted"
                     />
                   </FormControl>
                   <FormMessage />

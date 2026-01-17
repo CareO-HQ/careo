@@ -28,6 +28,8 @@ export const createOrUpdateDiet = mutation({
       v.literal("level4")
     )),
     assistanceRequired: v.optional(v.union(v.literal("yes"), v.literal("no"))),
+    chefNotified: v.optional(v.union(v.literal("yes"), v.literal("no"))),
+    chefName: v.optional(v.string()),
     organizationId: v.string(),
     createdBy: v.string(),
   },
@@ -51,6 +53,8 @@ export const createOrUpdateDiet = mutation({
         foodConsistency: args.foodConsistency,
         fluidConsistency: args.fluidConsistency,
         assistanceRequired: args.assistanceRequired,
+        chefNotified: args.chefNotified,
+        chefName: args.chefName,
         updatedBy: args.createdBy,
         updatedAt: now,
       });
@@ -67,6 +71,8 @@ export const createOrUpdateDiet = mutation({
         foodConsistency: args.foodConsistency,
         fluidConsistency: args.fluidConsistency,
         assistanceRequired: args.assistanceRequired,
+        chefNotified: args.chefNotified,
+        chefName: args.chefName,
         organizationId: args.organizationId,
         createdBy: args.createdBy,
         createdAt: now,

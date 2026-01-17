@@ -1476,6 +1476,7 @@ export default function ResidentAuditPage() {
               </Button>
               <Button
                 type="submit"
+                disabled={!actionPlanText.trim() || !assignedToEmail || !dueDate || !priority}
                 onClick={async () => {
                   // Handle action plan creation
                   if (!actionPlanText.trim()) {
@@ -1485,6 +1486,11 @@ export default function ResidentAuditPage() {
 
                   if (!assignedToEmail) {
                     toast.error("Please assign to a staff member");
+                    return;
+                  }
+
+                  if (!dueDate) {
+                    toast.error("Please select a due date");
                     return;
                   }
 

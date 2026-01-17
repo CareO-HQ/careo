@@ -369,7 +369,7 @@ export default function AdmissionDialog({
             ...formData,
             residentId: residentId as Id<"residents">,
             savedAsDraft: false
-          });
+          } as any);
           toast.success("Admission assessment saved successfully");
         }
 

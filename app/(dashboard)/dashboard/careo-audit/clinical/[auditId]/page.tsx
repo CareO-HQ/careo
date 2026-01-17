@@ -436,10 +436,16 @@ export default function ClinicalAuditPage() {
 
     saveTimeoutRef.current = setTimeout(async () => {
       // Prepare items array
-      const items = auditDetailItems.map((item) => ({
+      const items: Array<{
+        itemId: string;
+        itemName: string;
+        status: "" | "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
+        notes?: string;
+        date?: string;
+      }> = auditDetailItems.map((item) => ({
         itemId: item.id,
         itemName: item.itemName,
-        status: item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked" | undefined,
+        status: (item.status as "" | "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked") || "",
         notes: item.notes || undefined,
         date: item.lastReviewed || undefined,
       }));
@@ -496,9 +502,9 @@ export default function ClinicalAuditPage() {
       const items = auditDetailItems.map((item) => ({
         itemId: item.id,
         itemName: item.itemName,
-        status: item.status && item.status.trim() !== ""
+        status: (item.status && item.status.trim() !== ""
           ? (item.status as "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked")
-          : undefined,
+          : "") as "" | "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked",
         notes: item.notes || undefined,
         date: item.lastReviewed || undefined,
       }));
