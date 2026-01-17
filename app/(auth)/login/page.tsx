@@ -88,8 +88,8 @@ function LoginContent() {
               <Image
                 src="/Logo_CareO.png"
                 alt="CareO Logo"
-                width={180}
-                height={60}
+                width={140}
+                height={47}
                 className="object-contain"
               />
             </div>
@@ -123,8 +123,8 @@ function LoginContent() {
             <Image
               src="/Logo_CareO.png"
               alt="CareO Logo"
-              width={200}
-              height={67}
+              width={150}
+              height={50}
               className="object-contain"
             />
           </div>
