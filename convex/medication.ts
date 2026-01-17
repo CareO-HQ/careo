@@ -1532,19 +1532,35 @@ export const getNextMedicationIntakeByResidentId = query({
   ),
   handler: async (ctx, args) => {
     const now = Date.now();
+    // Grace period: skip medications that are past by more than 1 hour
+    const oneHourAgo = now - (60 * 60 * 1000);
 
-    // Find the next scheduled medication intake for this resident
-    const nextIntake = await ctx.db
+    // Get all scheduled medication intakes for this resident
+    const allScheduledIntakes = await ctx.db
       .query("medicationIntake")
       .withIndex("byResidentId", (q) => q.eq("residentId", args.residentId))
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("scheduledTime"), now), // Only future intakes
-          q.eq(q.field("state"), "scheduled") // Only scheduled (not completed/missed)
-        )
-      )
-      .order("asc") // Order by scheduled time ascending to get the earliest
-      .first();
+      .filter((q) => q.eq(q.field("state"), "scheduled"))
+      .collect();
+
+    // Filter to only future intakes or those within the grace period (past by less than 1 hour)
+    // Then sort and get the earliest one
+    const futureIntakes = allScheduledIntakes
+      .filter((intake) => {
+        // Include if it's in the future
+        if (intake.scheduledTime > now) {
+          return true;
+        }
+        // Include if it's past but within grace period (less than 1 hour ago)
+        if (intake.scheduledTime > oneHourAgo && intake.scheduledTime <= now) {
+          return true;
+        }
+        // Skip if it's past the grace period
+        return false;
+      })
+      .sort((a, b) => a.scheduledTime - b.scheduledTime);
+
+    // Get the next upcoming medication (earliest scheduled time)
+    const nextIntake = futureIntakes[0] || null;
 
     if (!nextIntake) {
       return null;

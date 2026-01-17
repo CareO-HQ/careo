@@ -511,7 +511,7 @@ export const getAssignedTeams = query({
         careHomeName: careHomeNameMap.get(unit.careHomeId) || ""
       }));
     }
-    
+
     // For Manager: all teams in care homes they manage
     if (effectiveRole === ROLES.MANAGER) {
       const managerAssignments = await ctx.db
@@ -540,7 +540,7 @@ export const getAssignedTeams = query({
           .query("units")
           .withIndex("by_careHomeId", (q) => q.eq("careHomeId", careHomeId))
           .collect();
-        
+
         const careHome = await ctx.db.get(careHomeId);
         for (const unit of units) {
           allTeams.push({
@@ -555,13 +555,25 @@ export const getAssignedTeams = query({
 
       return allTeams;
     }
-    
-    // For Owner: all teams in organization
+
+    // For Owner: filter teams by active care home (Strict Isolation)
     if (effectiveRole === ROLES.OWNER) {
-      const units = await ctx.db
-        .query("units")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId!))
-        .collect();
+      const activeCareHomeId = await resolveCareHome(ctx);
+      let units: Array<Doc<"units">> = [];
+
+      if (activeCareHomeId) {
+        units = await ctx.db
+          .query("units")
+          .withIndex("by_careHomeId", (q) => q.eq("careHomeId", activeCareHomeId))
+          .collect();
+      } else {
+        // Fallback: If no care home resolved (unlikely if they exist), search by org
+        // This handles explicit "No Care Home" states or empty orgs
+        units = await ctx.db
+          .query("units")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId!))
+          .collect();
+      }
 
       const teams = await Promise.all(
         units.map(async (unit) => {

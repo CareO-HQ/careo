@@ -67,6 +67,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { TimePicker } from "@/components/ui/date-time-picker";
 
 type HealthMonitoringPageProps = {
   params: Promise<{ id: string }>;
@@ -670,7 +671,12 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                     <FormItem>
                       <FormLabel className="text-sm">Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} className="h-9" />
+                        <TimePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Select time"
+                          className="h-9"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

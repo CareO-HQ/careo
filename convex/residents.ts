@@ -93,17 +93,17 @@ export const create = mutation({
         { effectiveRole }
       );
     }
-    
+
     // Care Assistants cannot create residents
     if (effectiveRole === ROLES.CARE_ASSISTANT) {
       throw new Error("Unauthorized: Care assistants cannot create residents");
     }
-    
+
     // Enforce organization scope (unless SaaS Admin)
     if (effectiveRole !== ROLES.SAAS_ADMIN && args.organizationId !== userOrgId) {
       throw new Error("Unauthorized: Cannot create resident in different organization");
     }
-    
+
     // Verify unit access for Nurse (Care Assistants already excluded above)
     if (effectiveRole === ROLES.NURSE) {
       const identity = await ctx.auth.getUserIdentity();
@@ -153,7 +153,7 @@ export const create = mutation({
         }
       }
     }
-    
+
     const now = Date.now();
 
     const residentId = await ctx.db.insert("residents", {
@@ -233,19 +233,19 @@ export const getByOrganization = query({
         { effectiveRole }
       );
     }
-    
+
     // Determine target organization
     const targetOrgId = args.organizationId || userOrgId;
-    
+
     if (!targetOrgId) {
       throw new Error("Organization ID required");
     }
-    
+
     // SaaS Admin can read all, others must match their organization
     if (effectiveRole !== ROLES.SAAS_ADMIN && targetOrgId !== userOrgId) {
       throw new Error("Unauthorized: Cannot access different organization");
     }
-    
+
     // Resolve care home context
     let targetCareHomeId: Id<"careHomes"> | null = null;
     if (args.careHomeId) {
@@ -261,7 +261,7 @@ export const getByOrganization = query({
       // Get active care home for user
       targetCareHomeId = await resolveCareHome(ctx);
     }
-    
+
     // Build query with organization filter
     let query = ctx.db
       .query("residents")
@@ -269,25 +269,27 @@ export const getByOrganization = query({
         q.eq("organizationId", targetOrgId)
       )
       .filter((q) => q.eq(q.field("isActive"), true));
-    
+
     // Apply care home filter for Manager and Owner
     if (targetCareHomeId && (effectiveRole === ROLES.MANAGER || effectiveRole === ROLES.OWNER)) {
+      console.log(`[getByOrganization] Filtering for ${effectiveRole}. CareHomeId: ${targetCareHomeId}`);
+
       // Get all units in this care home
       const units = await ctx.db
         .query("units")
         .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
         .collect();
-      
+
       const teamIds = new Set(units.map(u => u.teamId));
-      
+
       // Filter residents by team IDs in this care home
       if (teamIds.size > 0) {
         // Get all residents first, then filter by team IDs
         const allResidents = await query.collect();
-        const filteredResidents = allResidents.filter((resident: any) => 
+        const filteredResidents = allResidents.filter((resident: any) =>
           teamIds.has(resident.teamId)
         );
-        
+
         // Process residents with images
         const results: Array<Record<string, unknown>> = [];
         for (const resident of filteredResidents) {
@@ -307,7 +309,7 @@ export const getByOrganization = query({
         return [];
       }
     }
-    
+
     // Apply unit filter for Nurse/Care Assistant
     if (effectiveRole === ROLES.NURSE || effectiveRole === ROLES.CARE_ASSISTANT) {
       if (activeUnitId) {
@@ -325,7 +327,7 @@ export const getByOrganization = query({
         return [];
       }
     }
-    
+
     const residents = await query.collect();
 
     // Process residents with images
@@ -354,24 +356,24 @@ export const getById = query({
     // RBAC: Resolve user and check access
     const { user, role, organizationId, activeUnitId } = await resolveUser(ctx);
     const effectiveRole = role ?? (activeUnitId ? ROLES.NURSE : ROLES.MANAGER);
-    
+
     const resident = await ctx.db.get(args.residentId);
     if (!resident) return null;
-    
+
     if (!role) {
       console.warn(
         "[getById] No role found for user; using fallback role",
         { effectiveRole }
       );
     }
-    
+
     // SaaS Admin can read all
     if (effectiveRole !== ROLES.SAAS_ADMIN) {
       // Enforce organization isolation
       if (resident.organizationId !== organizationId) {
         throw new Error("Unauthorized: Resident does not belong to your organization");
       }
-      
+
       // For Manager, verify care home access
       if (effectiveRole === ROLES.MANAGER) {
         // Get unit for this resident
@@ -379,7 +381,7 @@ export const getById = query({
           .query("units")
           .withIndex("by_teamId", (q) => q.eq("teamId", resident.teamId))
           .first();
-        
+
         if (unit) {
           // Check if manager is assigned to this care home
           const identity = await ctx.auth.getUserIdentity();
@@ -389,14 +391,14 @@ export const getById = query({
               .withIndex("by_careHomeId", (q) => q.eq("careHomeId", unit.careHomeId))
               .filter((q) => q.eq(q.field("userId"), identity.subject))
               .first();
-            
+
             if (!managerAssignment) {
               throw new Error("Unauthorized: Resident does not belong to a care home you manage");
             }
           }
         }
       }
-      
+
       // Enforce unit isolation for Nurse/Care Assistant
       if (role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
         if (activeUnitId) {
@@ -476,7 +478,7 @@ export const getByTeamId = query({
         .query("units")
         .withIndex("by_teamId", (q) => q.eq("teamId", args.teamId))
         .first();
-      
+
       if (unit) {
         const identity = await ctx.auth.getUserIdentity();
         if (identity?.subject) {
@@ -485,7 +487,7 @@ export const getByTeamId = query({
             .withIndex("by_careHomeId", (q) => q.eq("careHomeId", unit.careHomeId))
             .filter((q) => q.eq(q.field("userId"), identity.subject))
             .first();
-          
+
           if (!managerAssignment) {
             console.warn(`[RBAC] Access denied: Manager attempted to access team ${args.teamId} in care home they don't manage`);
             return [];
@@ -501,7 +503,7 @@ export const getByTeamId = query({
         .query("units")
         .withIndex("by_teamId", (q) => q.eq("teamId", args.teamId))
         .first();
-      
+
       if (unit && unit.organizationId !== organizationId) {
         console.warn(`[RBAC] Access denied: User attempted to access team ${args.teamId} from different organization`);
         return [];
@@ -749,12 +751,12 @@ export const getResidentOverview = query({
       }),
       args.includeAuditLog
         ? ctx.db
-            .query("residentAuditLog")
-            .withIndex("byResidentAndTimestamp", (q) =>
-              q.eq("residentId", args.residentId)
-            )
-            .order("desc")
-            .take(10)
+          .query("residentAuditLog")
+          .withIndex("byResidentAndTimestamp", (q) =>
+            q.eq("residentId", args.residentId)
+          )
+          .order("desc")
+          .take(10)
         : Promise.resolve([])
     ]);
 

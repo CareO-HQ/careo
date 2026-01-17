@@ -99,7 +99,7 @@ export async function resolveUser(
   activeUnitId: Id<"units"> | null;
 }> {
   const identity = await ctx.auth.getUserIdentity();
-  
+
   if (!identity?.email) {
     throw new Error("Not authenticated");
   }
@@ -130,7 +130,7 @@ export async function resolveUser(
       if (orgExists) {
         organizationId = session.activeOrganizationId;
         console.log(`[resolveUser] Using organizationId ${organizationId} from session for user ${identity.email}`);
-        
+
         // Get member record for role (but don't require it during onboarding)
         if (identity.subject) {
           member = await ctx.runQuery(components.betterAuth.lib.findOne, {
@@ -142,9 +142,9 @@ export async function resolveUser(
           });
           // If no member record but organization exists, that's OK during onboarding
           // The organizationId from session is still valid
-          if (!member) {
-            console.log(`[resolveUser] No member record found for organizationId ${organizationId}, but organization exists. This is OK during onboarding.`);
-          }
+          // if (!member) {
+          //   console.log(`[resolveUser] No member record found for organizationId ${organizationId}, but organization exists. This is OK during onboarding.`);
+          // }
         }
       } else {
         // Session has invalid organizationId - try to get from member record
@@ -203,7 +203,7 @@ export async function resolveUser(
         }
       }
     }
-    
+
     // If still no organizationId found and no member record, try invitations as fallback (during onboarding)
     if (!organizationId && identity.email) {
       try {

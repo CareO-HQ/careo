@@ -181,57 +181,47 @@ export function TeamSwitcher({
             side="bottom"
             sideOffset={4}
           >
-            <div className="flex flex-row items-center justify-between">
-              <DropdownMenuLabel>Care homes</DropdownMenuLabel>
-              {isOwner ? (
-                <CreateCareHomeModal>
-                  <DropdownMenuItem
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      // Dialog will open via DialogTrigger
-                    }}
-                    disabled={
-                      (careHomes?.length ?? 0) >=
-                      config.limits.organizations
-                    }
-                    className="cursor-pointer"
-                  >
-                    <PlusIcon className="size-3 text-primary" />
-                  </DropdownMenuItem>
-                </CreateCareHomeModal>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <DropdownMenuItem disabled>
-                        <PlusIcon className="size-3 text-muted-foreground" />
-                      </DropdownMenuItem>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={4}>
-                    Only owners can add care homes
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-            {careHomes && careHomes.length > 0 ? (
-              careHomes.map((careHome) => (
-                <OrganizationItem
-                  key={careHome._id}
-                  organization={{
-                    id: String(careHome._id),
-                    name: careHome.name
-                  }}
-                  isActive={activeCareHomeId === careHome._id}
-                  onSelect={(id) => handleCareHomeSwitch(id)}
-                />
-              ))
-            ) : (
-              <div className="p-2 text-xs text-muted-foreground">
-                No care homes available. Owners can create care homes.
-              </div>
+            {/* Only show "Care homes" section for owners */}
+            {isOwner && (
+              <>
+                <div className="flex flex-row items-center justify-between">
+                  <DropdownMenuLabel>Care homes</DropdownMenuLabel>
+                  <CreateCareHomeModal>
+                    <DropdownMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        // Dialog will open via DialogTrigger
+                      }}
+                      disabled={
+                        (careHomes?.length ?? 0) >=
+                        config.limits.organizations
+                      }
+                      className="cursor-pointer"
+                    >
+                      <PlusIcon className="size-3 text-primary" />
+                    </DropdownMenuItem>
+                  </CreateCareHomeModal>
+                </div>
+                {careHomes && careHomes.length > 0 ? (
+                  careHomes.map((careHome) => (
+                    <OrganizationItem
+                      key={careHome._id}
+                      organization={{
+                        id: String(careHome._id),
+                        name: careHome.name
+                      }}
+                      isActive={activeCareHomeId === careHome._id}
+                      onSelect={(id) => handleCareHomeSwitch(id)}
+                    />
+                  ))
+                ) : (
+                  <div className="p-2 text-xs text-muted-foreground">
+                    No care homes available. Owners can create care homes.
+                  </div>
+                )}
+                <DropdownMenuSeparator />
+              </>
             )}
-            <DropdownMenuSeparator />
             <div className="flex flex-row items-center justify-between">
               <DropdownMenuLabel>Units/House</DropdownMenuLabel>
               {isNurseOrCareAssistant ? (

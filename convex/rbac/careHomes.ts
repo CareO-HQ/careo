@@ -117,65 +117,11 @@ export const getCareHomes = query({
         return careHomes;
       }
 
-      // Managers, nurses, care assistants can only see care homes they were invited to
+      // Managers, nurses, care assistants should NOT see care homes in the sidebar
+      // Only owners can see and switch between care homes
       if (role === ROLES.MANAGER || role === ROLES.NURSE || role === ROLES.CARE_ASSISTANT) {
-        if (targetOrgId !== userOrgId) {
-          console.warn(`[getCareHomes] Target org ${targetOrgId} doesn't match user org ${userOrgId}`);
-          return [];
-        }
-
-        const identity = await ctx.auth.getUserIdentity();
-        const invitedCareHomeIds = new Set<Id<"careHomes">>();
-
-        if (identity?.email) {
-          const invitations = await ctx.db
-            .query("invitations")
-            .withIndex("by_email", (q) => q.eq("email", identity.email!))
-            .filter((q) =>
-              q.or(q.eq(q.field("status"), "accepted"), q.eq(q.field("status"), "pending"))
-            )
-            .collect();
-
-          invitations.forEach((invitation) => {
-            if (invitation.careHomeId) {
-              invitedCareHomeIds.add(invitation.careHomeId);
-            }
-          });
-        }
-
-        // Managers may be assigned via careHomeManagers
-        if (role === ROLES.MANAGER && identity?.subject) {
-          const managerAssignments = await ctx.db
-            .query("careHomeManagers")
-            .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
-            .collect();
-          managerAssignments.forEach((assignment) => {
-            invitedCareHomeIds.add(assignment.careHomeId);
-          });
-        }
-
-        // Fallback to activeCareHomeId if no invitations were found
-        if (invitedCareHomeIds.size === 0 && user.activeCareHomeId) {
-          invitedCareHomeIds.add(user.activeCareHomeId);
-        }
-
-        if (invitedCareHomeIds.size === 0) {
-          console.log(`[getCareHomes] No invited care homes found for role ${role}`);
-          return [];
-        }
-
-        const careHomes = await Promise.all(
-          Array.from(invitedCareHomeIds).map(async (careHomeId) => {
-            const careHome = await ctx.db.get(careHomeId);
-            return careHome && careHome.organizationId === targetOrgId ? careHome : null;
-          })
-        );
-
-        const filteredCareHomes = careHomes.filter(
-          (careHome): careHome is Doc<"careHomes"> => careHome !== null
-        );
-        console.log(`[getCareHomes] Found ${filteredCareHomes.length} invited care homes for role ${role} in org ${targetOrgId}`);
-        return filteredCareHomes;
+        console.log(`[getCareHomes] Returning empty array for ${role} - only owners can see care homes`);
+        return [];
       }
 
       // Default: restrict to organization only
@@ -820,10 +766,10 @@ export const createCareHome = mutation({
     // CRITICAL: This function must NEVER create a Better Auth organization.
     // It only creates records in the Convex careHomes table.
     // No-op: previously used for debug logging
-    
+
     // Get current user
     let { user, role, organizationId: userOrgId } = await resolveUser(ctx);
-    
+
     // No-op: previously used for debug logging
 
     // If no organizationId found, try to get it from member record or invitations
@@ -852,7 +798,7 @@ export const createCareHome = mutation({
           if (orgExists) {
             userOrgId = member.organizationId;
             console.log(`[createCareHome] Found organizationId ${userOrgId} from member record for user ${identity.email}`);
-            
+
             // Try to set it in session for future requests
             try {
               const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
@@ -976,6 +922,23 @@ export const createCareHome = mutation({
       throw new Error(`CRITICAL: Organization ${userOrgId} does not exist. Cannot create care home without valid organization.`);
     }
 
+    // Check for duplicate care home names within the same organization
+    // This ensures each care home is distinct and prevents confusion
+    const existingCareHomes = await ctx.db
+      .query("careHomes")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", userOrgId))
+      .collect();
+
+    const duplicateName = existingCareHomes.find(
+      (ch) => ch.name.toLowerCase().trim() === args.name.toLowerCase().trim()
+    );
+
+    if (duplicateName) {
+      throw new Error(
+        `A care home with the name "${args.name}" already exists in your organization. Please choose a different name.`
+      );
+    }
+
     // CRITICAL: Create care home in Convex careHomes table ONLY
     // This function MUST NEVER create a Better Auth organization.
     // The care home is stored in the Convex database and linked to the user via:
@@ -987,7 +950,7 @@ export const createCareHome = mutation({
       createdBy: identity.subject, // Link to user via Better Auth userId
       createdAt: Date.now()
     });
-    
+
     // #region agent log
     // No-op: previously used for debug logging
     // #endregion
@@ -1029,21 +992,21 @@ export const createCareHome = mutation({
       await ctx.db.patch(user._id, {
         activeCareHomeId: careHomeId
       });
-      
+
       // Verify the user record was updated correctly
       const updatedUser = await ctx.db.get(user._id);
       if (!updatedUser || updatedUser.activeCareHomeId !== careHomeId) {
         console.error(`[createCareHome] CRITICAL: Failed to set activeCareHomeId on user ${user._id}`);
         throw new Error("Failed to link care home to user");
       }
-      
+
       // #region agent log
       // No-op: previously used for debug logging
       // #endregion
     }
 
     console.log(`[createCareHome] Care home created: ${careHomeId} by ${user.email}`);
-    
+
     // #region agent log
     // No-op: previously used for debug logging
     // #endregion
@@ -1215,57 +1178,22 @@ export const switchActiveCareHome = mutation({
       throw new Error("Unauthorized: Care home does not belong to your organization");
     }
 
-    // Verify access based on role
-    if (role === ROLES.OWNER) {
-      // Owner can switch to any care home in their organization
-      // No additional check needed
-    } else if (role === ROLES.MANAGER) {
-      // Manager can only switch to care homes they manage
-      const identity = await ctx.auth.getUserIdentity();
-      if (!identity?.subject) {
-        throw new Error("User identity not found");
-      }
-
-      const managerAssignment = await ctx.db
-        .query("careHomeManagers")
-        .withIndex("by_careHomeId", (q) => q.eq("careHomeId", args.careHomeId))
-        .filter((q) => q.eq(q.field("userId"), identity.subject))
-        .first();
-
-      if (!managerAssignment) {
-        throw new Error("Unauthorized: You are not a manager of this care home");
-      }
-    } else {
-      // Nurse and Care Assistant can switch to care homes that contain their units
-      const identity = await ctx.auth.getUserIdentity();
-      if (!identity?.subject) {
-        throw new Error("User identity not found");
-      }
-
-      // Check if user has any units in this care home
-      const userUnits = await ctx.db
-        .query("unitStaff")
-        .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
-        .collect();
-
-      // Check synchronously
-      let hasAccess = false;
-      for (const unitStaff of userUnits) {
-        const unit = await ctx.db.get(unitStaff.unitId);
-        if (unit?.careHomeId === args.careHomeId) {
-          hasAccess = true;
-          break;
-        }
-      }
-
-      if (!hasAccess) {
-        throw new Error("Unauthorized: You are not assigned to any units in this care home");
-      }
+    // Only owners and SaaS admins can switch between care homes
+    // Managers, nurses, and care assistants are restricted to their assigned care home
+    if (role !== ROLES.OWNER && role !== ROLES.SAAS_ADMIN) {
+      throw new Error("Unauthorized: Only owners can switch between care homes");
     }
 
-    // Update user's activeCareHomeId
+    // Owner can switch to any care home in their organization
+    // No additional check needed beyond organization verification above
+
+    // Update user's activeCareHomeId and clear unit/team context
+    // This ensures a clean slate when switching care homes so we don't carry over
+    // invalid unit/team selections from the previous care home
     await ctx.db.patch(user._id, {
-      activeCareHomeId: args.careHomeId
+      activeCareHomeId: args.careHomeId,
+      activeUnitId: undefined,
+      activeTeamId: undefined
     });
 
     console.log(`[switchActiveCareHome] User ${user.email} switched to care home ${args.careHomeId}`);

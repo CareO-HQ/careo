@@ -43,6 +43,7 @@ import {
 import { CalendarIcon, Clock, MapPin, User, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { TimePicker } from "@/components/ui/date-time-picker";
 
 const IncidentSchema = z.object({
   type: z.enum([
@@ -266,14 +267,11 @@ export function ReportIncidentForm({
                   <FormItem>
                     <FormLabel>Time of Incident</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          type="time"
-                          {...field}
-                          className="pl-10"
-                        />
-                      </div>
+                      <TimePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Select time"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
