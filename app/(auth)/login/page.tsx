@@ -70,7 +70,7 @@ function LoginContent() {
         {/* Testimonial at bottom */}
         <div className="space-y-4 mt-8 max-w-sm">
           <blockquote className="text-lg leading-relaxed text-zinc-900">
-            &quot;Care simplified, an empathy driven tool for care teams, freedom a few clicks away&quot;
+            &quot;An empathy driven tool for care teams, freedom a few clicks away&quot;
           </blockquote>
           <p className="text-sm text-zinc-600">
             - Team CareO
@@ -110,7 +110,7 @@ function LoginContent() {
             {/* Mobile Testimonial */}
             <div className="space-y-2 text-center px-4 max-w-sm mx-auto">
               <p className="text-sm leading-relaxed text-zinc-700">
-                &quot;Care simplified, an empathy driven tool for care teams, freedom a few clicks away&quot;
+                &quot;An empathy driven tool for care teams, freedom a few clicks away&quot;
               </p>
               <p className="text-xs text-zinc-500">
                 - Team CareO
