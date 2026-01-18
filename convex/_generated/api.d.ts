@@ -59,6 +59,7 @@ import type * as customInviteEmail from "../customInviteEmail.js";
 import type * as dashboard from "../dashboard.js";
 import type * as debug from "../debug.js";
 import type * as debugQueries from "../debugQueries.js";
+import type * as devHelpers from "../devHelpers.js";
 import type * as diet from "../diet.js";
 import type * as emailHelpers from "../emailHelpers.js";
 import type * as emails from "../emails.js";
@@ -187,6 +188,7 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   debug: typeof debug;
   debugQueries: typeof debugQueries;
+  devHelpers: typeof devHelpers;
   diet: typeof diet;
   emailHelpers: typeof emailHelpers;
   emails: typeof emails;
