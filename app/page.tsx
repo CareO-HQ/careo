@@ -1,12 +1,9 @@
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { Hero } from "@/components/landing/hero";
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center h-dvh">
-      <Link href="/login">
-        <Button>Login</Button>
-      </Link>
+    <div className="h-screen overflow-hidden">
+      <Hero />
     </div>
   );
 }
