@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { resolveUser, ROLES } from "./lib/rbac";
 
 // Get action plans for a specific audit response
 export const getActionPlansByAudit = query({
@@ -33,6 +34,59 @@ export const getActionPlansByAudit = query({
 });
 
 // Get action plans assigned to a user
+// Get all action plans for an organization (for Owners/SaaS Admins)
+export const getOrgActionPlans = query({
+  args: {
+    organizationId: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // RBAC check: Only Owners and SaaS Admins can see all organization plans
+    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+
+    if (role !== "owner" && role !== "saas_admin") {
+      return [];
+    }
+
+    if (role === "owner" && args.organizationId !== userOrgId) {
+      return [];
+    }
+
+    const actionPlans = await ctx.db
+      .query("environmentAuditActionPlans")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Environment Audit",
+          auditCategory: "environment",
+        };
+      })
+    );
+
+    return enrichedPlans;
+  },
+});
+
 export const getActionPlansByAssignee = query({
   args: {
     assignedTo: v.string(),

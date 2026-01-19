@@ -15,6 +15,7 @@ export function useActiveTeam() {
     activeTeam: currentUser?.activeTeam || null,
     activeOrganizationId: organizationId,
     activeOrganization: currentUser?.activeOrganization || null,
+    role: currentUser?.role || null,
     isLoading: currentUser === undefined
   };
 }

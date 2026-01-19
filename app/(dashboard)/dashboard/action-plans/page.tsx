@@ -43,7 +43,8 @@ type ActionPlanStatus = "pending" | "in_progress" | "completed";
 export default function MyActionPlansPage() {
   const { data: session } = authClient.useSession();
   const userEmail = session?.user?.email || "";
-  const { activeOrganizationId } = useActiveTeam();
+  const { activeOrganizationId, role } = useActiveTeam();
+  const isOwner = role === "owner" || role === "saas_admin";
 
   // State
   const [selectedActionPlan, setSelectedActionPlan] = useState<any>(null);
@@ -113,6 +114,32 @@ export default function MyActionPlansPage() {
     userEmail ? { createdBy: userEmail, status: "all" } : "skip"
   );
 
+  // Get all action plans for the organization (for Owners)
+  const orgResidentActionPlans = useQuery(
+    api.auditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgCareFileActionPlans = useQuery(
+    api.careFileAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgGovernanceActionPlans = useQuery(
+    api.governanceAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgClinicalActionPlans = useQuery(
+    api.clinicalAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgEnvironmentActionPlans = useQuery(
+    api.environmentAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
   // Merge all lists and remove duplicates
   const allActionPlans = React.useMemo(() => {
     const residentAssigned = assignedActionPlans || [];
@@ -138,6 +165,11 @@ export default function MyActionPlansPage() {
       ...clinicalCreated,
       ...environmentAssigned,
       ...environmentCreated,
+      ...(orgResidentActionPlans || []),
+      ...(orgCareFileActionPlans || []),
+      ...(orgGovernanceActionPlans || []),
+      ...(orgClinicalActionPlans || []),
+      ...(orgEnvironmentActionPlans || []),
     ];
 
     // Remove duplicates by _id
@@ -151,7 +183,10 @@ export default function MyActionPlansPage() {
     assignedCareFileActionPlans, createdCareFileActionPlans,
     assignedGovernanceActionPlans, createdGovernanceActionPlans,
     assignedClinicalActionPlans, createdClinicalActionPlans,
-    assignedEnvironmentActionPlans, createdEnvironmentActionPlans
+    assignedEnvironmentActionPlans, createdEnvironmentActionPlans,
+    orgResidentActionPlans, orgCareFileActionPlans,
+    orgGovernanceActionPlans, orgClinicalActionPlans,
+    orgEnvironmentActionPlans
   ]);
 
   // Check if user has created any action plans (they're a manager/creator)

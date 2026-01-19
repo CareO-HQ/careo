@@ -264,6 +264,63 @@ export const getActionPlansByResident = query({
   },
 });
 
+// Get all action plans for an organization (for Owners/SaaS Admins)
+export const getOrgActionPlans = query({
+  args: {
+    organizationId: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // RBAC check: Only Owners and SaaS Admins can see all organization plans
+    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+    const saasAdminRole = "saas_admin"; // Fallback if ROLES not imported correctly here
+
+    // We'll use a local check for SaaS Admin to be safe if resolveUser doesn't return the full ROLES object
+    if (role !== "owner" && role !== saasAdminRole) {
+      return [];
+    }
+
+    if (role === "owner" && args.organizationId !== userOrgId) {
+      return [];
+    }
+
+    const actionPlans = await ctx.db
+      .query("careFileAuditActionPlans")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template and resident data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+        const resident = await ctx.db.get(plan.residentId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Audit",
+          residentName: resident ? `${resident.firstName} ${resident.lastName}` : "Unknown Resident",
+          auditCategory: "carefile",
+        };
+      })
+    );
+
+    return enrichedPlans;
+  },
+});
+
 // Get all action plans assigned to a user
 export const getActionPlansByAssignee = query({
   args: {

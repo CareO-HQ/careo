@@ -101,6 +101,7 @@ export async function resolveUser(
   const identity = await ctx.auth.getUserIdentity();
 
   if (!identity?.email) {
+    console.log("resolveUser: No authenticated identity found");
     throw new Error("Not authenticated");
   }
 
@@ -111,6 +112,7 @@ export async function resolveUser(
     .first();
 
   if (!user) {
+    console.log(`resolveUser: User not found in database for email ${identity.email}`);
     throw new Error("User not found in database");
   }
 
@@ -234,6 +236,17 @@ export async function resolveUser(
         }
       } catch (error) {
         console.error("[resolveUser] Error checking invitations:", error);
+      }
+    }
+    // If still no organizationId found, try to find a care home created by this user
+    if (!organizationId && identity.subject) {
+      const ownedCareHome = await ctx.db
+        .query("careHomes")
+        .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+        .first();
+      if (ownedCareHome) {
+        organizationId = ownedCareHome.organizationId;
+        console.log(`[resolveUser] Using organizationId ${organizationId} from careHomes.createdBy for user ${identity.email}`);
       }
     }
   } catch (error) {

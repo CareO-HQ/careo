@@ -257,6 +257,60 @@ export const getActionPlansByAssignee = query({
   },
 });
 
+// Get all action plans for an organization (for Owners/SaaS Admins)
+export const getOrgActionPlans = query({
+  args: {
+    organizationId: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // RBAC check: Only Owners and SaaS Admins can see all organization plans
+    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+
+    if (role !== ROLES.OWNER && role !== ROLES.SAAS_ADMIN) {
+      return [];
+    }
+    if (role === ROLES.OWNER && args.organizationId !== userOrgId) {
+      return [];
+    }
+
+    const actionPlans = await ctx.db
+      .query("residentAuditActionPlans")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template and audit data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+        const auditResponse = await ctx.db.get(plan.auditResponseId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Audit",
+          auditCategory: template?.category || auditResponse?.category || "resident",
+          auditCompletedAt: auditResponse?.completedAt,
+        };
+      })
+    );
+
+    return enrichedPlans;
+  },
+});
+
 // Get action plans by assignee with enriched data (template name, etc.)
 export const getMyActionPlans = query({
   args: {
