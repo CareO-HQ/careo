@@ -89,7 +89,7 @@ export const getAllCareHomes = query({
     // Verify user is SaaS Admin
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.email) {
-      throw new Error("Not authenticated");
+      return [];
     }
 
     const user = await ctx.db
@@ -98,13 +98,13 @@ export const getAllCareHomes = query({
       .first();
 
     if (!user || user.isSaasAdmin !== true) {
-      throw new Error("Only SaaS Admin can access this function");
+      return []; // Return empty instead of throwing
     }
 
     // CRITICAL: Get ONLY care homes from Convex careHomes table
     // This must NEVER return Better Auth organizations
     const careHomes = await ctx.db.query("careHomes").collect();
-    
+
     // Validate that we're only getting careHomes records (not organizations)
     // All records must have _id that is an id("careHomes")
     const validCareHomes = careHomes.filter((ch) => {
@@ -206,7 +206,7 @@ export const getAllOrganizations = query({
     // Verify user is SaaS Admin
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.email) {
-      throw new Error("Not authenticated");
+      return [];
     }
 
     const user = await ctx.db
@@ -215,7 +215,7 @@ export const getAllOrganizations = query({
       .first();
 
     if (!user || user.isSaasAdmin !== true) {
-      throw new Error("Only SaaS Admin can access this function");
+      return [];
     }
 
     // CRITICAL: Get ONLY organizations from Better Auth
@@ -228,7 +228,7 @@ export const getAllOrganizations = query({
         numItems: 1000
       }
     });
-    
+
     // Validate that we're getting Better Auth organizations, not Convex careHomes
     // Better Auth organizations have 'id' or '_id' as string (not Convex Id type)
     // They should NOT have Convex _id fields that start with "careHomes"
@@ -247,7 +247,7 @@ export const getAllOrganizations = query({
             console.warn("[getAllOrganizations] Skipping organization without valid ID:", org);
             return false;
           }
-          
+
           // CRITICAL SAFEGUARD: Ensure this is a Better Auth organization, not a Convex careHome
           // Better Auth organizations should NOT have Convex _id fields
           // If it has an _id that looks like a Convex careHome ID, reject it
@@ -256,7 +256,7 @@ export const getAllOrganizations = query({
             console.error("[getAllOrganizations] ERROR: Found Convex careHome in organizations list! Rejecting:", org);
             return false;
           }
-          
+
           return true;
         })
         .map(async (org: any) => {
@@ -268,10 +268,10 @@ export const getAllOrganizations = query({
             hypothesisId: "A"
           });
           // #endregion
-          
+
           // Determine the organization ID to use
           const organizationId = org.id || org._id;
-          
+
           // Validate organizationId exists
           if (!organizationId) {
             console.error("[DEBUG getAllOrganizations] ERROR: organizationId is missing!", {
@@ -289,7 +289,7 @@ export const getAllOrganizations = query({
               residentCount: 0
             };
           }
-          
+
           // #region agent log
           console.log("[DEBUG getAllOrganizations] Organization ID determined:", {
             organizationId,
@@ -298,10 +298,10 @@ export const getAllOrganizations = query({
             hypothesisId: "A"
           });
           // #endregion
-          
+
           // Count members
           const whereClause = [{ field: "organizationId", value: organizationId }];
-          
+
           // #region agent log
           console.log("[DEBUG getAllOrganizations] Where clause before query:", {
             whereClause,
@@ -309,7 +309,7 @@ export const getAllOrganizations = query({
             hypothesisId: "A"
           });
           // #endregion
-          
+
           const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
             model: "member",
             where: whereClause,
@@ -319,49 +319,49 @@ export const getAllOrganizations = query({
             }
           });
 
-        // Count teams
-        const teams = await ctx.runQuery(components.betterAuth.lib.findMany, {
-          model: "team",
-          where: [{ field: "organizationId", value: organizationId }],
-          paginationOpts: {
-            cursor: null,
-            numItems: 1000
+          // Count teams
+          const teams = await ctx.runQuery(components.betterAuth.lib.findMany, {
+            model: "team",
+            where: [{ field: "organizationId", value: organizationId }],
+            paginationOpts: {
+              cursor: null,
+              numItems: 1000
+            }
+          });
+
+          // Count residents for this organization
+          let residentCount = 0;
+          try {
+            const residents = await ctx.db
+              .query("residents")
+              .withIndex("byOrganizationId", (q) => q.eq("organizationId", organizationId))
+              .collect();
+            residentCount = residents.length;
+          } catch (error) {
+            // Residents counting is optional - table might not have the index yet
+            console.warn("Could not count residents:", error);
           }
-        });
 
-        // Count residents for this organization
-        let residentCount = 0;
-        try {
-          const residents = await ctx.db
-            .query("residents")
+          // Get organization status
+          const statusRecord = await ctx.db
+            .query("organizationStatus")
             .withIndex("byOrganizationId", (q) => q.eq("organizationId", organizationId))
-            .collect();
-          residentCount = residents.length;
-        } catch (error) {
-          // Residents counting is optional - table might not have the index yet
-          console.warn("Could not count residents:", error);
-        }
+            .first();
 
-        // Get organization status
-        const statusRecord = await ctx.db
-          .query("organizationStatus")
-          .withIndex("byOrganizationId", (q) => q.eq("organizationId", organizationId))
-          .first();
+          const status = statusRecord?.status || "active";
 
-        const status = statusRecord?.status || "active";
-
-        return {
-          id: organizationId,
-          name: org.name || "",
-          slug: org.slug || "",
-          createdAt: org.createdAt || org._creationTime || 0,
-          memberCount: members?.page?.length || 0,
-          teamCount: teams?.page?.length || 0,
-          residentCount,
-          status: status as "active" | "suspended" | "deactivated",
-          deactivatedAt: statusRecord?.deactivatedAt
-        };
-      })
+          return {
+            id: organizationId,
+            name: org.name || "",
+            slug: org.slug || "",
+            createdAt: org.createdAt || org._creationTime || 0,
+            memberCount: members?.page?.length || 0,
+            teamCount: teams?.page?.length || 0,
+            residentCount,
+            status: status as "active" | "suspended" | "deactivated",
+            deactivatedAt: statusRecord?.deactivatedAt
+          };
+        })
     );
 
     return orgsWithStats;
@@ -404,7 +404,7 @@ export const getOrganizationDetails = query({
     // Verify user is SaaS Admin
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.email) {
-      throw new Error("Not authenticated");
+      return null;
     }
 
     const user = await ctx.db
@@ -413,7 +413,7 @@ export const getOrganizationDetails = query({
       .first();
 
     if (!user || user.isSaasAdmin !== true) {
-      throw new Error("Only SaaS Admin can access this function");
+      return null;
     }
 
     // Get organization
@@ -516,7 +516,7 @@ export const createCareHomeOwner = mutation({
       hypothesisId: "B"
     });
     // #endregion
-    
+
     // Verify user is SaaS Admin
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.email) {
@@ -571,7 +571,7 @@ export const createCareHomeOwner = mutation({
         : org;
 
       const organizationIdStr = String(organizationId);
-      
+
       // #region agent log
       console.log("[DEBUG createCareHomeOwner] Organization created:", {
         organizationId: organizationIdStr,
@@ -619,7 +619,7 @@ export const createCareHomeOwner = mutation({
         : invitationResult;
 
       const invitationIdStr = String(invitationId);
-      
+
       // #region agent log
       console.log("[DEBUG createCareHomeOwner] Invitation created:", {
         invitationId: invitationIdStr,
@@ -636,7 +636,7 @@ export const createCareHomeOwner = mutation({
           organizationName: args.organizationName,
           inviterName: userIdentity.name || "Platform Administrator",
         });
-        
+
         // #region agent log
         console.log("[DEBUG createCareHomeOwner] Email sending scheduled:", {
           invitationId: invitationIdStr,
@@ -666,14 +666,14 @@ export const createCareHomeOwner = mutation({
       };
     } catch (error) {
       console.error("Error creating care home owner:", error);
-      
+
       // #region agent log
       console.error("[DEBUG createCareHomeOwner] Error:", {
         error: error instanceof Error ? error.message : String(error),
         hypothesisId: "B"
       });
       // #endregion
-      
+
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to create care home owner"
@@ -741,7 +741,13 @@ export const getPlatformStats = query({
     // Verify user is SaaS Admin
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.email) {
-      throw new Error("Not authenticated");
+      return {
+        totalOrganizations: 0,
+        totalUsers: 0,
+        totalResidents: 0,
+        totalTeams: 0,
+        recentOrganizations: []
+      };
     }
 
     const user = await ctx.db
@@ -750,7 +756,13 @@ export const getPlatformStats = query({
       .first();
 
     if (!user || user.isSaasAdmin !== true) {
-      throw new Error("Only SaaS Admin can access this function");
+      return {
+        totalOrganizations: 0,
+        totalUsers: 0,
+        totalResidents: 0,
+        totalTeams: 0,
+        recentOrganizations: []
+      };
     }
 
     // Count organizations
@@ -1624,5 +1636,259 @@ export const deleteOrganization = mutation({
         error: error instanceof Error ? error.message : "Failed to delete organization"
       };
     }
+  }
+});
+
+/**
+ * Get all owners with their organization statistics
+ */
+export const getAllOwnersWithStats = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      id: v.string(), // Better Auth User ID
+      email: v.string(),
+      name: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      nisccRegistrationNumber: v.optional(v.string()),
+      isOnboardingComplete: v.boolean(),
+      organization: v.object({
+        id: v.string(),
+        name: v.string(),
+        slug: v.string(),
+        status: v.union(v.literal("active"), v.literal("suspended"), v.literal("deactivated")),
+      }),
+      stats: v.object({
+        careHomeCount: v.number(),
+        unitCount: v.number(),
+        residentCount: v.number(),
+        staffCount: v.number(),
+      }),
+      createdAt: v.number(),
+    })
+  ),
+  handler: async (ctx) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      return [];
+    }
+
+    const saasAdmin = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!saasAdmin || saasAdmin.isSaasAdmin !== true) {
+      return [];
+    }
+
+    // Get all members who are "owner"
+    const membersResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "member",
+      where: [{ field: "role", value: "owner" }],
+      paginationOpts: { cursor: null, numItems: 1000 }
+    });
+
+    const owners = membersResult?.page || [];
+
+    const ownersWithStats = await Promise.all(
+      owners.map(async (member: any) => {
+        const organizationId = member.organizationId;
+        const userId = member.userId;
+
+        // Get Better Auth User
+        const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "user",
+          where: [{ field: "id", value: userId }]
+        });
+
+        // Get Better Auth Organization
+        const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
+          model: "organization",
+          where: [{ field: "id", value: organizationId }]
+        });
+
+        if (!authUser || !org) {
+          return null;
+        }
+
+        // Get local Convex user details
+        const localUser = await ctx.db
+          .query("users")
+          .withIndex("byEmail", (q) => q.eq("email", authUser.email))
+          .first();
+
+        // Get organization status
+        const statusRecord = await ctx.db
+          .query("organizationStatus")
+          .withIndex("byOrganizationId", (q) => q.eq("organizationId", organizationId))
+          .first();
+
+        const status = statusRecord?.status || "active";
+
+        // Aggregate Stats
+        // 1. Care Homes
+        const careHomes = await ctx.db
+          .query("careHomes")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .collect();
+
+        // 2. Residents
+        const residents = await ctx.db
+          .query("residents")
+          .withIndex("byOrganizationId", (q) => q.eq("organizationId", organizationId))
+          .collect();
+
+        // 3. Units (Teams)
+        const units = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "team",
+          where: [{ field: "organizationId", value: organizationId }],
+          paginationOpts: { cursor: null, numItems: 1000 }
+        });
+
+        // 4. Staff Count (Members who are NOT 'owner' or 'saas_admin')
+        const allMembers = await ctx.runQuery(components.betterAuth.lib.findMany, {
+          model: "member",
+          where: [{ field: "organizationId", value: organizationId }],
+          paginationOpts: { cursor: null, numItems: 1000 }
+        });
+        const staffCount = (allMembers?.page || []).filter(
+          (m: any) => m.role !== "owner" && m.role !== "saas_admin"
+        ).length;
+
+        return {
+          id: userId,
+          email: authUser.email,
+          name: authUser.name,
+          phone: localUser?.phone,
+          nisccRegistrationNumber: localUser?.nisccRegistrationNumber,
+          isOnboardingComplete: localUser?.isOnboardingComplete || false,
+          organization: {
+            id: organizationId,
+            name: org.name || "Unknown Org",
+            slug: org.slug || "unknown-org",
+            status: status as "active" | "suspended" | "deactivated",
+          },
+          stats: {
+            careHomeCount: careHomes.length,
+            unitCount: units?.page?.length || 0,
+            residentCount: residents.length,
+            staffCount: staffCount,
+          },
+          createdAt: member.createdAt || authUser.createdAt || 0,
+        };
+      })
+    );
+
+    return ownersWithStats.filter((o): o is NonNullable<typeof o> => o !== null);
+  }
+});
+
+/**
+ * Update owner details and organization status
+ */
+export const updateOwnerDetail = mutation({
+  args: {
+    userId: v.string(), // Better Auth User ID
+    organizationId: v.string(),
+    name: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    nisccRegistrationNumber: v.optional(v.string()),
+    organizationName: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("deactivated"))),
+    statusReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const saasAdmin = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!saasAdmin || saasAdmin.isSaasAdmin !== true) {
+      throw new Error("Only SaaS Admin can perform this action");
+    }
+
+    // 1. Update Better Auth User Name if provided
+    if (args.name) {
+      await ctx.runMutation(components.betterAuth.lib.updateOne, {
+        input: {
+          model: "user",
+          where: [{ field: "id", value: args.userId }],
+          update: { name: args.name }
+        }
+      });
+    }
+
+    // 2. Get User Email to update local Convex record
+    const authUser = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "user",
+      where: [{ field: "id", value: args.userId }]
+    });
+
+    if (authUser && authUser.email) {
+      const localUser = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", authUser.email))
+        .first();
+
+      if (localUser) {
+        const patch: any = {};
+        if (args.name) patch.name = args.name;
+        if (args.phone !== undefined) patch.phone = args.phone;
+        if (args.nisccRegistrationNumber !== undefined) patch.nisccRegistrationNumber = args.nisccRegistrationNumber;
+
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(localUser._id, patch);
+        }
+      }
+    }
+
+    // 3. Update Organization Name in Better Auth if provided
+    if (args.organizationName) {
+      await ctx.runMutation(components.betterAuth.lib.updateOne, {
+        input: {
+          model: "organization",
+          where: [{ field: "id", value: args.organizationId }],
+          update: {
+            name: args.organizationName,
+            slug: args.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+          }
+        }
+      });
+    }
+
+    // 4. Update Organization Status in Convex
+    if (args.status) {
+      const statusRecord = await ctx.db
+        .query("organizationStatus")
+        .withIndex("byOrganizationId", (q) => q.eq("organizationId", args.organizationId))
+        .first();
+
+      if (statusRecord) {
+        await ctx.db.patch(statusRecord._id, {
+          status: args.status,
+          deactivatedAt: args.status !== "active" ? Date.now() : undefined,
+          deactivatedBy: saasAdmin._id,
+          reason: args.statusReason,
+        });
+      } else {
+        await ctx.db.insert("organizationStatus", {
+          organizationId: args.organizationId,
+          status: args.status,
+          deactivatedAt: args.status !== "active" ? Date.now() : undefined,
+          deactivatedBy: saasAdmin._id,
+          reason: args.statusReason,
+        });
+      }
+    }
+
+    return { success: true };
   }
 });
