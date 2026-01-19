@@ -47,21 +47,21 @@ export const {
   // Must create a user and return the user id
   onCreateUser: async (ctx, user) => {
     console.log("Creating user in Convex:", user);
-    
+
     // Ensure email is present - this is critical for user lookup
     if (!user.email) {
       console.error("ERROR: User email is missing during signup!", user);
       throw new Error("Email is required for user creation");
     }
-    
+
     // Check if this is the first user (SaaS Admin)
     const existingUsers = await ctx.db.query("users").collect();
     const isFirstUser = existingUsers.length === 0;
-    
+
     if (isFirstUser) {
       console.log("First user detected - assigning SaaS Admin role:", user.email);
     }
-    
+
     return ctx.db.insert("users", {
       email: user.email, // Email is required and must be saved
       name: user.name || undefined,
@@ -116,7 +116,7 @@ export const getCurrentUser = query({
         .query("users")
         .withIndex("byEmail", (q) => q.eq("email", userMetadata.email))
         .first();
-      
+
       // If user not found by email, log error but don't crash - this helps debug signup issues
       if (!customUserData) {
         console.error("WARNING: User not found in Convex database by email:", userMetadata.email);
@@ -212,7 +212,7 @@ export const getCurrentUser = query({
             console.log(`[getCurrentUser] Found role ${userRole} from member record for org ${activeOrganizationId}`);
           }
         }
-        
+
         // If still no role, try to get from any member record (fallback)
         if (!userRole) {
           const members = await ctx.runQuery(components.betterAuth.lib.findMany, {
@@ -220,7 +220,7 @@ export const getCurrentUser = query({
             where: [{ field: "userId", value: identity.subject }],
             paginationOpts: { cursor: null, numItems: 1 }
           });
-          
+
           if (members?.page && members.page.length > 0) {
             const member = members.page[0];
             if (member?.role) {
@@ -240,7 +240,68 @@ export const getCurrentUser = query({
       }
     }
 
-      // Better Auth user data takes precedence since we update it directly
+    // If still no organizationId found and no member record, try invitations as fallback
+    if (!activeOrganizationId && identity?.email) {
+      try {
+        const userEmail = identity.email;
+        const invitations = await ctx.db
+          .query("invitations")
+          .withIndex("by_email", (q) => q.eq("email", userEmail))
+          .filter((q) =>
+            q.or(q.eq(q.field("status"), "accepted"), q.eq(q.field("status"), "pending"))
+          )
+          .order("desc")
+          .take(1);
+
+        if (invitations.length > 0) {
+          activeOrganizationId = invitations[0].organizationId;
+          if (!userRole) userRole = invitations[0].role;
+          console.log(`[getCurrentUser] Found organizationId ${activeOrganizationId} from invitation fallback`);
+        }
+      } catch (error) {
+        console.error("[getCurrentUser] Error checking invitations fallback:", error);
+      }
+    }
+
+    // If still no organizationId found, try to find a care home created by this user
+    if (!activeOrganizationId && identity?.subject) {
+      const ownedCareHome = await ctx.db
+        .query("careHomes")
+        .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+        .first();
+      if (ownedCareHome) {
+        activeOrganizationId = ownedCareHome.organizationId;
+        console.log(`[getCurrentUser] Found organizationId ${activeOrganizationId} from careHomes.createdBy fallback`);
+      }
+    }
+
+    // Owner Fallback: If still no role, check if user created a care home
+    if (!userRole && identity?.subject && activeOrganizationId) {
+      const ownedCareHome = await ctx.db
+        .query("careHomes")
+        .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+        .filter((q) => q.eq(q.field("organizationId"), activeOrganizationId))
+        .first();
+      if (ownedCareHome) {
+        userRole = "owner";
+        console.log(`[getCurrentUser] Found owner role from careHomes.createdBy for org ${activeOrganizationId}`);
+      }
+    }
+
+    // TeamMember Fallback: Check teamMembers table if role still missing
+    if (!userRole && identity?.subject) {
+      const teamMember = await ctx.db
+        .query("teamMembers")
+        .withIndex("byUserId", (q) => q.eq("userId", identity.subject))
+        .first();
+      if (teamMember) {
+        userRole = teamMember.role || null;
+        if (!activeOrganizationId) activeOrganizationId = teamMember.organizationId;
+        console.log(`[getCurrentUser] Found role ${userRole} from teamMembers fallback`);
+      }
+    }
+
+    // Better Auth user data takes precedence since we update it directly
     return {
       // Include all Better Auth fields first
       ...userMetadata,
@@ -319,7 +380,7 @@ export const updateActiveTeam = mutation({
   },
   handler: async (ctx, { teamId }) => {
     console.log(`[TEAM-SWITCH] Starting team switch process for teamId: ${teamId}`);
-    
+
     // Get the Better Auth user identity first to get the correct user ID
     const identity = await ctx.auth.getUserIdentity();
     if (!identity || !identity.subject) {
@@ -400,7 +461,7 @@ export const updateActiveTeam = mutation({
       }
 
       const userRole = member?.role || (convexUser.activeUnitId ? "nurse" : undefined);
-      
+
       // For nurses and care assistants, set activeUnitId and activeCareHomeId
       if (userRole === "nurse" || userRole === "care_assistant" || convexUser.activeUnitId) {
         updateData.activeUnitId = unit._id;
@@ -477,7 +538,7 @@ export const updateActiveTeam = mutation({
     // If already in team, update the role if it's missing or incorrect
     // Role is optional in the schema, but we want to ensure it's set correctly
     const teamMemberRole = member?.role || undefined;
-    
+
     if (!existingTeamMember) {
       console.log(`[TEAM-SWITCH] Adding user to teamMembers table:`, {
         userId: betterAuthUserId,
@@ -487,7 +548,7 @@ export const updateActiveTeam = mutation({
         isOnboardingComplete: isOnboardingComplete || false,
         previousTeam: previousTeamId || 'none'
       });
-      
+
       await ctx.db.insert("teamMembers", {
         userId: betterAuthUserId, // Use Better Auth user ID (identity.subject)
         teamId: teamId,
@@ -497,7 +558,7 @@ export const updateActiveTeam = mutation({
         createdAt: Date.now(),
         createdBy: betterAuthUserId
       });
-      
+
       console.log(`[TEAM-SWITCH] ✓ Successfully added user ${betterAuthUserId} (${identity.email}) to team ${teamId}`);
     } else {
       // User is already in team - update role and email if they're missing or incorrect
@@ -505,7 +566,7 @@ export const updateActiveTeam = mutation({
       const currentEmail = existingTeamMember.email;
       const needsRoleUpdate = (!currentRole || currentRole === "unknown" || currentRole === "") && teamMemberRole;
       const needsEmailUpdate = !currentEmail && identity.email;
-      
+
       if (needsRoleUpdate || needsEmailUpdate) {
         const updates: { role?: string; email?: string } = {};
         if (needsRoleUpdate) {
@@ -514,7 +575,7 @@ export const updateActiveTeam = mutation({
         if (needsEmailUpdate) {
           updates.email = identity.email;
         }
-        
+
         console.log(`[TEAM-SWITCH] Updating existing teamMembers entry:`, {
           userId: betterAuthUserId,
           email: identity.email,
@@ -525,9 +586,9 @@ export const updateActiveTeam = mutation({
           newEmail: identity.email,
           updates
         });
-        
+
         await ctx.db.patch(existingTeamMember._id, updates);
-        
+
         console.log(`[TEAM-SWITCH] ✓ Successfully updated teamMembers entry for user ${betterAuthUserId} in team ${teamId}`);
       } else {
         // Even if no updates needed, log the current state for debugging
@@ -540,14 +601,14 @@ export const updateActiveTeam = mutation({
         });
       }
     }
-    
+
     // Special logging for nurses and care assistants
     if (userRole === "nurse" || userRole === "care_assistant") {
       console.log(`[TEAM-SWITCH] ⚠ Nurse/Care Assistant team switch - Manager visibility:`, {
         role: userRole,
         isOnboardingComplete: isOnboardingComplete || false,
         willBeVisible: isOnboardingComplete === true,
-        message: isOnboardingComplete === true 
+        message: isOnboardingComplete === true
           ? "Manager in new team will see this staff member"
           : "Manager in new team will NOT see this staff member (onboarding incomplete)"
       });
@@ -740,14 +801,14 @@ export const getCurrentUserOrganization = query({
   ),
   handler: async (ctx) => {
     console.log('[getCurrentUserOrganization] Starting query');
-    
+
     const userIdentity = await ctx.auth.getUserIdentity();
     console.log('[getCurrentUserOrganization] User identity:', {
       hasIdentity: !!userIdentity,
       hasSubject: !!userIdentity?.subject,
       subject: userIdentity?.subject || null
     });
-    
+
     if (!userIdentity || !userIdentity.subject) {
       console.log('[getCurrentUserOrganization] No user identity or subject');
       return null;
@@ -779,7 +840,7 @@ export const getCurrentUserOrganization = query({
       memberOrgId: member.organizationId,
       memberRole: member.role
     });
-    
+
     // Get organization details first (don't check active status during onboarding)
     const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
       model: "organization",
@@ -853,7 +914,7 @@ export const setActiveOrganization = mutation({
     if (!userMetadata.email) {
       throw new Error("User email not found");
     }
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("byEmail", (q) => q.eq("email", userMetadata.email))
@@ -897,7 +958,7 @@ export const getOrganizationFromAcceptedInvitations = query({
   ),
   handler: async (ctx) => {
     console.log('[getOrganizationFromAcceptedInvitations] Starting query');
-    
+
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.email) {
       console.log('[getOrganizationFromAcceptedInvitations] No user identity or email');
@@ -908,7 +969,7 @@ export const getOrganizationFromAcceptedInvitations = query({
 
     // Find accepted invitations for this user's email (try Convex table first)
     let organizationId: string | null = null;
-    
+
     const convexInvitations = await ctx.db
       .query("invitations")
       .withIndex("by_email", (q) => q.eq("email", userEmail))
@@ -1008,7 +1069,7 @@ export const ensureAndSetActiveOrganization = mutation({
   ),
   handler: async (ctx) => {
     console.log('[ensureAndSetActiveOrganization] Starting mutation');
-    
+
     const userIdentity = await ctx.auth.getUserIdentity();
     if (!userIdentity || !userIdentity.subject) {
       console.log('[ensureAndSetActiveOrganization] No user identity');
@@ -1025,7 +1086,7 @@ export const ensureAndSetActiveOrganization = mutation({
       const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);
       if (session?.activeOrganizationId) {
         console.log('[ensureAndSetActiveOrganization] Session already has activeOrganizationId:', session.activeOrganizationId);
-        
+
         // Verify the organization exists
         const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
           model: "organization",
@@ -1071,7 +1132,7 @@ export const ensureAndSetActiveOrganization = mutation({
     if (members?.page && members.page.length > 0) {
       const member = members.page[0];
       console.log('[ensureAndSetActiveOrganization] Using member orgId:', member.organizationId);
-      
+
       // Get organization details
       const org = await ctx.runQuery(components.betterAuth.lib.findOne, {
         model: "organization",
@@ -1121,13 +1182,13 @@ export const ensureAndSetActiveOrganization = mutation({
     // If we get here, member record still doesn't exist after retries
     // Try fallback: get organization from accepted invitations (both Convex and Better Auth)
     console.log('[ensureAndSetActiveOrganization] Member record not found after retries, trying invitation fallback');
-    
+
     if (userIdentity.email) {
       const userEmail = userIdentity.email; // Store in variable for type narrowing
-      
+
       // First, try Convex invitations table (accepted)
       let organizationId: string | null = null;
-      
+
       const convexInvitations = await ctx.db
         .query("invitations")
         .withIndex("by_email", (q) => q.eq("email", userEmail))
@@ -1190,14 +1251,14 @@ export const ensureAndSetActiveOrganization = mutation({
 
         if (org) {
           console.log('[ensureAndSetActiveOrganization] Found organization:', org.name);
-          
+
           // Better Auth might return id or _id, handle both cases
           const orgId = org.id || org._id || organizationId;
           if (!orgId || typeof orgId !== 'string') {
             console.error('[ensureAndSetActiveOrganization] Organization has invalid id field:', { org, organizationId });
             return null;
           }
-          
+
           // Set as active organization in session
           try {
             const session = await ctx.runQuery(components.betterAuth.lib.getCurrentSession);

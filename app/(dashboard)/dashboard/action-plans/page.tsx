@@ -43,7 +43,8 @@ type ActionPlanStatus = "pending" | "in_progress" | "completed";
 export default function MyActionPlansPage() {
   const { data: session } = authClient.useSession();
   const userEmail = session?.user?.email || "";
-  const { activeOrganizationId } = useActiveTeam();
+  const { activeOrganizationId, role } = useActiveTeam();
+  const isOwner = role === "owner" || role === "saas_admin";
 
   // State
   const [selectedActionPlan, setSelectedActionPlan] = useState<any>(null);
@@ -95,6 +96,50 @@ export default function MyActionPlansPage() {
     userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
   );
 
+  // Get GOVERNANCE audit action plans created by user
+  const createdGovernanceActionPlans = useQuery(
+    api.governanceAuditActionPlans.getCreatedActionPlans,
+    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
+  );
+
+  // Get CLINICAL audit action plans created by user
+  const createdClinicalActionPlans = useQuery(
+    api.clinicalAuditActionPlans.getCreatedActionPlans,
+    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
+  );
+
+  // Get ENVIRONMENT audit action plans created by user
+  const createdEnvironmentActionPlans = useQuery(
+    api.environmentAuditActionPlans.getCreatedActionPlans,
+    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
+  );
+
+  // Get all action plans for the organization (for Owners)
+  const orgResidentActionPlans = useQuery(
+    api.auditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgCareFileActionPlans = useQuery(
+    api.careFileAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgGovernanceActionPlans = useQuery(
+    api.governanceAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgClinicalActionPlans = useQuery(
+    api.clinicalAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
+  const orgEnvironmentActionPlans = useQuery(
+    api.environmentAuditActionPlans.getOrgActionPlans,
+    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
+  );
+
   // Merge all lists and remove duplicates
   const allActionPlans = React.useMemo(() => {
     const residentAssigned = assignedActionPlans || [];
@@ -102,8 +147,11 @@ export default function MyActionPlansPage() {
     const careFileAssigned = assignedCareFileActionPlans || [];
     const careFileCreated = createdCareFileActionPlans || [];
     const governanceAssigned = assignedGovernanceActionPlans || [];
+    const governanceCreated = createdGovernanceActionPlans || [];
     const clinicalAssigned = assignedClinicalActionPlans || [];
+    const clinicalCreated = createdClinicalActionPlans || [];
     const environmentAssigned = assignedEnvironmentActionPlans || [];
+    const environmentCreated = createdEnvironmentActionPlans || [];
 
     // Combine all arrays
     const combined = [
@@ -112,8 +160,16 @@ export default function MyActionPlansPage() {
       ...careFileAssigned,
       ...careFileCreated,
       ...governanceAssigned,
+      ...governanceCreated,
       ...clinicalAssigned,
+      ...clinicalCreated,
       ...environmentAssigned,
+      ...environmentCreated,
+      ...(orgResidentActionPlans || []),
+      ...(orgCareFileActionPlans || []),
+      ...(orgGovernanceActionPlans || []),
+      ...(orgClinicalActionPlans || []),
+      ...(orgEnvironmentActionPlans || []),
     ];
 
     // Remove duplicates by _id
@@ -122,7 +178,16 @@ export default function MyActionPlansPage() {
     );
 
     return uniquePlans;
-  }, [assignedActionPlans, createdActionPlans, assignedCareFileActionPlans, createdCareFileActionPlans, assignedGovernanceActionPlans, assignedClinicalActionPlans, assignedEnvironmentActionPlans]);
+  }, [
+    assignedActionPlans, createdActionPlans,
+    assignedCareFileActionPlans, createdCareFileActionPlans,
+    assignedGovernanceActionPlans, createdGovernanceActionPlans,
+    assignedClinicalActionPlans, createdClinicalActionPlans,
+    assignedEnvironmentActionPlans, createdEnvironmentActionPlans,
+    orgResidentActionPlans, orgCareFileActionPlans,
+    orgGovernanceActionPlans, orgClinicalActionPlans,
+    orgEnvironmentActionPlans
+  ]);
 
   // Check if user has created any action plans (they're a manager/creator)
   const hasCreatedPlans = (createdActionPlans?.length || 0) > 0 || (createdCareFileActionPlans?.length || 0) > 0;
@@ -408,9 +473,8 @@ export default function MyActionPlansPage() {
             {pendingPlans.map((plan) => (
               <div
                 key={plan._id}
-                className={`border rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950 ${
-                  isOverdue(plan) ? "border-l-4 border-l-red-500" : "border-gray-200 dark:border-gray-800"
-                }`}
+                className={`border rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950 ${isOverdue(plan) ? "border-l-4 border-l-red-500" : "border-gray-200 dark:border-gray-800"
+                  }`}
                 onClick={() => handleActionPlanClick(plan)}
               >
                 <div className="flex items-center justify-between gap-2">

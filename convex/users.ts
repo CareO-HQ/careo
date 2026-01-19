@@ -69,7 +69,7 @@ export const getCurrentUserContext = query({
       },
       role: resolvedRole,
       team,
-      organization
+      organization: organization || (resolved.organizationId ? { id: resolved.organizationId, name: resolved.organizationId } : null)
     };
   },
 });

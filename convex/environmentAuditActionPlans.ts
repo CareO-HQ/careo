@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { resolveUser, ROLES } from "./lib/rbac";
 
 // Get action plans for a specific audit response
 export const getActionPlansByAudit = query({
@@ -15,11 +16,77 @@ export const getActionPlansByAudit = query({
       )
       .collect();
 
-    return actionPlans;
+    // Enrich with template data
+    const enrichedPlans = await Promise.all(
+      actionPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Environment Audit",
+          auditCategory: "environment",
+        };
+      })
+    );
+
+    return enrichedPlans;
   },
 });
 
 // Get action plans assigned to a user
+// Get all action plans for an organization (for Owners/SaaS Admins)
+export const getOrgActionPlans = query({
+  args: {
+    organizationId: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // RBAC check: Only Owners and SaaS Admins can see all organization plans
+    const { role, organizationId: userOrgId } = await resolveUser(ctx);
+
+    if (role !== "owner" && role !== "saas_admin") {
+      return [];
+    }
+
+    if (role === "owner" && args.organizationId !== userOrgId) {
+      return [];
+    }
+
+    const actionPlans = await ctx.db
+      .query("environmentAuditActionPlans")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Environment Audit",
+          auditCategory: "environment",
+        };
+      })
+    );
+
+    return enrichedPlans;
+  },
+});
+
 export const getActionPlansByAssignee = query({
   args: {
     assignedTo: v.string(),
@@ -32,7 +99,87 @@ export const getActionPlansByAssignee = query({
       .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
       .collect();
 
-    return actionPlans;
+    // Enrich with template data
+    const enrichedPlans = await Promise.all(
+      actionPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Environment Audit",
+          auditCategory: "environment",
+        };
+      })
+    );
+
+    return enrichedPlans;
+  },
+});
+
+// Get action plans created by a user (for managers)
+export const getCreatedActionPlans = query({
+  args: {
+    createdBy: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("in_progress"),
+        v.literal("completed"),
+        v.literal("all")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Get all action plans created by this user
+    // We don't enforce strict role check here to ensure creators can always see their plans
+    const allPlans = await ctx.db
+      .query("environmentAuditActionPlans")
+      .collect();
+
+    const actionPlans = allPlans.filter((plan) => plan.createdBy === args.createdBy);
+
+    // Filter by status if specified
+    const filteredPlans =
+      args.status && args.status !== "all"
+        ? actionPlans.filter((plan) => plan.status === args.status)
+        : actionPlans;
+
+    // Enrich with template data
+    const enrichedPlans = await Promise.all(
+      filteredPlans.map(async (plan) => {
+        const template = await ctx.db.get(plan.templateId);
+
+        return {
+          ...plan,
+          templateName: template?.name || "Unknown Environment Audit",
+          auditCategory: "environment",
+        };
+      })
+    );
+
+    // Sort by due date (overdue first, then by priority)
+    return enrichedPlans.sort((a, b) => {
+      const now = Date.now();
+      const aOverdue = a.dueDate && a.dueDate < now && a.status !== "completed";
+      const bOverdue = b.dueDate && b.dueDate < now && b.status !== "completed";
+
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+
+      // Then by priority
+      const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
+      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
+
+      if (aPriority !== bPriority) return aPriority - bPriority;
+
+      // Then by due date
+      if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+
+      return b.createdAt - a.createdAt; // Newest first
+    });
   },
 });
 
@@ -110,6 +257,36 @@ export const updateActionPlanStatus = mutation({
       completedAt: status === "completed" ? Date.now() : undefined,
       updatedAt: Date.now(),
     });
+
+    // Notify the manager who created the action plan
+    // Only if the updater is NOT the creator
+    if (actionPlan.createdBy !== updatedBy) {
+      const template = await ctx.db.get(actionPlan.templateId);
+
+      await ctx.db.insert("notifications", {
+        userId: actionPlan.createdBy,
+        senderId: updatedBy,
+        senderName: updatedByName,
+        type: "action_plan_status_updated",
+        title: "Action Plan Status Updated",
+        message: `${updatedByName || "An assignee"} updated the action plan status to "${status}" for environment audit "${template?.name || "audit"}": "${actionPlan.description}"${comment ? `\n\nComment: ${comment}` : ""}`,
+        link: `/dashboard/careo-audit/environment/${actionPlan.auditResponseId}/view`,
+        metadata: {
+          actionPlanId: actionPlanId,
+          auditId: actionPlan.auditResponseId,
+          templateId: actionPlan.templateId,
+          oldStatus: actionPlan.status,
+          newStatus: status,
+          comment: comment,
+          priority: actionPlan.priority,
+          auditCategory: "environment",
+        },
+        isRead: false,
+        organizationId: actionPlan.organizationId,
+        teamId: actionPlan.organizationId, // These audits are organization-level, so use orgId as teamId
+        createdAt: Date.now(),
+      });
+    }
 
     return actionPlanId;
   },
