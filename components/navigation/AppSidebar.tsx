@@ -47,6 +47,7 @@ import {
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
 import HelpSupportDialog from "./HelpSupportDialog";
+import { LogoutButton } from "../auth/LogoutButton";
 
 export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
@@ -61,10 +62,10 @@ export function AppSidebar() {
   // During loading, currentUser is undefined, so we need to handle that case
   const userRole = currentUser === undefined
     ? undefined // Still loading
-    : isSaasAdmin 
-      ? "saas_admin" 
+    : isSaasAdmin
+      ? "saas_admin"
       : (activeMember?.role as string | undefined) || (currentUser as any)?.role || undefined;
-  
+
   // Debug logging to help diagnose issues
   if (typeof window !== 'undefined') {
     console.log('[AppSidebar] State check:', {
@@ -82,7 +83,7 @@ export function AppSidebar() {
       activeOrgData: activeOrg.data
     });
   }
-  
+
   // Get active care home
   const currentUserContext = useQuery(api.users.getCurrentUserContext);
   const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
@@ -92,7 +93,7 @@ export function AppSidebar() {
     {}
   );
   // No-op: previously used for debug logging
-  
+
   // Use care home name if available, otherwise fall back to organization name
   const displayName = activeCareHome?.name || activeOrg.data?.name || "";
 
@@ -104,7 +105,7 @@ export function AppSidebar() {
   // This handles the case where role might be temporarily unavailable but user is authenticated
   const isAuthenticated = !!user;
   const isStillLoading = currentUser === undefined || (isActiveMemberPending && !activeMember);
-  
+
   // If we have organizationId but no role, assume owner role (common after onboarding)
   // This prevents empty sidebar while role is being resolved
   const effectiveRole = userRole || (activeOrganizationId && !isStillLoading ? "owner" : undefined);
@@ -266,7 +267,7 @@ export function AppSidebar() {
                       </Badge>
                     )}
                   </Link>
-              </SidebarMenuButton>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             )}
 
@@ -285,7 +286,7 @@ export function AppSidebar() {
                       </Badge>
                     )}
                   </Link>
-              </SidebarMenuButton>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             )}
 
@@ -304,7 +305,7 @@ export function AppSidebar() {
                       </Badge>
                     )}
                   </Link>
-              </SidebarMenuButton>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             )}
 
@@ -323,7 +324,7 @@ export function AppSidebar() {
                       </Badge>
                     )}
                   </Link>
-              </SidebarMenuButton>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             )}
           </SidebarGroupContent>
@@ -365,6 +366,9 @@ export function AppSidebar() {
             <span>Help and Support</span>
           </SidebarMenuButton>
         </HelpSupportDialog>
+        <SidebarMenuItem className="list-none mt-2">
+          <LogoutButton />
+        </SidebarMenuItem>
       </SidebarFooter>
     </Sidebar>
   );

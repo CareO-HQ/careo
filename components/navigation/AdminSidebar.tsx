@@ -16,11 +16,13 @@ import {
   HomeIcon,
   Building2,
   UserCheck,
-  BarChart3
+  BarChart3,
+  Shield
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import HelpSupportDialog from "./HelpSupportDialog";
+import { LogoutButton } from "../auth/LogoutButton";
 
 export function AdminSidebar() {
   const { data: session } = authClient.useSession();
@@ -90,6 +92,19 @@ export function AdminSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+
+            {/* SaaS Admins */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === "/admin/admins"}
+              >
+                <Link href="/admin/admins">
+                  <Shield />
+                  <span>SaaS Admins</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -114,6 +129,9 @@ export function AdminSidebar() {
             <span>Help and Support</span>
           </SidebarMenuButton>
         </HelpSupportDialog>
+        <SidebarMenuItem className="list-none mt-2">
+          <LogoutButton />
+        </SidebarMenuItem>
       </SidebarFooter>
     </Sidebar>
   );

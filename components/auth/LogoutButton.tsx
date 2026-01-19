@@ -29,10 +29,14 @@ export function LogoutButton({
             await authClient.signOut({
                 fetchOptions: {
                     onSuccess: () => {
+                        // Clear any local storage if needed (Best Practice)
+                        // localStorage.clear(); // Use with caution, maybe only clear specific keys
+
                         // Invalidate router cache to ensure fresh state
                         router.refresh();
-                        // Client-side navigation
-                        router.push(redirectUrl as any);
+                        // Force a hard redirect for absolute safety in some cases, 
+                        // but push is usually enough for SPA state clearing
+                        window.location.href = redirectUrl;
                     },
                 },
             });
@@ -47,7 +51,7 @@ export function LogoutButton({
         <Button
             variant={variant}
             size="sm"
-            className={cn("gap-2", className)}
+            className={cn("gap-2 w-full justify-start", className)}
             onClick={handleLogout}
             disabled={isLoading}
             aria-label="Log out"
