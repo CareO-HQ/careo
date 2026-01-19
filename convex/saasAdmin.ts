@@ -1892,3 +1892,132 @@ export const updateOwnerDetail = mutation({
     return { success: true };
   }
 });
+
+/**
+ * Get all SaaS Admins
+ */
+export const getAllSaasAdmins = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("users"),
+      email: v.string(),
+      name: v.optional(v.string()),
+      _creationTime: v.number(),
+    })
+  ),
+  handler: async (ctx) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      return [];
+    }
+
+    const currentAdmin = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!currentAdmin || currentAdmin.isSaasAdmin !== true) {
+      return [];
+    }
+
+    const admins = await ctx.db
+      .query("users")
+      .withIndex("bySaasAdmin", (q) => q.eq("isSaasAdmin", true))
+      .collect();
+
+    return admins.map(admin => ({
+      _id: admin._id,
+      email: admin.email,
+      name: admin.name,
+      _creationTime: admin._creationTime,
+    }));
+  }
+});
+
+/**
+ * Add a new SaaS Admin by email
+ */
+export const addSaasAdmin = mutation({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const currentAdmin = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!currentAdmin || currentAdmin.isSaasAdmin !== true) {
+      throw new Error("Only SaaS Admin can perform this action");
+    }
+
+    // Find the user by email
+    const targetUser = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!targetUser) {
+      throw new Error("User not found. They must sign in at least once before being promoted.");
+    }
+
+    if (targetUser.isSaasAdmin) {
+      return { success: true, message: "User is already a SaaS Admin" };
+    }
+
+    await ctx.db.patch(targetUser._id, {
+      isSaasAdmin: true,
+    });
+
+    return { success: true };
+  }
+});
+
+/**
+ * Remove SaaS Admin status
+ */
+export const removeSaasAdmin = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is SaaS Admin
+    const userIdentity = await ctx.auth.getUserIdentity();
+    if (!userIdentity || !userIdentity.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const currentAdmin = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", userIdentity.email as string))
+      .first();
+
+    if (!currentAdmin || currentAdmin.isSaasAdmin !== true) {
+      throw new Error("Only SaaS Admin can perform this action");
+    }
+
+    // Prevent removing the last admin
+    const admins = await ctx.db
+      .query("users")
+      .withIndex("bySaasAdmin", (q) => q.eq("isSaasAdmin", true))
+      .collect();
+
+    if (admins.length <= 1 && admins[0]._id === args.userId) {
+      throw new Error("Cannot remove the last SaaS Admin to prevent lockout.");
+    }
+
+    await ctx.db.patch(args.userId, {
+      isSaasAdmin: false,
+    });
+
+    return { success: true };
+  }
+});
