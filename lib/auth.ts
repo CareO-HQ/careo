@@ -79,7 +79,7 @@ export const createAuth = (ctx: GenericCtx) =>
       sendResetPassword: async ({ user, url }) => {
         console.log("sendResetPassword", user.email, url);
         await resend.emails.send({
-          from: "Careo <care@careo.uk>",
+          from: "CareO <care@careo.uk>",
           to: [user.email],
           subject: "Reset your password",
           html: `
@@ -98,7 +98,7 @@ export const createAuth = (ctx: GenericCtx) =>
         otpOptions: {
           async sendOTP({ user, otp }) {
             await resend.emails.send({
-              from: "Careo <care@careo.uk>",
+              from: "CareO <care@careo.uk>",
               to: [user.email],
               subject: "Your Careo 2FA code",
               html: `
@@ -127,7 +127,7 @@ export const createAuth = (ctx: GenericCtx) =>
 
           try {
             await resend.emails.send({
-              from: "Careo <care@careo.uk>",
+              from: "CareO <care@careo.uk>",
               to: [data.email],
               subject: "You've been invited to join a team",
               html: `
