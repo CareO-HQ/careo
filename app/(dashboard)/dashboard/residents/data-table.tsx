@@ -34,6 +34,10 @@ import {
 } from "@/components/ui/dialog";
 import { Dialog } from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { canCreateResident } from "@/lib/permissions";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -46,6 +50,15 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
+  const { data: activeMember } = authClient.useActiveMember();
+  const currentUser = useQuery(api.auth.getCurrentUser);
+  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
+  const userRole = currentUser === undefined
+    ? undefined
+    : isSaasAdmin
+      ? "saas_admin"
+      : (activeMember?.role as string | undefined) || (currentUser as any)?.role || undefined;
+
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
@@ -125,21 +138,23 @@ export function DataTable<TData, TValue>({
             {table.getFilteredRowModel().rows.length} of{" "}
             {table.getCoreRowModel().rows.length} resident(s)
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline">Add Resident</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Resident Profile</DialogTitle>
-                <DialogDescription>
-                  Enter the resident’s personal information and relevant care
-                  details to create their profile.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateResidentForm />
-            </DialogContent>
-          </Dialog>
+          {canCreateResident(userRole) && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline">Add Resident</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Resident Profile</DialogTitle>
+                  <DialogDescription>
+                    Enter the resident’s personal information and relevant care
+                    details to create their profile.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateResidentForm />
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 

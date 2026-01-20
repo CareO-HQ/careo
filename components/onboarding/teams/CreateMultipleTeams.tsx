@@ -13,7 +13,7 @@ import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { CreateMultipleTeamsSchema } from "@/schemas/CreateMultipleTeamsSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -34,6 +34,8 @@ export default function CreateMultipleTeams({
   const setIsOnboardingCompleted = useMutation(
     api.user.setIsOnboardingCompleted
   );
+  const existingTeams = useQuery(api.auth.getTeamsForCurrentUser) || [];
+  const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
 
   const form = useForm<z.infer<typeof CreateMultipleTeamsSchema>>({
     resolver: zodResolver(CreateMultipleTeamsSchema),
@@ -59,11 +61,29 @@ export default function CreateMultipleTeams({
           teams: teamsWithNames
         };
 
-        let successCount = 0;
+        let createdCount = 0;
+        let existingCount = 0;
         let errorCount = 0;
 
         for (const team of finalData.teams) {
           if (!team?.name) continue;
+
+          // Check if team already exists in the fetched list
+          const existingTeam = existingTeams.find(
+            (t: any) => t.name.toLowerCase() === team.name.toLowerCase()
+          );
+
+          if (existingTeam) {
+            toast.info(`Team "${team.name}" already exists`);
+            try {
+              await updateActiveTeam({ teamId: existingTeam.id });
+            } catch (e) {
+              console.error("Failed to set active team:", e);
+            }
+            existingCount++;
+            continue;
+          }
+
           try {
             const { error } = await authClient.organization.createTeam({
               name: team.name,
@@ -71,20 +91,38 @@ export default function CreateMultipleTeams({
             });
 
             if (!error) {
-              successCount++;
+              createdCount++;
+            } else {
+              // Check if team already exists (fallback if not in list yet)
+              if (
+                error.message?.toLowerCase().includes("exist") ||
+                error.code === "TEAM_EXISTS"
+              ) {
+                toast.info(`Team "${team.name}" already exists`);
+                // Treat as success for the purpose of onboarding flow
+                existingCount++;
+              } else {
+                errorCount++;
+                console.error("Error creating team:", error);
+              }
+            }
+          } catch (error: any) {
+            if (
+              error?.message?.toLowerCase().includes("exist") ||
+              error?.code === "TEAM_EXISTS"
+            ) {
+              toast.info(`Team "${team.name}" already exists`);
+              existingCount++;
             } else {
               errorCount++;
               console.error("Error creating team:", error);
             }
-          } catch (error) {
-            errorCount++;
-            console.error("Error creating team:", error);
           }
         }
 
-        if (successCount > 0) {
+        if (createdCount > 0) {
           toast.success(
-            `${successCount} team${successCount > 1 ? "s" : ""} created successfully`
+            `${createdCount} team${createdCount > 1 ? "s" : ""} created successfully`
           );
         }
 

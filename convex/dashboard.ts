@@ -10,6 +10,27 @@ import { Id } from "./_generated/dataModel";
 export const getDashboardStatsByTeam = query({
   args: { teamId: v.string() },
   handler: async (ctx, args) => {
+    // Get the team details to find organizationId
+    const teamResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "team",
+      where: [{ field: "id", value: args.teamId }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 100
+      }
+    });
+    const team = teamResult?.page[0];
+    if (!team?.organizationId) {
+      return {
+        totalResidents: 0,
+        totalStaff: 0,
+        totalUnits: 0,
+        latestIncidents: [],
+        upcomingAppointments: [],
+        recentHospitalTransfers: [],
+      };
+    }
+
     // Get total residents for this team
     const residents = await ctx.db
       .query("residents")
@@ -18,10 +39,16 @@ export const getDashboardStatsByTeam = query({
       .collect();
 
     // Get total team members
-    const teamMembers = await ctx.db
+    let teamMembers = await ctx.db
       .query("teamMembers")
       .withIndex("byTeamId", (q) => q.eq("teamId", args.teamId))
       .collect();
+
+    // Filter out SaaS Admin and Owner roles from the count
+    teamMembers = teamMembers.filter((tm: any) => {
+      const role = tm.role?.toLowerCase();
+      return role !== "saas_admin" && role !== "owner";
+    });
 
     // Get latest 5 incidents for this team
     const allIncidents = await ctx.db
@@ -126,10 +153,35 @@ export const getDashboardStatsByTeam = query({
       })
     );
 
+    // Calculate total units - same logic as organization dashboard
+    let totalUnits = 0;
+
+    // Get organization details to check name
+    const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "organization",
+      where: [{ field: "id", value: team.organizationId }]
+    });
+
+    // Get all teams for this organization
+    const teamsResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "team",
+      where: [{ field: "organizationId", value: team.organizationId }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 100
+      }
+    });
+    
+    const allTeams = teamsResult?.page || [];
+
+    // Count all valid teams (excluding the one matching org name)
+    const validTeams = allTeams.filter((t: any) => t.name !== organization?.name);
+    totalUnits = validTeams.length;
+
     return {
       totalResidents: residents.length,
-      totalStaff: teamMembers.length,
-      totalUnits: 1, // Single team
+      totalStaff: new Set(teamMembers.map(tm => tm.userId)).size, // Count unique users, not memberships
+      totalUnits: totalUnits,
       latestIncidents: incidentsWithResident,
       upcomingAppointments: appointmentsWithResident,
       recentHospitalTransfers: transfersWithResident,
@@ -201,6 +253,8 @@ export const getDashboardStatsByOrganization = query({
       .filter((q) => q.neq(q.field("isActive"), false))
       .collect();
     
+    console.log(`[Dashboard] Found ${residents.length} residents for org ${args.organizationId}`);
+
     // Apply care home filter for Manager and Owner (only if role is set)
     if (targetCareHomeId && role && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
       // Get all units in this care home
@@ -219,6 +273,14 @@ export const getDashboardStatsByOrganization = query({
       .withIndex("byOrganization", (q) => q.eq("organizationId", args.organizationId))
       .collect();
     
+    console.log(`[Dashboard] Found ${teamMembers.length} team members for org ${args.organizationId}`);
+
+    // Filter out SaaS Admin and Owner roles from the count
+    teamMembers = teamMembers.filter((tm: any) => {
+      const role = tm.role?.toLowerCase();
+      return role !== "saas_admin" && role !== "owner";
+    });
+
     // Apply care home filter for Manager and Owner (only if role is set)
     if (targetCareHomeId && role && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
       // Get all units in this care home
@@ -231,30 +293,49 @@ export const getDashboardStatsByOrganization = query({
       teamMembers = teamMembers.filter((tm: any) => teamIds.has(tm.teamId));
     }
 
-    // Get total units - filter by care home if specified
+    // Get total units - count teams in organization, excluding the one matching org name
     let totalUnits = 0;
 
-    if (targetCareHomeId && role && (role === ROLES.MANAGER || role === ROLES.OWNER)) {
-      // Count units in this care home
+    // Get organization details to check name
+    const organization = await ctx.runQuery(components.betterAuth.lib.findOne, {
+      model: "organization",
+      where: [{ field: "id", value: args.organizationId }]
+    });
+
+    // Get all teams for this organization
+    const teamsResult = await ctx.runQuery(components.betterAuth.lib.findMany, {
+      model: "team",
+      where: [{ field: "organizationId", value: args.organizationId }],
+      paginationOpts: {
+        cursor: null,
+        numItems: 100
+      }
+    });
+    
+    const allTeams = teamsResult?.page || [];
+
+    if (targetCareHomeId) {
+      // If we have a specific care home, count its units
+      // First get units associated with this care home
       const units = await ctx.db
         .query("units")
         .withIndex("by_careHomeId", (q) => q.eq("careHomeId", targetCareHomeId!))
         .collect();
-      totalUnits = units.length;
+      
+      // Get the team IDs for these units
+      const teamIds = new Set(units.map(u => u.teamId));
+      
+      // Filter teams that belong to this care home AND don't match org name
+      const validTeams = allTeams.filter((t: any) => 
+        teamIds.has(t.id || t._id) && 
+        t.name !== organization?.name
+      );
+      
+      totalUnits = validTeams.length;
     } else {
-      // Count all units in organization
-      try {
-        const units = await ctx.db
-          .query("units")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
-          .collect();
-        totalUnits = units.length;
-      } catch (error) {
-        console.error("Error fetching units:", error);
-        // Fallback to counting unique teams from teamMembers
-        const uniqueTeams = new Set(teamMembers.map((member: any) => member.teamId));
-        totalUnits = uniqueTeams.size;
-      }
+      // Otherwise count all teams in the organization, excluding the one matching org name
+      const validTeams = allTeams.filter((t: any) => t.name !== organization?.name);
+      totalUnits = validTeams.length;
     }
 
     // Get latest 5 incidents for this organization
@@ -362,7 +443,7 @@ export const getDashboardStatsByOrganization = query({
 
     return {
       totalResidents: residents.length,
-      totalStaff: teamMembers.length,
+      totalStaff: new Set(teamMembers.map(tm => tm.userId)).size, // Count unique users, not memberships
       totalUnits: totalUnits,
       latestIncidents: incidentsWithResident,
       upcomingAppointments: appointmentsWithResident,
