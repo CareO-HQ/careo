@@ -31,7 +31,7 @@ function SignupContent() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push("/onboarding");
     }
   }, [session, isPending, router, searchParams]);
 
@@ -55,7 +55,7 @@ function SignupContent() {
 
   return (
 
-<div className="grid lg:grid-cols-2 min-h-screen w-full relative">
+    <div className="grid lg:grid-cols-2 min-h-screen w-full relative">
       {/* Helpline Button - Fixed Top Right */}
       <div className="fixed top-4 right-4 z-50">
         <Link href="https://wa.me/447741068115" target="_blank" rel="noopener noreferrer">

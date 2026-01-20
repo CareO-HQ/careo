@@ -63,7 +63,7 @@ export default function DashboardPage() {
 
   // Check if we have team/organization context first (before checking loading)
   const hasTeamOrOrgContext = activeTeamId || activeOrganizationId;
-  
+
   // Only consider data loading if we actually have a team/org to query
   const isDataLoading = hasTeamOrOrgContext && dashboardData === undefined;
   const isLoading = isTeamLoading || isDataLoading;
@@ -329,7 +329,7 @@ export default function DashboardPage() {
           </div>
 
           {dashboardData?.recentHospitalTransfers &&
-          dashboardData.recentHospitalTransfers.length > 0 ? (
+            dashboardData.recentHospitalTransfers.length > 0 ? (
             <div className="overflow-hidden">
               <Table>
                 <TableHeader>
