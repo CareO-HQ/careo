@@ -53,6 +53,15 @@ export function canViewSidebarResidents(role?: string): boolean {
   );
 }
 
+export function canCreateResident(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "admin"
+  );
+}
+
 export function canViewSidebarStaff(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "admin";
 }

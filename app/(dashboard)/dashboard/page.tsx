@@ -35,6 +35,9 @@ export default function DashboardPage() {
     isLoading: isTeamLoading,
   } = useActiveTeam();
 
+  // Fetch current user context
+  const currentUser = useQuery(api.users.getCurrentUserContext);
+
   // Fetch dashboard data based on team or organization
   const teamDashboardData = useQuery(
     api.dashboard.getDashboardStatsByTeam,
@@ -48,6 +51,15 @@ export default function DashboardPage() {
 
   // Use team data if available, otherwise use organization data
   const dashboardData = activeTeamId ? teamDashboardData : organizationDashboardData;
+
+  console.log("Dashboard Debug:", {
+    activeTeamId,
+    activeOrganizationId,
+    teamDashboardData,
+    organizationDashboardData,
+    dashboardData,
+    currentUser
+  });
 
   // Check if we have team/organization context first (before checking loading)
   const hasTeamOrOrgContext = activeTeamId || activeOrganizationId;
@@ -120,7 +132,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-medium">Welcome, David</h1>
+          <h1 className="text-2xl font-medium">Welcome, {currentUser?.user?.name || "User"}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
         </div>
         <Button
@@ -140,7 +152,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-0.5">Total Residents</p>
-              <h2 className="text-xl font-semibold">45</h2>
+              <h2 className="text-xl font-semibold">{dashboardData?.totalResidents || 0}</h2>
             </div>
             <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <Users className="h-3 w-3 text-green-600 dark:text-green-400" />
@@ -153,7 +165,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-0.5">Total Staff</p>
-              <h2 className="text-xl font-semibold">20</h2>
+              <h2 className="text-xl font-semibold">{dashboardData?.totalStaff || 0}</h2>
             </div>
             <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <Users className="h-3 w-3 text-green-600 dark:text-green-400" />

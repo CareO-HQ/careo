@@ -42,7 +42,8 @@ import {
   canViewSidebarResidents,
   canViewSidebarStaff,
   canViewSidebarHome,
-  getAuditLabel
+  getAuditLabel,
+  canCreateResident
 } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
@@ -215,10 +216,12 @@ export function AppSidebar() {
                     <span>Residents</span>
                   </Link>
                 </SidebarMenuButton>
-                <CreateResidentDialog
-                  isResidentDialogOpen={isResidentDialogOpen}
-                  setIsResidentDialogOpen={setIsResidentDialogOpen}
-                />
+                {canCreateResident(effectiveRole) && (
+                  <CreateResidentDialog
+                    isResidentDialogOpen={isResidentDialogOpen}
+                    setIsResidentDialogOpen={setIsResidentDialogOpen}
+                  />
+                )}
               </SidebarMenuItem>
             )}
 
