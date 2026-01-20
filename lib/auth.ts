@@ -79,7 +79,7 @@ export const createAuth = (ctx: GenericCtx) =>
       sendResetPassword: async ({ user, url }) => {
         console.log("sendResetPassword", user.email, url);
         await resend.emails.send({
-          from: "Uprio <uprio@auth.tryuprio.com>",
+          from: "Careo <care@careo.uk>",
           to: [user.email],
           subject: "Reset your password",
           html: `
@@ -98,11 +98,11 @@ export const createAuth = (ctx: GenericCtx) =>
         otpOptions: {
           async sendOTP({ user, otp }) {
             await resend.emails.send({
-              from: "Uprio <uprio@auth.tryuprio.com>",
+              from: "Careo <care@careo.uk>",
               to: [user.email],
-              subject: "Your Uprio 2FA code",
+              subject: "Your Careo 2FA code",
               html: `
-            <h3>Your Uprio 2FA code</h3>
+            <h3>Your Careo 2FA code</h3>
             <p>Your 2FA code is ${otp}</p>
             <p>This code will expire in 3 minutes.</p>
             `
@@ -124,10 +124,10 @@ export const createAuth = (ctx: GenericCtx) =>
         async sendInvitationEmail(data) {
           const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${data.id}&email=${data.email}`;
           console.log("sendInvitationEmail", inviteLink);
-          
+
           try {
             await resend.emails.send({
-              from: "Uprio <uprio@auth.tryuprio.com>",
+              from: "Careo <care@careo.uk>",
               to: [data.email],
               subject: "You've been invited to join a team",
               html: `
