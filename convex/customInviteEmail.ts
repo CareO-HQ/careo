@@ -25,7 +25,7 @@ async function sendEmail(
   const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL}/accept-invitation?token=${invitationId}&email=${email}`;
 
   const result = await resend.emails.send({
-    from: "Uprio <uprio@auth.tryuprio.com>",
+    from: "Careo <care@careo.uk>",
     to: [email],
     subject: "You've been invited to join a team",
     html: `
@@ -33,12 +33,12 @@ async function sendEmail(
       <p>Click <a href="${inviteLink}">here</a> to accept the invitation.</p>
     `
   });
-  
+
   if (result.error) {
     console.error("Resend API error:", result.error);
     throw new Error(`Failed to send email: ${JSON.stringify(result.error)}`);
   }
-  
+
   console.log("✅ Invitation email sent successfully to:", email);
 }
 
