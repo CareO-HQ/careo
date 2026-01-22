@@ -28,151 +28,145 @@ import {
 import { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
 import { MoreVertical, Pencil } from "lucide-react";
 import EditMedicationDialog from "@/components/medication/forms/EditMedicationDialog";
 
 interface Medication {
-  _id: string;
-  _creationTime: number;
+  id: string;
+  created_at: string;
   name: string;
   strength: string;
-  strengthUnit: string;
-  dosageForm: string;
+  strength_unit: string;
+  dosage_form: string;
   route: string;
   frequency: string;
-  scheduleType: string;
+  schedule_type: string;
   times: string[];
   instructions?: string;
-  prescriberName: string;
-  startDate: number;
-  endDate?: number;
+  prescriber_name: string;
+  start_date: string;
+  end_date?: string;
   status: string;
-  totalCount: number;
+  total_count: number;
+  resident_id: string;
 }
 
 export const createMedicationColumns = (
-  createAndAdministerMedicationIntake?: (args: {
-    medicationId: Id<"medication">;
-    notes?: string;
-    witnessedBy: string;
-    time: number;
-    units: number;
-  }) => Promise<null>,
+  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string }
 ): ColumnDef<Medication>[] => [
-  {
-    id: "medication",
-    header: "Medication",
-    cell: ({ row }) => {
-      const medication = row.original;
-
-      return (
-        <div className="flex flex-col">
-          <p className="font-medium">{medication.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {medication.strength} {medication.strengthUnit} -{" "}
-            {medication.dosageForm}
-          </p>
-        </div>
-      );
-    }
-  },
-  {
-    id: "route",
-    header: "Route",
-    cell: ({ row }) => {
-      return <p>{row.original.route}</p>;
-    }
-  },
-  {
-    id: "scheduleType",
-    header: "Schedule Type",
-    cell: ({ row }) => {
-      return <p>{row.original.scheduleType}</p>;
-    }
-  },
-  {
-    id: "frequency",
-    header: "Frequency",
-    cell: ({ row }) => {
-      return <p>{row.original.frequency}</p>;
-    }
-  },
-  {
-    id: "totalCount",
-    header: "Total Count",
-    cell: ({ row }) => {
-      return <p>{row.original.totalCount}</p>;
-    }
-  },
-  {
-    id: "prescriber",
-    header: "Prescriber",
-    cell: ({ row }) => {
-      return <p className="text-sm">{row.original.prescriberName}</p>;
-    }
-  },
-  {
-    id: "instructions",
-    header: "Instructions",
-    cell: ({ row }) => {
-      const instructions = row.original.instructions;
-      return (
-        <p className="text-sm text-muted-foreground">
-          {instructions || "No instructions"}
-        </p>
-      );
-    }
-  },
-  {
-    id: "actions",
-    header: "Actions",
-    cell: ({ row }) => {
-      const medication = row.original;
-
-      const ActionsCell = () => {
-        const [editDialogOpen, setEditDialogOpen] = useState(false);
-        const [dropdownOpen, setDropdownOpen] = useState(false);
+    {
+      id: "medication",
+      header: "Medication",
+      cell: ({ row }) => {
+        const medication = row.original;
 
         return (
-          <>
-            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {
-                  setEditDialogOpen(true);
-                  setDropdownOpen(false);
-                }}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit Medication
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {editDialogOpen && (
-              <EditMedicationDialog
-                medication={medication}
-                open={editDialogOpen}
-                onOpenChange={setEditDialogOpen}
-              />
-            )}
-          </>
+          <div className="flex flex-col">
+            <p className="font-medium">{medication.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {medication.strength} {medication.strength_unit} -{" "}
+              {medication.dosage_form}
+            </p>
+          </div>
         );
-      };
+      }
+    },
+    {
+      id: "route",
+      header: "Route",
+      cell: ({ row }) => {
+        return <p>{row.original.route}</p>;
+      }
+    },
+    {
+      id: "scheduleType",
+      header: "Schedule Type",
+      cell: ({ row }) => {
+        return <p>{row.original.schedule_type}</p>;
+      }
+    },
+    {
+      id: "frequency",
+      header: "Frequency",
+      cell: ({ row }) => {
+        return <p>{row.original.frequency}</p>;
+      }
+    },
+    {
+      id: "totalCount",
+      header: "Total Count",
+      cell: ({ row }) => {
+        return <p>{row.original.total_count}</p>;
+      }
+    },
+    {
+      id: "prescriber",
+      header: "Prescriber",
+      cell: ({ row }) => {
+        return <p className="text-sm">{row.original.prescriber_name}</p>;
+      }
+    },
+    {
+      id: "instructions",
+      header: "Instructions",
+      cell: ({ row }) => {
+        const instructions = row.original.instructions;
+        return (
+          <p className="text-sm text-muted-foreground">
+            {instructions || "No instructions"}
+          </p>
+        );
+      }
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const medication = row.original;
 
-      return <ActionsCell />;
-    }
-  },
-  ...(showAdministrateButton
-    ? [
+        const ActionsCell = () => {
+          const [editDialogOpen, setEditDialogOpen] = useState(false);
+          const [dropdownOpen, setDropdownOpen] = useState(false);
+
+          return (
+            <>
+              <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    setEditDialogOpen(true);
+                    setDropdownOpen(false);
+                  }}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Medication
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {editDialogOpen && (
+                <EditMedicationDialog
+                  medication={medication}
+                  open={editDialogOpen}
+                  onOpenChange={setEditDialogOpen}
+                />
+              )}
+            </>
+          );
+        };
+
+        return <ActionsCell />;
+      }
+    },
+    ...(showAdministrateButton
+      ? [
         {
           id: "administrate",
           header: "Action",
@@ -204,13 +198,11 @@ export const createMedicationColumns = (
                 }
 
                 try {
-                  await createAndAdministerMedicationIntake({
-                    medicationId: medication._id as Id<"medication">,
-                    notes: notes.trim() || undefined,
-                    witnessedBy: witnessedBy,
-                    time: time.getTime(),
-                    units: units
-                  });
+                  await createAndAdministerMedicationIntake(
+                    medication.id,
+                    medication.resident_id,
+                    format(time, "HH:mm")
+                  );
 
                   toast.success("Medication administered successfully");
                   setIsOpen(false);
@@ -222,7 +214,7 @@ export const createMedicationColumns = (
                   console.error("Error administering medication:", error);
                   toast.error(
                     "Failed to administer medication: " +
-                      (error as Error).message
+                    (error as Error).message
                   );
                 }
               };
@@ -249,8 +241,8 @@ export const createMedicationColumns = (
                         <div className="rounded-md border p-3 space-y-1">
                           <p className="font-semibold">{medication.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {medication.strength} {medication.strengthUnit} -{" "}
-                            {medication.dosageForm}
+                            {medication.strength} {medication.strength_unit} -{" "}
+                            {medication.dosage_form}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Route: {medication.route}
@@ -376,5 +368,5 @@ export const createMedicationColumns = (
           }
         } as ColumnDef<Medication>
       ]
-    : [])
-];
+      : [])
+  ];

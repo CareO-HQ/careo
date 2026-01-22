@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Dialog } from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { canCreateResident } from "@/lib/permissions";
@@ -50,14 +50,9 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
-  const { data: activeMember } = authClient.useActiveMember();
-  const currentUser = useQuery(api.auth.getCurrentUser);
-  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
-  const userRole = currentUser === undefined
-    ? undefined
-    : isSaasAdmin
-      ? "saas_admin"
-      : (activeMember?.role as string | undefined) || (currentUser as any)?.role || undefined;
+  const { profile } = useProfile();
+  const isSaasAdmin = profile?.is_saas_admin === true;
+  const userRole = isSaasAdmin ? "saas_admin" : profile?.role;
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -129,7 +124,7 @@ export function DataTable<TData, TValue>({
             )}
           </div>
 
-    
+
         </div>
 
         {/* Results count */}
@@ -169,9 +164,9 @@ export function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   );
                 })}

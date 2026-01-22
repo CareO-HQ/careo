@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +55,7 @@ export function BHSCTReportForm({
   const [riskAssessmentPopoverOpen, setRiskAssessmentPopoverOpen] = React.useState(false);
   const [reviewDatePopoverOpen, setReviewDatePopoverOpen] = React.useState(false);
 
-  const createBHSCTReport = useMutation(api.bhsctReports.create);
+  // Supabase create mutation
 
   const [formData, setFormData] = React.useState({
     // Provider and Service User Information
@@ -106,49 +105,49 @@ export function BHSCTReportForm({
     if (open && incident && resident) {
       setFormData({
         // Provider and Service User Information (auto-populated from resident + incident)
-        providerName: incident.homeName || "",
-        serviceUserName: `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
-                         `${incident.injuredPersonFirstName || ""} ${incident.injuredPersonSurname || ""}`.trim(),
-        serviceUserDOB: resident.dateOfBirth ? new Date(resident.dateOfBirth) :
-                        (incident.injuredPersonDOB ? new Date(incident.injuredPersonDOB) : undefined),
+        providerName: incident.home_name || "",
+        serviceUserName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
+          `${incident.injured_person_first_name || ""} ${incident.injured_person_surname || ""}`.trim(),
+        serviceUserDOB: resident.date_of_birth ? new Date(resident.date_of_birth) :
+          (incident.injured_person_dob ? new Date(incident.injured_person_dob) : undefined),
         serviceUserGender: resident.gender || "",
-        careManager: resident.careManagerName || resident.careManager?.name || incident.careManagerName || "",
+        careManager: resident.care_manager_name || resident.care_manager?.name || incident.care_manager_name || "",
 
         // Incident Location (auto-populated from incident)
-        incidentAddress: incident.homeName || "",
+        incidentAddress: incident.home_name || "",
         exactLocation: incident.unit || "",
 
         // Incident Details (auto-populated from incident)
         incidentDate: incident.date ? new Date(incident.date) : undefined,
         incidentTime: incident.time || "",
-        incidentDescription: incident.detailedDescription || "",
+        incidentDescription: incident.detailed_description || "",
 
         // Injury and Treatment (auto-populated from incident)
-        natureOfInjury: [incident.injuryDescription, incident.bodyPartInjured]
+        natureOfInjury: [incident.injury_description, incident.body_part_injured]
           .filter(Boolean)
           .join(" - ") || "",
-        immediateActionTaken: incident.treatmentDetails || "",
+        immediateActionTaken: incident.treatment_details || "",
 
         // Notifications and Witnesses (auto-populated from incident)
         personsNotified: [
-          incident.homeManagerInformedBy ? `Manager: ${incident.homeManagerInformedBy}` : "",
-          incident.nokInformedWho ? `NOK: ${incident.nokInformedWho}` : "",
+          incident.home_manager_informed_by ? `Manager: ${incident.home_manager_informed_by}` : "",
+          incident.nok_informed_who ? `NOK: ${incident.nok_informed_who}` : "",
         ].filter(Boolean).join(", ") || "",
-        witnesses: [incident.witness1Name, incident.witness2Name]
+        witnesses: [incident.witness1_name, incident.witness2_name]
           .filter(Boolean)
           .join(", ") || "",
-        staffInvolved: incident.completedByFullName || "",
+        staffInvolved: incident.completed_by_full_name || "",
         otherServiceUsersInvolved: "",
 
         // Reporter Information (auto-populated from incident)
-        reporterName: incident.completedByFullName || "",
-        reporterDesignation: incident.completedByJobTitle || "",
-        dateReported: incident.dateCompleted ? new Date(incident.dateCompleted) : new Date(),
+        reporterName: incident.completed_by_full_name || "",
+        reporterDesignation: incident.completed_by_job_title || "",
+        dateReported: incident.date_completed ? new Date(incident.date_completed) : new Date(),
 
         // Follow-up Actions (auto-populated from incident)
-        preventionActions: incident.preventionMeasures || "",
+        preventionActions: incident.prevention_measures || "",
         riskAssessmentUpdateDate: undefined,
-        otherComments: incident.furtherActionsAdvised || "",
+        otherComments: incident.further_actions_advised || "",
 
         // Senior Staff / Manager Review (leave empty for user to fill)
         reviewerName: "",
@@ -279,65 +278,54 @@ export function BHSCTReportForm({
     setIsSubmitting(true);
 
     try {
-      await createBHSCTReport({
-        incidentId: incident._id,
-        residentId: resident._id,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId,
+      const { data: reportData, error } = await supabase
+        .from("trust_incident_reports")
+        .insert({
+          incident_id: incident.id,
+          resident_id: resident.id,
+          trust_name: "BHSCT",
+          report_type: "bhsct",
+          created_by: user?.user?.id || null,
+          report_data: {
+            providerName: formData.providerName.trim(),
+            serviceUserName: formData.serviceUserName.trim(),
+            serviceUserDOB: formData.serviceUserDOB ? format(formData.serviceUserDOB, "yyyy-MM-dd") : "",
+            serviceUserGender: formData.serviceUserGender,
+            careManager: formData.careManager.trim(),
+            incidentAddress: formData.incidentAddress.trim(),
+            exactLocation: formData.exactLocation.trim(),
+            incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",
+            incidentTime: formData.incidentTime,
+            incidentDescription: formData.incidentDescription.trim(),
+            natureOfInjury: formData.natureOfInjury.trim(),
+            immediateActionTaken: formData.immediateActionTaken.trim(),
+            personsNotified: formData.personsNotified.trim(),
+            witnesses: formData.witnesses.trim() || undefined,
+            staffInvolved: formData.staffInvolved.trim() || undefined,
+            otherServiceUsersInvolved: formData.otherServiceUsersInvolved.trim() || undefined,
+            reporterName: formData.reporterName.trim(),
+            reporterDesignation: formData.reporterDesignation.trim(),
+            dateReported: formData.dateReported ? format(formData.dateReported, "yyyy-MM-dd") : "",
+            preventionActions: formData.preventionActions.trim(),
+            riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd") : undefined,
+            otherComments: formData.otherComments.trim() || undefined,
+            reviewerName: formData.reviewerName.trim() || undefined,
+            reviewerDesignation: formData.reviewerDesignation.trim() || undefined,
+            reviewDate: formData.reviewDate ? format(formData.reviewDate, "yyyy-MM-dd") : undefined,
+            status: "submitted",
+            reportedBy: user?.user?.email,
+            reportedByName: user?.user?.name || user?.user?.email,
+          }
+        })
+        .select()
+        .single();
 
-        // Provider and Service User Information
-        providerName: formData.providerName.trim(),
-        serviceUserName: formData.serviceUserName.trim(),
-        serviceUserDOB: formData.serviceUserDOB ? format(formData.serviceUserDOB, "yyyy-MM-dd") : "",
-        serviceUserGender: formData.serviceUserGender,
-        careManager: formData.careManager.trim(),
-
-        // Incident Location
-        incidentAddress: formData.incidentAddress.trim(),
-        exactLocation: formData.exactLocation.trim(),
-
-        // Incident Details
-        incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",
-        incidentTime: formData.incidentTime,
-        incidentDescription: formData.incidentDescription.trim(),
-
-        // Injury and Treatment
-        natureOfInjury: formData.natureOfInjury.trim(),
-        immediateActionTaken: formData.immediateActionTaken.trim(),
-
-        // Notifications and Witnesses
-        personsNotified: formData.personsNotified.trim(),
-        witnesses: formData.witnesses.trim() || undefined,
-        staffInvolved: formData.staffInvolved.trim() || undefined,
-        otherServiceUsersInvolved: formData.otherServiceUsersInvolved.trim() || undefined,
-
-        // Reporter Information
-        reporterName: formData.reporterName.trim(),
-        reporterDesignation: formData.reporterDesignation.trim(),
-        dateReported: formData.dateReported ? format(formData.dateReported, "yyyy-MM-dd") : "",
-
-        // Follow-up Actions
-        preventionActions: formData.preventionActions.trim(),
-        riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd") : undefined,
-        otherComments: formData.otherComments.trim() || undefined,
-
-        // Senior Staff / Manager Review
-        reviewerName: formData.reviewerName.trim() || undefined,
-        reviewerDesignation: formData.reviewerDesignation.trim() || undefined,
-        reviewDate: formData.reviewDate ? format(formData.reviewDate, "yyyy-MM-dd") : undefined,
-
-        // Status
-        status: "submitted",
-
-        // System fields
-        reportedBy: user.user.email,
-        reportedByName: user.user.name || user.user.email,
-      });
+      if (error) throw error;
 
       toast.success("BHSCT report submitted successfully");
       onClose();
       setCurrentStep(1);
-      // Reset form
+      // Reset form (omitted for brevity, keep existing reset logic)
       setFormData({
         providerName: "",
         serviceUserName: "",

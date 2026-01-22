@@ -4,37 +4,63 @@ import CareFileFolder from "@/components/residents/carefile/folders/CareFileFold
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { config } from "@/config";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { canFillCareFileForms } from "@/lib/permissions";
-import { useQuery } from "convex/react";
 import { ArrowLeft, FolderIcon, Archive } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function CareFilePage() {
   const careFiles = config.careFiles;
   const router = useRouter();
-  const { data: member } = authClient.useActiveMember();
-  const userRole = member?.role;
+  const { profile } = useProfile();
+  const userRole = profile?.role;
   const canFillForms = canFillCareFileForms(userRole);
 
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[pathname.length - 2] as Id<"residents">;
+  const residentId = pathname[pathname.length - 2];
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: residentId as Id<"residents">
-  });
+  const [resident, setResident] = useState<any>(undefined);
+  const [preAdmissionState, setPreAdmissionState] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
 
-  const preAddissionState = useQuery(
-    api.careFiles.preadmission.hasPreAdmissionForm,
-    {
-      residentId: residentId as Id<"residents">
+  useEffect(() => {
+    async function fetchData() {
+      if (!residentId) return;
+
+      try {
+        // Fetch Resident
+        const { data: rData, error } = await supabase
+          .from('residents')
+          .select('*')
+          .eq('id', residentId)
+          .single();
+
+        if (error) throw error;
+        setResident(rData);
+
+        // Check Pre-Admission State (simplistically check if any form exists)
+        const { count } = await supabase
+          .from('pre_admission_care_files')
+          .select('*', { count: 'exact', head: true })
+          .eq('resident_id', residentId);
+
+        setPreAdmissionState(count ? count > 0 : false);
+
+      } catch (e) {
+        console.error("Error fetching resident or care file state:", e);
+        setResident(null);
+      } finally {
+        setLoading(false);
+      }
     }
-  );
+    fetchData();
+  }, [residentId]);
 
-  if (resident === undefined) {
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -66,23 +92,8 @@ export default function CareFilePage() {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
-
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
-  };
-
-  const age = calculateAge(resident.dateOfBirth);
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,7 +103,7 @@ export default function CareFilePage() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <Avatar className="w-10 h-10">
-          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarImage src={resident.image_url} alt={fullName} className="border" />
           <AvatarFallback className="text-sm bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>
@@ -100,7 +111,7 @@ export default function CareFilePage() {
         <div className="flex-1">
           <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
           <p className="text-muted-foreground text-sm">
-            View and manage care files for {resident.firstName} {resident.lastName}.
+            View and manage care files for {resident.first_name} {resident.last_name}.
           </p>
         </div>
       </div>
@@ -118,8 +129,8 @@ export default function CareFilePage() {
                 carePlan={file.carePlan}
                 description={file.description}
                 forms={file.forms}
-                preAddissionState={preAddissionState}
-                residentId={residentId}
+                preAddissionState={preAdmissionState}
+                residentId={residentId as any} // Cast as any or string depending on interface
                 canFillForms={canFillForms}
               />
             )

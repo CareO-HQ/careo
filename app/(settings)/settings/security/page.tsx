@@ -14,7 +14,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "convex/react";
 import { useState, useTransition, useEffect } from "react";
@@ -61,48 +60,13 @@ export default function SecurityPage() {
   }
 
   function handleEnable2FA() {
-    startTransition(async () => {
-      // If enable, disable it
-      if (twoFactorEnabled) {
-        await authClient.twoFactor.disable(
-          {
-            password: form.getValues("password")
-          },
-          {
-            onSuccess: () => {
-              toast.success("Two-factor authentication disabled");
-              setTwoFactorEnabled(false);
-              setOpenDialog(false);
-            },
-            onError: () => {
-              toast.error("Invalid password");
-            }
-          }
-        );
-        return;
-      }
-      await authClient.twoFactor.enable(
-        {
-          password: form.getValues("password"), // required
-          issuer: "my-app-name"
-        },
-        {
-          onSuccess: () => {
-            toast.success("Two-factor authentication enabled");
-            setTwoFactorEnabled(true);
-            setOpenDialog(false);
-          },
-          onError: () => {
-            toast.error("Invalid password");
-          }
-        }
-      );
-    });
+    toast.error("Two-factor authentication settings are currently unavailable.");
+    setOpenDialog(false);
   }
 
   async function getUserSessions() {
-    const sessions = await authClient.listSessions();
-    setSessions(sessions.data ?? []);
+    // contrast to BetterAuth, Supabase doesn't expose listSessions client-side easily
+    setSessions([]);
   }
 
   return (

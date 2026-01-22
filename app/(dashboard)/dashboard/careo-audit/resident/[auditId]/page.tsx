@@ -52,7 +52,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { AuditHistory } from "@/components/audit/audit-history";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 
 interface Question {
   id: string;
@@ -91,7 +91,7 @@ export default function ResidentAuditPage() {
   const auditId = params.auditId as string;
 
   // Get current user session
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
   const [auditName, setAuditName] = useState("");
@@ -145,9 +145,9 @@ export default function ResidentAuditPage() {
     api.auditResponses.getDraftResponsesByTemplate,
     isTemplateId && activeTeamId
       ? {
-          templateId: auditId as Id<"residentAuditTemplates">,
-          teamId: activeTeamId
-        }
+        templateId: auditId as Id<"residentAuditTemplates">,
+        teamId: activeTeamId
+      }
       : "skip"
   );
 
@@ -160,8 +160,8 @@ export default function ResidentAuditPage() {
   const actionPlanQueryArg = responseId
     ? { auditResponseId: responseId }
     : isResponseId
-    ? { auditResponseId: auditId as Id<"residentAuditCompletions"> }
-    : "skip";
+      ? { auditResponseId: auditId as Id<"residentAuditCompletions"> }
+      : "skip";
 
   console.log("🔍 Action plan query arg:", actionPlanQueryArg, "responseId:", responseId, "isResponseId:", isResponseId);
 
@@ -561,7 +561,7 @@ export default function ResidentAuditPage() {
 
     try {
       // Get auditor name from session
-      const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+      const auditorName = profile?.name || profile?.email || "Unknown User";
 
       // Prepare responses array with resident data
       const responses = (dbResidents || []).map((resident) => ({
@@ -619,8 +619,8 @@ export default function ResidentAuditPage() {
               dueDate: plan.dueDate?.getTime(),
               teamId: activeTeamId,
               organizationId: activeOrganizationId,
-              createdBy: session?.user?.email || auditorName,  // Use email
-              createdByName: session?.user?.name || auditorName,  // Display name
+              createdBy: profile?.email || auditorName,  // Use email
+              createdByName: profile?.name || auditorName,  // Display name
             });
           }
         }
@@ -733,7 +733,7 @@ export default function ResidentAuditPage() {
   // Create draft response when page loads with template (if one doesn't exist)
   useEffect(() => {
     // Don't create if we already have a responseId or if we're loading existing drafts
-    if (!getTemplate || responseId || !activeTeamId || !activeOrganizationId || !session) return;
+    if (!getTemplate || responseId || !activeTeamId || !activeOrganizationId || !profile) return;
 
     // Wait for existingDrafts query to complete
     if (existingDrafts === undefined) return;
@@ -754,7 +754,7 @@ export default function ResidentAuditPage() {
       isCreatingDraft.current = true;
 
       try {
-        const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+        const auditorName = profile?.name || profile?.email || "Unknown User";
         const draftId = await createResponse({
           templateId: getTemplate._id,
           templateName: getTemplate.name,
@@ -777,7 +777,7 @@ export default function ResidentAuditPage() {
     };
 
     createDraft();
-  }, [getTemplate, responseId, activeTeamId, activeOrganizationId, session, existingDrafts, createResponse]);
+  }, [getTemplate, responseId, activeTeamId, activeOrganizationId, profile, existingDrafts, createResponse]);
 
   // Load existing action plans from database
   useEffect(() => {
@@ -855,11 +855,11 @@ export default function ResidentAuditPage() {
       const updatedAudits = audits.map((audit: any) =>
         audit.id === auditId
           ? {
-              ...audit,
-              status: "completed",
-              lastAudited: new Date().toLocaleDateString(),
-              auditor: auditorName,
-            }
+            ...audit,
+            status: "completed",
+            lastAudited: new Date().toLocaleDateString(),
+            auditor: auditorName,
+          }
           : audit
       );
       localStorage.setItem('careo-audits', JSON.stringify(updatedAudits));
@@ -1102,17 +1102,16 @@ export default function ResidentAuditPage() {
                           {answer?.value ? (
                             <Badge
                               variant="secondary"
-                              className={`text-xs h-6 ${
-                                answer?.value === "compliant" || answer?.value === "yes" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
+                              className={`text-xs h-6 ${answer?.value === "compliant" || answer?.value === "yes" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
                                 answer?.value === "non-compliant" || answer?.value === "no" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
-                                "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
-                              }`}
+                                  "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
+                                }`}
                             >
                               {answer.value === "compliant" ? "Compliant" :
-                               answer.value === "non-compliant" ? "Non-Compliant" :
-                               answer.value === "yes" ? "Yes" :
-                               answer.value === "no" ? "No" :
-                               "N/A"}
+                                answer.value === "non-compliant" ? "Non-Compliant" :
+                                  answer.value === "yes" ? "Yes" :
+                                    answer.value === "no" ? "No" :
+                                      "N/A"}
                             </Badge>
                           ) : (
                             <span className="text-xs text-muted-foreground">Select</span>
@@ -1262,60 +1261,60 @@ export default function ResidentAuditPage() {
                   };
 
                   return (
-                  <div
-                    key={plan.id}
-                    className="border rounded-lg p-4 space-y-3 bg-card relative group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm flex-1">{plan.text}</p>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        onClick={() => openDeleteDialog(plan.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {/* Status Badge */}
-                      {plan.status && (
-                        <Badge className={getStatusColor(plan.status) + " text-xs"}>
-                          {getStatusLabel(plan.status)}
-                        </Badge>
-                      )}
-                      {plan.assignedTo && (
-                        <Badge variant="secondary" className="text-xs">
-                          {plan.assignedTo}
-                        </Badge>
-                      )}
-                      {plan.dueDate && (
-                        <Badge variant="secondary" className="text-xs">
-                          {format(plan.dueDate, "MMM dd, yyyy")}
-                        </Badge>
-                      )}
-                      {plan.priority && (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs flex items-center gap-1"
+                    <div
+                      key={plan.id}
+                      className="border rounded-lg p-4 space-y-3 bg-card relative group"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm flex-1">{plan.text}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          onClick={() => openDeleteDialog(plan.id)}
                         >
-                          <div className={`w-2 h-2 rounded-full ${
-                            plan.priority === "High" ? "bg-red-500" :
-                            plan.priority === "Medium" ? "bg-yellow-500" :
-                            "bg-green-500"
-                          }`}></div>
-                          {plan.priority}
-                        </Badge>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {/* Status Badge */}
+                        {plan.status && (
+                          <Badge className={getStatusColor(plan.status) + " text-xs"}>
+                            {getStatusLabel(plan.status)}
+                          </Badge>
+                        )}
+                        {plan.assignedTo && (
+                          <Badge variant="secondary" className="text-xs">
+                            {plan.assignedTo}
+                          </Badge>
+                        )}
+                        {plan.dueDate && (
+                          <Badge variant="secondary" className="text-xs">
+                            {format(plan.dueDate, "MMM dd, yyyy")}
+                          </Badge>
+                        )}
+                        {plan.priority && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs flex items-center gap-1"
+                          >
+                            <div className={`w-2 h-2 rounded-full ${plan.priority === "High" ? "bg-red-500" :
+                              plan.priority === "Medium" ? "bg-yellow-500" :
+                                "bg-green-500"
+                              }`}></div>
+                            {plan.priority}
+                          </Badge>
+                        )}
+                      </div>
+                      {/* Latest Comment */}
+                      {plan.latestComment && (
+                        <div className="text-xs text-muted-foreground italic border-l-2 pl-2 mt-2">
+                          &quot;{plan.latestComment}&quot;
+                        </div>
                       )}
                     </div>
-                    {/* Latest Comment */}
-                    {plan.latestComment && (
-                      <div className="text-xs text-muted-foreground italic border-l-2 pl-2 mt-2">
-                        &quot;{plan.latestComment}&quot;
-                      </div>
-                    )}
-                  </div>
-                )})}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1422,11 +1421,10 @@ export default function ResidentAuditPage() {
                 <PopoverTrigger asChild>
                   <Badge variant="outline" className="cursor-pointer hover:bg-accent flex items-center gap-1">
                     {priority && (
-                      <div className={`w-2 h-2 rounded-full ${
-                        priority === "High" ? "bg-red-500" :
+                      <div className={`w-2 h-2 rounded-full ${priority === "High" ? "bg-red-500" :
                         priority === "Medium" ? "bg-yellow-500" :
-                        "bg-green-500"
-                      }`}></div>
+                          "bg-green-500"
+                        }`}></div>
                     )}
                     {priority || "Priority"}
                   </Badge>

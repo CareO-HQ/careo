@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar, ArrowLeft, Filter, Check } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { format } from "date-fns";
@@ -24,8 +24,8 @@ import { Id } from "@/convex/_generated/dataModel";
 export default function AppointmentPage() {
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
-  const { data: activeMember } = authClient.useActiveMember();
-  const userRole = activeMember?.role as string | undefined;
+  const { profile } = useProfile();
+  const userRole = profile?.role;
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   // For managers, always use organization-based queries; for other roles, use team if available
@@ -228,9 +228,8 @@ export default function AppointmentPage() {
             return (
               <div
                 key={appointment._id}
-                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${
-                  !appointment.isRead ? "bg-muted/50" : "bg-muted/5"
-                }`}
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${!appointment.isRead ? "bg-muted/50" : "bg-muted/5"
+                  }`}
                 onClick={() => handleAppointmentClick(appointment)}
               >
                 {/* Resident Avatar */}

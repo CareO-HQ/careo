@@ -4,11 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger
@@ -35,8 +30,8 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { supabase } from "@/lib/supabase";
+import { Resident } from "@/types";
 import { cn } from "@/lib/utils";
 import {
   ColumnDef,
@@ -47,22 +42,18 @@ import {
   getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
-import { useQuery } from "convex/react";
 import { format } from "date-fns";
 import {
   ArrowLeft,
   ArrowUpDown,
   CalendarIcon,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
-  Download,
-  Pill,
-  Droplet
+  Download
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
 
 type MedicationHistoryPageProps = {
@@ -93,17 +84,43 @@ export default function MedicationHistoryPage({
   const router = useRouter();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [selectedDate, setSelectedDate] = useState<GroupedIntake | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDateIntakeGroup, setSelectedDateIntakeGroup] = useState<GroupedIntake | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [allIntakes, setAllIntakes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: (id as Id<"residents">) ?? "skip"
-  }) as any;
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const { data: residentData } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
 
-  const allIntakes = useQuery(
-    api.medication.getAllMedicationIntakesByResidentId,
-    id ? { residentId: id } : "skip"
-  );
+        if (residentData) setResident(residentData as Resident);
+
+        const { data: intakes } = await supabase
+          .from("medication_intakes")
+          .select(`
+            *,
+            medication:medication_id (*),
+            administered_by:administered_by_id (name),
+            witness:witness_id (name)
+          `)
+          .eq("resident_id", id);
+
+        setAllIntakes(intakes || []);
+      } catch (error) {
+        console.error("Error fetching history:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
 
   // Filter and group data by date
   const filteredData = useMemo(() => {
@@ -116,7 +133,7 @@ export default function MedicationHistoryPage({
     today.setHours(23, 59, 59, 999);
 
     filtered = filtered.filter((intake) => {
-      const intakeDate = new Date(intake.scheduledTime);
+      const intakeDate = new Date(intake.scheduled_time);
       return intakeDate <= today;
     });
 
@@ -126,7 +143,7 @@ export default function MedicationHistoryPage({
       fromDate.setHours(0, 0, 0, 0);
 
       filtered = filtered.filter((intake) => {
-        const intakeDate = new Date(intake.scheduledTime);
+        const intakeDate = new Date(intake.scheduled_time);
         intakeDate.setHours(0, 0, 0, 0);
 
         if (dateRange.to) {
@@ -135,7 +152,6 @@ export default function MedicationHistoryPage({
           return intakeDate >= fromDate && intakeDate <= toDate;
         }
 
-        // If only "from" date is selected, filter for that specific day
         return intakeDate.getTime() === fromDate.getTime();
       });
     }
@@ -143,7 +159,7 @@ export default function MedicationHistoryPage({
     // Group by date
     const grouped = filtered.reduce(
       (acc, intake) => {
-        const date = format(new Date(intake.scheduledTime), "yyyy-MM-dd");
+        const date = format(new Date(intake.scheduled_time), "yyyy-MM-dd");
         if (!acc[date]) {
           acc[date] = [];
         }
@@ -164,13 +180,12 @@ export default function MedicationHistoryPage({
           intakes: intakesArray,
           totalCount: intakesArray.length,
           administeredCount: intakesArray.filter(
-            (i) => i.state === "administered"
+            (i) => i.status === "administered" || i.status === "given"
           ).length,
-          givenCount: intakesArray.filter((i) => i.state === "given").length,
-          missedCount: intakesArray.filter((i) => i.state === "missed").length,
-          refusedCount: intakesArray.filter((i) => i.state === "refused")
-            .length,
-          skippedCount: intakesArray.filter((i) => i.state === "skipped").length
+          givenCount: intakesArray.filter((i) => i.status === "given").length,
+          missedCount: intakesArray.filter((i) => i.status === "missed").length,
+          refusedCount: intakesArray.filter((i) => i.status === "refused").length,
+          skippedCount: intakesArray.filter((i) => i.status === "skipped").length
         };
       }
     );
@@ -181,8 +196,6 @@ export default function MedicationHistoryPage({
     );
   }, [allIntakes, dateRange]);
 
-  // Organize intakes by time slots, PRN, and Topical
-  // Show rounds that are completed/locked or have passed their scheduled time
   const organizeIntakesByCategory = (intakes: any[], selectedDate: Date) => {
     const scheduled: Record<string, any[]> = {};
     const prn: any[] = [];
@@ -192,20 +205,17 @@ export default function MedicationHistoryPage({
     const isToday = format(selectedDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
     const currentTime = format(now, "HH:mm");
 
-    // First, group all intakes by time
     const groupedByTime: Record<string, any[]> = {};
 
     intakes.forEach((intake) => {
       const medication = intake.medication;
 
-      // Check if it's PRN or Topical
-      if (medication?.scheduleType === "PRN (As Needed)") {
+      if (medication?.schedule_type === "PRN (As Needed)") {
         prn.push(intake);
       } else if (medication?.route === "Topical") {
         topical.push(intake);
       } else {
-        // Group by scheduled time
-        const time = format(new Date(intake.scheduledTime), "HH:mm");
+        const time = format(new Date(intake.scheduled_time), "HH:mm");
         if (!groupedByTime[time]) {
           groupedByTime[time] = [];
         }
@@ -213,22 +223,16 @@ export default function MedicationHistoryPage({
       }
     });
 
-    // Now filter which time slots to show
     Object.entries(groupedByTime).forEach(([time, timeIntakes]) => {
-      // Check if round is completed (all medications are not in "scheduled" state)
       const isRoundCompleted = timeIntakes.every(
-        (intake) => intake.state !== "scheduled"
+        (intake) => intake.status !== "scheduled"
       );
 
-      // Show if:
-      // 1. It's a past date (show all), OR
-      // 2. It's today and (time has passed OR round is completed/locked)
       if (!isToday || time <= currentTime || isRoundCompleted) {
         scheduled[time] = timeIntakes;
       }
     });
 
-    // Convert scheduled object to sorted array
     const scheduledArray: GroupedByTime[] = Object.entries(scheduled)
       .map(([time, intakes]) => ({ time, intakes }))
       .sort((a, b) => a.time.localeCompare(b.time));
@@ -236,21 +240,18 @@ export default function MedicationHistoryPage({
     return { scheduled: scheduledArray, prn, topical };
   };
 
-  // Grouped columns
   const groupedColumns: ColumnDef<GroupedIntake>[] = [
     {
       accessorKey: "date",
-      header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Date
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Date
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
       cell: ({ row }) => {
         const dateObj = row.original.dateObj;
         const isToday = format(dateObj, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
@@ -268,13 +269,12 @@ export default function MedicationHistoryPage({
       accessorKey: "stats",
       header: "Summary",
       cell: ({ row }) => {
-        const { totalCount, givenCount, administeredCount, missedCount, refusedCount } = row.original;
-        const successCount = givenCount + administeredCount;
+        const { totalCount, administeredCount, missedCount, refusedCount } = row.original;
         return (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-muted-foreground">Total: {totalCount}</span>
-            {successCount > 0 && (
-              <span className="text-green-600 font-medium">✓ {successCount}</span>
+            {administeredCount > 0 && (
+              <span className="text-green-600 font-medium">✓ {administeredCount}</span>
             )}
             {missedCount > 0 && (
               <span className="text-red-600 font-medium">✗ {missedCount}</span>
@@ -295,665 +295,167 @@ export default function MedicationHistoryPage({
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    state: {
-      sorting
-    },
-    initialState: {
-      pagination: {
-        pageSize: 25
-      }
-    }
+    state: { sorting },
+    initialState: { pagination: { pageSize: 25 } }
   });
 
   const handleRowClick = (groupedIntake: GroupedIntake) => {
-    setSelectedDate(groupedIntake);
-    setIsDialogOpen(true);
+    setSelectedDateIntakeGroup(groupedIntake);
+    setIsSheetOpen(true);
   };
 
-  // Function to download a specific date's data as CSV
-  const downloadDateCSV = (groupedIntake: GroupedIntake) => {
-    const csvData = groupedIntake.intakes.map((intake) => {
-      const medication = intake.medication;
-
-      return {
-        Date: format(groupedIntake.dateObj, "MMM dd, yyyy"),
-        Time: format(new Date(intake.scheduledTime), "HH:mm"),
-        Medication: medication?.name || "N/A",
-        Strength: medication
-          ? `${medication.strength} ${medication.strengthUnit}`
-          : "N/A",
-        "Dosage Form": medication?.dosageForm || "N/A",
-        Route: medication?.route || "N/A",
-        Type: medication?.scheduleType || "N/A",
-        Status: intake.state,
-        "Popped Out": intake.poppedOutAt
-          ? format(new Date(intake.poppedOutAt), "HH:mm")
-          : "-",
-        Notes: intake.notes || ""
-      };
-    });
-
-    // Convert to CSV string
-    const headers = Object.keys(csvData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map((row) =>
-        headers
-          .map((header) => {
-            const value = row[header as keyof typeof row];
-            // Escape quotes and wrap in quotes if contains comma or quote
-            const stringValue = String(value);
-            if (
-              stringValue.includes(",") ||
-              stringValue.includes('"') ||
-              stringValue.includes("\n")
-            ) {
-              return `"${stringValue.replace(/"/g, '""')}"`;
-            }
-            return stringValue;
-          })
-          .join(",")
-      )
-    ].join("\n");
-
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `medication-${resident.firstName}-${resident.lastName}-${format(groupedIntake.dateObj, "yyyy-MM-dd")}.csv`
-    );
-    link.style.visibility = "hidden";
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  // Function to download data as CSV
   const downloadCSV = () => {
-    // Flatten grouped data back to individual intakes for CSV export
-    const allIntakesForExport = table
-      .getFilteredRowModel()
-      .rows.flatMap((row) => {
-        const groupedIntake = row.original;
-        return groupedIntake.intakes;
-      });
+    const allIntakesForExport = table.getFilteredRowModel().rows.flatMap(row => row.original.intakes);
+    if (!allIntakesForExport.length) return;
 
-    const csvData = allIntakesForExport.map((intake) => {
-      const medication = intake.medication;
+    const csvData = allIntakesForExport.map(intake => ({
+      Date: format(new Date(intake.scheduled_time), "MMM dd, yyyy"),
+      Time: format(new Date(intake.scheduled_time), "HH:mm"),
+      Medication: intake.medication?.name || "N/A",
+      Strength: intake.medication ? `${intake.medication.strength} ${intake.medication.strength_unit}` : "N/A",
+      "Dosage Form": intake.medication?.dosage_form || "N/A",
+      Route: intake.medication?.route || "N/A",
+      Status: intake.status,
+      "Popped Out": intake.popped_out_at ? format(new Date(intake.popped_out_at), "HH:mm") : "-",
+      Notes: intake.comment || ""
+    }));
 
-      return {
-        Date: format(new Date(intake.scheduledTime), "MMM dd, yyyy"),
-        Time: format(new Date(intake.scheduledTime), "HH:mm"),
-        Medication: medication?.name || "N/A",
-        Strength: medication
-          ? `${medication.strength} ${medication.strengthUnit}`
-          : "N/A",
-        "Dosage Form": medication?.dosageForm || "N/A",
-        Route: medication?.route || "N/A",
-        Type: medication?.scheduleType || "N/A",
-        Status: intake.state,
-        "Popped Out": intake.poppedOutAt
-          ? format(new Date(intake.poppedOutAt), "HH:mm")
-          : "-",
-        Notes: intake.notes || ""
-      };
-    });
-
-    // Convert to CSV string
-    const headers = Object.keys(csvData[0] || {});
+    const headers = Object.keys(csvData[0]);
     const csvContent = [
       headers.join(","),
-      ...csvData.map((row) =>
-        headers
-          .map((header) => {
-            const value = row[header as keyof typeof row];
-            // Escape quotes and wrap in quotes if contains comma or quote
-            const stringValue = String(value);
-            if (
-              stringValue.includes(",") ||
-              stringValue.includes('"') ||
-              stringValue.includes("\n")
-            ) {
-              return `"${stringValue.replace(/"/g, '""')}"`;
-            }
-            return stringValue;
-          })
-          .join(",")
-      )
+      ...csvData.map(row => headers.map(h => `"${String(row[h as keyof typeof row]).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
 
-    // Create blob and download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `medication-history-${resident.firstName}-${resident.lastName}-${format(new Date(), "yyyy-MM-dd")}.csv`
-    );
-    link.style.visibility = "hidden";
-
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `medication-history-${resident?.first_name}-${resident?.last_name}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
-  // Helper function to render medication badge with custom colors
-  const getStateBadgeStyle = (state: string) => {
-    switch (state) {
+  const getStateBadgeStyle = (status: string) => {
+    switch (status) {
       case "given":
-        return {
-          variant: "default" as const,
-          className: "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400"
-        };
       case "administered":
-        return {
-          variant: "default" as const,
-          className: ""
-        };
-      case "scheduled":
-        return {
-          variant: "secondary" as const,
-          className: ""
-        };
+        return "bg-green-100 text-green-800";
       case "missed":
-        return {
-          variant: "destructive" as const,
-          className: ""
-        };
+        return "bg-red-100 text-red-800";
       case "refused":
-        return {
-          variant: "outline" as const,
-          className: "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
-        };
-      case "skipped":
-        return {
-          variant: "outline" as const,
-          className: ""
-        };
+        return "bg-orange-100 text-orange-800";
       default:
-        return {
-          variant: "secondary" as const,
-          className: ""
-        };
+        return "bg-gray-100 text-gray-800";
     }
   };
 
-  if (resident === undefined || allIntakes === undefined) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="mt-2 text-muted-foreground">
-            Loading medication history...
-          </p>
-        </div>
-      </div>
-    );
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-64"><p>Loading medication history...</p></div>;
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Resident not found</p>
-          <p className="text-muted-foreground">
-            The resident you&apos;re looking for doesn&apos;t exist.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
-        </div>
+      <div className="flex flex-col items-center justify-center h-64">
+        <p className="text-lg font-semibold">Resident not found</p>
+        <Button variant="outline" className="mt-4" onClick={() => router.back()}><ArrowLeft className="w-4 h-4 mr-2" />Go Back</Button>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div>
-              <p className="font-semibold text-xl">Medication History</p>
-              <p className="text-sm text-muted-foreground">
-                Complete medication intake history for {resident.firstName}{" "}
-                {resident.lastName}
-              </p>
-            </div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-4 h-4" /></Button>
+          <div>
+            <h1 className="font-semibold text-xl">Medication History</h1>
+            <p className="text-sm text-muted-foreground">History for {resident.first_name} {resident.last_name}</p>
           </div>
         </div>
-        <Button
-          onClick={downloadCSV}
-          disabled={table.getFilteredRowModel().rows.length === 0}
-          variant="outline"
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Download CSV
-        </Button>
+        <Button onClick={downloadCSV} variant="outline" disabled={filteredData.length === 0}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex gap-4">
         <Popover>
           <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-[280px] justify-start text-left font-normal",
-                !dateRange && "text-muted-foreground"
-              )}
-            >
+            <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground text-sm")}>
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateRange?.from ? (
-                dateRange.to ? (
-                  <>
-                    {format(dateRange.from, "LLL dd, y")} -{" "}
-                    {format(dateRange.to, "LLL dd, y")}
-                  </>
-                ) : (
-                  format(dateRange.from, "LLL dd, y")
-                )
-              ) : (
-                <span>Pick a date range</span>
-              )}
+              {dateRange?.from ? (dateRange.to ? `${format(dateRange.from, "LLL dd, y")} - ${format(dateRange.to, "LLL dd, y")}` : format(dateRange.from, "LLL dd, y")) : "Pick a date range"}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              defaultMonth={dateRange?.from}
-              selected={dateRange}
-              onSelect={setDateRange}
-              numberOfMonths={2}
-              disabled={(date) => date > new Date()}
-              initialFocus
-            />
+            <Calendar mode="range" selected={dateRange} onSelect={setDateRange} disabled={d => d > new Date()} numberOfMonths={2} />
           </PopoverContent>
         </Popover>
-        {dateRange && (
-          <Button
-            variant="ghost"
-            onClick={() => setDateRange(undefined)}
-            className="px-2"
-          >
-            Clear Date Range
-          </Button>
-        )}
+        {dateRange && <Button variant="ghost" onClick={() => setDateRange(undefined)}>Clear</Button>}
       </div>
 
-      {/* Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-hidden">
         <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  );
-                })}
+          <TableHeader className="bg-muted/50">
+            {table.getHeaderGroups().map(hg => (
+              <TableRow key={hg.id}>
+                {hg.headers.map(h => <TableHead key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</TableHead>)}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  onClick={() => handleRowClick(row.original)}
-                  className="cursor-pointer hover:bg-muted/50"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
+            {table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map(row => (
+                <TableRow key={row.id} onClick={() => handleRowClick(row.original)} className="cursor-pointer hover:bg-muted/30">
+                  {row.getVisibleCells().map(c => <TableCell key={c.id}>{flexRender(c.column.columnDef.cell, c.getContext())}</TableCell>)}
                 </TableRow>
               ))
             ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={groupedColumns.length}
-                  className="h-24 text-center"
-                >
-                  No medication history found.
-                </TableCell>
-              </TableRow>
+              <TableRow><TableCell colSpan={groupedColumns.length} className="h-24 text-center">No history found.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} total record(s)
-        </div>
-        <div className="flex items-center space-x-6 lg:space-x-8">
-          <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium">Rows per page</p>
-            <Select
-              value={`${table.getState().pagination.pageSize}`}
-              onValueChange={(value) => {
-                table.setPageSize(Number(value));
-              }}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue
-                  placeholder={table.getState().pagination.pageSize}
-                />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {[10, 25, 50, 100].map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <span className="sr-only">Go to previous page</span>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <span className="sr-only">Go to next page</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Details Sheet - Organized by Time */}
-      <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <SheetContent className="sm:max-w-2xl overflow-y-auto">
-          <SheetHeader className="pb-4">
-            <div className="flex flex-col gap-2">
-              <SheetTitle className="text-xl">
-                {selectedDate &&
-                  format(selectedDate.dateObj, "EEEE, MMMM dd, yyyy")}
-              </SheetTitle>
-              <SheetDescription>
-                Medications organized by scheduled time
-              </SheetDescription>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-fit"
-                onClick={() => selectedDate && downloadDateCSV(selectedDate)}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download CSV
-              </Button>
-            </div>
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent className="sm:max-w-3xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{selectedDateIntakeGroup && format(selectedDateIntakeGroup.dateObj, "EEEE, MMMM dd, yyyy")}</SheetTitle>
+            <SheetDescription>Detailed medication list for this date</SheetDescription>
           </SheetHeader>
-
-          <div className="mt-4 space-y-6">
-            {selectedDate && (() => {
-              const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDate.intakes, selectedDate.dateObj);
-
-              return (
-                <>
-                  {/* Scheduled Medications by Time */}
-                  {scheduled.map((timeGroup) => (
-                    <div key={timeGroup.time} className="space-y-2">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <h3 className="font-semibold text-sm">{timeGroup.time}</h3>
-                        <Badge variant="secondary" className="ml-auto">
-                          {timeGroup.intakes.length}
-                        </Badge>
-                      </div>
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Medication</TableHead>
-                              <TableHead>Route</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Given By</TableHead>
-                              <TableHead>Witnessed By</TableHead>
-                              <TableHead>Notes</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {timeGroup.intakes.map((intake) => {
-                              const medication = intake.medication;
-                              const badgeStyle = getStateBadgeStyle(intake.state);
-                              return (
-                                <TableRow key={intake._id}>
-                                  <TableCell>
-                                    <div className="flex flex-col">
-                                      <p className="font-medium text-sm">
-                                        {medication?.name || "N/A"}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {medication
-                                          ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
-                                          : ""}
-                                      </p>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-sm">
-                                    {medication?.route || "N/A"}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
-                                      {intake.state.charAt(0).toUpperCase() +
-                                        intake.state.slice(1)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-sm">
-                                    {intake.givenByName || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-sm">
-                                    {intake.witnessedByName || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-sm max-w-xs truncate">
-                                    {intake.notes || "-"}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* PRN Medications */}
-                  {prn.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-950/20 rounded-md">
-                        <Pill className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        <h3 className="font-semibold text-sm">PRN (As Needed)</h3>
-                        <Badge variant="secondary" className="ml-auto">
-                          {prn.length}
-                        </Badge>
-                      </div>
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Time</TableHead>
-                              <TableHead>Medication</TableHead>
-                              <TableHead>Route</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Given By</TableHead>
-                              <TableHead>Witnessed By</TableHead>
-                              <TableHead>Notes</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {prn.map((intake) => {
-                              const medication = intake.medication;
-                              const badgeStyle = getStateBadgeStyle(intake.state);
-                              return (
-                                <TableRow key={intake._id}>
-                                  <TableCell className="text-sm">
-                                    {format(new Date(intake.scheduledTime), "HH:mm")}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex flex-col">
-                                      <p className="font-medium text-sm">
-                                        {medication?.name || "N/A"}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {medication
-                                          ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
-                                          : ""}
-                                      </p>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-sm">
-                                    {medication?.route || "N/A"}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
-                                      {intake.state.charAt(0).toUpperCase() +
-                                        intake.state.slice(1)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-sm">
-                                    {intake.givenByName || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-sm">
-                                    {intake.witnessedByName || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-sm max-w-xs truncate">
-                                    {intake.notes || "-"}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Topical Medications - Collapsible */}
-                  {topical.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger className="w-full">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 rounded-md hover:bg-green-100 dark:hover:bg-green-950/30 transition-colors">
-                          <Droplet className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          <h3 className="font-semibold text-sm">Topical Medications</h3>
-                          <Badge variant="secondary" className="ml-auto">
-                            {topical.length}
-                          </Badge>
-                          <ChevronDown className="h-4 w-4 text-green-600 dark:text-green-400 transition-transform duration-200" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2">
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Time</TableHead>
-                                <TableHead>Medication</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Given By</TableHead>
-                                <TableHead>Witnessed By</TableHead>
-                                <TableHead>Notes</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {topical.map((intake) => {
-                                const medication = intake.medication;
-                                const badgeStyle = getStateBadgeStyle(intake.state);
-                                return (
-                                  <TableRow key={intake._id}>
-                                    <TableCell className="text-sm">
-                                      {format(new Date(intake.scheduledTime), "HH:mm")}
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex flex-col">
-                                        <p className="font-medium text-sm">
-                                          {medication?.name || "N/A"}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {medication
-                                            ? `${medication.strength} ${medication.strengthUnit} - ${medication.dosageForm}`
-                                            : ""}
-                                        </p>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
-                                        {intake.state.charAt(0).toUpperCase() +
-                                          intake.state.slice(1)}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-sm">
-                                      {intake.givenByName || "-"}
-                                    </TableCell>
-                                    <TableCell className="text-sm">
-                                      {intake.witnessedByName || "-"}
-                                    </TableCell>
-                                    <TableCell className="text-sm max-w-xs truncate">
-                                      {intake.notes || "-"}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-
-                  {/* Empty state */}
-                  {scheduled.length === 0 && prn.length === 0 && topical.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No medications recorded for this date
-                    </div>
-                  )}
-                </>
-              );
+          <div className="mt-6 space-y-8">
+            {selectedDateIntakeGroup && (() => {
+              const { scheduled } = organizeIntakesByCategory(selectedDateIntakeGroup.intakes, selectedDateIntakeGroup.dateObj);
+              return scheduled.map(group => (
+                <div key={group.time} className="space-y-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md w-fit">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-semibold text-sm">{group.time}</span>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead>Medication</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Administered By</TableHead>
+                          <TableHead>Notes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.intakes.map(intake => (
+                          <TableRow key={intake.id}>
+                            <TableCell>
+                              <p className="font-medium">{intake.medication?.name}</p>
+                              <p className="text-xs text-muted-foreground">{intake.medication?.strength} {intake.medication?.strength_unit}</p>
+                            </TableCell>
+                            <TableCell><Badge className={getStateBadgeStyle(intake.status)} variant="outline">{intake.status}</Badge></TableCell>
+                            <TableCell className="text-sm">
+                              <div>{intake.administered_by?.name || "-"}</div>
+                              {intake.witness?.name && <div className="text-xs text-muted-foreground">Witness: {intake.witness.name}</div>}
+                            </TableCell>
+                            <TableCell className="text-sm italic">{intake.comment || "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ));
             })()}
           </div>
         </SheetContent>

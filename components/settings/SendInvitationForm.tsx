@@ -1,5 +1,3 @@
-"use client";
-
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { inviteMemberSchema } from "@/schemas/settings/inviteMemberSchema";
@@ -15,30 +13,23 @@ import {
   SelectValue
 } from "../ui/select";
 import { Button } from "../ui/button";
-import { useTransition } from "react";
-import { authClient } from "@/lib/auth-client";
+import { useTransition, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { canInviteMembers, getAllowedRolesToInvite, type UserRole } from "@/lib/permissions";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { v4 as uuidv4 } from "uuid";
+import { sendInvitationEmail } from "@/app/actions/invitations";
 
 export default function SendInvitationForm() {
-  const { data: member } = authClient.useActiveMember();
-  const { data: activeOrganization, refetch: refetchOrganization } = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
+  const { profile: userProfile } = useProfile();
+  const { supabase } = useSupabase();
   const [isLoading, startTransition] = useTransition();
-  const createInvitation = useMutation(api.customInvite.createInvitationForManager);
-  const teams = useQuery(api.auth.getTeamsWithMembers, {});
-  const activeCareHome = useQuery(api.rbac.careHomes.getActiveCareHome, {});
+  const [teams, setTeams] = useState<any[]>([]);
 
-  // Fallback: Get role from organization members if activeMember is not available
-  const orgMemberRole = activeOrganization?.members?.find(
-    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
-  )?.role;
+  const activeOrganizationId = userProfile?.active_organization_id;
+  const userRole = userProfile?.role as UserRole | undefined;
 
-  // Use activeMember role first, fallback to org member role
-  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
-  
   const form = useForm<z.infer<typeof inviteMemberSchema>>({
     resolver: zodResolver(inviteMemberSchema),
     defaultValues: {
@@ -51,19 +42,37 @@ export default function SendInvitationForm() {
   const selectedRole = form.watch("role");
   const showTeamSelector = selectedRole === "nurse" || selectedRole === "care_assistant";
 
-  // Filter teams: Hide teams with organization name when manager invites nurse/care_assistant
-  const filteredTeams = teams?.filter((team) => {
-    // If manager is inviting nurse or care_assistant, hide teams that match organization name
-    if (userRole === "manager" && (selectedRole === "nurse" || selectedRole === "care_assistant")) {
-      const orgName = activeOrganization?.name || "";
-      // Hide team if its name matches the organization name
-      return team.name !== orgName;
+  // Fetch teams (units) from Supabase
+  useEffect(() => {
+    async function fetchTeams() {
+      if (!supabase || !activeOrganizationId) return;
+
+      const { data, error } = await supabase
+        .from('units')
+        .select('id, name')
+        .eq('organization_id', activeOrganizationId);
+
+      if (error) {
+        console.error("Error fetching teams:", error);
+      } else {
+        setTeams(data || []);
+      }
     }
-    // Otherwise, show all teams
+
+    fetchTeams();
+  }, [supabase, activeOrganizationId]);
+
+  // Filter teams logic
+  const filteredTeams = teams.filter((team) => {
+    // If manager is inviting nurse or care_assistant, implementation detail: 
+    // we might want to hide teams that match organization name if that convention exists
+    // For Supabase, we just show all units for now unless specific logic is needed
     return true;
-  }) || [];
+  });
 
   const onSubmit = (values: z.infer<typeof inviteMemberSchema>) => {
+    if (!supabase || !userProfile) return;
+
     // Check if user has permission to invite members
     if (!userRole || !canInviteMembers(userRole)) {
       toast.error("You don't have permission to invite members");
@@ -72,31 +81,92 @@ export default function SendInvitationForm() {
 
     startTransition(async () => {
       try {
-        const result = await createInvitation({
+        const token = uuidv4();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+        // Check for existing invitation
+        const { data: existingInvite } = await supabase
+          .from('invitations')
+          .select('id')
+          .eq('email', values.email)
+          .eq('organization_id', activeOrganizationId)
+          .eq('status', 'pending')
+          .single();
+
+        if (existingInvite) {
+          toast.error("User is already invited to this organization");
+          return;
+        }
+
+        // Check if user is already a member
+        const { data: existingMember } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', values.email)
+          .eq('active_organization_id', activeOrganizationId)
+          .single();
+
+        if (existingMember) {
+          toast.error("User is already a member of this organization");
+          return;
+        }
+
+        // 1. Fetch organization name for the email
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', activeOrganizationId)
+          .single();
+
+        const organizationName = orgData?.name || "your organization";
+
+        // 2. Create Invitation in Database
+        const { error } = await supabase
+          .from('invitations')
+          .insert({
+            organization_id: activeOrganizationId,
+            email: values.email,
+            role: values.role,
+            status: 'pending',
+            invited_by: userProfile.id,
+            token: token,
+            expires_at: expiresAt.toISOString()
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        if (!activeOrganizationId) {
+          toast.error("Active organization not found");
+          return;
+        }
+
+        // 3. Send Invitation Email
+        const emailResult = await sendInvitationEmail({
           email: values.email,
-          role: values.role as any,
-          teamId: values.teamId,
-          careHomeId: values.role === "manager" ? activeCareHome?._id : undefined
+          organizationId: activeOrganizationId,
+          organizationName: organizationName,
+          inviterName: userProfile.name || "A team member",
+          token: token,
+          role: values.role
         });
 
-        if (result.success) {
-          toast.success("Invitation sent successfully");
-          form.reset();
-          // Refetch organization data to update the invitations list
-          await refetchOrganization();
+        if (!emailResult.success) {
+          console.warn("Invitation email failed to send:", emailResult.error);
+          toast.warning("Invitation created, but email could not be sent.");
         } else {
-          // Handle specific error cases
-          if (result.error?.includes("already invited")) {
-            toast.error("User is already invited to this organization");
-          } else if (result.error?.includes("only invite")) {
-            toast.error(result.error);
-          } else {
-            toast.error(result.error || "Failed to send invitation");
-          }
+          toast.success("Invitation sent successfully");
         }
-      } catch (error) {
+
+        form.reset();
+        // Trigger a refresh of the members list if possible, or just reload
+        window.location.reload();
+
+      } catch (error: any) {
         console.error("Error sending invitation:", error);
-        toast.error("Failed to send invitation");
+        toast.error(error.message || "Failed to send invitation");
       }
     });
   };

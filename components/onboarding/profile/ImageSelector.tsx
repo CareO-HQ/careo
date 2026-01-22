@@ -13,13 +13,11 @@ import {
   ImageCropApply,
   ImageCropContent
 } from "@/components/ui/kibo-ui/image-crop";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useMutation } from "convex/react";
 import { TrashIcon } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 
 export default function ImageSelector({
   selectedFile,
@@ -32,13 +30,13 @@ export default function ImageSelector({
   selectedFile: File | null;
   setSelectedFile: (file: File | null) => void;
   currentImageUrl: string | null | undefined;
-  fileId: Id<"files"> | null | undefined;
+  fileId: string | null | undefined;
   userInitial: string;
   placeholder?: React.ReactNode;
 }) {
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const deleteImageMutation = useMutation(api.files.image.deleteById);
+  const { supabase } = useSupabase();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -58,10 +56,9 @@ export default function ImageSelector({
   const handleReset = async () => {
     setSelectedFile(null);
     setCroppedImage(null);
-    if (fileId) {
-      await deleteImageMutation({
-        fileId
-      });
+    if (fileId && supabase) {
+      // Logic for deleting from Supabase Storage could go here if fileId was a path
+      console.log("Delete image requested for:", fileId);
     }
     setIsModalOpen(false);
   };

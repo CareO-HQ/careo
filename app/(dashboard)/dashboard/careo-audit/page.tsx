@@ -44,7 +44,7 @@ import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { withRoleGuard } from "@/lib/route-guards";
 
 interface Audit {
@@ -75,7 +75,7 @@ function CareOAuditPageContent() {
   const convex = useConvex();
   const [audits, setAudits] = useState<Audit[]>([]);
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   // Get tab from URL query params, default to "resident"
   const tabFromUrl = searchParams.get("tab") || "resident";
@@ -508,7 +508,7 @@ function CareOAuditPageContent() {
     }
 
     // For resident tab, create template in database
-    if (activeTab === "resident" && activeTeamId && activeOrganizationId && session?.user) {
+    if (activeTab === "resident" && activeTeamId && activeOrganizationId && profile) {
       try {
         const templateId = await createTemplate({
           name: formData.auditName,
@@ -517,7 +517,7 @@ function CareOAuditPageContent() {
           frequency: formData.frequency as "monthly" | "quarterly" | "yearly",
           teamId: activeTeamId, // Team where it was created (for tracking purposes)
           organizationId: activeOrganizationId, // Organization-wide template
-          createdBy: session.user.name || session.user.email || "Unknown",
+          createdBy: profile.name || profile.email || "Unknown",
         });
 
         setIsDialogOpen(false);
@@ -531,7 +531,7 @@ function CareOAuditPageContent() {
         console.error("Failed to create template:", error);
         toast.error("Failed to create audit template");
       }
-    } else if (activeTab === "governance" && activeOrganizationId && session?.user) {
+    } else if (activeTab === "governance" && activeOrganizationId && profile) {
       // For governance tab, create template in database
       try {
         const templateId = await createGovernanceTemplate({
@@ -539,7 +539,7 @@ function CareOAuditPageContent() {
           items: [], // Start with empty items, user will add them in the editor
           frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
           organizationId: activeOrganizationId,
-          createdBy: session.user.name || session.user.email || "Unknown",
+          createdBy: profile.name || profile.email || "Unknown",
         });
 
         setIsDialogOpen(false);
@@ -553,7 +553,7 @@ function CareOAuditPageContent() {
         console.error("Failed to create governance template:", error);
         toast.error("Failed to create governance audit template");
       }
-    } else if (activeTab === "clinical" && activeOrganizationId && session?.user) {
+    } else if (activeTab === "clinical" && activeOrganizationId && profile) {
       // For clinical tab, create template in database
       try {
         const templateId = await createClinicalTemplate({
@@ -561,7 +561,7 @@ function CareOAuditPageContent() {
           items: [], // Start with empty items, user will add them in the editor
           frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
           organizationId: activeOrganizationId,
-          createdBy: session.user.name || session.user.email || "Unknown",
+          createdBy: profile.name || profile.email || "Unknown",
         });
 
         setIsDialogOpen(false);
@@ -575,7 +575,7 @@ function CareOAuditPageContent() {
         console.error("Failed to create clinical template:", error);
         toast.error("Failed to create clinical audit template");
       }
-    } else if (activeTab === "environment" && activeOrganizationId && session?.user) {
+    } else if (activeTab === "environment" && activeOrganizationId && profile) {
       // For environment tab, create template in database
       try {
         const templateId = await createEnvironmentTemplate({
@@ -583,7 +583,7 @@ function CareOAuditPageContent() {
           items: [], // Start with empty items, user will add them in the editor
           frequency: formData.frequency as "monthly" | "quarterly" | "6months" | "yearly",
           organizationId: activeOrganizationId,
-          createdBy: session.user.name || session.user.email || "Unknown",
+          createdBy: profile.name || profile.email || "Unknown",
         });
 
         setIsDialogOpen(false);
@@ -603,7 +603,7 @@ function CareOAuditPageContent() {
         id: Date.now().toString(),
         name: formData.auditName,
         status: "new",
-        auditor: session?.user?.name || session?.user?.email || "Unknown User",
+        auditor: profile?.name || profile?.email || "Unknown User",
         lastAudited: "--",
         dueDate: "--",
         category: activeTab,
@@ -750,7 +750,7 @@ function CareOAuditPageContent() {
   const filteredAudits = audits.filter(audit => audit.category === activeTab);
 
   // State to store resident completion percentages for care file audits
-  const [residentCompletions, setResidentCompletions] = useState<{[residentId: string]: number}>({});
+  const [residentCompletions, setResidentCompletions] = useState<{ [residentId: string]: number }>({});
 
   // Calculate overall completion percentage for a resident's care file audits
   const calculateResidentCareFileCompletion = (residentId: string): number => {
@@ -808,10 +808,10 @@ function CareOAuditPageContent() {
   };
 
   // State to store last audited and next audit dates for residents
-  const [residentDates, setResidentDates] = useState<{[residentId: string]: {lastAudited: string, nextAudit: string}}>({});
+  const [residentDates, setResidentDates] = useState<{ [residentId: string]: { lastAudited: string, nextAudit: string } }>({});
 
   // Calculate last audited and next audit dates for a resident
-  const calculateResidentDates = (residentId: string): {lastAudited: string, nextAudit: string} => {
+  const calculateResidentDates = (residentId: string): { lastAudited: string, nextAudit: string } => {
     if (!careFileTemplates || !careFileResponses) {
       return { lastAudited: '-', nextAudit: '-' };
     }
@@ -877,19 +877,19 @@ function CareOAuditPageContent() {
     // Format last audited date (only show if ALL templates are 100% complete)
     const formattedLastAudited = (allTemplatesComplete && latestCompletionDate)
       ? new Date(latestCompletionDate).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        })
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      })
       : '-';
 
     // Format next audit date (show the earliest next due date if available, regardless of completion)
     const formattedNextAudit = earliestNextDue
       ? new Date(earliestNextDue).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        })
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      })
       : '-';
 
     return { lastAudited: formattedLastAudited, nextAudit: formattedNextAudit };
@@ -898,8 +898,8 @@ function CareOAuditPageContent() {
   // Calculate completion percentages for all residents when they load or tab changes
   useEffect(() => {
     if (activeTab === 'carefile' && residents && residents.length > 0 && careFileTemplates && careFileResponses) {
-      const completions: {[residentId: string]: number} = {};
-      const dates: {[residentId: string]: {lastAudited: string, nextAudit: string}} = {};
+      const completions: { [residentId: string]: number } = {};
+      const dates: { [residentId: string]: { lastAudited: string, nextAudit: string } } = {};
 
       residents.forEach((resident) => {
         const residentId = resident._id as string;

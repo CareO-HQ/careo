@@ -10,13 +10,15 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 import { CreateTeamSchema } from "@/schemas/CreateTeamSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
+import { supabase } from "@/lib/supabase";
 
 export default function CreateTeamForm({
   onSuccess
@@ -24,7 +26,8 @@ export default function CreateTeamForm({
   onSuccess?: () => void;
 }) {
   const [isLoading, startTransition] = useTransition();
-  const organization = authClient.useActiveOrganization();
+  const { profile } = useProfile();
+  const { user } = useSupabase();
 
   const form = useForm<z.infer<typeof CreateTeamSchema>>({
     resolver: zodResolver(CreateTeamSchema),
@@ -37,22 +40,31 @@ export default function CreateTeamForm({
   function onSubmit(values: z.infer<typeof CreateTeamSchema>) {
     startTransition(async () => {
       try {
-        const { data, error } = await authClient.organization.createTeam({
-          name: values.name,
-          organizationId: organization?.data?.id
-        });
-        console.log("data", data);
-        console.log("error", error);
+        if (!profile?.active_organization_id || !profile?.active_care_home_id || !user?.id) {
+          toast.error("Missing organization or care home context. Please ensure you are logged in correctly.");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("teams")
+          .insert({
+            name: values.name,
+            organization_id: profile.active_organization_id,
+            care_home_id: profile.active_care_home_id,
+            created_by: user.id
+          })
+          .select()
+          .single();
 
         if (data && !error) {
           toast.success("Team created successfully");
           form.reset();
           onSuccess?.();
         } else if (error) {
-          toast.error("Error creating team");
+          toast.error("Error creating team: " + error.message);
         }
       } catch (error) {
-        console.error("Error updating user:", error);
+        console.error("Error creating team:", error);
       }
     });
   }

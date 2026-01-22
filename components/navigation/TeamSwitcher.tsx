@@ -21,14 +21,12 @@ import {
   UserIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
-import { Id } from "@/convex/_generated/dataModel";
-import CreateTeamModal from "../team/CreateTeamModal";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
+import CreateTeamModal from "../team/CreateTeamModal";
 import CreateCareHomeModal from "../organization/CreateCareHomeModal";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
@@ -43,96 +41,124 @@ export function TeamSwitcher({
   isPending: boolean;
 }) {
   const router = useRouter();
-  const { data: activeOrganization } = authClient.useActiveOrganization();
-  const { data: activeMember } = authClient.useActiveMember();
-  const currentUser = useQuery(api.auth.getCurrentUser);
-  const isOwner = activeMember?.role === "owner" || currentUser?.role === "owner";
-  const userRole =
-    (activeMember?.role as string | undefined) ||
-    (currentUser as any)?.role ||
-    undefined;
-  
-  // Get care homes from careHomes table instead of organizations
-  // Always pass organizationId if available, even if query might handle it internally
-  const careHomes = useQuery(
-    api.rbac.careHomes.getCareHomes,
-    activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
-  );
+  const { profile, isLoading: isProfileLoading, refresh: refreshProfile } = useProfile();
+  const { supabase } = useSupabase();
+  const [isPendingTransition, startTransition] = useTransition();
 
-  // Debug logging for care homes
-  if (typeof window !== 'undefined' && isOwner) {
-    console.log('[TeamSwitcher] Care homes query state:', {
-      hasActiveOrg: !!activeOrganization,
-      orgId: activeOrganization?.id,
-      careHomesCount: careHomes?.length ?? 0,
-      careHomes: careHomes,
-      userRole: userRole,
-      isOwner
-    });
-  }
-  
-  // Get current user context to check active care home and unit
-  const currentUserContext = useQuery(api.users.getCurrentUserContext);
-  const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
+  const [careHomes, setCareHomes] = useState<any[]>([]);
+  const [orgTeams, setOrgTeams] = useState<any[]>([]);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
+  const activeOrganizationId = profile?.active_organization_id;
+  const activeCareHomeId = profile?.active_care_home_id;
+  const activeTeamId = profile?.active_team_id;
+  const userRole = profile?.role;
+  const isOwner = userRole === "owner";
+  const isNurseOrCareAssistant = userRole === "nurse" || userRole === "care_assistant";
   const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
-  const { activeTeamId, activeTeam } = useActiveTeam();
-  const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
-  const switchActiveCareHome = useMutation(api.rbac.careHomes.switchActiveCareHome);
 
-  const getActiveOrgLogoQuery = useQuery(
-    api.files.image.getOrganizationLogo,
-    {}
-  );
+  // Fetch Care Homes
+  useEffect(() => {
+    if (!activeOrganizationId) return;
 
-  // For Nurse/Care Assistant: get all units/teams in care home
-  // For Manager/Owner: get all teams in organization
-  const effectiveRole =
-    userRole ||
-    currentUserContext?.role ||
-    (currentUserContext?.user?.activeUnitId ? "nurse" : undefined);
-  const isNurseOrCareAssistant =
-    effectiveRole === "nurse" || effectiveRole === "care_assistant";
-  const assignedTeams = useQuery(api.auth.getTeamsForCurrentUser, {});
-  // Process teams based on role
-  let orgTeams: Array<{
-    id: string;
-    name: string;
-  }> = [];
-  
-  if (assignedTeams) {
-    // Use the same team list as managers/owners for all roles
-    orgTeams =
-      assignedTeams.filter(
-        (team: { id: string; name: string }) =>
-          team.name !== activeOrganization?.name
-      ) || [];
-  }
+    async function fetchCareHomes() {
+      const { data, error } = await supabase
+        .from("care_homes")
+        .select("id, name")
+        .eq("organization_id", activeOrganizationId);
+
+      if (!error && data) {
+        setCareHomes(data);
+      }
+    }
+
+    fetchCareHomes();
+  }, [activeOrganizationId, supabase]);
+
+  // Fetch Teams (Units)
+  useEffect(() => {
+    async function fetchTeams() {
+      if (!activeOrganizationId) return;
+
+      let query = supabase.from("teams").select("id, name");
+
+      // Isolation: if nurse/assistant, show only teams in their care home
+      if (isNurseOrCareAssistant && activeCareHomeId) {
+        query = query.eq("care_home_id", activeCareHomeId);
+      } else {
+        query = query.eq("organization_id", activeOrganizationId);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        setOrgTeams(data);
+      }
+    }
+
+    fetchTeams();
+  }, [activeOrganizationId, activeCareHomeId, isNurseOrCareAssistant, supabase]);
+
+  // Fetch Organization Logo
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+
+    async function fetchLogo() {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("logo_url")
+        .eq("id", activeOrganizationId)
+        .single();
+
+      if (!error && data) {
+        setLogoUrl(data.logo_url);
+      }
+    }
+
+    fetchLogo();
+  }, [activeOrganizationId, supabase]);
 
   const handleTeamClick = async (teamId: string) => {
-    try {
-      // Use the same team switching logic as managers/owners
-      await updateActiveTeam({ teamId });
-      toast.success("Team switched successfully");
-    } catch (error) {
-      console.error("Error switching team:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to switch team";
-      toast.error(errorMessage);
-    }
+    startTransition(async () => {
+      try {
+        const { error } = await supabase
+          .from("users")
+          .update({ active_team_id: teamId })
+          .eq("id", profile?.id);
+
+        if (error) throw error;
+
+        toast.success("Team switched successfully");
+        refreshProfile();
+      } catch (error) {
+        console.error("Error switching team:", error);
+        toast.error("Failed to switch team");
+      }
+    });
   };
 
   const handleCareHomeSwitch = async (careHomeId: string) => {
-    try {
-      // Convert string ID to Convex ID
-      await switchActiveCareHome({ careHomeId: careHomeId as Id<"careHomes"> });
-      toast.success("Care home switched successfully");
-      // Refresh the page to update the UI
-      window.location.reload();
-    } catch (error) {
-      console.error("Error switching care home:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to switch care home";
-      toast.error(errorMessage);
-    }
+    startTransition(async () => {
+      try {
+        // When switching care home, we also reset the active unit
+        const { error } = await supabase
+          .from("users")
+          .update({
+            active_care_home_id: careHomeId,
+            active_team_id: null
+          })
+          .eq("id", profile?.id);
+
+        if (error) throw error;
+
+        toast.success("Care home switched successfully");
+        refreshProfile();
+        // Force refresh to ensure all downstream components update
+        window.location.reload();
+      } catch (error) {
+        console.error("Error switching care home:", error);
+        toast.error("Failed to switch care home");
+      }
+    });
   };
 
   return (
@@ -145,7 +171,7 @@ export function TeamSwitcher({
                 <div className="flex flex-row items-center gap-2">
                   <Avatar className="rounded-md">
                     <AvatarImage
-                      src={getActiveOrgLogoQuery?.url ?? ""}
+                      src={logoUrl ?? ""}
                       alt="Organization logo"
                     />
                     <AvatarFallback className="text-xs rounded bg-primary text-secondary">
@@ -154,18 +180,17 @@ export function TeamSwitcher({
                   </Avatar>
 
                   <div>
-                    {isPending ? (
+                    {isPending || isProfileLoading ? (
                       <Skeleton className="w-10 h-[17px] bg-muted-foreground/10 mb-[1px]" />
                     ) : (
-                   
                       <span className="truncate font-medium">{orgName}</span>
                     )}
-                    {isPending ? (
+                    {isPending || isProfileLoading ? (
                       <Skeleton className="w-20 h-4 bg-muted-foreground/10" />
                     ) : (
-                      activeTeam && (
+                      profile?.active_team_name && (
                         <p className="text-xs text-muted-foreground truncate">
-                          {activeTeam.name}
+                          {profile.active_team_name}
                         </p>
                       )
                     )}
@@ -190,7 +215,6 @@ export function TeamSwitcher({
                     <DropdownMenuItem
                       onSelect={(e) => {
                         e.preventDefault();
-                        // Dialog will open via DialogTrigger
                       }}
                       disabled={
                         (careHomes?.length ?? 0) >=
@@ -205,12 +229,12 @@ export function TeamSwitcher({
                 {careHomes && careHomes.length > 0 ? (
                   careHomes.map((careHome) => (
                     <OrganizationItem
-                      key={careHome._id}
+                      key={careHome.id}
                       organization={{
-                        id: String(careHome._id),
+                        id: careHome.id,
                         name: careHome.name
                       }}
-                      isActive={activeCareHomeId === careHome._id}
+                      isActive={activeCareHomeId === careHome.id}
                       onSelect={(id) => handleCareHomeSwitch(id)}
                     />
                   ))
@@ -275,7 +299,7 @@ export function TeamSwitcher({
               ))
             ) : (
               <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                {isNurseOrCareAssistant 
+                {isNurseOrCareAssistant
                   ? "No units available in your care home yet."
                   : `${orgName} has no teams yet.`}
               </div>
@@ -285,13 +309,13 @@ export function TeamSwitcher({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.push("/settings/profile")}>
-                  <UserIcon />
+                  <UserIcon className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => router.push("/settings/organization")}
                 >
-                  <BuildingIcon />
+                  <BuildingIcon className="mr-2 h-4 w-4" />
                   Manage organization
                 </DropdownMenuItem>
               </>

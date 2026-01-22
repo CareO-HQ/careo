@@ -15,37 +15,40 @@ export {
 } from "../lib/utils/dateUtils";
 
 export type Resident = {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  roomNumber?: string;
-  healthConditions?: string[] | { condition: string }[];
+  id: string;
+  first_name: string;
+  last_name: string;
+  room_number?: string;
+  health_conditions?: string[] | { condition: string }[];
   risks?: string[] | { risk: string; level?: "low" | "medium" | "high" }[];
   dependencies?:
-    | string[]
-    | {
-        mobility: string;
-        eating: string;
-        dressing: string;
-        toileting: string;
-      };
-  phoneNumber?: string;
-  dateOfBirth: string;
-  admissionDate: string;
-  imageUrl: string;
-  nhsHealthNumber?: string;
+  | string[]
+  | {
+    mobility: string;
+    eating: string;
+    dressing: string;
+    toileting: string;
+  };
+  phone_number?: string;
+  date_of_birth: string;
+  admission_date?: string;
+  image_url?: string;
+  nhs_health_number?: string;
   // GP Details
-  gpName?: string;
-  gpAddress?: string;
-  gpPhone?: string;
+  gp_name?: string;
+  gp_address?: string;
+  gp_phone?: string;
   // Care Manager Details
-  careManagerName?: string;
-  careManagerAddress?: string;
-  careManagerPhone?: string;
-  emergencyContacts: {
+  care_manager_name?: string;
+  care_manager_address?: string;
+  care_manager_phone?: string;
+  emergency_contacts?: {
     name: string;
-    phoneNumber: string;
+    phone_number: string;
     relationship: string;
-    isPrimary: boolean;
+    is_primary: boolean;
   }[];
+  team_id?: string;
+  care_home_id?: string;
+  organization_id?: string;
 };

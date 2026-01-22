@@ -1,12 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ import {
   FormDescription
 } from "@/components/ui/form";
 import { toast } from "sonner";
-import { useQuery } from "convex/react";
+import { sendOwnerInvitationEmail } from "@/app/actions/invitations";
 
 const createOwnerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -33,8 +33,7 @@ type CreateOwnerFormData = z.infer<typeof createOwnerSchema>;
 export default function CreateOwnerPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  const createOwner = useMutation(api.saasAdmin.createCareHomeOwner);
+  const { profile, isLoading: isProfileLoading } = useProfile();
 
   const form = useForm<CreateOwnerFormData>({
     resolver: zodResolver(createOwnerSchema),
@@ -46,38 +45,91 @@ export default function CreateOwnerPage() {
   });
 
   // Redirect if not SaaS Admin
-  if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
-    router.push("/dashboard");
-    return null;
-  }
+  useEffect(() => {
+    if (!isProfileLoading && profile && !profile.is_saas_admin) {
+      router.push("/dashboard");
+    }
+  }, [profile, isProfileLoading, router]);
 
   const onSubmit = (values: CreateOwnerFormData) => {
     startTransition(async () => {
       try {
-        const result = await createOwner({
+        // 1. Create Organization
+        const { data: org, error: orgError } = await supabase
+          .from("organizations")
+          .insert({
+            name: values.organizationName,
+            slug: values.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          })
+          .select()
+          .single();
+
+        if (orgError) throw orgError;
+
+        // 2. Create Organization Status
+        const { error: statusError } = await supabase
+          .from("organization_status")
+          .insert({
+            organization_id: org.id,
+            status: "active"
+          });
+
+        if (statusError) throw statusError;
+
+        // 3. Create Invitation for Owner
+        const { data: invite, error: inviteError } = await supabase
+          .from("invitations")
+          .insert({
+            email: values.email,
+            organization_id: org.id,
+            role: "owner",
+            token: crypto.randomUUID(),
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+            invited_by: profile?.id
+          })
+          .select()
+          .single();
+
+        if (inviteError) throw inviteError;
+
+        // 4. Send Invitation Email
+        const emailResult = await sendOwnerInvitationEmail({
           email: values.email,
-          name: values.name,
-          organizationName: values.organizationName
+          organizationName: values.organizationName,
+          inviterName: profile?.name || "Platform Administrator",
+          token: invite.token
         });
 
-        if (result.success) {
-          toast.success(
-            `Organization "${values.organizationName}" created successfully. An invitation email has been sent to ${values.email}. The owner will create care homes during onboarding or through the dashboard.`
+        if (!emailResult.success) {
+          console.warn("Invitation email failed to send:", emailResult.error);
+          toast.warning(
+            `Organization created, but the invitation email to ${values.email} could not be sent. You can try resending it later.`
           );
-          if (result.organizationId) {
-            router.push(`/admin/care-homes/${result.organizationId}`);
-          } else {
-            router.push("/admin/owners");
-          }
         } else {
-          toast.error(result.error || "Failed to create owner");
+          toast.success(
+            `Organization "${values.organizationName}" created successfully. An invitation email has been sent to ${values.email}.`
+          );
         }
-      } catch (error) {
+
+        router.push("/admin/owners");
+      } catch (error: any) {
         console.error("Error creating owner:", error);
-        toast.error("An error occurred while creating the owner");
+        toast.error(error.message || "An error occurred while creating the owner");
       }
     });
   };
+
+  if (isProfileLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!profile?.is_saas_admin) {
+    return null;
+  }
 
   return (
     <div className="w-full p-6 space-y-6">

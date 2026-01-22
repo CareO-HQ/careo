@@ -10,7 +10,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { Id } from "@/convex/_generated/dataModel";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -20,7 +19,7 @@ export default function CreateResidentMedication({
   teamId,
   organizationId
 }: {
-  residentId: Id<"residents">;
+  residentId: string;
   residentName?: string;
   teamId?: string;
   organizationId?: string;

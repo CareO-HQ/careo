@@ -12,7 +12,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
@@ -28,9 +28,14 @@ export default function LeaveWorkspaceModal({
     if (!orgId) return;
     startTransition(async () => {
       try {
-        await authClient.organization.leave({
-          organizationId: orgId
-        });
+        // TODO: Implement proper Supabase membership removal logic
+        // For now, we nullify the active organization for this user
+        const { error } = await supabase
+          .from("users")
+          .update({ active_organization_id: null })
+          .eq("id", (await supabase.auth.getUser()).data.user?.id);
+
+        if (error) throw error;
         router.push("/");
       } catch (error) {
         console.error(error);

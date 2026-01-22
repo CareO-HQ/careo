@@ -40,7 +40,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { ArrowLeft, Plus, X, Trash2, MoreHorizontal, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 
 interface Item {
@@ -75,7 +75,7 @@ function CareFileAuditEditorPageContent() {
   const residentId = params.residentId as Id<"residents">;
   const auditId = params.auditId as Id<"careFileAuditTemplates">;
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId });
@@ -253,7 +253,7 @@ function CareFileAuditEditorPageContent() {
 
   // Automatically create draft response if none exists
   useEffect(() => {
-    if (!template || !resident || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
+    if (!template || !resident || !activeTeamId || !activeOrganizationId || !profile?.email) {
       return;
     }
 
@@ -276,7 +276,7 @@ function CareFileAuditEditorPageContent() {
       isCreatingDraft.current = true;
 
       try {
-        const auditorName = session.user.name || session.user.email;
+        const auditorName = profile.name || profile.email;
         const draftId = await createResponse({
           templateId: auditId,
           templateName: template.name,
@@ -301,7 +301,7 @@ function CareFileAuditEditorPageContent() {
     };
 
     createDraft();
-  }, [template, resident, responseId, activeTeamId, activeOrganizationId, session, existingDrafts, createResponse, auditId, residentId]);
+  }, [template, resident, responseId, activeTeamId, activeOrganizationId, profile, existingDrafts, createResponse, auditId, residentId]);
 
   const handleAddItem = async () => {
     if (!newItemForm.name) {
@@ -411,7 +411,7 @@ function CareFileAuditEditorPageContent() {
   };
 
   const handleCompleteAudit = async () => {
-    if (!resident || !template || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
+    if (!resident || !template || !activeTeamId || !activeOrganizationId || !profile?.email) {
       toast.error("Missing required information");
       return;
     }
@@ -429,7 +429,7 @@ function CareFileAuditEditorPageContent() {
           roomNumber: resident.roomNumber,
           teamId: activeTeamId,
           organizationId: activeOrganizationId,
-          auditedBy: session.user.name || session.user.email,
+          auditedBy: profile.name || profile.email,
           frequency: template.frequency,
         });
         setResponseId(currentResponseId);
@@ -747,11 +747,10 @@ function CareFileAuditEditorPageContent() {
                           variant="secondary"
                           className="text-xs flex items-center gap-1"
                         >
-                          <div className={`w-2 h-2 rounded-full ${
-                            plan.priority === "High" ? "bg-red-500" :
+                          <div className={`w-2 h-2 rounded-full ${plan.priority === "High" ? "bg-red-500" :
                             plan.priority === "Medium" ? "bg-yellow-500" :
-                            "bg-green-500"
-                          }`}></div>
+                              "bg-green-500"
+                            }`}></div>
                           {plan.priority}
                         </Badge>
                       )}
@@ -860,11 +859,10 @@ function CareFileAuditEditorPageContent() {
                 <PopoverTrigger asChild>
                   <Badge variant="outline" className="cursor-pointer hover:bg-accent flex items-center gap-1">
                     {priority && (
-                      <div className={`w-2 h-2 rounded-full ${
-                        priority === "High" ? "bg-red-500" :
+                      <div className={`w-2 h-2 rounded-full ${priority === "High" ? "bg-red-500" :
                         priority === "Medium" ? "bg-yellow-500" :
-                        "bg-green-500"
-                      }`}></div>
+                          "bg-green-500"
+                        }`}></div>
                     )}
                     {priority || "Priority"}
                   </Badge>
@@ -1070,7 +1068,7 @@ function CareFileAuditEditorPageContent() {
 
 export default function CareFileAuditEditorPage() {
   return (
-    <ErrorBoundary 
+    <ErrorBoundary
       fallback={
         // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
         <AuditErrorFallback context="editor" />

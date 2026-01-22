@@ -1,41 +1,91 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { BarChart3, TrendingUp, Users, Building2 } from "lucide-react";
+import { BarChart3, TrendingUp, Users, Building2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+interface PlatformStats {
+  totalOrganizations: number;
+  totalUsers: number;
+  totalResidents: number;
+  totalTeams: number;
+  recentOrganizations: Array<{
+    id: string;
+    name: string;
+    createdAt: string;
+  }>;
+}
 
 export default function AnalyticsPage() {
-  const { data: session } = authClient.useSession();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const router = useRouter();
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  const platformStats = useQuery(api.saasAdmin.getPlatformStats);
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Redirect if not SaaS Admin
   useEffect(() => {
-    if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
+    if (!isProfileLoading && profile && !profile.is_saas_admin) {
       router.push("/dashboard");
     }
-  }, [saasAdminStatus, router]);
+  }, [profile, isProfileLoading, router]);
 
-  if (!session) {
+  const fetchStats = useCallback(async () => {
+    if (!profile?.is_saas_admin) return;
+
+    try {
+      setIsLoading(true);
+
+      const [
+        { count: orgCount },
+        { count: userCount },
+        { count: resCount },
+        { count: teamCount },
+        { data: recentOrgs }
+      ] = await Promise.all([
+        supabase.from("organizations").select("*", { count: "exact", head: true }),
+        supabase.from("users").select("*", { count: "exact", head: true }),
+        supabase.from("residents").select("*", { count: "exact", head: true }),
+        supabase.from("teams").select("*", { count: "exact", head: true }),
+        supabase.from("organizations").select("id, name, created_at").order("created_at", { ascending: false }).limit(5)
+      ]);
+
+      setPlatformStats({
+        totalOrganizations: orgCount || 0,
+        totalUsers: userCount || 0,
+        totalResidents: resCount || 0,
+        totalTeams: teamCount || 0,
+        recentOrganizations: (recentOrgs || []).map(org => ({
+          id: org.id,
+          name: org.name,
+          createdAt: org.created_at
+        }))
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      toast.error("Failed to load analytics");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  if (isProfileLoading || (isLoading && !platformStats)) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
       </div>
     );
   }
 
-  if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-lg font-semibold mb-2">Access Denied</p>
-        <p className="text-muted-foreground">You don&apos;t have permission to access this page.</p>
-      </div>
-    );
+  if (!profile?.is_saas_admin) {
+    return null;
   }
 
   return (

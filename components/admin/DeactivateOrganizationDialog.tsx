@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { supabase } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface DeactivateOrganizationDialogProps {
   open: boolean;
@@ -34,39 +34,31 @@ export default function DeactivateOrganizationDialog({
 }: DeactivateOrganizationDialogProps) {
   const [reason, setReason] = useState("");
   const [isPending, startTransition] = useTransition();
-  
-  const deactivateOrganization = useMutation(api.saasAdmin.deactivateOrganization);
-  const activateOrganization = useMutation(api.saasAdmin.activateOrganization);
+  const router = useRouter();
 
   const handleAction = () => {
     startTransition(async () => {
       try {
-        if (isDeactivated) {
-          // Activate
-          const result = await activateOrganization({ organizationId });
-          if (result.success) {
-            toast.success("Organization activated successfully");
-            onOpenChange(false);
-          } else {
-            toast.error(result.error || "Failed to activate organization");
-          }
-        } else {
-          // Deactivate
-          const result = await deactivateOrganization({
-            organizationId,
-            reason: reason || undefined,
-          });
-          if (result.success) {
-            toast.success("Organization deactivated successfully");
-            onOpenChange(false);
-            setReason("");
-          } else {
-            toast.error(result.error || "Failed to deactivate organization");
-          }
-        }
+        const newStatus = isDeactivated ? "active" : "deactivated";
+
+        // Update organization_status table
+        const { error } = await supabase
+          .from("organization_status")
+          .update({
+            status: newStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq("organization_id", organizationId);
+
+        if (error) throw error;
+
+        toast.success(`Organization ${isDeactivated ? "activated" : "deactivated"} successfully`);
+        onOpenChange(false);
+        setReason("");
+        router.refresh(); // Trigger server data refresh if needed
       } catch (error) {
         console.error("Error updating organization status:", error);
-        toast.error("An error occurred");
+        toast.error("Failed to update organization status");
       }
     });
   };
@@ -141,8 +133,8 @@ export default function DeactivateOrganizationDialog({
                 ? "Activating..."
                 : "Deactivating..."
               : isDeactivated
-              ? "Activate"
-              : "Deactivate"}
+                ? "Activate"
+                : "Deactivate"}
           </Button>
         </DialogFooter>
       </DialogContent>

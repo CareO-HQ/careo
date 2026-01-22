@@ -4,12 +4,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { authClient } from "@/lib/auth-client";
-import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 import { formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
-import { useEffect } from "react";
 import { withRoleGuard } from "@/lib/route-guards";
 import {
   ArrowLeft,
@@ -24,7 +22,7 @@ import {
 } from "lucide-react";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 type StaffPageProps = {
   params: Promise<{ id: string }>;
@@ -34,19 +32,35 @@ type StaffPageProps = {
 function StaffProfilePage({ params }: StaffPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const { data: activeOrg, isPending: isActiveOrgLoading } = authClient.useActiveOrganization();
-  const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
+  const { profile: currentProfile } = useProfile();
+  const { supabase } = useSupabase();
+  const [staffMember, setStaffMember] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Find the staff member from organization members
-  const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);
+  const fetchStaffMember = useCallback(async () => {
+    if (!supabase) return;
+    setIsLoading(true);
 
-  // Fetch staff member's profile image from Convex
-  const userImage = useQuery(
-    api.files.image.getUserImageByUserId,
-    staffMember?.userId ? { userId: staffMember.userId } : "skip"
-  );
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-  if (isActiveOrgLoading || isActiveMemberLoading) {
+    if (error) {
+      console.error("Error fetching staff profile:", error);
+      setStaffMember(null);
+    } else {
+      setStaffMember(data);
+    }
+    setIsLoading(false);
+  }, [id, supabase]);
+
+  useEffect(() => {
+    fetchStaffMember();
+  }, [fetchStaffMember]);
+
+  if (isLoading || !currentProfile) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -57,23 +71,8 @@ function StaffProfilePage({ params }: StaffPageProps) {
     );
   }
 
-  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+  if (currentProfile && !canViewStaffList(currentProfile.role as UserRole)) {
     return null;
-  }
-
-  console.log("Staff member:", staffMember);
-  console.log("Looking for ID:", id);
-  console.log("User image:", userImage);
-
-  if (!activeOrg) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
   }
 
   if (!staffMember) {
@@ -97,11 +96,11 @@ function StaffProfilePage({ params }: StaffPageProps) {
     );
   }
 
-  const fullName = staffMember.user.name || staffMember.user.email;
-  const nameParts = staffMember.user.name?.split(' ') || [];
+  const fullName = staffMember.name || staffMember.email;
+  const nameParts = staffMember.name?.split(' ') || [];
   const initials = nameParts.length >= 2
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-    : staffMember.user.name?.[0]?.toUpperCase() || staffMember.user.email[0].toUpperCase();
+    : staffMember.name?.[0]?.toUpperCase() || staffMember.email[0].toUpperCase();
 
   const handleCardClick = (cardType: string) => {
     router.push(`/dashboard/staff/${id}/${cardType}` as Route);
@@ -121,7 +120,7 @@ function StaffProfilePage({ params }: StaffPageProps) {
           </Button>
           <Avatar className="w-20 h-20">
             <AvatarImage
-              src={userImage?.url || staffMember.user.image || ""}
+              src={staffMember.image_url || ""}
               alt={fullName}
               className="border"
             />
@@ -137,7 +136,7 @@ function StaffProfilePage({ params }: StaffPageProps) {
               </Badge>
             </div>
             <p className="text-muted-foreground text-sm">
-              {staffMember.user.email}
+              {staffMember.email}
             </p>
           </div>
         </div>

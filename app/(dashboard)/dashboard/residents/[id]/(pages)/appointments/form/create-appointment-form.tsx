@@ -4,7 +4,8 @@ import React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { useProfile } from "@/hooks/use-profile";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -73,12 +74,12 @@ export function CreateAppointmentForm({
   const [createAppointmentLoading, setCreateAppointmentLoading] = React.useState(false);
 
   // Auth data
-  const { data: activeOrganization } = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
+  const { activeOrganizationId } = useActiveTeam();
+  const { profile } = useProfile();
 
   // Get all users for staff selection (using enriched members to get roles and filtering)
   const allUsers = useQuery(api.users.getEnrichedOrgMembers,
-    activeOrganization?.id ? { organizationId: activeOrganization.id } : "skip"
+    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
   );
 
   // Helper to format role name
@@ -103,7 +104,7 @@ export function CreateAppointmentForm({
   const createAppointment = useMutation(api.appointments.createAppointment);
 
   // Get other staff (excluding current user) for assisted staff dropdown
-  const otherStaffOptions = allUsers?.filter((u: any) => u.user?.email !== user?.user?.email).map((u: any) => ({
+  const otherStaffOptions = allUsers?.filter((u: any) => u.user?.email !== profile?.email).map((u: any) => ({
     key: u.user.id || u.id,
     label: `${u.user.name} (${formatRole(u.role)})`,
     email: u.user.email,
@@ -121,7 +122,7 @@ export function CreateAppointmentForm({
 
   // Handle create appointment submission
   const onCreateAppointmentSubmit = async (data: z.infer<typeof CreateAppointmentSchema>) => {
-    if (!user || !activeOrganization) {
+    if (!profile || !activeOrganizationId) {
       toast.error("Authentication required");
       return;
     }
@@ -135,9 +136,9 @@ export function CreateAppointmentForm({
         startTime: data.startTime,
         location: data.location,
         staffId: data.staffId === "none" ? undefined : data.staffId,
-        organizationId: activeOrganization.id,
-        teamId: activeOrganization.id, // Using organization ID as team ID for now
-        createdBy: user.user.id,
+        organizationId: activeOrganizationId,
+        teamId: activeOrganizationId, // Using organization ID as team ID for now
+        createdBy: profile.id,
       });
 
       toast.success("Appointment created successfully");

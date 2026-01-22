@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,8 +40,8 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
 export default function MyActionPlansPage() {
-  const { data: session } = authClient.useSession();
-  const userEmail = session?.user?.email || "";
+  const { user } = useSupabase();
+  const userEmail = user?.email || "";
   const { activeOrganizationId, role } = useActiveTeam();
   const isOwner = role === "owner" || role === "saas_admin";
 
@@ -325,7 +324,7 @@ export default function MyActionPlansPage() {
         status: newStatus,
         comment: statusComment || undefined,
         updatedBy: userEmail,
-        updatedByName: session?.user?.name || userEmail,
+        updatedByName: user?.user_metadata?.name || userEmail,
       });
 
       toast.success("Status updated successfully");

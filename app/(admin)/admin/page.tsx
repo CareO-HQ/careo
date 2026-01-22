@@ -1,29 +1,83 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users, UserCheck, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
-  const { data: session } = authClient.useSession();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const router = useRouter();
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  const platformStats = useQuery(api.saasAdmin.getPlatformStats);
-  const recentOrgs = useQuery(api.saasAdmin.getAllOrganizations);
+  const [platformStats, setPlatformStats] = useState<any>(null);
+  const [recentOrgs, setRecentOrgs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Redirect if not SaaS Admin
   useEffect(() => {
-    if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
+    if (!isProfileLoading && profile && !profile.is_saas_admin) {
       router.push("/dashboard");
     }
-  }, [saasAdminStatus, router]);
+  }, [profile, isProfileLoading, router]);
 
-  if (!session) {
+  useEffect(() => {
+    if (!profile?.is_saas_admin) return;
+
+    async function fetchAdminData() {
+      try {
+        setIsLoading(true);
+
+        // Fetch platform stats
+        const [orgsCount, usersCount, residentsCount, teamsCount] = await Promise.all([
+          supabase.from("organizations").select("*", { count: "exact", head: true }),
+          supabase.from("users").select("*", { count: "exact", head: true }),
+          supabase.from("residents").select("*", { count: "exact", head: true }),
+          supabase.from("teams").select("*", { count: "exact", head: true }),
+        ]);
+
+        setPlatformStats({
+          totalOrganizations: orgsCount.count || 0,
+          totalUsers: usersCount.count || 0,
+          totalResidents: residentsCount.count || 0,
+          totalTeams: teamsCount.count || 0,
+        });
+
+        // Fetch recent organizations with counts
+        const { data: orgs, error: orgsError } = await supabase
+          .from("organizations")
+          .select(`
+            id,
+            name,
+            created_at,
+            users(count),
+            teams(count)
+          `)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (orgsError) throw orgsError;
+
+        setRecentOrgs(orgs.map(org => ({
+          id: org.id,
+          name: org.name,
+          createdAt: org.created_at,
+          memberCount: (org as any).users?.[0]?.count || 0,
+          teamCount: (org as any).teams?.[0]?.count || 0,
+        })));
+
+      } catch (error) {
+        console.error("Error fetching admin data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchAdminData();
+  }, [profile]);
+
+  if (isProfileLoading || isLoading) {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
         <p className="text-muted-foreground">Loading...</p>
@@ -31,7 +85,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
+  if (!profile || !profile.is_saas_admin) {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
         <p className="text-lg font-semibold mb-2">Access Denied</p>

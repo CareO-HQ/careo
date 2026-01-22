@@ -4,14 +4,14 @@ import { DataTable } from "@/components/DataTable";
 import { columns } from "@/components/settings/labels/columns";
 import CreateLabelModal from "@/components/settings/labels/CreateLabelModal";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { useQuery } from "convex/react";
 
 export default function LabelsPage() {
-  const { data: member } = authClient.useActiveMember();
+  const { activeOrganizationId } = useActiveTeam();
   const labels = useQuery(api.labels.getLabelsByOrganization, {
-    organizationId: member?.organizationId
-      ? (member?.organizationId as string)
+    organizationId: activeOrganizationId
+      ? activeOrganizationId
       : "skip"
   });
   return (

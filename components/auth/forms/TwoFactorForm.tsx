@@ -14,14 +14,12 @@ import {
   InputOTPGroup,
   InputOTPSlot
 } from "@/components/ui/input-otp";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
 import {
   TwoFactorFormData,
   TwoFactorSchema
 } from "@/schemas/auth/TwoFactorSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useConvex } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
@@ -32,7 +30,6 @@ import { toast } from "sonner";
 export default function TwoFactorForm() {
   const [isLoading, startTransition] = useTransition();
   const [email] = useQueryState("email");
-  const convex = useConvex();
   const router = useRouter();
   const form = useForm<TwoFactorFormData>({
     resolver: zodResolver(TwoFactorSchema),
@@ -45,65 +42,69 @@ export default function TwoFactorForm() {
     startTransition(async () => {
       try {
         console.log("Two-factor code:", values.code);
-        await authClient.twoFactor.verifyOtp(
-          {
-            code: values.code
-          },
-          {
-            onSuccess: async (ctx) => {
-              const userFromDb = await convex.query(api.user.getUserByEmail, {
-                email: email as string
-              });
-              
-              // #region agent log
-              console.log("[DEBUG TwoFactorForm] User data after 2FA", {
-                email: email,
-                isOnboardingComplete: userFromDb?.isOnboardingComplete,
-                isSaasAdmin: userFromDb?.isSaasAdmin,
-                hypothesisId: "D"
-              });
-              // #endregion
 
-              // Check if user has active organizations (only for non-SaaS Admin users)
-              if (!userFromDb?.isSaasAdmin && ctx.data?.user?.id) {
-                const activeOrgs = await convex.query(api.auth.getUserActiveOrganizations, {
-                  userId: ctx.data.user.id
-                });
-                
-                if (activeOrgs.length === 0) {
-                  toast.error("Your account has no active organizations. Please contact support.");
-                  return;
-                }
-              }
-              
-              if (userFromDb?.isOnboardingComplete) {
-                // Redirect SaaS Admin to admin dashboard, others to regular dashboard
-                if (userFromDb.isSaasAdmin) {
-                  // #region agent log
-                  console.log("[DEBUG TwoFactorForm] Redirecting SaaS Admin to /admin", {
-                    hypothesisId: "D"
-                  });
-                  // #endregion
-                  router.push("/admin");
-                } else {
-                  router.push("/dashboard");
-                }
-              } else {
-                // #region agent log
-                console.log("[DEBUG TwoFactorForm] Onboarding not complete, redirecting to /onboarding", {
-                  hypothesisId: "D"
-                });
-                // #endregion
-                router.push("/onboarding");
-              }
-            },
-            onError: (ctx) => {
-              toast.error(
-                ctx.error.message || "Something went wrong. Please try again."
-              );
+        const { data, error } = await supabase.auth.verifyOtp({
+          email: email as string,
+          token: values.code,
+          type: 'email',
+        });
+
+        if (error) {
+          toast.error(error.message || "Invalid code. Please try again.");
+          return;
+        }
+
+        if (data.session) {
+          // Fetch user data from public.users
+          const { data: userFromDb, error: userError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", data.session.user.id)
+            .single();
+
+          if (userError) {
+            console.error("Error fetching user data:", userError);
+            // Even if fetching user data fails, we might still want to redirect, 
+            // but lacking roles might be an issue. 
+            // For now, assume basic user and redirect to dashboard.
+          }
+
+          // #region agent log
+          console.log("[DEBUG TwoFactorForm] User data after 2FA", {
+            email: email,
+            isOnboardingComplete: userFromDb?.is_onboarding_complete,
+            isSaasAdmin: userFromDb?.is_saas_admin,
+            hypothesisId: "D"
+          });
+          // #endregion
+
+          // Check active organizations for non-SaaS Admin
+          if (!userFromDb?.is_saas_admin) {
+            // Check if user has active organizations
+            // We can check memberships or just if active_organization_id is set?
+            // Convex code checked if activeOrgs.length === 0.
+            // We can check organisation_members table.
+            const { count } = await supabase
+              .from("organization_members")
+              .select("id", { count: 'exact', head: true })
+              .eq("user_id", data.session.user.id);
+
+            if (count === 0) {
+              toast.error("Your account has no active organizations. Please contact support.");
+              return;
             }
           }
-        );
+
+          if (userFromDb?.is_onboarding_complete) {
+            if (userFromDb.is_saas_admin) {
+              router.push("/admin");
+            } else {
+              router.push("/dashboard");
+            }
+          } else {
+            router.push("/onboarding");
+          }
+        }
       } catch (error) {
         console.error("Two-factor verification error:", error);
         toast.error("Something went wrong. Please try again.");

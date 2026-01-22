@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/lib/supabase";
 import { useTransition } from "react";
 
 export default function SelectTheme({
@@ -21,31 +22,37 @@ export default function SelectTheme({
   const [isLoading, startTransition] = useTransition();
   const { setTheme, theme } = useTheme();
   const router = useRouter();
-  const setIsOnboardingCompleted = useMutation(
-    api.user.setIsOnboardingCompleted
-  );
-  const currentUser = useQuery(api.auth.getCurrentUser);
-  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
+  const { profile, refresh: refreshProfile } = useProfile();
+  const isSaasAdmin = profile?.is_saas_admin === true;
 
   const handleNext = () => {
     startTransition(async () => {
       if (isLastStep) {
-        // #region agent log
+        if (!profile) return;
+
         console.log("[DEBUG SelectTheme] Last step - completing onboarding", {
-          isSaasAdmin,
-          hypothesisId: "C"
+          isSaasAdmin
         });
-        // #endregion
-        
-        await setIsOnboardingCompleted();
-        
-        // #region agent log
+
+        const { error } = await supabase
+          .from("users")
+          .update({
+            is_onboarding_complete: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", profile.id);
+
+        if (error) {
+          console.error("Error updating onboarding status:", error);
+          return;
+        }
+
+        await refreshProfile();
+
         console.log("[DEBUG SelectTheme] Onboarding completed, redirecting", {
-          isSaasAdmin,
-          hypothesisId: "C"
+          isSaasAdmin
         });
-        // #endregion
-        
+
         // Redirect SaaS Admin to admin dashboard, others to regular dashboard
         if (isSaasAdmin) {
           router.push("/admin");

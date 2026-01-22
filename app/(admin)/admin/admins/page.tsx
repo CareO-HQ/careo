@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import {
     Card,
     CardContent,
@@ -44,15 +44,56 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Shield, UserPlus, Trash2, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+
+interface AdminProfile {
+    id: string;
+    email: string;
+    name: string | null;
+    created_at: string;
+}
 
 export default function SaaSAdminsPage() {
-    const admins = useQuery(api.saasAdmin.getAllSaasAdmins);
-    const addAdmin = useMutation(api.saasAdmin.addSaasAdmin);
-    const removeAdmin = useMutation(api.saasAdmin.removeSaasAdmin);
+    const { profile, isLoading: isProfileLoading } = useProfile();
+    const router = useRouter();
+    const [admins, setAdmins] = useState<AdminProfile[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     const [inviteEmail, setInviteEmail] = useState("");
     const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Redirect if not SaaS Admin
+    useEffect(() => {
+        if (!isProfileLoading && profile && !profile.is_saas_admin) {
+            router.push("/dashboard");
+        }
+    }, [profile, isProfileLoading, router]);
+
+    const fetchAdmins = useCallback(async () => {
+        if (!profile?.is_saas_admin) return;
+
+        try {
+            setIsLoading(true);
+            const { data, error } = await supabase
+                .from("users")
+                .select("id, email, name, created_at")
+                .eq("is_saas_admin", true)
+                .order("created_at", { ascending: true });
+
+            if (error) throw error;
+            setAdmins(data || []);
+        } catch (error) {
+            console.error("Error fetching admins:", error);
+            toast.error("Failed to load SaaS Admins");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [profile]);
+
+    useEffect(() => {
+        fetchAdmins();
+    }, [fetchAdmins]);
 
     const handleAddAdmin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -60,27 +101,64 @@ export default function SaaSAdminsPage() {
 
         try {
             setIsSubmitting(true);
-            await addAdmin({ email: inviteEmail });
+
+            // Find user by email
+            const { data: userProfile, error: findError } = await supabase
+                .from("users")
+                .select("id")
+                .eq("email", inviteEmail.toLowerCase())
+                .single();
+
+            if (findError || !userProfile) {
+                throw new Error("User not found. They must sign in at least once before being promoted.");
+            }
+
+            // Promote to SaaS Admin
+            const { error: updateError } = await supabase
+                .from("users")
+                .update({ is_saas_admin: true })
+                .eq("id", userProfile.id);
+
+            if (updateError) throw updateError;
+
             toast.success("User promoted to SaaS Admin successfully");
             setIsInviteOpen(false);
             setInviteEmail("");
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to add admin");
+            fetchAdmins();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to add admin");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleRemoveAdmin = async (userId: any) => {
+    const handleRemoveAdmin = async (userId: string) => {
+        if (admins && admins.length <= 1) {
+            toast.error("Cannot remove the last SaaS Admin to prevent lockout.");
+            return;
+        }
+
+        if (userId === profile?.id) {
+            toast.error("You cannot revoke your own SaaS Admin status.");
+            return;
+        }
+
         try {
-            await removeAdmin({ userId });
+            const { error } = await supabase
+                .from("users")
+                .update({ is_saas_admin: false })
+                .eq("id", userId);
+
+            if (error) throw error;
+
             toast.success("SaaS Admin status revoked");
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to remove admin");
+            fetchAdmins();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to remove admin");
         }
     };
 
-    if (admins === undefined) {
+    if (isProfileLoading || (isLoading && !admins)) {
         return (
             <div className="flex items-center justify-center p-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
@@ -164,7 +242,7 @@ export default function SaaSAdminsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {admins.length === 0 ? (
+                            {!admins || admins.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                                         No administrators found.
@@ -172,13 +250,13 @@ export default function SaaSAdminsPage() {
                                 </TableRow>
                             ) : (
                                 admins.map((admin) => (
-                                    <TableRow key={admin._id}>
+                                    <TableRow key={admin.id}>
                                         <TableCell className="font-medium">
                                             {admin.name || "Anonymous User"}
                                         </TableCell>
                                         <TableCell>{admin.email}</TableCell>
                                         <TableCell>
-                                            {new Date(admin._creationTime).toLocaleDateString()}
+                                            {new Date(admin.created_at).toLocaleDateString()}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary" className="gap-1.5 px-2 bg-blue-50 text-blue-700 border-blue-200">
@@ -204,7 +282,7 @@ export default function SaaSAdminsPage() {
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                         <AlertDialogAction
-                                                            onClick={() => handleRemoveAdmin(admin._id)}
+                                                            onClick={() => handleRemoveAdmin(admin.id)}
                                                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                                         >
                                                             Revoke Access

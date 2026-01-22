@@ -10,11 +10,9 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
 import { LoginFormSchema } from "@/schemas/auth/LoginFormSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useConvex } from "convex/react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon } from "lucide-react";
 import { Route } from "next";
 import Link from "next/link";
@@ -31,7 +29,6 @@ export default function LoginForm() {
   const [isLoading, startTransition] = useTransition();
   const [redirect] = useQueryState("redirect");
   const [token] = useQueryState("token");
-  const convex = useConvex();
   const router = useRouter();
 
   const form = useForm<z.infer<typeof LoginFormSchema>>({
@@ -41,94 +38,54 @@ export default function LoginForm() {
       password: ""
     }
   });
+
   function onSubmit(values: z.infer<typeof LoginFormSchema>) {
     startTransition(async () => {
-      await authClient.signIn.email(
-        {
+      try {
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: values.email,
-          password: values.password
-        },
-        {
-          async onSuccess(ctx) {
-            if (ctx.data.twoFactorRedirect) {
-              const { data, error } = await authClient.twoFactor.sendOtp({
-                query: {
-                  trustDevice: true
-                }
-              });
-              if (error) {
-                toast.error("Error sending OTP");
-                return;
-              }
-              router.push(`/login/two-factor?email=${values.email}`);
-              return;
-            }
-            const userFromDb = await convex.query(api.user.getUserByEmail, {
-              email: values.email
-            });
-            
-            // #region agent log
-            console.log("[DEBUG LoginForm] User data after login", {
-              email: values.email,
-              isOnboardingComplete: userFromDb?.isOnboardingComplete,
-              isSaasAdmin: userFromDb?.isSaasAdmin,
-              hypothesisId: "D"
-            });
-            // #endregion
+          password: values.password,
+        });
 
-            // Check if user has active organizations (only for non-SaaS Admin users)
-            if (!userFromDb?.isSaasAdmin && ctx.data?.user?.id) {
-              const activeOrgs = await convex.query(api.auth.getUserActiveOrganizations, {
-                userId: ctx.data.user.id
-              });
-              
-              if (activeOrgs.length === 0) {
-                toast.error("Your account has no active organizations. Please contact support.");
-                return;
-              }
-            }
-            
-            if (userFromDb?.isOnboardingComplete) {
-              // Redirect SaaS Admin to admin dashboard, others to regular dashboard
-              if (userFromDb.isSaasAdmin) {
-                // #region agent log
-                console.log("[DEBUG LoginForm] Redirecting SaaS Admin to /admin", {
-                  hypothesisId: "D"
-                });
-                // #endregion
-                router.push("/admin");
-              } else {
-                router.push("/dashboard");
-              }
-              return;
-            } else {
-              // #region agent log
-              console.log("[DEBUG LoginForm] Onboarding not complete, redirecting to /onboarding", {
-                hypothesisId: "D"
-              });
-              // #endregion
-              if (redirect && token) {
-                router.push(`/${redirect}?token=${token}` as Route);
-                return;
-              } else {
-                router.push("/onboarding");
-                return;
-              }
-            }
-          },
-          onError: (ctx) => {
-            if (ctx.error.code === "INVALID_EMAIL_OR_PASSWORD") {
-              toast.error("Invalid email or password");
-              return;
-            }
-            toast.error("Error trying to login");
-            posthog.captureException(ctx.error, {
-              email: values.email,
-              custom_message: "Error login in"
-            });
+        if (authError) throw authError;
+
+        const user = authData.user;
+        if (!user) throw new Error("No user found after login");
+
+        const appMetadata = user.app_metadata || {};
+        const isSaasAdmin = !!appMetadata.is_saas_admin;
+        const isOnboardingComplete = !!appMetadata.is_onboarding_complete;
+        const activeOrgId = appMetadata.active_organization_id;
+
+        // Check for active organization (non-admin)
+        if (!isSaasAdmin && !activeOrgId) {
+          toast.error("Your account has no active organizations. Please contact support.");
+          return;
+        }
+
+        if (isOnboardingComplete) {
+          if (isSaasAdmin) {
+            router.push("/admin");
+          } else {
+            router.push("/dashboard");
+          }
+        } else {
+          if (redirect && token) {
+            router.push(`/${redirect}?token=${token}` as Route);
+          } else {
+            router.push("/onboarding");
           }
         }
-      );
+
+      } catch (err: any) {
+        console.error("Login failed:", err);
+        const errorMessage = err.message || "Invalid email or password";
+        toast.error(errorMessage);
+        posthog.captureException(err, {
+          email: values.email,
+          custom_message: "Error logging in with Supabase"
+        });
+      }
     });
   }
 

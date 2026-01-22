@@ -1,14 +1,12 @@
 "use client";
 
 import React from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { supabase } from "@/lib/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,10 +40,10 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover";
-import { 
-  CalendarIcon, 
-  Clock, 
-  User, 
+import {
+  CalendarIcon,
+  Clock,
+  User,
   AlertCircle,
   Home,
   UserCheck,
@@ -66,7 +64,7 @@ const ComprehensiveIncidentSchema = z.object({
   time: z.string().min(1, "Time is required"),
   homeName: z.string().min(1, "Home name is required"),
   unit: z.string().min(1, "Unit is required"),
-  
+
   // Section 2: Injured Person Details
   injuredPersonFirstName: z.string().min(1, "First name is required"),
   injuredPersonSurname: z.string().min(1, "Surname is required"),
@@ -74,52 +72,52 @@ const ComprehensiveIncidentSchema = z.object({
   residentInternalId: z.string().optional(),
   dateOfAdmission: z.date().optional(),
   healthCareNumber: z.string().optional(),
-  
+
   // Section 3: Status of Injured Person
   injuredPersonStatus: z.array(z.string()).optional(),
   contractorEmployer: z.string().optional(),
-  
+
   // Section 4: Type of Incident
   incidentTypes: z.array(z.string()).min(1, "At least one incident type must be selected"),
   typeOtherDetails: z.string().optional(),
-  
+
   // Section 5-6: Fall-Specific Questions
   anticoagulantMedication: z.enum(["yes", "no", "unknown"]).optional(),
   fallPathway: z.enum(["green", "amber", "red"]).optional(),
-  
+
   // Section 7: Detailed Description
   detailedDescription: z.string().min(10, "Please provide a detailed description"),
-  
+
   // Section 8: Incident Level
   incidentLevel: z.enum(["death", "permanent_harm", "minor_injury", "no_harm", "near_miss"]),
-  
+
   // Section 9: Details of Injury
   injuryDescription: z.string().optional(),
   bodyPartInjured: z.string().optional(),
-  
+
   // Section 10: Treatment Required
   treatmentTypes: z.array(z.string()).optional(),
-  
+
   // Section 11: Details of Treatment Given
   treatmentDetails: z.string().optional(),
   vitalSigns: z.string().optional(),
   treatmentRefused: z.boolean().optional(),
-  
+
   // Section 12: Witnesses
   witness1Name: z.string().optional(),
   witness1Contact: z.string().optional(),
   witness2Name: z.string().optional(),
   witness2Contact: z.string().optional(),
-  
+
   // Section 13: Further Actions by Nurse
   nurseActions: z.array(z.string()).optional(),
-  
+
   // Section 14: Further Actions Advised
   furtherActionsAdvised: z.string().optional(),
-  
+
   // Section 15: Prevention Measures
   preventionMeasures: z.string().optional(),
-  
+
   // Section 16: Home Manager Informed
   homeManagerInformedBy: z.string().optional(),
   homeManagerInformedDateTime: z.date().optional(),
@@ -132,13 +130,13 @@ const ComprehensiveIncidentSchema = z.object({
   nokInformedWho: z.string().optional(),
   nokInformedBy: z.string().optional(),
   nokInformedDateTime: z.date().optional(),
-  
+
   // Section 19: Trust Incident Form Recipients
   careManagerName: z.string().optional(),
   careManagerEmail: z.string().email().optional().or(z.literal("")),
   keyWorkerName: z.string().optional(),
   keyWorkerEmail: z.string().email().optional().or(z.literal("")),
-  
+
   // Section 20: Form Completion Details
   completedByFullName: z.string().min(1, "Your full name is required"),
   completedByJobTitle: z.string().min(1, "Your job title is required"),
@@ -171,31 +169,53 @@ export function ComprehensiveIncidentForm({
   const [homeManagerDatePopoverOpen, setHomeManagerDatePopoverOpen] = React.useState(false);
   const [onCallDatePopoverOpen, setOnCallDatePopoverOpen] = React.useState(false);
   const [nokDatePopoverOpen, setNokDatePopoverOpen] = React.useState(false);
-  const createIncident = useMutation(api.incidents.create);
-  const updateIncident = useMutation(api.incidents.update);
+  const [resident, setResident] = React.useState<any>(null);
+  const [organizationData, setOrganizationData] = React.useState<any>(null);
+  const [teamData, setTeamData] = React.useState<any>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      if (!residentId) return;
+      setIsLoading(true);
+      try {
+        const { data: resData, error: resError } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
+
+        if (resError) throw resError;
+        setResident(resData);
+
+        if (resData?.care_home_id) {
+          const { data: homeData, error: homeError } = await supabase
+            .from("care_homes")
+            .select("*, organizations(*)")
+            .eq("id", resData.care_home_id)
+            .single();
+
+          if (homeError) throw homeError;
+          setTeamData(homeData);
+          setOrganizationData(homeData?.organizations);
+        }
+      } catch (error) {
+        console.error("Error fetching form data:", error);
+        toast.error("Failed to load resident and home data.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [residentId]);
 
   // Track if we've already populated the form to prevent re-population
   const hasPopulatedRef = React.useRef(false);
 
-  // Fetch resident data to pre-populate form
-  const resident = useQuery(api.residents.getById, {
-    residentId: residentId as Id<"residents">
-  });
-
-  // Fetch resident's organization and team names
-  const organizationData = useQuery(
-    api.teams.getOrganizationName,
-    resident?.organizationId ? { organizationId: resident.organizationId } : "skip"
-  );
-
-  const teamData = useQuery(
-    api.teams.getTeamName,
-    resident?.teamId ? { teamId: resident.teamId } : "skip"
-  );
-
   // Get current user for auto-populating signature fields
-  const { data: user } = authClient.useSession();
-  const currentUserName = user?.user?.name || "";
+  const { profile } = useProfile();
+  const currentUserName = profile?.name || "";
 
   // Compute form default values based on edit mode or new incident mode
   const formDefaultValues = React.useMemo(() => {
@@ -204,50 +224,50 @@ export function ComprehensiveIncidentForm({
       return {
         date: existingIncident.date ? new Date(existingIncident.date) : new Date(),
         time: existingIncident.time || format(new Date(), "HH:mm"),
-        homeName: existingIncident.homeName || "",
+        homeName: existingIncident.home_name || "",
         unit: existingIncident.unit || "",
-        injuredPersonFirstName: existingIncident.injuredPersonFirstName || "",
-        injuredPersonSurname: existingIncident.injuredPersonSurname || "",
-        injuredPersonDOB: existingIncident.injuredPersonDOB ? new Date(existingIncident.injuredPersonDOB) : new Date(),
-        residentInternalId: existingIncident.residentInternalId || "",
-        dateOfAdmission: existingIncident.dateOfAdmission ? new Date(existingIncident.dateOfAdmission) : undefined,
-        healthCareNumber: existingIncident.healthCareNumber || "",
-        injuredPersonStatus: existingIncident.injuredPersonStatus || ["Resident"],
-        contractorEmployer: existingIncident.contractorEmployer || "",
-        incidentTypes: existingIncident.incidentTypes || [],
-        typeOtherDetails: existingIncident.typeOtherDetails || "",
-        anticoagulantMedication: existingIncident.anticoagulantMedication,
-        fallPathway: existingIncident.fallPathway,
-        detailedDescription: existingIncident.detailedDescription || "",
-        incidentLevel: existingIncident.incidentLevel || "no_harm",
-        injuryDescription: existingIncident.injuryDescription || "",
-        bodyPartInjured: existingIncident.bodyPartInjured || "",
-        treatmentTypes: existingIncident.treatmentTypes || [],
-        treatmentDetails: existingIncident.treatmentDetails || "",
-        vitalSigns: existingIncident.vitalSigns || "",
-        treatmentRefused: existingIncident.treatmentRefused || false,
-        witness1Name: existingIncident.witness1Name || "",
-        witness1Contact: existingIncident.witness1Contact || "",
-        witness2Name: existingIncident.witness2Name || "",
-        witness2Contact: existingIncident.witness2Contact || "",
-        nurseActions: existingIncident.nurseActions || [],
-        furtherActionsAdvised: existingIncident.furtherActionsAdvised || "",
-        preventionMeasures: existingIncident.preventionMeasures || "",
-        homeManagerInformedBy: existingIncident.homeManagerInformedBy || "",
-        homeManagerInformedDateTime: existingIncident.homeManagerInformedDateTime ? new Date(existingIncident.homeManagerInformedDateTime) : undefined,
-        onCallManagerName: existingIncident.onCallManagerName || "",
-        onCallContactedDateTime: existingIncident.onCallContactedDateTime ? new Date(existingIncident.onCallContactedDateTime) : undefined,
-        nokInformedWho: existingIncident.nokInformedWho || "",
-        nokInformedBy: existingIncident.nokInformedBy || "",
-        nokInformedDateTime: existingIncident.nokInformedDateTime ? new Date(existingIncident.nokInformedDateTime) : undefined,
-        careManagerName: existingIncident.careManagerName || "",
-        careManagerEmail: existingIncident.careManagerEmail || "",
-        keyWorkerName: existingIncident.keyWorkerName || "",
-        keyWorkerEmail: existingIncident.keyWorkerEmail || "",
-        completedByFullName: existingIncident.completedByFullName || currentUserName,
-        completedByJobTitle: existingIncident.completedByJobTitle || "",
-        completedBySignature: existingIncident.completedBySignature || currentUserName,
-        dateCompleted: existingIncident.dateCompleted ? new Date(existingIncident.dateCompleted) : new Date(),
+        injuredPersonFirstName: existingIncident.injured_person_first_name || "",
+        injuredPersonSurname: existingIncident.injured_person_surname || "",
+        injuredPersonDOB: existingIncident.injured_person_dob ? new Date(existingIncident.injured_person_dob) : new Date(),
+        residentInternalId: existingIncident.resident_internal_id || "",
+        dateOfAdmission: existingIncident.date_of_admission ? new Date(existingIncident.date_of_admission) : undefined,
+        healthCareNumber: existingIncident.health_care_number || "",
+        injuredPersonStatus: existingIncident.injured_person_status || ["Resident"],
+        contractorEmployer: existingIncident.contractor_employer || "",
+        incidentTypes: existingIncident.incident_types || [],
+        typeOtherDetails: existingIncident.type_other_details || "",
+        anticoagulantMedication: existingIncident.anticoagulant_medication,
+        fallPathway: existingIncident.fall_pathway,
+        detailedDescription: existingIncident.detailed_description || "",
+        incidentLevel: existingIncident.incident_level || "no_harm",
+        injuryDescription: existingIncident.injury_description || "",
+        bodyPartInjured: existingIncident.body_part_injured || "",
+        treatmentTypes: existingIncident.treatment_types || [],
+        treatmentDetails: existingIncident.treatment_details || "",
+        vitalSigns: existingIncident.vital_signs || "",
+        treatmentRefused: existingIncident.treatment_refused || false,
+        witness1Name: existingIncident.witness1_name || "",
+        witness1Contact: existingIncident.witness1_contact || "",
+        witness2Name: existingIncident.witness2_name || "",
+        witness2Contact: existingIncident.witness2_contact || "",
+        nurseActions: existingIncident.nurse_actions || [],
+        furtherActionsAdvised: existingIncident.further_actions_advised || "",
+        preventionMeasures: existingIncident.prevention_measures || "",
+        homeManagerInformedBy: existingIncident.home_manager_informed_by || "",
+        homeManagerInformedDateTime: existingIncident.home_manager_informed_date_time ? new Date(existingIncident.home_manager_informed_date_time) : undefined,
+        onCallManagerName: existingIncident.on_call_manager_name || "",
+        onCallContactedDateTime: existingIncident.on_call_contacted_date_time ? new Date(existingIncident.on_call_contacted_date_time) : undefined,
+        nokInformedWho: existingIncident.nok_informed_who || "",
+        nokInformedBy: existingIncident.nok_informed_by || "",
+        nokInformedDateTime: existingIncident.nok_informed_date_time ? new Date(existingIncident.nok_informed_date_time) : undefined,
+        careManagerName: existingIncident.care_manager_name || "",
+        careManagerEmail: existingIncident.care_manager_email || "",
+        keyWorkerName: existingIncident.key_worker_name || "",
+        keyWorkerEmail: existingIncident.key_worker_email || "",
+        completedByFullName: existingIncident.completed_by_full_name || currentUserName,
+        completedByJobTitle: existingIncident.completed_by_job_title || "",
+        completedBySignature: existingIncident.completed_by_signature || currentUserName,
+        dateCompleted: existingIncident.date_completed ? new Date(existingIncident.date_completed) : new Date(),
       };
     }
 
@@ -257,12 +277,12 @@ export function ComprehensiveIncidentForm({
       time: format(new Date(), "HH:mm"),
       homeName: teamData?.name || "",
       unit: teamData?.name || "",
-      injuredPersonFirstName: resident?.firstName || "",
-      injuredPersonSurname: resident?.lastName || "",
-      injuredPersonDOB: resident?.dateOfBirth ? new Date(resident.dateOfBirth) : new Date(),
-      residentInternalId: resident?.internalId || resident?._id || "",
-      dateOfAdmission: resident?.admissionDate ? new Date(resident.admissionDate) : undefined,
-      healthCareNumber: resident?.nhsHealthNumber || "",
+      injuredPersonFirstName: resident?.first_name || "",
+      injuredPersonSurname: resident?.last_name || "",
+      injuredPersonDOB: resident?.date_of_birth ? new Date(resident.date_of_birth) : new Date(),
+      residentInternalId: resident?.internal_id || resident?.id || "",
+      dateOfAdmission: resident?.admission_date ? new Date(resident.admission_date) : undefined,
+      healthCareNumber: resident?.nhs_health_number || "",
       injuredPersonStatus: ["Resident"],
       contractorEmployer: "",
       incidentTypes: [],
@@ -288,19 +308,20 @@ export function ComprehensiveIncidentForm({
       homeManagerInformedDateTime: undefined,
       onCallManagerName: "",
       onCallContactedDateTime: undefined,
-      nokInformedWho: resident?.nextOfKin?.name || "",
+      nokInformedWho: resident?.next_of_kin?.name || "",
       nokInformedBy: "",
       nokInformedDateTime: undefined,
-      careManagerName: resident?.careManager?.name || resident?.careManagerName || "",
-      careManagerEmail: resident?.careManager?.email || "",
-      keyWorkerName: resident?.keyWorker?.name || "",
-      keyWorkerEmail: resident?.keyWorker?.email || "",
+      careManagerName: resident?.care_manager?.name || resident?.care_manager_name || "",
+      careManagerEmail: resident?.care_manager?.email || "",
+      keyWorkerName: resident?.key_worker?.name || "",
+      keyWorkerEmail: resident?.key_worker?.email || "",
       completedByFullName: currentUserName,
       completedByJobTitle: "",
       completedBySignature: currentUserName,
       dateCompleted: new Date(),
     };
-  }, [existingIncident, resident, teamData, currentUserName]); // Only recompute when these change
+  }, [existingIncident, resident, teamData, currentUserName]);
+  // Only recompute when these change
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
     resolver: zodResolver(ComprehensiveIncidentSchema),
@@ -381,7 +402,7 @@ export function ComprehensiveIncidentForm({
   }, [isOpen]); // Only depend on isOpen, not form
 
   const watchedIncidentTypes = form.watch("incidentTypes");
-  const hasFallType = watchedIncidentTypes?.some(type => 
+  const hasFallType = watchedIncidentTypes?.some(type =>
     type === "FallWitnessed" || type === "FallUnwitnessed"
   ) || false;
 
@@ -466,90 +487,96 @@ export function ComprehensiveIncidentForm({
         // Convert dates to strings
         date: values.date.toISOString().split('T')[0],
         time: values.time,
-        homeName: values.homeName,
+        home_name: values.homeName,
         unit: values.unit,
 
         // Injured person details
-        injuredPersonFirstName: values.injuredPersonFirstName,
-        injuredPersonSurname: values.injuredPersonSurname,
-        injuredPersonDOB: values.injuredPersonDOB.toISOString().split('T')[0],
-        residentId: residentId as Id<"residents">,
-        residentInternalId: values.residentInternalId,
-        dateOfAdmission: values.dateOfAdmission?.toISOString().split('T')[0],
-        healthCareNumber: values.healthCareNumber,
+        injured_person_first_name: values.injuredPersonFirstName,
+        injured_person_surname: values.injuredPersonSurname,
+        injured_person_dob: values.injuredPersonDOB.toISOString().split('T')[0],
+        resident_id: residentId,
+        resident_internal_id: values.residentInternalId,
+        date_of_admission: values.dateOfAdmission?.toISOString().split('T')[0],
+        health_care_number: values.healthCareNumber,
 
         // Metadata for filtering
-        teamId: resident?.teamId,
-        organizationId: resident?.organizationId,
+        care_home_id: resident?.care_home_id,
+        organization_id: resident?.organization_id,
 
         // Status
-        injuredPersonStatus: values.injuredPersonStatus,
-        contractorEmployer: values.contractorEmployer,
+        injured_person_status: values.injuredPersonStatus,
+        contractor_employer: values.contractorEmployer,
 
         // Incident types
-        incidentTypes: values.incidentTypes,
-        typeOtherDetails: values.typeOtherDetails,
+        incident_types: values.incidentTypes,
+        type_other_details: values.typeOtherDetails,
 
         // Fall specific
-        anticoagulantMedication: values.anticoagulantMedication,
-        fallPathway: values.fallPathway,
+        anticoagulant_medication: values.anticoagulantMedication,
+        fall_pathway: values.fallPathway,
 
         // Description
-        detailedDescription: values.detailedDescription,
+        detailed_description: values.detailedDescription,
 
         // Level and injury
-        incidentLevel: values.incidentLevel,
-        injuryDescription: values.injuryDescription,
-        bodyPartInjured: values.bodyPartInjured,
+        incident_level: values.incidentLevel,
+        injury_description: values.injuryDescription,
+        body_part_injured: values.bodyPartInjured,
 
         // Treatment
-        treatmentTypes: values.treatmentTypes,
-        treatmentDetails: values.treatmentDetails,
-        vitalSigns: values.vitalSigns,
-        treatmentRefused: values.treatmentRefused,
+        treatment_types: values.treatmentTypes,
+        treatment_details: values.treatmentDetails,
+        vital_signs: values.vitalSigns,
+        treatment_refused: values.treatmentRefused,
 
         // Witnesses
-        witness1Name: values.witness1Name,
-        witness1Contact: values.witness1Contact,
-        witness2Name: values.witness2Name,
-        witness2Contact: values.witness2Contact,
+        witness1_name: values.witness1Name,
+        witness1_contact: values.witness1Contact,
+        witness2_name: values.witness2Name,
+        witness2_contact: values.witness2Contact,
 
         // Actions
-        nurseActions: values.nurseActions,
-        furtherActionsAdvised: values.furtherActionsAdvised,
-        preventionMeasures: values.preventionMeasures,
+        nurse_actions: values.nurseActions,
+        further_actions_advised: values.furtherActionsAdvised,
+        prevention_measures: values.preventionMeasures,
 
         // Notifications
-        homeManagerInformedBy: values.homeManagerInformedBy,
-        homeManagerInformedDateTime: values.homeManagerInformedDateTime?.toISOString(),
-        onCallManagerName: values.onCallManagerName,
-        onCallContactedDateTime: values.onCallContactedDateTime?.toISOString(),
-        nokInformedWho: values.nokInformedWho,
-        nokInformedBy: values.nokInformedBy,
-        nokInformedDateTime: values.nokInformedDateTime?.toISOString(),
+        home_manager_informed_by: values.homeManagerInformedBy,
+        home_manager_informed_date_time: values.homeManagerInformedDateTime?.toISOString(),
+        on_call_manager_name: values.onCallManagerName,
+        on_call_contacted_date_time: values.onCallContactedDateTime?.toISOString(),
+        nok_informed_who: values.nokInformedWho,
+        nok_informed_by: values.nokInformedBy,
+        nok_informed_date_time: values.nokInformedDateTime?.toISOString(),
 
         // Recipients
-        careManagerName: values.careManagerName,
-        careManagerEmail: values.careManagerEmail,
-        keyWorkerName: values.keyWorkerName,
-        keyWorkerEmail: values.keyWorkerEmail,
+        care_manager_name: values.careManagerName,
+        care_manager_email: values.careManagerEmail,
+        key_worker_name: values.keyWorkerName,
+        key_worker_email: values.keyWorkerEmail,
 
         // Completion
-        completedByFullName: values.completedByFullName,
-        completedByJobTitle: values.completedByJobTitle,
-        completedBySignature: values.completedBySignature,
-        dateCompleted: values.dateCompleted.toISOString().split('T')[0],
+        completed_by_full_name: values.completedByFullName,
+        completed_by_job_title: values.completedByJobTitle,
+        completed_by_signature: values.completedBySignature,
+        date_completed: values.dateCompleted.toISOString().split('T')[0],
       };
 
       // Check if we're editing an existing incident or creating a new one
-      if (existingIncident && existingIncident._id) {
-        await updateIncident({
-          incidentId: existingIncident._id,
-          ...incidentData,
-        });
+      if (existingIncident && existingIncident.id) {
+        const { error } = await supabase
+          .from("incidents")
+          .update(incidentData)
+          .eq("id", existingIncident.id);
+
+        if (error) throw error;
         toast.success("Incident report updated successfully");
       } else {
-        await createIncident(incidentData);
+        const { error } = await supabase
+          .from("incidents")
+          .insert(incidentData);
+
+        if (error) throw error;
         toast.success("Incident report created successfully");
       }
 
@@ -567,22 +594,22 @@ export function ComprehensiveIncidentForm({
   const nextStep = async () => {
     const fieldsToValidate = getFieldsForStep(currentStep);
     const isValid = await form.trigger(fieldsToValidate);
-    
+
     if (isValid) {
       let nextStepNumber = currentStep + 1;
-      
+
       // Skip Step 5 (Fall-Specific Questions) if no fall incident type is selected
       if (currentStep === 4 && nextStepNumber === 5) {
         const incidentTypes = form.getValues("incidentTypes") || [];
-        const hasFallType = incidentTypes.some(type => 
+        const hasFallType = incidentTypes.some(type =>
           type === "FallWitnessed" || type === "FallUnwitnessed"
         );
-        
+
         if (!hasFallType) {
           nextStepNumber = 6; // Skip to Step 6 (Incident Description)
         }
       }
-      
+
       // Don't go beyond the last step
       if (nextStepNumber <= steps.length) {
         setCurrentStep(nextStepNumber);
@@ -593,19 +620,19 @@ export function ComprehensiveIncidentForm({
   const prevStep = () => {
     if (currentStep > 1) {
       let prevStepNumber = currentStep - 1;
-      
+
       // Skip Step 5 (Fall-Specific Questions) when going back if no fall incident type is selected
       if (currentStep === 6 && prevStepNumber === 5) {
         const incidentTypes = form.getValues("incidentTypes") || [];
-        const hasFallType = incidentTypes.some(type => 
+        const hasFallType = incidentTypes.some(type =>
           type === "FallWitnessed" || type === "FallUnwitnessed"
         );
-        
+
         if (!hasFallType) {
           prevStepNumber = 4; // Go back to Step 4 (Incident Type)
         }
       }
-      
+
       setCurrentStep(prevStepNumber);
     }
   };
@@ -664,7 +691,7 @@ export function ComprehensiveIncidentForm({
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
-              
+
               {/* Step 1: Incident Details */}
               {currentStep === 1 && (
                 <div>
@@ -673,355 +700,355 @@ export function ComprehensiveIncidentForm({
                     Section 1: Incident Details
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel required>Date of Incident</FormLabel>
-                            <Popover modal open={doiPopoverOpen} onOpenChange={setDoiPopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      "w-full pl-3 text-left font-normal",
-                                      !field.value && "text-muted-foreground"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "PPP")
-                                    ) : (
-                                      <span>Pick a date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={(date) => {
-                                    if (date) {
-                                      field.onChange(date);
-                                      setDoiPopoverOpen(false);
-                                    }
-                                  }}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel required>Date of Incident</FormLabel>
+                          <Popover modal open={doiPopoverOpen} onOpenChange={setDoiPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    field.onChange(date);
+                                    setDoiPopoverOpen(false);
                                   }
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="time"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Time of Incident</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input
-                                  type="time"
-                                  {...field}
-                                  className="pl-10"
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="homeName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Care Home Name</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Home className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input
-                                  placeholder="Organization name"
-                                  {...field}
-                                  className="pl-10"
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="unit"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Unit (Team)</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Current team/unit"
-                                {...field}
+                                }}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date("1900-01-01")
+                                }
                               />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="time"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Time of Incident</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <Input
+                                type="time"
+                                {...field}
+                                className="pl-10"
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="homeName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Care Home Name</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Home className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <Input
+                                placeholder="Organization name"
+                                {...field}
+                                className="pl-10"
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="unit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Unit (Team)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Current team/unit"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Step 2: Injured Person Details */}
               {currentStep === 2 && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <User className="w-5 h-5" />
-                      Section 2: Injured Person Details
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="injuredPersonFirstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>First Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="First name" {...field} className="w-full" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Section 2: Injured Person Details
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="injuredPersonFirstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>First Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="First name" {...field} className="w-full" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                      <FormField
-                        control={form.control}
-                        name="injuredPersonSurname"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Surname</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Surname" {...field} className="w-full" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <FormField
+                      control={form.control}
+                      name="injuredPersonSurname"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Surname</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Surname" {...field} className="w-full" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                      <FormField
-                        control={form.control}
-                        name="injuredPersonDOB"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Date of Birth</FormLabel>
-                            <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      "w-full pl-3 text-left font-normal justify-between",
-                                      !field.value && "text-muted-foreground"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "PPP")
-                                    ) : (
-                                      <span>Pick date of birth</span>
-                                    )}
-                                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  captionLayout="dropdown"
-                                  onSelect={(date) => {
-                                    if (date) {
-                                      field.onChange(date);
-                                      setDobPopoverOpen(false);
-                                    }
-                                  }}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
+                    <FormField
+                      control={form.control}
+                      name="injuredPersonDOB"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Date of Birth</FormLabel>
+                          <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal justify-between",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pick date of birth</span>
+                                  )}
+                                  <ChevronDownIcon className="h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                captionLayout="dropdown"
+                                onSelect={(date) => {
+                                  if (date) {
+                                    field.onChange(date);
+                                    setDobPopoverOpen(false);
                                   }
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                                }}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date("1900-01-01")
+                                }
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                      <FormField
-                        control={form.control}
-                        name="residentInternalId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Resident ID</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Internal ID or medical record number" {...field} className="w-full" />
-                            </FormControl>
-                      
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <FormField
+                      control={form.control}
+                      name="residentInternalId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Resident ID</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Internal ID or medical record number" {...field} className="w-full" />
+                          </FormControl>
 
-                      <FormField
-                        control={form.control}
-                        name="dateOfAdmission"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Date of Admission</FormLabel>
-                            <Popover modal open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      "w-full pl-3 text-left font-normal justify-between",
-                                      !field.value && "text-muted-foreground"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "PPP")
-                                    ) : (
-                                      <span>Pick admission date</span>
-                                    )}
-                                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  captionLayout="dropdown"
-                                  onSelect={(date) => {
-                                    if (date) {
-                                      field.onChange(date);
-                                      setAdmissionDatePopoverOpen(false);
-                                    }
-                                  }}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="dateOfAdmission"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Date of Admission</FormLabel>
+                          <Popover modal open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal justify-between",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pick admission date</span>
+                                  )}
+                                  <ChevronDownIcon className="h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                captionLayout="dropdown"
+                                onSelect={(date) => {
+                                  if (date) {
+                                    field.onChange(date);
+                                    setAdmissionDatePopoverOpen(false);
                                   }
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                                }}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date("1900-01-01")
+                                }
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                      <FormField
-                        control={form.control}
-                        name="healthCareNumber"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Health and Care Number(NHS)</FormLabel>
-                            <FormControl>
-                              <Input placeholder="NHS number or equivalent" {...field} className="w-full" />
-                            </FormControl>
-                           
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="healthCareNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Health and Care Number(NHS)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="NHS number or equivalent" {...field} className="w-full" />
+                          </FormControl>
+
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Step 3: Status of Injured Person */}
               {currentStep === 3 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <UserCheck className="w-5 h-5" />
+                    Section 3: Status of Injured Person
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">Select one or more that apply</p>
                   <div>
-                    <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                      <UserCheck className="w-5 h-5" />
-                      Section 3: Status of Injured Person
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">Select one or more that apply</p>
-                    <div>
+                    <FormField
+                      control={form.control}
+                      name="injuredPersonStatus"
+                      render={() => (
+                        <FormItem>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            {[
+                              { value: "Resident", label: "Resident in Care" },
+                              { value: "Relative", label: "Relative" },
+                              { value: "Staff", label: "Staff Member" },
+                              { value: "AgencyStaff", label: "Agency Staff" },
+                              { value: "Visitor", label: "Visitor" },
+                              { value: "Contractor", label: "Contractor" },
+                            ].map((item) => (
+                              <FormField
+                                key={item.value}
+                                control={form.control}
+                                name="injuredPersonStatus"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem
+                                      key={item.value}
+                                      className="flex flex-row items-start space-x-3 space-y-0"
+                                    >
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(item.value)}
+                                          onCheckedChange={(checked) => {
+                                            return checked
+                                              ? field.onChange([...(field.value || []), item.value])
+                                              : field.onChange(
+                                                (field.value || []).filter(
+                                                  (value) => value !== item.value
+                                                )
+                                              )
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-sm font-normal">
+                                        {item.label}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Show contractor employer field if Contractor is selected */}
+                    {form.watch("injuredPersonStatus")?.includes("Contractor") && (
                       <FormField
                         control={form.control}
-                        name="injuredPersonStatus"
-                        render={() => (
-                          <FormItem>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                              {[
-                                { value: "Resident", label: "Resident in Care" },
-                                { value: "Relative", label: "Relative" },
-                                { value: "Staff", label: "Staff Member" },
-                                { value: "AgencyStaff", label: "Agency Staff" },
-                                { value: "Visitor", label: "Visitor" },
-                                { value: "Contractor", label: "Contractor" },
-                              ].map((item) => (
-                                <FormField
-                                  key={item.value}
-                                  control={form.control}
-                                  name="injuredPersonStatus"
-                                  render={({ field }) => {
-                                    return (
-                                      <FormItem
-                                        key={item.value}
-                                        className="flex flex-row items-start space-x-3 space-y-0"
-                                      >
-                                        <FormControl>
-                                          <Checkbox
-                                            checked={field.value?.includes(item.value)}
-                                            onCheckedChange={(checked) => {
-                                              return checked
-                                                ? field.onChange([...(field.value || []), item.value])
-                                                : field.onChange(
-                                                    (field.value || []).filter(
-                                                      (value) => value !== item.value
-                                                    )
-                                                  )
-                                            }}
-                                          />
-                                        </FormControl>
-                                        <FormLabel className="text-sm font-normal">
-                                          {item.label}
-                                        </FormLabel>
-                                      </FormItem>
-                                    )
-                                  }}
-                                />
-                              ))}
-                            </div>
+                        name="contractorEmployer"
+                        render={({ field }) => (
+                          <FormItem className="mt-4">
+                            <FormLabel>Contractor Employer</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Name of contractor's employer" {...field} />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-
-                      {/* Show contractor employer field if Contractor is selected */}
-                      {form.watch("injuredPersonStatus")?.includes("Contractor") && (
-                        <FormField
-                          control={form.control}
-                          name="contractorEmployer"
-                          render={({ field }) => (
-                            <FormItem className="mt-4">
-                              <FormLabel>Contractor Employer</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Name of contractor's employer" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1062,10 +1089,10 @@ export function ComprehensiveIncidentForm({
                                               return checked
                                                 ? field.onChange([...(field.value || []), item.value])
                                                 : field.onChange(
-                                                    (field.value || []).filter(
-                                                      (value) => value !== item.value
-                                                    )
+                                                  (field.value || []).filter(
+                                                    (value) => value !== item.value
                                                   )
+                                                )
                                             }}
                                           />
                                         </FormControl>
@@ -1184,27 +1211,27 @@ export function ComprehensiveIncidentForm({
                     Section 7: Detailed Description of Incident/Event
                   </h3>
                   <div>
-                      <FormField
-                        control={form.control}
-                        name="detailedDescription"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Description</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Provide a detailed description of exactly what happened, what the injured person was doing, and how the incident occurred..."
-                                className="min-h-[120px]"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Include what happened, what the person was doing, and how the incident occurred. Space for drawings/photos can be added later.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="detailedDescription"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Provide a detailed description of exactly what happened, what the injured person was doing, and how the incident occurred..."
+                              className="min-h-[120px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Include what happened, what the person was doing, and how the incident occurred. Space for drawings/photos can be added later.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1305,51 +1332,51 @@ export function ComprehensiveIncidentForm({
                     Section 10: Treatment Required
                   </h3>
                   <div>
-                      <FormField
-                        control={form.control}
-                        name="treatmentTypes"
-                        render={() => (
-                          <FormItem>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                              {treatmentOptions.map((item) => (
-                                <FormField
-                                  key={item.value}
-                                  control={form.control}
-                                  name="treatmentTypes"
-                                  render={({ field }) => {
-                                    return (
-                                      <FormItem
-                                        key={item.value}
-                                        className="flex flex-row items-start space-x-3 space-y-0"
-                                      >
-                                        <FormControl>
-                                          <Checkbox
-                                            checked={field.value?.includes(item.value)}
-                                            onCheckedChange={(checked) => {
-                                              return checked
-                                                ? field.onChange([...(field.value || []), item.value])
-                                                : field.onChange(
-                                                    (field.value || []).filter(
-                                                      (value) => value !== item.value
-                                                    )
-                                                  )
-                                            }}
-                                          />
-                                        </FormControl>
-                                        <FormLabel className="text-sm font-normal">
-                                          {item.label}
-                                        </FormLabel>
-                                      </FormItem>
-                                    )
-                                  }}
-                                />
-                              ))}
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="treatmentTypes"
+                      render={() => (
+                        <FormItem>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                            {treatmentOptions.map((item) => (
+                              <FormField
+                                key={item.value}
+                                control={form.control}
+                                name="treatmentTypes"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem
+                                      key={item.value}
+                                      className="flex flex-row items-start space-x-3 space-y-0"
+                                    >
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(item.value)}
+                                          onCheckedChange={(checked) => {
+                                            return checked
+                                              ? field.onChange([...(field.value || []), item.value])
+                                              : field.onChange(
+                                                (field.value || []).filter(
+                                                  (value) => value !== item.value
+                                                )
+                                              )
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-sm font-normal">
+                                        {item.label}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1361,60 +1388,60 @@ export function ComprehensiveIncidentForm({
                     Section 11: Details of Treatment Given
                   </h3>
                   <div className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="treatmentDetails"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Treatment Details</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Describe treatment provided..."
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <FormField
+                      control={form.control}
+                      name="treatmentDetails"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Treatment Details</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Describe treatment provided..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                      <FormField
-                        control={form.control}
-                        name="vitalSigns"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Vital Signs</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Record vital signs if taken..."
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <FormField
+                      control={form.control}
+                      name="vitalSigns"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vital Signs</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Record vital signs if taken..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                      <FormField
-                        control={form.control}
-                        name="treatmentRefused"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>
-                                Treatment was refused by the person
-                              </FormLabel>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="treatmentRefused"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Treatment was refused by the person
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1531,10 +1558,10 @@ export function ComprehensiveIncidentForm({
                                             return checked
                                               ? field.onChange([...(field.value || []), item.value])
                                               : field.onChange(
-                                                  (field.value || []).filter(
-                                                    (value) => value !== item.value
-                                                  )
+                                                (field.value || []).filter(
+                                                  (value) => value !== item.value
                                                 )
+                                              )
                                           }}
                                         />
                                       </FormControl>
@@ -1587,7 +1614,7 @@ export function ComprehensiveIncidentForm({
                   <div>
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <Shield className="w-5 h-5" />
-                    Actions Taken to Prevent Re-occurrence
+                      Actions Taken to Prevent Re-occurrence
                     </h3>
                     <FormField
                       control={form.control}
@@ -1617,7 +1644,7 @@ export function ComprehensiveIncidentForm({
                   <Card className="shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                      Home Manager Informed
+                        Home Manager Informed
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -1690,7 +1717,7 @@ export function ComprehensiveIncidentForm({
                   <Card className="shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        
+
                         Out of Hours On-Call Contacted
                       </CardTitle>
                     </CardHeader>
@@ -1765,7 +1792,7 @@ export function ComprehensiveIncidentForm({
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
 
-                NOK (Next of Kin) Informed
+                        NOK (Next of Kin) Informed
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1887,10 +1914,10 @@ export function ComprehensiveIncidentForm({
                               <FormItem>
                                 <FormLabel>Email</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    type="email" 
-                                    placeholder="care.manager@example.com" 
-                                    {...field} 
+                                  <Input
+                                    type="email"
+                                    placeholder="care.manager@example.com"
+                                    {...field}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1924,10 +1951,10 @@ export function ComprehensiveIncidentForm({
                               <FormItem>
                                 <FormLabel>Email</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    type="email" 
-                                    placeholder="key.worker@example.com" 
-                                    {...field} 
+                                  <Input
+                                    type="email"
+                                    placeholder="key.worker@example.com"
+                                    {...field}
                                   />
                                 </FormControl>
                                 <FormMessage />

@@ -49,7 +49,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 
 interface AuditDetailItem {
   id: string;
@@ -78,7 +78,7 @@ export default function ClinicalAuditPage() {
   const auditId = params.auditId as string;
 
   // Get current user session
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
   const [auditName, setAuditName] = useState("Clinical Care & Medicines Audit");
@@ -197,7 +197,7 @@ export default function ClinicalAuditPage() {
 
   // Create draft response when page loads with template (if one doesn't exist)
   useEffect(() => {
-    if (!getTemplate || responseId || !activeOrganizationId || !session) return;
+    if (!getTemplate || responseId || !activeOrganizationId || !profile) return;
 
     // If drafts exist, we'll use one of them (handled by another useEffect)
     if (existingDrafts && existingDrafts.length > 0) return;
@@ -210,7 +210,7 @@ export default function ClinicalAuditPage() {
     console.log("📝 No existing clinical draft found, creating new draft response...");
     setDraftCreationState('creating');
 
-    const auditorName = session?.user?.name || session?.user?.email || "Unknown User";
+    const auditorName = profile?.name || profile?.email || "Unknown User";
     getOrCreateDraft({
       templateId: getTemplate._id,
       organizationId: activeOrganizationId,
@@ -225,7 +225,7 @@ export default function ClinicalAuditPage() {
         console.error("Failed to create draft:", error);
         setDraftCreationState('idle'); // Allow retry on error
       });
-  }, [getTemplate, responseId, activeOrganizationId, session, existingDrafts, draftCreationState, getOrCreateDraft]);
+  }, [getTemplate, responseId, activeOrganizationId, profile, existingDrafts, draftCreationState, getOrCreateDraft]);
 
   // Load action plans from database
   useEffect(() => {
@@ -516,8 +516,8 @@ export default function ClinicalAuditPage() {
           ...item,
           status: (item.status || "") as "" | "not-applicable" | "compliant" | "non-compliant" | "checked" | "unchecked",
         })),
-        auditedBy: session?.user?.email || "",
-        auditedByName: session?.user?.name || session?.user?.email || "",
+        auditedBy: profile?.email || "",
+        auditedByName: profile?.name || profile?.email || "",
       });
 
       // Save action plans to database atomically
@@ -532,8 +532,8 @@ export default function ClinicalAuditPage() {
             priority: plan.priority as "Low" | "Medium" | "High",
             dueDate: plan.dueDate?.getTime(),
             organizationId: activeOrganizationId,
-            createdBy: session?.user?.email || session?.user?.name || "Unknown",
-            createdByName: session?.user?.name || session?.user?.email || "Unknown",
+            createdBy: profile?.email || profile?.name || "Unknown",
+            createdByName: profile?.name || profile?.email || "Unknown",
           })
         );
         await Promise.all(planPromises);
@@ -778,11 +778,10 @@ export default function ClinicalAuditPage() {
                             variant="secondary"
                             className="text-xs flex items-center gap-1"
                           >
-                            <div className={`w-2 h-2 rounded-full ${
-                              plan.priority === "High" ? "bg-red-500" :
+                            <div className={`w-2 h-2 rounded-full ${plan.priority === "High" ? "bg-red-500" :
                               plan.priority === "Medium" ? "bg-yellow-500" :
-                              "bg-green-500"
-                            }`}></div>
+                                "bg-green-500"
+                              }`}></div>
                             {plan.priority}
                           </Badge>
                         )}
@@ -983,11 +982,10 @@ export default function ClinicalAuditPage() {
                 <PopoverTrigger asChild>
                   <Badge variant="outline" className="cursor-pointer hover:bg-accent flex items-center gap-1">
                     {priority && (
-                      <div className={`w-2 h-2 rounded-full ${
-                        priority === "High" ? "bg-red-500" :
+                      <div className={`w-2 h-2 rounded-full ${priority === "High" ? "bg-red-500" :
                         priority === "Medium" ? "bg-yellow-500" :
-                        "bg-green-500"
-                      }`}></div>
+                          "bg-green-500"
+                        }`}></div>
                     )}
                     {priority || "Priority"}
                   </Badge>

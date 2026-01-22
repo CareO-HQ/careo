@@ -4,7 +4,8 @@ import React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -228,8 +229,8 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const itemsPerPage = 5;
 
   // Auth data
-  const { data: user } = authClient.useSession();
-  const { data: activeOrganization } = authClient.useActiveOrganization();
+  const { profile } = useProfile();
+  const { activeOrganization } = useActiveTeam();
 
   // For now, use activeOrganization (in most cases resident belongs to user's active org)
   // TODO: Fetch specific organization by resident.organizationId if needed
@@ -413,15 +414,15 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Update staff field when user data loads (moved after editForm declaration)
   React.useEffect(() => {
-    if (user?.user) {
-      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
+    if (profile) {
+      const staffName = profile.name || profile.email?.split('@')[0] || "";
       form.setValue('signOff.printedName', staffName);
       form.setValue('signOff.signature', staffName);
       // Also update edit form
       editForm.setValue('signOff.printedName', staffName);
       editForm.setValue('signOff.signature', staffName);
     }
-  }, [user, form, editForm]);
+  }, [profile, form, editForm]);
 
   // Update edit form with organization data when it loads
   React.useEffect(() => {
@@ -818,9 +819,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
           <div class="photo-section">
             ${resident.imageUrl
-              ? `<img src="${resident.imageUrl}" alt="${fullName}" class="resident-photo" />`
-              : `<div class="no-photo">${initials}</div>`
-            }
+        ? `<img src="${resident.imageUrl}" alt="${fullName}" class="resident-photo" />`
+        : `<div class="no-photo">${initials}</div>`
+      }
             <div class="photo-info">
               <h3>${fullName}</h3>
               <p><strong>NHS Number:</strong> ${resident.nhsHealthNumber || "Not specified"}</p>
@@ -1118,7 +1119,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       throw new Error("Missing required fields");
     }
 
-    if (!activeOrganization?.id || !user?.user?.id) {
+    if (!activeOrganization?.id || !profile?.id) {
       toast.error("Authentication error. Please refresh the page and try again.");
       throw new Error("Authentication error");
     }
@@ -1191,7 +1192,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           },
           organizationId: activeOrganization.id,
           teamId: resident?.teamId || "",
-          createdBy: user.user.id,
+          createdBy: profile.id,
         });
 
         toast.success("Transfer log added successfully");
@@ -1350,7 +1351,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       return;
     }
 
-    if (!activeOrganization?.id || !user?.user?.id) {
+    if (!activeOrganization?.id || !profile?.id) {
       toast.error("Authentication error. Please refresh the page and try again.");
       return;
     }
@@ -1427,7 +1428,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         },
         organizationId: activeOrganization.id,
         teamId: resident?.teamId || "",
-        createdBy: user.user.id,
+        createdBy: profile.id,
         status: "completed",
       });
 
@@ -1675,424 +1676,207 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           </div>
         </div>
 
-      {/* Emergency Information */}
-      <Card className="border-0">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600" />
-            <span>Emergency Information</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center space-x-2 mb-2">
-                <Phone className="w-4 h-4 text-blue-600" />
-                <span className="font-medium text-blue-900">GP Contact</span>
+        {/* Emergency Information */}
+        <Card className="border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5 text-orange-600" />
+              <span>Emergency Information</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Phone className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-900">GP Contact</span>
+                </div>
+                <p className="text-sm text-blue-800">
+                  {resident.gpName || "Not specified"}
+                </p>
+                <p className="text-xs text-blue-600">
+                  {resident.gpPhone || "No phone number"}
+                </p>
               </div>
-              <p className="text-sm text-blue-800">
-                {resident.gpName || "Not specified"}
-              </p>
-              <p className="text-xs text-blue-600">
-                {resident.gpPhone || "No phone number"}
-              </p>
-            </div>
 
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center space-x-2 mb-2">
-                <User className="w-4 h-4 text-green-600" />
-                <span className="font-medium text-green-900">Next of Kin</span>
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <User className="w-4 h-4 text-green-600" />
+                  <span className="font-medium text-green-900">Next of Kin</span>
+                </div>
+                <p className="text-sm text-green-800">
+                  {resident.emergencyContacts?.[0]?.name || "Not specified"}
+                </p>
+                <p className="text-xs text-green-600">
+                  {resident.emergencyContacts?.[0]?.phoneNumber || "No phone number"}
+                </p>
               </div>
-              <p className="text-sm text-green-800">
-                {resident.emergencyContacts?.[0]?.name || "Not specified"}
-              </p>
-              <p className="text-xs text-green-600">
-                {resident.emergencyContacts?.[0]?.phoneNumber || "No phone number"}
-              </p>
-            </div>
 
-            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <div className="flex items-center space-x-2 mb-2">
-                <FileText className="w-4 h-4 text-purple-600" />
-                <span className="font-medium text-purple-900">NHS Number</span>
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <FileText className="w-4 h-4 text-purple-600" />
+                  <span className="font-medium text-purple-900">NHS Number</span>
+                </div>
+                <p className="text-sm text-purple-800 font-mono">
+                  {resident.nhsHealthNumber || "Not specified"}
+                </p>
               </div>
-              <p className="text-sm text-purple-800 font-mono">
-                {resident.nhsHealthNumber || "Not specified"}
-              </p>
-            </div>
 
-            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-              <div className="flex items-center space-x-2 mb-2">
-                <Shield className="w-4 h-4 text-red-600" />
-                <span className="font-medium text-red-900">Known Risks</span>
-              </div>
-              {resident.risks && Array.isArray(resident.risks) && resident.risks.length > 0 ? (
-                <div className="space-y-1">
-                  {resident.risks.slice(0, 3).map((risk: any, index: number) => {
-                    const riskText = typeof risk === 'string' ? risk : risk.risk;
-                    const riskLevel = typeof risk === 'object' ? risk.level : undefined;
-                    return (
-                      <div key={index} className="flex items-center space-x-1">
-                        <span className="text-xs text-red-800">•</span>
-                        <span className="text-xs text-red-800 truncate">{riskText}</span>
-                        {riskLevel && (
-                          <Badge variant="outline" className={`text-[10px] px-1 py-0 h-4 ${riskLevel === 'high' ? 'bg-red-100 text-red-700 border-red-300' :
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Shield className="w-4 h-4 text-red-600" />
+                  <span className="font-medium text-red-900">Known Risks</span>
+                </div>
+                {resident.risks && Array.isArray(resident.risks) && resident.risks.length > 0 ? (
+                  <div className="space-y-1">
+                    {resident.risks.slice(0, 3).map((risk: any, index: number) => {
+                      const riskText = typeof risk === 'string' ? risk : risk.risk;
+                      const riskLevel = typeof risk === 'object' ? risk.level : undefined;
+                      return (
+                        <div key={index} className="flex items-center space-x-1">
+                          <span className="text-xs text-red-800">•</span>
+                          <span className="text-xs text-red-800 truncate">{riskText}</span>
+                          {riskLevel && (
+                            <Badge variant="outline" className={`text-[10px] px-1 py-0 h-4 ${riskLevel === 'high' ? 'bg-red-100 text-red-700 border-red-300' :
                               riskLevel === 'medium' ? 'bg-orange-100 text-orange-700 border-orange-300' :
                                 'bg-yellow-100 text-yellow-700 border-yellow-300'
-                            }`}>
-                            {riskLevel}
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {resident.risks.length > 3 && (
-                    <span className="text-xs text-red-600 font-medium">+{resident.risks.length - 3} more</span>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-red-600">No risks identified</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Hospital Passport Card */}
-      <Card className="border-0">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-indigo-600" />
-            <span>CareO Passport</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {hospitalPassports && hospitalPassports.length > 0 ? (
-            // Show the single passport for this resident
-            <div className="bg-white border-2 border-gray-200 rounded-lg shadow-sm overflow-hidden max-w-sm mx-auto">
-              {/* NHS Header - Compact */}
-              <div className="bg-blue-500 text-white p-3 text-center">
-                <div className="w-12 h-12 mx-auto mb-1 bg-white rounded p-1 flex items-center justify-center">
-                  <Cross className="w-8 h-8 text-blue-600" />
-                </div>
-                <h2 className="text-sm font-bold">HOSPITAL PASSPORT</h2>
-                
-              </div>
-
-              {/* Patient Photo and Basic Info - Compact */}
-              <div className="p-4">
-                <div className="flex flex-col items-center mb-4">
-                  {/* Passport Photo - Smaller */}
-                  <div className="relative mb-3">
-                    <Avatar className="w-20 h-20 border-2 border-gray-300 shadow-md">
-                      <AvatarImage
-                        src={resident.imageUrl}
-                        alt={fullName}
-                        className="object-cover"
-                      />
-                      <AvatarFallback className="bg-gray-100 text-gray-700 text-lg font-bold">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
-                      <FileCheck className="w-3 h-3 text-white" />
-                    </div>
+                              }`}>
+                              {riskLevel}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {resident.risks.length > 3 && (
+                      <span className="text-xs text-red-600 font-medium">+{resident.risks.length - 3} more</span>
+                    )}
                   </div>
-
-                  {/* Patient Name - Smaller */}
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">{fullName}</h3>
-
-                  {/* Key Information Grid - Compact */}
-                  <div className="w-full space-y-2">
-                    <div className="flex justify-between border-b border-gray-200 pb-1">
-                      <span className="font-medium text-gray-600 text-xs">NHS:</span>
-                      <span className="text-gray-900 font-mono text-xs">
-                        {resident?.nhsHealthNumber || "Not specified"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b border-gray-200 pb-1">
-                      <span className="font-medium text-gray-600 text-xs">DOB:</span>
-                      <span className="text-gray-900 text-xs">
-                        {resident?.dateOfBirth
-                          ? (() => {
-                            try {
-                              return new Date(resident.dateOfBirth).toLocaleDateString();
-                            } catch {
-                              return "Invalid date";
-                            }
-                          })()
-                          : "Not specified"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b border-gray-200 pb-1">
-                      <span className="font-medium text-gray-600 text-xs">Age:</span>
-                      <span className="text-gray-900 text-xs">{currentAge} years</span>
-                    </div>
-                    <div className="flex justify-between border-b border-gray-200 pb-1">
-                      <span className="font-medium text-gray-600 text-xs">Room:</span>
-                      <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-1 py-0 h-4">
-                        {resident.roomNumber || "N/A"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Passport Info - Smaller */}
-                  <div className="mt-3 pt-2 border-t border-gray-200 text-center">
-                    <div className="text-xs text-gray-500">
-                      <span className="font-medium">Created:</span>{" "}
-                      {new Date(hospitalPassports[0].createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons - Compact */}
-                <div className="flex items-center justify-center space-x-1 pt-2 border-t border-gray-200">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                    onClick={() => {
-                      // Create dynamic passport with current resident data for viewing
-                      const dynamicPassportForView = {
-                        ...hospitalPassports[0],
-                        generalDetails: {
-                          ...hospitalPassports[0].generalDetails,
-                          // Use current resident data
-                          personName: fullName,
-                          knownAs: resident.firstName || '',
-                          dateOfBirth: resident.dateOfBirth || '',
-                          nhsNumber: resident.nhsHealthNumber || '',
-                          nextOfKinName: resident.emergencyContacts?.[0]?.name || '',
-                          nextOfKinAddress: resident.emergencyContacts?.[0]?.address || '',
-                          nextOfKinPhone: resident.emergencyContacts?.[0]?.phoneNumber || '',
-                          gpName: resident.gpName || '',
-                          gpAddress: resident.gpAddress || '',
-                          gpPhone: resident.gpPhone || '',
-                          careManagerName: resident.careManagerName || '',
-                          careManagerAddress: resident.careManagerAddress || '',
-                          careManagerPhone: resident.careManagerPhone || '',
-                        }
-                      };
-                      setSelectedPassport(dynamicPassportForView);
-                      setIsViewPassportDialogOpen(true);
-                    }}
-                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-                  >
-                    <Eye className="w-3 h-3 mr-1" />
-                    View
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                    onClick={() => handleEditPassport(hospitalPassports[0])}
-                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-                  >
-                    <Edit className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                    onClick={() => handlePrintPassport(hospitalPassports[0])}
-                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-                  >
-                    <Printer className="w-3 h-3 mr-1" />
-                    Print
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                    onClick={() => handleDeletePassport(hospitalPassports[0])}
-                    disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Delete
-                  </Button>
-                </div>
+                ) : (
+                  <p className="text-xs text-red-600">No risks identified</p>
+                )}
               </div>
             </div>
-          ) : (
-            // Show generate passport button when no passport exists
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-              <div className="flex flex-col items-center">
-                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Hospital Passport</h3>
-                <p className="text-sm text-gray-600 mb-4 max-w-md">
-                  Generate a Hospital Passport to have quick access to essential patient information for emergency transfers.
-                </p>
-                <Button
-                  onClick={() => {
-                    // Set user data before opening dialog
-                    if (user?.user) {
-                      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
-                      form.setValue('signOff.printedName', staffName);
-                      form.setValue('signOff.signature', staffName);
-                    }
-                    setIsTransferDialogOpen(true);
-                  }}
-                  disabled={isCreating || isUpdating || isDeleting}
-                  className="bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-400 h-12 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isCreating ? (
-                    <>
-                      <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-5 h-5 mr-2" />
-                      Generate Hospital Passport
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-
-
-      {/* Recent Transfer Logs - Matching progress-notes pattern */}
-      <Card className="border-0">
-        <CardHeader className="">
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Ambulance className="w-5 h-5 text-gray-600" />
-              </div>
-              <span className="text-gray-900">Recent Transfer Logs</span>
+        {/* Hospital Passport Card */}
+        <Card className="border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="w-5 h-5 text-indigo-600" />
+              <span>CareO Passport</span>
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-gray-100 text-gray-700">{transferLogs?.length || 0} Total</Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
-                className="h-8 px-3"
-              >
-                <ClipboardList className="w-4 h-4 mr-2" />
-                Transfer History
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          {!transferLogs || !Array.isArray(transferLogs) || transferLogs.length === 0 ? (
-            <div className="text-center py-8">
-              <Ambulance className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No transfer logs recorded</p>
-              <p className="text-gray-400 text-sm mt-1">
-                Start tracking hospital transfers and admissions
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {paginatedTransferLogs.map((log: any) => (
-                <div
-                  key={log._id}
-                  className="flex flex-col md:flex-row md:items-start md:justify-between p-4 rounded-lg border"
-                >
-                  <div className="flex items-start space-x-3 flex-1">
-                    <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
-                      <Ambulance className="w-4 h-4 text-gray-600" />
+          </CardHeader>
+          <CardContent>
+            {hospitalPassports && hospitalPassports.length > 0 ? (
+              // Show the single passport for this resident
+              <div className="bg-white border-2 border-gray-200 rounded-lg shadow-sm overflow-hidden max-w-sm mx-auto">
+                {/* NHS Header - Compact */}
+                <div className="bg-blue-500 text-white p-3 text-center">
+                  <div className="w-12 h-12 mx-auto mb-1 bg-white rounded p-1 flex items-center justify-center">
+                    <Cross className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <h2 className="text-sm font-bold">HOSPITAL PASSPORT</h2>
+
+                </div>
+
+                {/* Patient Photo and Basic Info - Compact */}
+                <div className="p-4">
+                  <div className="flex flex-col items-center mb-4">
+                    {/* Passport Photo - Smaller */}
+                    <div className="relative mb-3">
+                      <Avatar className="w-20 h-20 border-2 border-gray-300 shadow-md">
+                        <AvatarImage
+                          src={resident.imageUrl}
+                          alt={fullName}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="bg-gray-100 text-gray-700 text-lg font-bold">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
+                        <FileCheck className="w-3 h-3 text-white" />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h4 className="font-semibold text-gray-900">{log.hospitalName}</h4>
-                        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
-                          Transfer
+
+                    {/* Patient Name - Smaller */}
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">{fullName}</h3>
+
+                    {/* Key Information Grid - Compact */}
+                    <div className="w-full space-y-2">
+                      <div className="flex justify-between border-b border-gray-200 pb-1">
+                        <span className="font-medium text-gray-600 text-xs">NHS:</span>
+                        <span className="text-gray-900 font-mono text-xs">
+                          {resident?.nhsHealthNumber || "Not specified"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-200 pb-1">
+                        <span className="font-medium text-gray-600 text-xs">DOB:</span>
+                        <span className="text-gray-900 text-xs">
+                          {resident?.dateOfBirth
+                            ? (() => {
+                              try {
+                                return new Date(resident.dateOfBirth).toLocaleDateString();
+                              } catch {
+                                return "Invalid date";
+                              }
+                            })()
+                            : "Not specified"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-200 pb-1">
+                        <span className="font-medium text-gray-600 text-xs">Age:</span>
+                        <span className="text-gray-900 text-xs">{currentAge} years</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-200 pb-1">
+                        <span className="font-medium text-gray-600 text-xs">Room:</span>
+                        <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs px-1 py-0 h-4">
+                          {resident.roomNumber || "N/A"}
                         </Badge>
                       </div>
-                      <p className="text-gray-600 text-sm mb-3">{log.reason}</p>
+                    </div>
 
-                      {/* Files Changed Display */}
-                      {log.filesChanged && (log.filesChanged.carePlan || log.filesChanged.riskAssessment || log.filesChanged.other) && (
-                        <div className="mb-2">
-                          <div className="flex items-center flex-wrap gap-1 text-xs">
-                            <span className="text-gray-500 font-medium mr-1">Files Updated:</span>
-                            {log.filesChanged.carePlan && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                <FileText className="w-3 h-3 mr-1" />
-                                Care Plan
-                              </Badge>
-                            )}
-                            {log.filesChanged.riskAssessment && (
-                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                <FileText className="w-3 h-3 mr-1" />
-                                Risk Assessment
-                              </Badge>
-                            )}
-                            {log.filesChanged.other && (
-                              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                                <FileText className="w-3 h-3 mr-1" />
-                                {log.filesChanged.other.split(',').map((item: string) => item.trim()).join(',')}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Medication Changes Display - Inline */}
-                      {log.medicationChanges && (
-                        log.medicationChanges.medicationsAdded ||
-                        log.medicationChanges.medicationsRemoved ||
-                        log.medicationChanges.medicationsModified
-                      ) && (
-                          <div className="mb-2">
-                            <div className="flex items-center flex-wrap gap-1 text-xs">
-                              <span className="text-gray-500 font-medium mr-1">Medications:</span>
-                              {log.medicationChanges.medicationsAdded && (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  <Pill className="w-3 h-3 mr-1" />
-                                  Added
-                                </Badge>
-                              )}
-                              {log.medicationChanges.medicationsRemoved && (
-                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                  <Pill className="w-3 h-3 mr-1" />
-                                  Removed
-                                </Badge>
-                              )}
-                              {log.medicationChanges.medicationsModified && (
-                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                  <Pill className="w-3 h-3 mr-1" />
-                                  Modified
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        <span className="flex items-center">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          {new Date(log.date).toLocaleDateString()}
-                        </span>
-                        <span>•</span>
-                        <span>Added {new Date(log.createdAt).toLocaleDateString()}</span>
-                        {log.outcome && (
-                          <>
-                            <span>•</span>
-                            <span className="text-green-600 font-medium">{log.outcome}</span>
-                          </>
-                        )}
+                    {/* Passport Info - Smaller */}
+                    <div className="mt-3 pt-2 border-t border-gray-200 text-center">
+                      <div className="text-xs text-gray-500">
+                        <span className="font-medium">Created:</span>{" "}
+                        {new Date(hospitalPassports[0].createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center space-x-1 mt-2 md:mt-0 md:ml-4">
+                  {/* Action Buttons - Compact */}
+                  <div className="flex items-center justify-center space-x-1 pt-2 border-t border-gray-200">
                     <Button
                       variant="outline"
                       size="sm"
                       className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                      onClick={() => handleViewTransferLog(log)}
+                      onClick={() => {
+                        // Create dynamic passport with current resident data for viewing
+                        const dynamicPassportForView = {
+                          ...hospitalPassports[0],
+                          generalDetails: {
+                            ...hospitalPassports[0].generalDetails,
+                            // Use current resident data
+                            personName: fullName,
+                            knownAs: resident.firstName || '',
+                            dateOfBirth: resident.dateOfBirth || '',
+                            nhsNumber: resident.nhsHealthNumber || '',
+                            nextOfKinName: resident.emergencyContacts?.[0]?.name || '',
+                            nextOfKinAddress: resident.emergencyContacts?.[0]?.address || '',
+                            nextOfKinPhone: resident.emergencyContacts?.[0]?.phoneNumber || '',
+                            gpName: resident.gpName || '',
+                            gpAddress: resident.gpAddress || '',
+                            gpPhone: resident.gpPhone || '',
+                            careManagerName: resident.careManagerName || '',
+                            careManagerAddress: resident.careManagerAddress || '',
+                            careManagerPhone: resident.careManagerPhone || '',
+                          }
+                        };
+                        setSelectedPassport(dynamicPassportForView);
+                        setIsViewPassportDialogOpen(true);
+                      }}
                       disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                     >
                       <Eye className="w-3 h-3 mr-1" />
@@ -2102,7 +1886,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                       variant="outline"
                       size="sm"
                       className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                      onClick={() => handleEditTransferLog(log)}
+                      onClick={() => handleEditPassport(hospitalPassports[0])}
                       disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                     >
                       <Edit className="w-3 h-3 mr-1" />
@@ -2112,7 +1896,17 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                       variant="outline"
                       size="sm"
                       className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
-                      onClick={() => handleDeleteTransferLog(log)}
+                      onClick={() => handlePrintPassport(hospitalPassports[0])}
+                      disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                    >
+                      <Printer className="w-3 h-3 mr-1" />
+                      Print
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
+                      onClick={() => handleDeletePassport(hospitalPassports[0])}
                       disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
                     >
                       <Trash2 className="w-3 h-3 mr-1" />
@@ -2120,253 +1914,460 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     </Button>
                   </div>
                 </div>
-              ))}
-
-              {/* Pagination Controls */}
-              {showPagination && (
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, totalTransferLogs)} of {totalTransferLogs} transfer logs
+              </div>
+            ) : (
+              // Show generate passport button when no passport exists
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                    <FileText className="w-8 h-8 text-gray-400" />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePrevious}
-                      disabled={currentPage === 1}
-                      className="h-8 w-8 p-0"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="flex items-center space-x-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handlePageChange(page)}
-                          className="h-8 w-8 p-0"
-                        >
-                          {page}
-                        </Button>
-                      ))}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNext}
-                      disabled={currentPage === totalPages}
-                      className="h-8 w-8 p-0"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Hospital Passport</h3>
+                  <p className="text-sm text-gray-600 mb-4 max-w-md">
+                    Generate a Hospital Passport to have quick access to essential patient information for emergency transfers.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      // Set user data before opening dialog
+                      if (user?.user) {
+                        const staffName = user.user.name || user.user.email?.split('@')[0] || "";
+                        form.setValue('signOff.printedName', staffName);
+                        form.setValue('signOff.signature', staffName);
+                      }
+                      setIsTransferDialogOpen(true);
+                    }}
+                    disabled={isCreating || isUpdating || isDeleting}
+                    className="bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-400 h-12 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreating ? (
+                      <>
+                        <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-5 h-5 mr-2" />
+                        Generate Hospital Passport
+                      </>
+                    )}
+                  </Button>
                 </div>
-              )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
+
+        {/* Recent Transfer Logs - Matching progress-notes pattern */}
+        <Card className="border-0">
+          <CardHeader className="">
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center space-x-3">
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <Ambulance className="w-5 h-5 text-gray-600" />
+                </div>
+                <span className="text-gray-900">Recent Transfer Logs</span>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-gray-100 text-gray-700">{transferLogs?.length || 0} Total</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents`)}
+                  className="h-8 px-3"
+                >
+                  <ClipboardList className="w-4 h-4 mr-2" />
+                  Transfer History
+                </Button>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="p-6">
+            {!transferLogs || !Array.isArray(transferLogs) || transferLogs.length === 0 ? (
+              <div className="text-center py-8">
+                <Ambulance className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No transfer logs recorded</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  Start tracking hospital transfers and admissions
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {paginatedTransferLogs.map((log: any) => (
+                  <div
+                    key={log._id}
+                    className="flex flex-col md:flex-row md:items-start md:justify-between p-4 rounded-lg border"
+                  >
+                    <div className="flex items-start space-x-3 flex-1">
+                      <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                        <Ambulance className="w-4 h-4 text-gray-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <h4 className="font-semibold text-gray-900">{log.hospitalName}</h4>
+                          <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                            Transfer
+                          </Badge>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-3">{log.reason}</p>
 
-      {/* Hospital Passport Dialog */}
-      <HospitalPassportDialog
-        open={isTransferDialogOpen}
-        onOpenChange={(open) => {
-          setIsTransferDialogOpen(open);
-          if (!open) {
-            // Reset form state when dialog is closed but preserve user data
-            const currentUserName = form.getValues('signOff.printedName');
-            const currentSignature = form.getValues('signOff.signature');
-            form.reset();
-            // Restore user data after reset
-            if (currentUserName) {
-              form.setValue('signOff.printedName', currentUserName);
-              form.setValue('signOff.signature', currentSignature);
+                        {/* Files Changed Display */}
+                        {log.filesChanged && (log.filesChanged.carePlan || log.filesChanged.riskAssessment || log.filesChanged.other) && (
+                          <div className="mb-2">
+                            <div className="flex items-center flex-wrap gap-1 text-xs">
+                              <span className="text-gray-500 font-medium mr-1">Files Updated:</span>
+                              {log.filesChanged.carePlan && (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  Care Plan
+                                </Badge>
+                              )}
+                              {log.filesChanged.riskAssessment && (
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  Risk Assessment
+                                </Badge>
+                              )}
+                              {log.filesChanged.other && (
+                                <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  {log.filesChanged.other.split(',').map((item: string) => item.trim()).join(',')}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Medication Changes Display - Inline */}
+                        {log.medicationChanges && (
+                          log.medicationChanges.medicationsAdded ||
+                          log.medicationChanges.medicationsRemoved ||
+                          log.medicationChanges.medicationsModified
+                        ) && (
+                            <div className="mb-2">
+                              <div className="flex items-center flex-wrap gap-1 text-xs">
+                                <span className="text-gray-500 font-medium mr-1">Medications:</span>
+                                {log.medicationChanges.medicationsAdded && (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    <Pill className="w-3 h-3 mr-1" />
+                                    Added
+                                  </Badge>
+                                )}
+                                {log.medicationChanges.medicationsRemoved && (
+                                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                    <Pill className="w-3 h-3 mr-1" />
+                                    Removed
+                                  </Badge>
+                                )}
+                                {log.medicationChanges.medicationsModified && (
+                                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                    <Pill className="w-3 h-3 mr-1" />
+                                    Modified
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                        <div className="flex items-center space-x-4 text-xs text-gray-500">
+                          <span className="flex items-center">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            {new Date(log.date).toLocaleDateString()}
+                          </span>
+                          <span>•</span>
+                          <span>Added {new Date(log.createdAt).toLocaleDateString()}</span>
+                          {log.outcome && (
+                            <>
+                              <span>•</span>
+                              <span className="text-green-600 font-medium">{log.outcome}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center space-x-1 mt-2 md:mt-0 md:ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
+                        onClick={() => handleViewTransferLog(log)}
+                        disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                      >
+                        <Eye className="w-3 h-3 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
+                        onClick={() => handleEditTransferLog(log)}
+                        disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-gray-700 hover:text-black hover:bg-gray-50 border-gray-300 h-7 px-2 text-xs"
+                        onClick={() => handleDeleteTransferLog(log)}
+                        disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Pagination Controls */}
+                {showPagination && (
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <div className="text-sm text-gray-500">
+                      Showing {startIndex + 1}-{Math.min(endIndex, totalTransferLogs)} of {totalTransferLogs} transfer logs
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePrevious}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <Button
+                            key={page}
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(page)}
+                            className="h-8 w-8 p-0"
+                          >
+                            {page}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNext}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Hospital Passport Dialog */}
+        <HospitalPassportDialog
+          open={isTransferDialogOpen}
+          onOpenChange={(open) => {
+            setIsTransferDialogOpen(open);
+            if (!open) {
+              // Reset form state when dialog is closed but preserve user data
+              const currentUserName = form.getValues('signOff.printedName');
+              const currentSignature = form.getValues('signOff.signature');
+              form.reset();
+              // Restore user data after reset
+              if (currentUserName) {
+                form.setValue('signOff.printedName', currentUserName);
+                form.setValue('signOff.signature', currentSignature);
+              }
+              setCurrentStep(1);
             }
-            setCurrentStep(1);
-          }
-        }}
-        form={form}
-        onSubmit={handleSubmit}
-        residentName={fullName}
-        currentStep={currentStep}
-        setCurrentStep={setCurrentStep}
-        handleNextStep={handleNextStep}
-        prevStep={prevStep}
-      />
+          }}
+          form={form}
+          onSubmit={handleSubmit}
+          residentName={fullName}
+          currentStep={currentStep}
+          setCurrentStep={setCurrentStep}
+          handleNextStep={handleNextStep}
+          prevStep={prevStep}
+        />
 
-      {/* Edit Passport Dialog */}
-      <HospitalPassportDialog
-        open={isEditPassportDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditPassportDialogOpen(open);
-          if (!open) {
-            // Clean up editing state when dialog is closed
-            setEditingPassport(null);
-            setEditCurrentStep(1);
-            editForm.reset();
-          }
-        }}
-        form={editForm}
-        onSubmit={handleEditSubmit}
-        residentName={fullName}
-        currentStep={editCurrentStep}
-        setCurrentStep={setEditCurrentStep}
-        handleNextStep={handleEditNextStep}
-        prevStep={editPrevStep}
-        isEditMode={true}
-      />
+        {/* Edit Passport Dialog */}
+        <HospitalPassportDialog
+          open={isEditPassportDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditPassportDialogOpen(open);
+            if (!open) {
+              // Clean up editing state when dialog is closed
+              setEditingPassport(null);
+              setEditCurrentStep(1);
+              editForm.reset();
+            }
+          }}
+          form={editForm}
+          onSubmit={handleEditSubmit}
+          residentName={fullName}
+          currentStep={editCurrentStep}
+          setCurrentStep={setEditCurrentStep}
+          handleNextStep={handleEditNextStep}
+          prevStep={editPrevStep}
+          isEditMode={true}
+        />
 
-      {/* View Passport Dialog */}
-      <ViewPassportDialog
-        open={isViewPassportDialogOpen}
-        onOpenChange={(open) => {
-          setIsViewPassportDialogOpen(open);
-          if (!open) {
-            // Clean up selected passport when dialog is closed
-            setSelectedPassport(null);
-          }
-        }}
-        passport={selectedPassport}
-        resident={resident}
-      />
+        {/* View Passport Dialog */}
+        <ViewPassportDialog
+          open={isViewPassportDialogOpen}
+          onOpenChange={(open) => {
+            setIsViewPassportDialogOpen(open);
+            if (!open) {
+              // Clean up selected passport when dialog is closed
+              setSelectedPassport(null);
+            }
+          }}
+          passport={selectedPassport}
+          resident={resident}
+        />
 
-      {/* Transfer Log Dialog */}
-      <TransferLogDialog
-        open={isTransferLogDialogOpen}
-        onOpenChange={(open) => {
-          setIsTransferLogDialogOpen(open);
-          if (!open) {
-            // No specific cleanup needed for new dialog
-          }
-        }}
-        onSubmit={handleTransferLogSubmit}
-        residentName={fullName}
-      />
+        {/* Transfer Log Dialog */}
+        <TransferLogDialog
+          open={isTransferLogDialogOpen}
+          onOpenChange={(open) => {
+            setIsTransferLogDialogOpen(open);
+            if (!open) {
+              // No specific cleanup needed for new dialog
+            }
+          }}
+          onSubmit={handleTransferLogSubmit}
+          residentName={fullName}
+        />
 
-      {/* Edit Transfer Log Dialog */}
-      <TransferLogDialog
-        open={isEditTransferLogDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditTransferLogDialogOpen(open);
-          if (!open) {
-            // Clean up editing state when dialog is closed
-            setEditingTransferLog(null);
-          }
-        }}
-        onSubmit={handleTransferLogSubmit}
-        residentName={fullName}
-        transferLog={editingTransferLog}
-        isEditMode={true}
-      />
+        {/* Edit Transfer Log Dialog */}
+        <TransferLogDialog
+          open={isEditTransferLogDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditTransferLogDialogOpen(open);
+            if (!open) {
+              // Clean up editing state when dialog is closed
+              setEditingTransferLog(null);
+            }
+          }}
+          onSubmit={handleTransferLogSubmit}
+          residentName={fullName}
+          transferLog={editingTransferLog}
+          isEditMode={true}
+        />
 
-      {/* View Transfer Log Dialog */}
-      <ViewTransferLogDialog
-        open={isViewTransferLogDialogOpen}
-        onOpenChange={(open) => {
-          setIsViewTransferLogDialogOpen(open);
-          if (!open) {
-            // Clean up selected transfer log when dialog is closed
-            setSelectedTransferLog(null);
-          }
-        }}
-        transferLog={selectedTransferLog}
-        residentName={fullName}
-        currentUser={user}
-      />
+        {/* View Transfer Log Dialog */}
+        <ViewTransferLogDialog
+          open={isViewTransferLogDialogOpen}
+          onOpenChange={(open) => {
+            setIsViewTransferLogDialogOpen(open);
+            if (!open) {
+              // Clean up selected transfer log when dialog is closed
+              setSelectedTransferLog(null);
+            }
+          }}
+          transferLog={selectedTransferLog}
+          residentName={fullName}
+          currentUser={user}
+        />
 
-      {/* Delete Passport Confirmation Dialog */}
-      <AlertDialog
-        open={showDeletePassportDialog}
-        onOpenChange={(open) => {
-          if (isDeleting) return; // Prevent closing during deletion
-          setShowDeletePassportDialog(open);
-          if (!open) {
-            setPassportToDelete(null); // Clear item when dialog is closed
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-red-600" />
-              Delete Hospital Passport
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this Hospital Passport? This action cannot be undone and will permanently remove
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeletePassport}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isDeleting ? (
-                <>
-                  <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Passport
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* Delete Passport Confirmation Dialog */}
+        <AlertDialog
+          open={showDeletePassportDialog}
+          onOpenChange={(open) => {
+            if (isDeleting) return; // Prevent closing during deletion
+            setShowDeletePassportDialog(open);
+            if (!open) {
+              setPassportToDelete(null); // Clear item when dialog is closed
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-600" />
+                Delete Hospital Passport
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this Hospital Passport? This action cannot be undone and will permanently remove
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeletePassport}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Passport
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      {/* Delete Transfer Log Confirmation Dialog */}
-      <AlertDialog
-        open={showDeleteTransferLogDialog}
-        onOpenChange={(open) => {
-          if (isDeleting) return; // Prevent closing during deletion
-          setShowDeleteTransferLogDialog(open);
-          if (!open) {
-            setTransferLogToDelete(null); // Clear item when dialog is closed
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-red-600" />
-              Delete Transfer Log
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this transfer log? This action cannot be undone.
+        {/* Delete Transfer Log Confirmation Dialog */}
+        <AlertDialog
+          open={showDeleteTransferLogDialog}
+          onOpenChange={(open) => {
+            if (isDeleting) return; // Prevent closing during deletion
+            setShowDeleteTransferLogDialog(open);
+            if (!open) {
+              setTransferLogToDelete(null); // Clear item when dialog is closed
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-600" />
+                Delete Transfer Log
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this transfer log? This action cannot be undone.
 
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteTransferLog}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isDeleting ? (
-                <>
-                  <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Transfer Log
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteTransferLog}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Transfer Log
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

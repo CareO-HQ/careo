@@ -4,7 +4,6 @@ import React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -129,17 +128,15 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   const [editingFolderId, setEditingFolderId] = React.useState<Id<"folders"> | null>(null);
   const [editingFolderName, setEditingFolderName] = React.useState("");
 
-  // Auth data
-  const { data: user } = authClient.useSession();
 
   // Get files for the selected folder
   const folderFiles = useQuery(
     api.residentFiles.getByResident,
     selectedFolder
       ? {
-          residentId: id as Id<"residents">,
-          parentFolderId: selectedFolder,
-        }
+        residentId: id as Id<"residents">,
+        parentFolderId: selectedFolder,
+      }
       : "skip"
   );
 
@@ -295,11 +292,11 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     return age;
   };
 
@@ -369,375 +366,375 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="flex flex-col gap-6">
-      {/* Header with Back Button */}
-      <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <Avatar className="w-10 h-10">
-          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">Documents</h1>
-          <p className="text-muted-foreground text-sm">
-            View and manage files and documents for {resident.firstName} {resident.lastName}.
-          </p>
-        </div>
-        <div className="flex flex-row gap-2">
-          <div className="flex flex-col items-end">
-            <Button
-              onClick={() => setIsFolderDialogOpen(true)}
-              className="bg-blue-600 text-white hover:bg-blue-700"
-              disabled={folders && folders.length >= 10}
-            >
-              <FolderPlus className="w-4 h-4 mr-2" />
-              New Folder
-            </Button>
-            {folders && folders.length > 0 && (
-              <span className={`text-xs mt-1 ${folders.length >= 10 ? 'text-red-600 font-semibold' : folders.length >= 8 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                {folders.length}/10 folders
-              </span>
-            )}
+        {/* Header with Back Button */}
+        <div className="flex items-center space-x-4 mb-6">
+          <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <Avatar className="w-10 h-10">
+            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold">Documents</h1>
+            <p className="text-muted-foreground text-sm">
+              View and manage files and documents for {resident.firstName} {resident.lastName}.
+            </p>
+          </div>
+          <div className="flex flex-row gap-2">
+            <div className="flex flex-col items-end">
+              <Button
+                onClick={() => setIsFolderDialogOpen(true)}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                disabled={folders && folders.length >= 10}
+              >
+                <FolderPlus className="w-4 h-4 mr-2" />
+                New Folder
+              </Button>
+              {folders && folders.length > 0 && (
+                <span className={`text-xs mt-1 ${folders.length >= 10 ? 'text-red-600 font-semibold' : folders.length >= 8 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                  {folders.length}/10 folders
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick Guide */}
-      <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-md p-3 -mt-2">
-        <p className="font-semibold text-blue-900 mb-1.5">Quick Guide:</p>
-        <ul className="space-y-0.5 ml-4 list-disc">
-          <li><span className="font-medium">Create folders</span> to organize documents by category (Medical Records, Care Plans, etc.)</li>
-          <li><span className="font-medium">Upload files:</span> PDF, JPG, JPEG, PNG, GIF (Max 10MB per file)</li>
-          <li><span className="font-medium">Limits:</span> Up to 10 folders, 50 files per folder</li>
-        </ul>
-      </div>
+        {/* Quick Guide */}
+        <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-md p-3 -mt-2">
+          <p className="font-semibold text-blue-900 mb-1.5">Quick Guide:</p>
+          <ul className="space-y-0.5 ml-4 list-disc">
+            <li><span className="font-medium">Create folders</span> to organize documents by category (Medical Records, Care Plans, etc.)</li>
+            <li><span className="font-medium">Upload files:</span> PDF, JPG, JPEG, PNG, GIF (Max 10MB per file)</li>
+            <li><span className="font-medium">Limits:</span> Up to 10 folders, 50 files per folder</li>
+          </ul>
+        </div>
 
-      {/* Folders List */}
-      <div className="flex flex-wrap gap-3">
-        {folders && folders.length > 0 ? (
-          folders.map((folder, index) => (
-            <Sheet key={folder._id} open={isFolderSheetOpen && selectedFolder === folder._id} onOpenChange={(open) => {
-              setIsFolderSheetOpen(open);
-              if (!open) {
-                setSelectedFolder(null);
-                setSelectedFile(null);
-                documentForm.reset();
-              }
-            }}>
-              <SheetTrigger asChild>
-                <div
-                  className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-all group min-w-[90px] relative"
-                  onClick={() => handleOpenFolder(folder._id)}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFolderToDelete({ id: folder._id, name: folder.name });
-                    }}
-                    className="absolute top-1 right-1 p-1 rounded-full hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+        {/* Folders List */}
+        <div className="flex flex-wrap gap-3">
+          {folders && folders.length > 0 ? (
+            folders.map((folder, index) => (
+              <Sheet key={folder._id} open={isFolderSheetOpen && selectedFolder === folder._id} onOpenChange={(open) => {
+                setIsFolderSheetOpen(open);
+                if (!open) {
+                  setSelectedFolder(null);
+                  setSelectedFile(null);
+                  documentForm.reset();
+                }
+              }}>
+                <SheetTrigger asChild>
+                  <div
+                    className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-all group min-w-[90px] relative"
+                    onClick={() => handleOpenFolder(folder._id)}
                   >
-                    <X className="w-3 h-3 text-red-600" />
-                  </button>
-                  <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
-                    <Folder className="w-8 h-8 text-gray-600 group-hover:text-gray-700" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFolderToDelete({ id: folder._id, name: folder.name });
+                      }}
+                      className="absolute top-1 right-1 p-1 rounded-full hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3 text-red-600" />
+                    </button>
+                    <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
+                      <Folder className="w-8 h-8 text-gray-600 group-hover:text-gray-700" />
+                    </div>
+                    <div className="text-center w-full">
+                      <p className="font-medium text-xs text-primary line-clamp-2 px-0.5">
+                        {folder.name}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-center w-full">
-                    <p className="font-medium text-xs text-primary line-clamp-2 px-0.5">
-                      {folder.name}
-                    </p>
-                  </div>
-                </div>
-              </SheetTrigger>
-              <SheetContent size="lg">
-                <SheetHeader>
-                  <div className="flex items-center gap-2">
-                    {editingFolderId === folder._id ? (
-                      <input
-                        type="text"
-                        value={editingFolderName}
-                        onChange={(e) => setEditingFolderName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleUpdateFolderName(folder._id, editingFolderName);
-                          } else if (e.key === "Escape") {
-                            setEditingFolderId(null);
-                            setEditingFolderName("");
-                          }
-                        }}
-                        onBlur={() => {
-                          if (editingFolderName.trim()) {
-                            handleUpdateFolderName(folder._id, editingFolderName);
-                          } else {
-                            setEditingFolderId(null);
-                            setEditingFolderName("");
-                          }
-                        }}
-                        className="text-lg font-semibold bg-transparent border-b border-primary focus:outline-none"
-                        autoFocus
-                      />
-                    ) : (
-                      <>
-                        <SheetTitle>{folder.name}</SheetTitle>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingFolderId(folder._id);
-                            setEditingFolderName(folder.name);
-                          }}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                  <SheetDescription>Upload and manage documents</SheetDescription>
-                </SheetHeader>
-                <div className="flex flex-col justify-between h-full">
-                  <div className="flex flex-col gap-1 px-4">
-                    {/* Upload Section */}
-                    <div className="flex flex-col items-center gap-2 mt-10 mb-6">
-                      <div className="flex flex-col items-center gap-1">
+                </SheetTrigger>
+                <SheetContent size="lg">
+                  <SheetHeader>
+                    <div className="flex items-center gap-2">
+                      {editingFolderId === folder._id ? (
                         <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png,.gif"
-                          onChange={handleFileChange}
-                          className="hidden"
-                          id={`file-upload-${folder._id}`}
-                          disabled={folderFiles && folderFiles.length >= 50}
+                          type="text"
+                          value={editingFolderName}
+                          onChange={(e) => setEditingFolderName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleUpdateFolderName(folder._id, editingFolderName);
+                            } else if (e.key === "Escape") {
+                              setEditingFolderId(null);
+                              setEditingFolderName("");
+                            }
+                          }}
+                          onBlur={() => {
+                            if (editingFolderName.trim()) {
+                              handleUpdateFolderName(folder._id, editingFolderName);
+                            } else {
+                              setEditingFolderId(null);
+                              setEditingFolderName("");
+                            }
+                          }}
+                          className="text-lg font-semibold bg-transparent border-b border-primary focus:outline-none"
+                          autoFocus
                         />
-                        <label htmlFor={`file-upload-${folder._id}`}>
+                      ) : (
+                        <>
+                          <SheetTitle>{folder.name}</SheetTitle>
                           <Button
-                            type="button"
+                            variant="ghost"
                             size="sm"
-                            variant="outline"
-                            asChild
-                            disabled={folderFiles && folderFiles.length >= 50}
+                            onClick={() => {
+                              setEditingFolderId(folder._id);
+                              setEditingFolderName(folder.name);
+                            }}
+                            className="h-6 w-6 p-0"
                           >
-                            <span className="cursor-pointer">
-                              <Upload className="w-4 h-4 mr-2" />
-                              Upload
-                            </span>
+                            <Edit className="w-3 h-3" />
                           </Button>
-                        </label>
-                        {folderFiles && folderFiles.length > 0 && (
-                          <span className={`text-xs ${folderFiles.length >= 50 ? 'text-red-600 font-semibold' : folderFiles.length >= 45 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                            {folderFiles.length}/50 files
-                          </span>
+                        </>
+                      )}
+                    </div>
+                    <SheetDescription>Upload and manage documents</SheetDescription>
+                  </SheetHeader>
+                  <div className="flex flex-col justify-between h-full">
+                    <div className="flex flex-col gap-1 px-4">
+                      {/* Upload Section */}
+                      <div className="flex flex-col items-center gap-2 mt-10 mb-6">
+                        <div className="flex flex-col items-center gap-1">
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,.gif"
+                            onChange={handleFileChange}
+                            className="hidden"
+                            id={`file-upload-${folder._id}`}
+                            disabled={folderFiles && folderFiles.length >= 50}
+                          />
+                          <label htmlFor={`file-upload-${folder._id}`}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              asChild
+                              disabled={folderFiles && folderFiles.length >= 50}
+                            >
+                              <span className="cursor-pointer">
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload
+                              </span>
+                            </Button>
+                          </label>
+                          {folderFiles && folderFiles.length > 0 && (
+                            <span className={`text-xs ${folderFiles.length >= 50 ? 'text-red-600 font-semibold' : folderFiles.length >= 45 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                              {folderFiles.length}/50 files
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Document Name Input - Shows when file selected */}
+                      {selectedFile && (
+                        <div className="mb-4 p-3 border rounded-md bg-muted/30">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="bg-red-50 rounded-md p-1.5">
+                              {getFileIcon(selectedFile.name.split(".").pop() || "")}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-primary truncate">{selectedFile.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatFileSize(selectedFile.size)}
+                              </p>
+                            </div>
+                          </div>
+                          <Form {...documentForm}>
+                            <form onSubmit={documentForm.handleSubmit(handleUploadDocument)} className="space-y-2">
+                              <FormField
+                                control={documentForm.control}
+                                name="name"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input placeholder="Enter document name..." {...field} className="h-9" />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  type="submit"
+                                  className="flex-1"
+                                  size="sm"
+                                  disabled={isUploading}
+                                >
+                                  {isUploading ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                      Uploading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="w-4 h-4 mr-2" />
+                                      Upload
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedFile(null);
+                                    documentForm.reset();
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </form>
+                          </Form>
+                        </div>
+                      )}
+
+                      {/* Files List */}
+                      <div className="space-y-2">
+                        {folderFiles && folderFiles.length > 0 ? (
+                          folderFiles.map((file) => (
+                            <div key={file._id} className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+                              <div className="flex-1 flex items-center gap-2">
+                                <div className="bg-red-50 rounded-md">
+                                  <FileText className="w-4 h-4 text-red-500 m-1.5" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-primary">
+                                      {file.name}.{file.extension}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-row items-center gap-2">
+                                    <p className="text-xs text-muted-foreground">
+                                      Uploaded: {new Date(file.uploadedAt || Date.now()).toLocaleDateString("en-GB", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit"
+                                      })}
+                                    </p>
+                                    {file.size && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatFileSize(file.size)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {file.url && (
+                                  <>
+                                    <Eye
+                                      className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                                      onClick={() => window.open(file.url, "_blank")}
+                                    />
+                                    <Download
+                                      className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                                      onClick={() => window.open(file.url, "_blank")}
+                                    />
+                                  </>
+                                )}
+                                <Trash2
+                                  className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
+                                  onClick={() => handleDeleteFile(file._id)}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                            No files uploaded yet. Upload a document to get started.
+                          </div>
                         )}
                       </div>
                     </div>
-
-                    {/* Document Name Input - Shows when file selected */}
-                    {selectedFile && (
-                      <div className="mb-4 p-3 border rounded-md bg-muted/30">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="bg-red-50 rounded-md p-1.5">
-                            {getFileIcon(selectedFile.name.split(".").pop() || "")}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-primary truncate">{selectedFile.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatFileSize(selectedFile.size)}
-                            </p>
-                          </div>
-                        </div>
-                        <Form {...documentForm}>
-                          <form onSubmit={documentForm.handleSubmit(handleUploadDocument)} className="space-y-2">
-                            <FormField
-                              control={documentForm.control}
-                              name="name"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input placeholder="Enter document name..." {...field} className="h-9" />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                type="submit"
-                                className="flex-1"
-                                size="sm"
-                                disabled={isUploading}
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                                    Uploading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    Upload
-                                  </>
-                                )}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedFile(null);
-                                  documentForm.reset();
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </form>
-                        </Form>
-                      </div>
-                    )}
-
-                    {/* Files List */}
-                    <div className="space-y-2">
-                      {folderFiles && folderFiles.length > 0 ? (
-                        folderFiles.map((file) => (
-                          <div key={file._id} className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
-                            <div className="flex-1 flex items-center gap-2">
-                              <div className="bg-red-50 rounded-md">
-                                <FileText className="w-4 h-4 text-red-500 m-1.5" />
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium text-primary">
-                                    {file.name}.{file.extension}
-                                  </p>
-                                </div>
-                                <div className="flex flex-row items-center gap-2">
-                                  <p className="text-xs text-muted-foreground">
-                                    Uploaded: {new Date(file.uploadedAt || Date.now()).toLocaleDateString("en-GB", {
-                                      day: "numeric",
-                                      month: "short",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit"
-                                    })}
-                                  </p>
-                                  {file.size && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {formatFileSize(file.size)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              {file.url && (
-                                <>
-                                  <Eye
-                                    className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                                    onClick={() => window.open(file.url, "_blank")}
-                                  />
-                                  <Download
-                                    className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                                    onClick={() => window.open(file.url, "_blank")}
-                                  />
-                                </>
-                              )}
-                              <Trash2
-                                className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
-                                onClick={() => handleDeleteFile(file._id)}
-                              />
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                          No files uploaded yet. Upload a document to get started.
-                        </div>
-                      )}
-                    </div>
                   </div>
+                </SheetContent>
+              </Sheet>
+            ))
+          ) : null}
+        </div>
+
+        {/* Create Folder Dialog */}
+        <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Create New Folder</DialogTitle>
+              <DialogDescription>
+                Create a folder to organize documents for {fullName}
+              </DialogDescription>
+            </DialogHeader>
+
+            <Form {...folderForm}>
+              <form onSubmit={folderForm.handleSubmit(handleCreateFolder)} className="space-y-4">
+                <FormField
+                  control={folderForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Folder Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Medical Records" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsFolderDialogOpen(false);
+                      folderForm.reset();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                    <FolderPlus className="w-4 h-4 mr-2" />
+                    Create
+                  </Button>
                 </div>
-              </SheetContent>
-            </Sheet>
-          ))
-        ) : null}
-      </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
 
-      {/* Create Folder Dialog */}
-      <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-            <DialogDescription>
-              Create a folder to organize documents for {fullName}
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...folderForm}>
-            <form onSubmit={folderForm.handleSubmit(handleCreateFolder)} className="space-y-4">
-              <FormField
-                control={folderForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Folder Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Medical Records" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end space-x-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsFolderDialogOpen(false);
-                    folderForm.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  <FolderPlus className="w-4 h-4 mr-2" />
-                  Create
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Folder Confirmation Dialog */}
-      <Dialog open={!!folderToDelete} onOpenChange={(open) => !open && setFolderToDelete(null)}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete Folder</DialogTitle>
-            <DialogDescription>
-              Delete &quot;{folderToDelete?.name}&quot; folder and all its files?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setFolderToDelete(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDeleteFolder}
-            >
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        {/* Delete Folder Confirmation Dialog */}
+        <Dialog open={!!folderToDelete} onOpenChange={(open) => !open && setFolderToDelete(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Delete Folder</DialogTitle>
+              <DialogDescription>
+                Delete &quot;{folderToDelete?.name}&quot; folder and all its files?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFolderToDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDeleteFolder}
+              >
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

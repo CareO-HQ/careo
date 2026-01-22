@@ -8,12 +8,12 @@ import {
   CardTitle,
   CardDescription
 } from "@/components/ui/card";
-import { authClient } from "@/lib/auth-client";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 export default function TwoFactorPage() {
-  const { data: session } = authClient.useSession();
+  const { session } = useSupabase();
   if (session) {
     redirect("/login");
   }

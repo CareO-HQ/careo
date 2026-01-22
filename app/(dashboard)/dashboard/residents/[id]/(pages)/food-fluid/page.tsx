@@ -1,10 +1,6 @@
 "use client";
 
-import React from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +8,9 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { canAddDietMenu, canLogFoodFluidEntry } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
+import { Resident } from "@/types";
 import {
   Card,
   CardContent,
@@ -91,47 +90,97 @@ const FoodFluidLogSchema = z.object({
 export default function FoodFluidPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();
-  // Use optimized batched query (reduces 4 queries to 3!)
-  const today = new Date().toISOString().split('T')[0];
-  const batchedData = useQuery(api.foodFluidLogs.getResidentFoodFluidData, {
-    residentId: id as Id<"residents">,
-    date: today
-  });
 
-  // Extract resident, diet, and summary from batched response
-  const resident = batchedData?.resident ?? null;
-  const existingDiet = batchedData?.diet ?? null;
-  const logSummary = batchedData?.summary ?? null;
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [existingDiet, setExistingDiet] = useState<any>(null);
+  const [foodLogs, setFoodLogs] = useState<any[]>([]);
+  const [fluidLogs, setFluidLogs] = useState<any[]>([]);
+  const [logSummary, setLogSummary] = useState<any>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Fetch resident image separately
-  const residentImage = useQuery(
-    api.files.image.getResidentImageByResidentId,
-    resident?._id ? { residentId: resident._id } : "skip"
-  );
-
-  // Use separate server-filtered queries for food/fluid logs (better than client filtering!)
-  const foodLogs = useQuery(api.foodFluidLogs.getTodayFoodLogs, {
-    residentId: id as Id<"residents">,
-    limit: 100
-  });
-
-  const fluidLogs = useQuery(api.foodFluidLogs.getTodayFluidLogs, {
-    residentId: id as Id<"residents">,
-    limit: 100
-  });
-
-
-  // Auth data
-  const { data: activeOrganization } = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
-  const { data: member } = authClient.useActiveMember();
-  const userRole = member?.role;
+  const { profile } = useProfile();
+  const userRole = profile?.role;
   const canManageDietActions = canAddDietMenu(userRole);
   const canLogEntries = canLogFoodFluidEntry(userRole);
 
-  // Mutations
-  const createOrUpdateDietMutation = useMutation(api.diet.createOrUpdateDiet);
-  const createFoodFluidLogMutation = useMutation(api.foodFluidLogs.createFoodFluidLog);
+  const fetchData = useCallback(async () => {
+    setIsInitialLoading(true);
+    try {
+      // Fetch resident
+      const { data: residentData } = await supabase
+        .from("residents")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (residentData) setResident(residentData as Resident);
+
+      // Fetch diet
+      const { data: dietData } = await supabase
+        .from("diet_lifestyle")
+        .select("*")
+        .eq("resident_id", id)
+        .single();
+
+      if (dietData) setExistingDiet(dietData);
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Fetch food logs for today
+      const { data: foodData } = await supabase
+        .from("food_fluid_logs")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("date", today)
+        .is("fluid_consumed_ml", null) // Corrected: Use is null check if possible, or filter in JS
+        .order("timestamp", { ascending: false });
+
+      // Filter out fluid entries safely
+      if (foodData) setFoodLogs(foodData.filter(log => log.fluid_consumed_ml === null));
+
+      // Fetch fluid logs for today
+      const { data: fluidData } = await supabase
+        .from("food_fluid_logs")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("date", today)
+        .not("fluid_consumed_ml", "is", null)
+        .order("timestamp", { ascending: false });
+
+      if (fluidData) setFluidLogs(fluidData);
+
+      if (foodData || fluidData) {
+        const totalFluid = (fluidData || []).reduce((acc: number, log: any) => acc + (log.fluid_consumed_ml || 0), 0);
+        setLogSummary({
+          foodEntries: foodData?.length || 0,
+          totalFluidIntakeMl: totalFluid,
+          lastRecorded: (foodData?.[0]?.timestamp || fluidData?.[0]?.timestamp)
+        });
+      }
+
+    } catch (error) {
+      console.error("Error fetching food/fluid data:", error);
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+
+  // Auth data
+  // const { data: activeOrganization } = authClient.useActiveOrganization(); // Removed Convex hook
+  // const { data: user } = authClient.useSession(); // Removed Convex hook
+  // const { data: member } = authClient.useActiveMember(); // Removed Convex hook
+  // const userRole = member?.role; // Replaced with useProfile
+  // const canManageDietActions = canAddDietMenu(userRole); // Replaced with useProfile
+  // const canLogEntries = canLogFoodFluidEntry(userRole); // Replaced with useProfile
+
+  // Mutations (Removed Convex hooks)
+  // const createOrUpdateDietMutation = useMutation(api.diet.createOrOrUpdateDiet);
+  // const createFoodFluidLogMutation = useMutation(api.foodFluidLogs.createFoodFluidLog);
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -142,7 +191,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
   const [isLogLoading, setIsLogLoading] = React.useState(false);
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
-  const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(user?.user?.name || "");
+  const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(profile?.name || "");
   const [showLogAnotherActions, setShowLogAnotherActions] = React.useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = React.useState<string>("food");
 
@@ -177,12 +226,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   });
 
   // Update persistent signature when user changes
-  React.useEffect(() => {
-    if (user?.user?.name && !persistentStaffSignature) {
-      setPersistentStaffSignature(user.user.name);
-      logForm.setValue('signature', user.user.name);
+  useEffect(() => {
+    if (profile?.name && !persistentStaffSignature) {
+      setPersistentStaffSignature(profile.name);
+      logForm.setValue('signature', profile.name);
     }
-  }, [user, persistentStaffSignature, logForm]);
+  }, [profile, persistentStaffSignature, logForm]);
 
   // Watch the typeOfFoodDrink field to show/hide fluid input
 
@@ -223,8 +272,19 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     );
   }
 
+  if (isInitialLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Not found state
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="container mx-auto p-6 max-w-6xl">
         <div className="flex items-center justify-center h-64">
@@ -247,9 +307,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
+  const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
-    `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+    `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const getCurrentDate = () => {
     return new Date().toLocaleDateString('en-US', {
@@ -297,28 +357,34 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
     setIsLoading(true);
     try {
-      if (!activeOrganization?.id || !user?.user?.id) {
+      if (!profile?.active_organization_id || !profile?.id) {
         toast.error("Missing organization or user information");
         return;
       }
 
-      await createOrUpdateDietMutation({
-        residentId: id as Id<"residents">,
-        dietTypes: values.dietTypes,
-        otherDietType: values.otherDietType,
-        culturalRestrictions: values.culturalRestrictions,
-        allergies: values.allergies,
-        chokingRisk: values.chokingRisk,
-        foodConsistency: values.foodConsistency,
-        fluidConsistency: values.fluidConsistency,
-        assistanceRequired: values.assistanceRequired,
-        organizationId: activeOrganization.id,
-        createdBy: user.user.id,
-      });
+      const { error } = await supabase
+        .from("diet_lifestyle")
+        .upsert({
+          resident_id: id,
+          organization_id: profile.active_organization_id,
+          diet_types: values.dietTypes,
+          other_diet_type: values.otherDietType,
+          cultural_restrictions: values.culturalRestrictions,
+          allergies: values.allergies,
+          choking_risk: values.chokingRisk,
+          food_consistency: values.foodConsistency,
+          fluid_consistency: values.fluidConsistency,
+          assistance_required: values.assistanceRequired,
+          created_by: profile.id,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'resident_id' });
+
+      if (error) throw error;
 
       toast.success(existingDiet ? "Diet information updated successfully" : "Diet information saved successfully");
       setCurrentStep(1);
       setIsDialogOpen(false);
+      fetchData();
     } catch (error) {
       toast.error("Failed to save diet information");
       console.error("Error saving diet:", error);
@@ -341,27 +407,34 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const onFoodFluidLogSubmit = async (values: z.infer<typeof FoodFluidLogSchema>) => {
     setIsLogLoading(true);
     try {
-      if (!activeOrganization?.id || !user?.user?.id) {
+      if (!profile?.active_organization_id || !profile?.id) {
         toast.error("Missing organization or user information");
         return;
       }
 
-      await createFoodFluidLogMutation({
-        residentId: id as Id<"residents">,
-        section: values.section,
-        typeOfFoodDrink: values.typeOfFoodDrink,
-        portionServed: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
-        amountEaten: values.amountEaten,
-        fluidConsumedMl: values.fluidConsumedMl,
-        signature: values.signature,
-        organizationId: activeOrganization.id,
-        createdBy: user.user.id,
-      });
+      const { error } = await supabase
+        .from("food_fluid_logs")
+        .insert({
+          resident_id: id,
+          organization_id: profile.active_organization_id,
+          section: values.section,
+          type_of_food_drink: values.typeOfFoodDrink,
+          portion_served: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
+          amount_eaten: values.amountEaten,
+          fluid_consumed_ml: values.fluidConsumedMl,
+          signature: values.signature,
+          date: new Date().toISOString().split('T')[0],
+          timestamp: new Date().toISOString(),
+          created_by: profile.id,
+        });
+
+      if (error) throw error;
 
       // Update persistent signature from form
       setPersistentStaffSignature(values.signature);
 
       toast.success("Food/fluid entry logged successfully");
+      fetchData();
 
       // Reset form for next entry but preserve signature
       logForm.reset({
@@ -407,7 +480,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Avatar className="w-10 h-10">
-            <AvatarImage src={residentImage?.url || ""} alt={fullName} className="border" />
+            <AvatarImage src={resident?.image_url || ""} alt={fullName} className="border" />
             <AvatarFallback className="text-sm bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
@@ -415,7 +488,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Food & Fluid</h1>
             <p className="text-muted-foreground text-sm">
-              View nutrition and hydration tracking for {resident.firstName} {resident.lastName}.
+              View nutrition and hydration tracking for {resident?.first_name} {resident?.last_name}.
             </p>
           </div>
           <div className="flex flex-row gap-2">
@@ -732,7 +805,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   return sortedFoodLogs.length > 0 ? (
                     <div className="space-y-2">
                       {sortedFoodLogs.map((log) => (
-                        <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
+                        <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
                           <span className="font-medium">
                             {new Date(log.timestamp).toLocaleTimeString('en-US', {
                               hour: '2-digit',
@@ -740,9 +813,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                             })}
                           </span>
                           {" - "}
-                          <span className="text-muted-foreground">{log.typeOfFoodDrink}</span>
-                          <span className="text-muted-foreground"> - Portion: {log.portionServed}</span>
-                          <span className="text-muted-foreground"> - Amount: {log.amountEaten}</span>
+                          <span className="text-muted-foreground">{log.type_of_food_drink}</span>
+                          <span className="text-muted-foreground"> - Portion: {log.portion_served}</span>
+                          <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
                           <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
                         </div>
                       ))}
@@ -773,7 +846,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   return sortedFluidLogs.length > 0 ? (
                     <div className="space-y-2">
                       {sortedFluidLogs.map((log) => (
-                        <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
+                        <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
                           <span className="font-medium">
                             {new Date(log.timestamp).toLocaleTimeString('en-US', {
                               hour: '2-digit',
@@ -781,11 +854,11 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                             })}
                           </span>
                           {" - "}
-                          <span className="text-muted-foreground">{log.typeOfFoodDrink}</span>
+                          <span className="text-muted-foreground">{log.type_of_food_drink}</span>
                           <span className="text-muted-foreground">
-                            {log.fluidConsumedMl ? ` - Volume: ${log.fluidConsumedMl}ml` : ` - Portion: ${log.portionServed}`}
+                            {log.fluid_consumed_ml ? ` - Volume: ${log.fluid_consumed_ml}ml` : ` - Portion: ${log.portion_served}`}
                           </span>
-                          <span className="text-muted-foreground"> - Amount: {log.amountEaten}</span>
+                          <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
                           <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
                         </div>
                       ))}
@@ -1418,7 +1491,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   )}
                 />
 
-                {/* Form Actions */}
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     type="button"
@@ -1427,14 +1499,18 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isLogLoading}>
-                    {isLogLoading ? "Saving..." : "Log Entry"}
+                  <Button
+                    type="submit"
+                    disabled={isLogLoading}
+                  >
+                    {isLogLoading ? "Saving..." : "Save Entry"}
                   </Button>
                 </div>
               </form>
             </Form>
           </DialogContent>
         </Dialog>
+
       </div>
     </div>
   );

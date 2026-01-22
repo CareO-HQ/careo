@@ -11,9 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery, useMutation } from "convex/react";
 import { cn } from "@/lib/utils";
 import {
   Activity,
@@ -36,12 +33,15 @@ import {
   NotebookPen,
   X
 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
 import { canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
 import { Route } from "next";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
+import { toast } from "sonner";
+import { Resident } from "@/types";
 
 type ResidentPageProps = {
   params: Promise<{ id: string }>;
@@ -51,26 +51,50 @@ type ResidentPageProps = {
 export default function ResidentPage({ params }: ResidentPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const [showAlertsDialog, setShowAlertsDialog] = React.useState(false);
+  const [showAlertsDialog, setShowAlertsDialog] = useState(false);
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const { profile } = useProfile();
+  const userRole = profile?.role;
 
-  const { data: member, isPending: isMemberPending } = authClient.useActiveMember();
-  const userRole = member?.role as string | undefined;
+  const fetchResidentData = React.useCallback(async () => {
+    setIsLoading(true);
+    const { data: residentData, error: residentError } = await supabase
+      .from("residents")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-  // Get alerts for this resident (filtered by role at query level)
-  const alerts = useQuery(
-    api.alerts.getResidentAlerts,
-    resident ? { 
-      residentId: id as Id<"residents">,
-      userRole: userRole
-    } : "skip"
-  );
+    if (residentError) {
+      console.error("Error fetching resident:", residentError);
+      setResident(null);
+    } else {
+      setResident(residentData as Resident);
+    }
+
+    if (userRole) {
+      const { data: alertsData, error: alertsError } = await supabase
+        .from("alerts")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+
+      if (!alertsError) {
+        setAlerts(alertsData || []);
+      }
+    }
+    setIsLoading(false);
+  }, [id, userRole]);
+
+  useEffect(() => {
+    fetchResidentData();
+  }, [fetchResidentData]);
 
   // Derive alert count from filtered alerts
-  const alertCount = React.useMemo(() => {
+  const alertCount = useMemo(() => {
     if (!alerts) return { total: 0, critical: 0, warning: 0, info: 0 };
     return {
       total: alerts.length,
@@ -80,22 +104,29 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     };
   }, [alerts]);
 
-  const resolveAlert = useMutation(api.alerts.resolveAlert);
-
-  const handleDismissAlert = async (alertId: Id<"alerts">) => {
+  const handleDismissAlert = async (alertId: string) => {
     try {
-      await resolveAlert({
-        alertId,
-        resolutionNote: "Dismissed by staff"
-      });
+      const { error } = await supabase
+        .from("alerts")
+        .update({
+          status: "resolved",
+          resolved_at: new Date().toISOString(),
+          resolved_by: profile?.id
+        })
+        .eq("id", alertId);
+
+      if (error) throw error;
+      toast.success("Alert dismissed");
+      fetchResidentData();
     } catch (error) {
       console.error("Failed to dismiss alert:", error);
+      toast.error("Failed to dismiss alert");
     }
   };
 
   console.log("RESIDENT", resident);
 
-  if (resident === undefined || isMemberPending) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -119,7 +150,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             className="mt-4"
             onClick={() => router.back()}
           >
-        <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Go Back
           </Button>
         </div>
@@ -127,18 +158,18 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
+  const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
-    `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+    `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const handleCardClick = (cardType: string) => {
     router.push(`/dashboard/residents/${id}/${cardType}` as Route);
   };
 
   const getHealthConditionsCount = () => {
-    if (!resident.healthConditions) return 0;
-    return Array.isArray(resident.healthConditions)
-      ? resident.healthConditions.length
+    if (!resident.health_conditions) return 0;
+    return Array.isArray(resident.health_conditions)
+      ? resident.health_conditions.length
       : 0;
   };
 
@@ -163,7 +194,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           </Button>
           <Avatar className="w-20 h-20">
             <AvatarImage
-              src={resident.imageUrl}
+              src={resident.image_url}
               alt={fullName}
               className="border"
             />
@@ -174,7 +205,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           <div>
             <h1 className="text-2xl font-bold">{fullName}</h1>
             <p className="text-muted-foreground text-sm">
-              Room {resident.roomNumber} • NHS: {resident.nhsHealthNumber}
+              Room {resident.room_number} • NHS: {resident.nhs_health_number}
             </p>
           </div>
         </div>
@@ -599,7 +630,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Alerts for {resident.firstName} {resident.lastName}</DialogTitle>
+            <DialogTitle>Alerts for {resident.first_name} {resident.last_name}</DialogTitle>
             <DialogDescription>
               {alerts && alerts.length > 0
                 ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} requiring attention`
@@ -610,7 +641,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             {alerts && alerts.length > 0 ? (
               alerts.map((alert) => (
                 <div
-                  key={alert._id}
+                  key={alert.id}
                   className={cn(
                     "p-4 rounded-lg border-2",
                     alert.severity === "critical"
@@ -640,7 +671,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                               : "Info"}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {formatTimestampToUKDateTime(alert.timestamp, 'dd/MM/yyyy HH:mm')}
+                          {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
                         </span>
                       </div>
                       <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
@@ -649,7 +680,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDismissAlert(alert._id)}
+                      onClick={() => handleDismissAlert(alert.id)}
                       className="flex-shrink-0"
                     >
                       <X className="h-4 w-4" />

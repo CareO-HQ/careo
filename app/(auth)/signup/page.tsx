@@ -1,7 +1,7 @@
 "use client";
 
 import SignupForm from "@/components/auth/forms/SignupForm";
-import { authClient } from "@/lib/auth-client";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import Image from "next/image";
@@ -13,10 +13,10 @@ import { MessageCircle } from "lucide-react";
 function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, isPending } = authClient.useSession();
+  const { session, isLoading } = useSupabase();
 
   useEffect(() => {
-    if (session && !isPending) {
+    if (session && !isLoading) {
       const redirect = searchParams.get("redirect");
       const token = searchParams.get("token");
       const email = searchParams.get("email");
@@ -33,10 +33,10 @@ function SignupContent() {
 
       router.push("/onboarding");
     }
-  }, [session, isPending, router, searchParams]);
+  }, [session, isLoading, router, searchParams]);
 
   // Show loading while checking session or redirecting
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen w-full">
         <div>Loading...</div>

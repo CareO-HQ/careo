@@ -4,9 +4,7 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 import {
@@ -56,8 +54,8 @@ export function NHSReportForm({
   user,
   onReportCreated
 }: NHSReportFormProps) {
-  const createTrustReport = useMutation(api.trustIncidentReports.create);
-  
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
   const form = useForm<NHSReportFormData>({
     resolver: zodResolver(nhsReportSchema),
     defaultValues: {
@@ -68,30 +66,38 @@ export function NHSReportForm({
 
   const onSubmit = async (data: NHSReportFormData) => {
     try {
-      const reportId = await createTrustReport({
-        incidentId: incidentId as Id<"incidents">,
-        residentId: residentId as Id<"residents">,
-        trustName: data.trustName,
-        reportType: "nhs",
-        additionalNotes: data.additionalNotes,
-        createdBy: user?.id || "",
-        createdByName: user?.name || "Unknown",
-        reportData: {
-          incidentDate: incident?.date,
-          incidentTime: incident?.time,
-          incidentTypes: incident?.incidentTypes,
-          incidentLevel: incident?.incidentLevel,
-          generatedAt: new Date().toISOString()
-        }
-      });
+      setIsSubmitting(true);
+      const { data: reportData, error } = await supabase
+        .from("trust_incident_reports")
+        .insert({
+          incident_id: incidentId,
+          resident_id: residentId,
+          trust_name: data.trustName,
+          report_type: "nhs",
+          created_by: user?.id || null,
+          report_data: {
+            additionalNotes: data.additionalNotes,
+            incidentDate: incident?.date,
+            incidentTime: incident?.time,
+            incidentTypes: incident?.incident_types,
+            incidentLevel: incident?.incident_level,
+            generatedAt: new Date().toISOString()
+          }
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
 
       toast.success("NHS report created successfully");
       form.reset();
       onClose();
-      onReportCreated(reportId);
+      onReportCreated(reportData.id);
     } catch (error) {
       console.error("Error creating NHS report:", error);
       toast.error("Failed to create NHS report");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -101,9 +107,9 @@ export function NHSReportForm({
   };
 
   const getSeverityBadge = () => {
-    if (!incident?.incidentLevel) return null;
-    
-    const level = incident.incidentLevel;
+    if (!incident?.incident_level) return null;
+
+    const level = incident.incident_level;
     let variant: "destructive" | "secondary" | "outline" = "outline";
     let color = "";
 
@@ -111,7 +117,7 @@ export function NHSReportForm({
       variant = "destructive";
       color = "Critical";
     } else if (level === "minor_injury") {
-      variant = "secondary"; 
+      variant = "secondary";
       color = "Moderate";
     } else {
       color = "Low";
@@ -154,7 +160,7 @@ export function NHSReportForm({
             <div>
               <span className="text-gray-500">Type:</span>
               <span className="ml-2 font-medium">
-                {incident?.incidentTypes?.join(", ") || "N/A"}
+                {incident?.incident_types?.join(", ") || "N/A"}
               </span>
             </div>
             <div className="flex items-center">

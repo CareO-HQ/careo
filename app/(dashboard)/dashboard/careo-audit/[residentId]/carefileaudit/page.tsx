@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 
@@ -50,7 +50,7 @@ function CareFileAuditPageContent() {
   const router = useRouter();
   const residentId = params.residentId as Id<"residents">;
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   // Fetch resident data
   const resident = useQuery(api.residents.getById, { residentId: residentId });
@@ -98,7 +98,7 @@ function CareFileAuditPageContent() {
   };
 
   const handleAddAudit = async () => {
-    if (!newAuditForm.name || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
+    if (!newAuditForm.name || !activeTeamId || !activeOrganizationId || !profile?.email) {
       toast.error("Missing required information");
       return;
     }
@@ -111,7 +111,7 @@ function CareFileAuditPageContent() {
         frequency: newAuditForm.frequency,
         teamId: activeTeamId,
         organizationId: activeOrganizationId,
-        createdBy: session.user.email,
+        createdBy: profile.email,
       });
 
       toast.success("Audit template created successfully");
@@ -480,7 +480,7 @@ function CareFileAuditPageContent() {
 
 export default function CareFileAuditPage() {
   return (
-    <ErrorBoundary 
+    <ErrorBoundary
       fallback={
         // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
         <AuditErrorFallback context="listing" />

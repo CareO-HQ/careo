@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useEffect, useState } from "react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
@@ -15,9 +15,24 @@ export default function OrganizationItem({
   isActive: boolean;
   onSelect: (id: string) => void;
 }) {
-  const logoQuery = useQuery(api.files.image.getOrganizationLogoById, {
-    organizationId: organization.id
-  });
+  const { supabase } = useSupabase();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchLogo() {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("logo_url")
+        .eq("id", organization.id)
+        .single();
+
+      if (!error && data) {
+        setLogoUrl(data.logo_url);
+      }
+    }
+
+    fetchLogo();
+  }, [organization.id, supabase]);
 
   return (
     <DropdownMenuItem
@@ -28,7 +43,7 @@ export default function OrganizationItem({
         <div className="flex items-center gap-2">
           <Avatar className="size-6 rounded">
             <AvatarImage
-              src={logoQuery?.url ?? ""}
+              src={logoUrl ?? ""}
               alt={`${organization.name} logo`}
             />
             <AvatarFallback className="text-xs rounded bg-primary text-secondary">
