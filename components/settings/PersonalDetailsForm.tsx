@@ -16,9 +16,9 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import ImageSelector from "../onboarding/profile/ImageSelector";
 import { useEffect, useState, useTransition } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 
 interface PersonalDetailsFormProps {
   name: string;
@@ -33,20 +33,10 @@ export default function PersonalDetailsForm({
   imageUrl,
   isPending
 }: PersonalDetailsFormProps) {
+  const { supabase } = useSupabase();
+  const { profile, refresh: refreshProfile } = useProfile();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isLoading, startTransition] = useTransition();
-
-  const getUserLogoQuery = useQuery(
-    api.files.image.getUserLogo,
-    email ? {} : "skip"
-  );
-
-  const updateUser = useMutation(api.user.updateUserOnboarding);
-  const generateUploadUrlMutation = useMutation(
-    api.files.image.generateUploadUrl
-  );
-  const sendImageMutation = useMutation(api.files.image.sendImage);
-  const deleteImageMutation = useMutation(api.files.image.deleteById);
 
   const form = useForm<z.infer<typeof personalDetailsSchema>>({
     resolver: zodResolver(personalDetailsSchema),
@@ -59,38 +49,59 @@ export default function PersonalDetailsForm({
 
   const onSubmit = (values: z.infer<typeof personalDetailsSchema>) => {
     startTransition(async () => {
-      if (!email) {
-        toast.error("User not found");
+      if (!profile?.id) {
+        toast.error("User profile not found");
         return;
       }
-      try {
-        await updateUser({
-          name: values.name,
-          imageUrl: values.imageUrl
-        });
-        if (selectedFile) {
-          // Delete the old image
 
-          if (getUserLogoQuery?.storageId) {
-            await deleteImageMutation({
-              fileId: getUserLogoQuery.storageId
-            });
-          }
-          const uploadUrl = await generateUploadUrlMutation();
-          const result = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": selectedFile!.type },
-            body: selectedFile
-          });
-          const { storageId } = await result.json();
-          await sendImageMutation({
-            storageId,
-            type: "profile"
-          });
-          toast.success("User updated successfully");
+      try {
+        let finalImageUrl = values.imageUrl;
+
+        // 1. Handle image upload if selected
+        if (selectedFile) {
+          const fileExt = selectedFile.name.split('.').pop();
+          const fileName = `${profile.id}-${Math.random()}.${fileExt}`;
+          const filePath = `profile-images/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('careo-public')
+            .upload(filePath, selectedFile);
+
+          if (uploadError) throw uploadError;
+
+          const { data: publicUrlData } = supabase.storage
+            .from('careo-public')
+            .getPublicUrl(filePath);
+
+          finalImageUrl = publicUrlData.publicUrl;
         }
-      } catch (error) {
+
+        // 2. Update user in public.users table
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({
+            name: values.name,
+            image_url: finalImageUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", profile.id);
+
+        if (updateError) throw updateError;
+
+        // 3. Update auth metadata (optional, but good for consistency)
+        await supabase.auth.updateUser({
+          data: {
+            full_name: values.name,
+            avatar_url: finalImageUrl
+          }
+        });
+
+        await refreshProfile();
+        toast.success("User updated successfully");
+        setSelectedFile(null);
+      } catch (error: any) {
         console.error("Error updating user:", error);
+        toast.error(error.message || "Failed to update user");
       }
     });
   };
@@ -105,8 +116,8 @@ export default function PersonalDetailsForm({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full">
         <ImageSelector
-          currentImageUrl={getUserLogoQuery?.url}
-          fileId={getUserLogoQuery?.storageId}
+          currentImageUrl={imageUrl}
+          fileId={undefined} // StorageId not used in the same way with Supabase here
           selectedFile={selectedFile}
           setSelectedFile={setSelectedFile}
           userInitial={name.charAt(0)}
@@ -120,7 +131,7 @@ export default function PersonalDetailsForm({
               <FormControl>
                 <Input
                   placeholder={isPending ? "Loading..." : "John Doe"}
-                  disabled={isPending}
+                  disabled={isPending || isLoading}
                   {...field}
                 />
               </FormControl>
@@ -141,8 +152,8 @@ export default function PersonalDetailsForm({
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading}>
-          Save
+        <Button type="submit" disabled={isPending || isLoading}>
+          {isLoading ? "Saving..." : "Save"}
         </Button>
       </form>
     </Form>

@@ -32,11 +32,9 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { Dialog } from "@radix-ui/react-dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { useProfile } from "@/hooks/use-profile";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { canCreateResident } from "@/lib/permissions";
 
 interface DataTableProps<TData, TValue> {
@@ -91,15 +89,6 @@ export function DataTable<TData, TValue>({
     return () => clearTimeout(timeoutId);
   }, [searchValue, table]);
 
-  // Unit filter removed - column doesn't exist in current table definition
-  // React.useEffect(() => {
-  //   if (unitFilter === "all") {
-  //     table.getColumn("unit")?.setFilterValue("");
-  //   } else {
-  //     table.getColumn("unit")?.setFilterValue(unitFilter);
-  //   }
-  // }, [unitFilter, table]);
-
   return (
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
@@ -123,8 +112,6 @@ export function DataTable<TData, TValue>({
               </Button>
             )}
           </div>
-
-
         </div>
 
         {/* Results count */}
@@ -176,13 +163,13 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
-                const resident = row.original as { _id: string };
+                const resident = row.original as { id: string };
                 return (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/dashboard/residents/${resident._id}`)}
+                    onClick={() => router.push(`/dashboard/residents/${resident.id}`)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

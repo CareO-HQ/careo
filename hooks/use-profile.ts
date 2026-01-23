@@ -26,6 +26,7 @@ export function useProfile() {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const [refreshTick, setRefreshTick] = useState(0);
 
     useEffect(() => {
         if (isAuthLoading) return;
@@ -59,7 +60,7 @@ export function useProfile() {
                     id: dbUser.id,
                     email: dbUser.email,
                     name: dbUser.name,
-                    image_url: user?.user_metadata?.avatar_url || null, // Image might still be in metadata
+                    image_url: dbUser.image_url || user?.user_metadata?.avatar_url || null,
                     phone: dbUser.phone || null,
                     active_organization_id: dbUser.active_organization_id || null, // Get from users table directly
                     active_care_home_id: dbUser.active_care_home_id || null,
@@ -87,10 +88,11 @@ export function useProfile() {
                 if (dbUser.active_team_id) {
                     const { data: team } = await supabase
                         .from("teams")
-                        .select("organization_id")
+                        .select("name, organization_id")
                         .eq("id", dbUser.active_team_id)
                         .single();
                     if (team) {
+                        enrichedProfile.active_team_name = team.name;
                         enrichedProfile.active_organization_id = team.organization_id;
                     }
                 }
@@ -115,12 +117,15 @@ export function useProfile() {
         }
 
         fetchProfileData();
-    }, [user, isAuthLoading, supabase]);
+    }, [user, isAuthLoading, supabase, refreshTick]);
 
     return {
         profile,
         isLoading: isAuthLoading || isLoading,
         error,
-        refresh: () => setIsLoading(true),
+        refresh: () => {
+            setIsLoading(true);
+            setRefreshTick(prev => prev + 1);
+        },
     };
 }

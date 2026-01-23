@@ -7,8 +7,8 @@ export function useActiveTeam() {
   const organizationId = profile?.active_organization_id || null;
 
   return {
-    activeTeamId: profile?.active_unit_id || null,
-    activeTeam: profile?.active_unit_name ? { name: profile.active_unit_name } : null,
+    activeTeamId: profile?.active_team_id || null,
+    activeTeam: profile?.active_team_name ? { name: profile.active_team_name } : null,
     activeOrganizationId: organizationId,
     activeOrganization: profile?.organization_name ? { name: profile.organization_name } : null,
     role: profile?.role || null,

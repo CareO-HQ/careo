@@ -54,80 +54,178 @@ export default function CareHomeForm({
         return;
       }
 
-      const orgId = profile.active_organization_id;
+      let orgId = profile.active_organization_id;
 
-      if (!orgId) {
-        toast.error("Organization not found. Please contact your administrator.");
-        return;
-      }
-
-      console.log("[DEBUG CareHomeForm] Creating care home with:", {
-        orgId,
-        name: values.name,
-        createdBy: profile.id
-      });
-      
       try {
+        // Debug: Log complete user context
+        console.log("%c[DEBUG Context] User profile", "background: #222; color: #bada55", profile);
+        console.log("%c[DEBUG Context] Auth user", "background: #222; color: #bada55", await supabase.auth.getUser());
+        const { data: dbUser } = await supabase.from('users').select('*').eq('id', profile.id).single();
+        console.log("%c[DEBUG Context] Database user", "background: #222; color: #bada55", dbUser);
+        
+        // Create organization if user doesn't have one yet (initial onboarding)
+        if (!orgId) {
+          console.log("%c[DEBUG Supabase] Creating new organization", "background: #1e3a8a; color: #ffffff");
+          const insertData = {
+            name: values.name,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          console.log("%c[DEBUG Supabase] INSERT organizations - Request", "color: #059669", insertData);
+          
+          const { data: organization, error: orgError } = await supabase
+            .from("organizations")
+            .insert(insertData)
+            .select()
+            .single();
+
+          if (orgError) {
+            console.error("%c[DEBUG Supabase] INSERT organizations - Error", "color: #dc2626", orgError);
+            throw orgError;
+          }
+
+          orgId = organization.id;
+          console.log("%c[DEBUG Supabase] INSERT organizations - Response", "color: #059669", organization);
+
+          // Update user's active_organization_id
+          const updateUserData = {
+            active_organization_id: orgId,
+            updated_at: new Date().toISOString()
+          };
+          console.log("%c[DEBUG Supabase] UPDATE users - Request", "color: #059669", updateUserData);
+          
+          const { error: userUpdateError } = await supabase
+            .from("users")
+            .update(updateUserData)
+            .eq("id", profile.id);
+
+          if (userUpdateError) {
+            console.error("%c[DEBUG Supabase] UPDATE users - Error", "color: #dc2626", userUpdateError);
+            throw userUpdateError;
+          }
+
+          console.log("%c[DEBUG Supabase] UPDATE users - Success", "color: #059669");
+
+          // Sync with auth metadata
+          const authUpdateData = { active_organization_id: orgId };
+          console.log("%c[DEBUG Supabase] AUTH updateUser - Request", "color: #059669", authUpdateData);
+          
+          await supabase.auth.updateUser({ data: authUpdateData });
+          console.log("%c[DEBUG Supabase] AUTH updateUser - Success", "color: #059669");
+        }
+
+        const careHomeData = {
+          organization_id: orgId,
+          name: values.name,
+          created_by: profile.id
+        };
+        console.log("%c[DEBUG Supabase] Creating care home", "background: #1e3a8a; color: #ffffff");
+        console.log("%c[DEBUG Supabase] INSERT care_homes - Request", "color: #059669", careHomeData);
+        
         // 1. Create the Care Home
         const { data: careHome, error: careHomeError } = await supabase
           .from("care_homes")
-          .insert({
-            organization_id: orgId,
-            name: values.name,
-            created_by: profile.id
-          })
+          .insert(careHomeData)
           .select()
           .single();
 
-        if (careHomeError) throw careHomeError;
+        if (careHomeError) {
+          console.error("%c[DEBUG Supabase] INSERT care_homes - Error", "color: #dc2626", careHomeError);
+          console.error("%c[DEBUG Context] Full error details", "color: #dc2626", {
+            error: careHomeError,
+            user: profile,
+            dbUser: await supabase.from('users').select('*').eq('id', profile.id).single(),
+            organizationId: orgId
+          });
+          throw careHomeError;
+        }
+
+        console.log("%c[DEBUG Supabase] INSERT care_homes - Response", "color: #059669", careHome);
 
         // 2. Set this as the active care home in the users table
+        const activeHomeData = {
+          active_care_home_id: careHome.id,
+          updated_at: new Date().toISOString()
+        };
+        console.log("%c[DEBUG Supabase] UPDATE users (active care home) - Request", "color: #059669", activeHomeData);
+        
         const { error: userUpdateError } = await supabase
           .from("users")
-          .update({
-            active_care_home_id: careHome.id,
-            updated_at: new Date().toISOString()
-          })
+          .update(activeHomeData)
           .eq("id", profile.id);
 
-        if (userUpdateError) throw userUpdateError;
+        if (userUpdateError) {
+          console.error("%c[DEBUG Supabase] UPDATE users - Error", "color: #dc2626", userUpdateError);
+          throw userUpdateError;
+        }
+
+        console.log("%c[DEBUG Supabase] UPDATE users - Success", "color: #059669");
 
         // Sync with auth metadata
-        await supabase.auth.updateUser({
-          data: { active_care_home_id: careHome.id }
-        });
+        const authCareHomeData = { active_care_home_id: careHome.id };
+        console.log("%c[DEBUG Supabase] AUTH updateUser (care home) - Request", "color: #059669", authCareHomeData);
+        
+        await supabase.auth.updateUser({ data: authCareHomeData });
+        console.log("%c[DEBUG Supabase] AUTH updateUser - Success", "color: #059669");
 
         // 3. Handle Logo Upload if selected
         if (selectedFile) {
+          console.log("%c[DEBUG Supabase] Uploading logo", "background: #1e3a8a; color: #ffffff");
           const fileExt = selectedFile.name.split('.').pop();
           const fileName = `${orgId}-${Math.random()}.${fileExt}`;
           const filePath = `org-logos/${fileName}`;
+
+          console.log("%c[DEBUG Supabase] STORAGE upload - Request", "color: #059669", {
+            filePath,
+            fileName: selectedFile.name,
+            fileSize: selectedFile.size
+          });
 
           const { error: uploadError } = await supabase.storage
             .from('careo-public')
             .upload(filePath, selectedFile);
 
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error("%c[DEBUG Supabase] STORAGE upload - Error", "color: #dc2626", uploadError);
+            throw uploadError;
+          }
 
           const { data: publicUrlData } = supabase.storage
             .from('careo-public')
             .getPublicUrl(filePath);
 
+          console.log("%c[DEBUG Supabase] STORAGE getPublicUrl - Response", "color: #059669", publicUrlData);
+
+          const logoUpdateData = {
+            logo_url: publicUrlData.publicUrl,
+            updated_at: new Date().toISOString()
+          };
+          console.log("%c[DEBUG Supabase] UPDATE organizations (logo) - Request", "color: #059669", logoUpdateData);
+          
           const { error: orgUpdateError } = await supabase
             .from("organizations")
-            .update({
-              logo_url: publicUrlData.publicUrl,
-              updated_at: new Date().toISOString()
-            })
+            .update(logoUpdateData)
             .eq("id", orgId);
 
-          if (orgUpdateError) throw orgUpdateError;
+          if (orgUpdateError) {
+            console.error("%c[DEBUG Supabase] UPDATE organizations - Error", "color: #dc2626", orgUpdateError);
+            throw orgUpdateError;
+          }
+
+          console.log("%c[DEBUG Supabase] UPDATE organizations - Success", "color: #059669");
         }
 
         await refreshProfile();
+        console.log("%c[DEBUG CareHomeForm] Onboarding complete - moving to next step", "background: #059669; color: #ffffff");
         setStep(step + 1);
       } catch (error: any) {
-        console.error("Error creating care home:", error);
+        console.error("%c[DEBUG CareHomeForm] Error creating care home", "color: #dc2626", error);
+        console.error("%c[DEBUG Context] Error context", "color: #dc2626", {
+          error,
+          userProfile: profile,
+          formValues: values,
+          activeOrganizationId: orgId
+        });
         toast.error(error.message || "Failed to create care home");
       }
     });

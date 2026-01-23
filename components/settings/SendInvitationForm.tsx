@@ -28,6 +28,7 @@ export default function SendInvitationForm() {
   const [teams, setTeams] = useState<any[]>([]);
 
   const activeOrganizationId = userProfile?.active_organization_id;
+  const activeCareHomeId = userProfile?.active_care_home_id;
   const userRole = userProfile?.role as UserRole | undefined;
 
   const form = useForm<z.infer<typeof inviteMemberSchema>>({
@@ -48,7 +49,7 @@ export default function SendInvitationForm() {
       if (!supabase || !activeOrganizationId) return;
 
       const { data, error } = await supabase
-        .from('units')
+        .from('teams')
         .select('id, name')
         .eq('organization_id', activeOrganizationId);
 
@@ -101,7 +102,7 @@ export default function SendInvitationForm() {
 
         // Check if user is already a member
         const { data: existingMember } = await supabase
-          .from('profiles')
+          .from('users')
           .select('id')
           .eq('email', values.email)
           .eq('active_organization_id', activeOrganizationId)
@@ -126,6 +127,8 @@ export default function SendInvitationForm() {
           .from('invitations')
           .insert({
             organization_id: activeOrganizationId,
+            care_home_id: activeCareHomeId,
+            team_id: values.teamId,
             email: values.email,
             role: values.role,
             status: 'pending',
@@ -207,6 +210,9 @@ export default function SendInvitationForm() {
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
                     <SelectContent>
+                      {userRole && getAllowedRolesToInvite(userRole).includes("owner") && (
+                        <SelectItem value="owner">Owner</SelectItem>
+                      )}
                       {userRole && getAllowedRolesToInvite(userRole).includes("manager") && (
                         <SelectItem value="manager">Manager</SelectItem>
                       )}

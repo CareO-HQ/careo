@@ -3,10 +3,9 @@
 import { useEffect } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 
 /**
  * Higher-order component to protect routes based on user role
@@ -23,16 +22,15 @@ export function withRoleGuard<P extends object>(
 ) {
   return function GuardedComponent(props: P) {
     const router = useRouter();
-    const { data: activeMember, isPending: isMemberPending } = authClient.useActiveMember();
-    const currentUser = useQuery(api.users.getCurrentUserContext);
-    
+    const { profile, isLoading: isProfileLoading } = useProfile();
+    const { isLoading: isSupabaseLoading } = useSupabase();
+
     // Check SaaS Admin status
-    const isSaasAdmin = (currentUser?.user as any)?.isSaasAdmin === true;
-    
+    const isSaasAdmin = profile?.is_saas_admin === true;
+
     // Determine effective role
-    const userRole = activeMember?.role as string | undefined;
-    const effectiveRole = isSaasAdmin ? "saas_admin" : userRole;
-    const isPending = isMemberPending || currentUser === undefined;
+    const effectiveRole = isSaasAdmin ? "saas_admin" : profile?.role;
+    const isPending = isProfileLoading || isSupabaseLoading;
 
     useEffect(() => {
       if (!isPending && effectiveRole) {
@@ -40,11 +38,15 @@ export function withRoleGuard<P extends object>(
           router.push(redirectTo as Route);
           toast.error("You don't have permission to access this page");
         }
+      } else if (!isPending && !profile) {
+        // If no profile and not loading, redirect to login?
+        // The middleware usually handles this, but good to have a backup.
+        router.push("/login" as Route);
       }
-    }, [effectiveRole, isPending, router, redirectTo]);
+    }, [effectiveRole, isPending, router, redirectTo, profile]);
 
     // Show loading state while checking permissions
-    if (isPending || !effectiveRole) {
+    if (isPending) {
       return (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-muted-foreground">Loading...</div>
@@ -53,7 +55,7 @@ export function withRoleGuard<P extends object>(
     }
 
     // If role is not allowed, return null (redirect will happen)
-    if (!allowedRoles.includes(effectiveRole)) {
+    if (!effectiveRole || !allowedRoles.includes(effectiveRole)) {
       return null;
     }
 

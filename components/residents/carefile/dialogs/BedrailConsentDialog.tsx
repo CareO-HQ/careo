@@ -34,9 +34,7 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 
 interface BedrailConsentDialogProps {
@@ -68,66 +66,61 @@ export default function BedrailConsentDialog({
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
-  const submitBedrailConsent = useMutation(
-    api.careFiles.bedrailConsent.submitBedrailConsent
-  );
-  const updateBedrailConsent = useMutation(
-    api.careFiles.bedrailConsent.updateBedrailConsent
-  );
+  const { supabase } = useSupabase();
 
   const form = useForm<z.infer<typeof bedrailConsentSchema>>({
     resolver: zodResolver(bedrailConsentSchema) as any,
     mode: "onChange",
     defaultValues: initialData
       ? {
-          residentId,
-          teamId,
-          organizationId,
-          userId,
-          residentName:
-            initialData.residentName ??
-            (`${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
-              ""),
-          bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-          dateOfBirth:
-            initialData.dateOfBirth ??
-            (resident.dateOfBirth
-              ? new Date(resident.dateOfBirth).getTime()
-              : Date.now()),
-          consentType: initialData.consentType ?? "ABLE_TO_CONSENT",
-          ableToConsentSection: initialData.ableToConsentSection,
-          unableToConsentSection: initialData.unableToConsentSection
-        }
+        residentId,
+        teamId,
+        organizationId,
+        userId,
+        residentName:
+          initialData.residentName ??
+          (`${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
+            ""),
+        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        dateOfBirth:
+          initialData.dateOfBirth ??
+          (resident.date_of_birth
+            ? new Date(resident.date_of_birth).getTime()
+            : Date.now()),
+        consentType: initialData.consentType ?? "ABLE_TO_CONSENT",
+        ableToConsentSection: initialData.ableToConsentSection,
+        unableToConsentSection: initialData.unableToConsentSection
+      }
       : {
-          residentId,
-          teamId,
-          organizationId,
-          userId,
-          residentName:
-            `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
-            "",
-          bedroomNumber: resident.roomNumber ?? "",
-          dateOfBirth: resident.dateOfBirth
-            ? new Date(resident.dateOfBirth).getTime()
-            : Date.now(),
-          consentType: "ABLE_TO_CONSENT",
-          ableToConsentSection: {
-            consentChoice: undefined,
-            residentSignature: "",
-            staffMemberName: userName || "",
-            staffMemberSignature: userName || "",
-            staffSignatureDate: new Date().toISOString().split("T")[0]
-          },
-          unableToConsentSection: {
-            representativeName: "",
-            discussionAcknowledged: true,
-            residentPreference: undefined,
-            representativeSignature: "",
-            staffMemberName: userName || "",
-            staffMemberSignature: userName || "",
-            staffSignatureDate: new Date().toISOString().split("T")[0]
-          }
+        residentId,
+        teamId,
+        organizationId,
+        userId,
+        residentName:
+          `${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
+          "",
+        bedroomNumber: resident.room_number ?? "",
+        dateOfBirth: resident.date_of_birth
+          ? new Date(resident.date_of_birth).getTime()
+          : Date.now(),
+        consentType: "ABLE_TO_CONSENT",
+        ableToConsentSection: {
+          consentChoice: undefined,
+          residentSignature: "",
+          staffMemberName: userName || "",
+          staffMemberSignature: userName || "",
+          staffSignatureDate: new Date().toISOString().split("T")[0]
+        },
+        unableToConsentSection: {
+          representativeName: "",
+          discussionAcknowledged: true,
+          residentPreference: undefined,
+          representativeSignature: "",
+          staffMemberName: userName || "",
+          staffMemberSignature: userName || "",
+          staffSignatureDate: new Date().toISOString().split("T")[0]
         }
+      }
   });
 
   const consentType = form.watch("consentType");
@@ -199,64 +192,65 @@ export default function BedrailConsentDialog({
           ...formData,
           ableToConsentSection: formData.ableToConsentSection
             ? {
-                ...formData.ableToConsentSection,
-                staffMemberName: userName || "",
-                staffMemberSignature: userName || "",
-                staffSignatureDate:
-                  formData.ableToConsentSection.staffSignatureDate ||
-                  new Date().toISOString().split("T")[0]
-              }
+              ...formData.ableToConsentSection,
+              staffMemberName: userName || "",
+              staffMemberSignature: userName || "",
+              staffSignatureDate:
+                formData.ableToConsentSection.staffSignatureDate ||
+                new Date().toISOString().split("T")[0]
+            }
             : undefined,
           unableToConsentSection: formData.unableToConsentSection
             ? {
-                ...formData.unableToConsentSection,
-                staffMemberName: userName || "",
-                staffMemberSignature: userName || "",
-                staffSignatureDate:
-                  formData.unableToConsentSection.staffSignatureDate ||
-                  new Date().toISOString().split("T")[0]
-              }
+              ...formData.unableToConsentSection,
+              staffMemberName: userName || "",
+              staffMemberSignature: userName || "",
+              staffSignatureDate:
+                formData.unableToConsentSection.staffSignatureDate ||
+                new Date().toISOString().split("T")[0]
+            }
             : undefined
         };
 
         setLoadingState("Saving bedrail consent form...");
 
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          capacity_assessed: formData.consentType === "ABLE_TO_CONSENT",
+          consent_given: formData.consentType === "ABLE_TO_CONSENT"
+            ? formData.ableToConsentSection?.consentChoice === "CONSENT_TO_USE"
+            : formData.unableToConsentSection?.residentPreference === "WOULD_PREFER_USE",
+          representative_name: formData.unableToConsentSection?.representativeName,
+          // signature_id: undefined, // Leave empty as we don't have a signature table yet
+          created_by: userId,
+          // Store original form data in a separate field if we want to preserve details
+          // but the schema doesn't have a JSONB field for this one. 
+          // We'll just map the core fields.
+        };
+
+        setLoadingState("Saving bedrail consent form...");
+
         if (isEditMode && initialData) {
-          await updateBedrailConsent({
-            id: initialData._id,
-            updates: {
-              residentName: preparedData.residentName,
-              bedroomNumber: preparedData.bedroomNumber,
-              dateOfBirth: preparedData.dateOfBirth,
-              consentType: preparedData.consentType,
-              ableToConsentSection: preparedData.ableToConsentSection,
-              unableToConsentSection: preparedData.unableToConsentSection,
-              savedAsDraft: false
-            }
-          });
+          const { error } = await supabase
+            .from("bedrail_consents")
+            .update(payload)
+            .eq("id", initialData.id || initialData._id);
+
+          if (error) throw error;
 
           setLoadingState("Generating PDF document...");
           await new Promise((resolve) => setTimeout(resolve, 1000));
-
           toast.success("Bedrail consent updated successfully");
         } else {
-          await submitBedrailConsent({
-            residentId: residentId as Id<"residents">,
-            teamId,
-            organizationId,
-            userId,
-            residentName: preparedData.residentName,
-            bedroomNumber: preparedData.bedroomNumber,
-            dateOfBirth: preparedData.dateOfBirth,
-            consentType: preparedData.consentType,
-            ableToConsentSection: preparedData.ableToConsentSection,
-            unableToConsentSection: preparedData.unableToConsentSection,
-            savedAsDraft: false
-          } as any);
+          const { error } = await supabase
+            .from("bedrail_consents")
+            .insert(payload);
+
+          if (error) throw error;
 
           setLoadingState("Generating PDF document...");
           await new Promise((resolve) => setTimeout(resolve, 1000));
-
           toast.success("Bedrail consent saved successfully");
         }
 
@@ -724,7 +718,7 @@ export default function BedrailConsentDialog({
                     <p className="text-sm font-medium">Resident Choice:</p>
                     <p className="text-sm text-muted-foreground">
                       {form.getValues("ableToConsentSection.consentChoice") ===
-                      "CONSENT_TO_USE"
+                        "CONSENT_TO_USE"
                         ? "Consents to use bed rails/bumpers"
                         : "Refuses to use bed rails/bumpers"}
                     </p>

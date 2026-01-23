@@ -21,7 +21,7 @@ import {
   UserIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -58,45 +58,47 @@ export function TeamSwitcher({
   const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
 
   // Fetch Care Homes
-  useEffect(() => {
+  const fetchCareHomes = useCallback(async () => {
     if (!activeOrganizationId) return;
 
-    async function fetchCareHomes() {
-      const { data, error } = await supabase
-        .from("care_homes")
-        .select("id, name")
-        .eq("organization_id", activeOrganizationId);
+    const { data, error } = await supabase
+      .from("care_homes")
+      .select("id, name")
+      .eq("organization_id", activeOrganizationId);
 
-      if (!error && data) {
-        setCareHomes(data);
-      }
+    if (!error && data) {
+      setCareHomes(data);
     }
-
-    fetchCareHomes();
   }, [activeOrganizationId, supabase]);
 
-  // Fetch Teams (Units)
   useEffect(() => {
-    async function fetchTeams() {
-      if (!activeOrganizationId) return;
+    fetchCareHomes();
+  }, [fetchCareHomes]);
 
-      let query = supabase.from("teams").select("id, name");
+  // Fetch Teams (Units)
+  const fetchTeams = useCallback(async () => {
+    if (!activeOrganizationId) return;
 
-      // Isolation: if nurse/assistant, show only teams in their care home
-      if (isNurseOrCareAssistant && activeCareHomeId) {
-        query = query.eq("care_home_id", activeCareHomeId);
-      } else {
-        query = query.eq("organization_id", activeOrganizationId);
-      }
+    let query = supabase.from("teams").select("id, name, care_home_id");
 
-      const { data, error } = await query;
-      if (!error && data) {
-        setOrgTeams(data);
-      }
+    // Always filter by active care home if one is selected
+    // This ensures each care home has its own distinct teams
+    if (activeCareHomeId) {
+      query = query.eq("care_home_id", activeCareHomeId);
+    } else {
+      // Fallback to organization-wide if no care home is selected
+      query = query.eq("organization_id", activeOrganizationId);
     }
 
+    const { data, error } = await query;
+    if (!error && data) {
+      setOrgTeams(data);
+    }
+  }, [activeOrganizationId, activeCareHomeId, supabase]);
+
+  useEffect(() => {
     fetchTeams();
-  }, [activeOrganizationId, activeCareHomeId, isNurseOrCareAssistant, supabase]);
+  }, [fetchTeams]);
 
   // Fetch Organization Logo
   useEffect(() => {
@@ -129,6 +131,8 @@ export function TeamSwitcher({
 
         toast.success("Team switched successfully");
         refreshProfile();
+        // Force refresh to ensure all downstream components update
+        window.location.reload();
       } catch (error) {
         console.error("Error switching team:", error);
         toast.error("Failed to switch team");
@@ -211,7 +215,7 @@ export function TeamSwitcher({
               <>
                 <div className="flex flex-row items-center justify-between">
                   <DropdownMenuLabel>Care homes</DropdownMenuLabel>
-                  <CreateCareHomeModal>
+                  <CreateCareHomeModal onSuccess={fetchCareHomes}>
                     <DropdownMenuItem
                       onSelect={(e) => {
                         e.preventDefault();
@@ -262,7 +266,7 @@ export function TeamSwitcher({
                   </TooltipContent>
                 </Tooltip>
               ) : (
-                <CreateTeamModal>
+                <CreateTeamModal onTeamCreated={fetchTeams}>
                   <DropdownMenuItem
                     onSelect={(e) => e.preventDefault()}
                     disabled={(orgTeams?.length ?? 0) >= config.limits.teams}

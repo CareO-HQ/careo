@@ -33,7 +33,7 @@ export default function MembersPage() {
       try {
         // Fetch members
         const { data: membersData, error: membersError } = await supabase
-          .from('profiles')
+          .from('users')
           .select('*')
           .eq('active_organization_id', activeOrganizationId);
 
@@ -66,17 +66,17 @@ export default function MembersPage() {
     if (!supabase) return;
 
     try {
-      // First delete from unit_staff to remove them from all teams
-      const { error: unitError } = await supabase
-        .from('unit_staff')
+      // First delete from team_staff to remove them from all teams
+      const { error: teamStaffError } = await supabase
+        .from('team_staff')
         .delete()
         .eq('user_id', memberId);
 
-      if (unitError) throw unitError;
+      if (teamStaffError) throw teamStaffError;
 
       // Then remove from organization by clearing all active context fields
       const { error } = await supabase
-        .from('profiles')
+        .from('users')
         .update({
           active_organization_id: null,
           active_care_home_id: null,

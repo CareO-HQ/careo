@@ -72,7 +72,7 @@ export default function CareHomeDetailsPage() {
         .from("teams")
         .select(`
           id, name,
-          unit_staff (count)
+          team_staff (count)
         `)
         .eq("care_home_id", careHomeId);
 
@@ -98,7 +98,7 @@ export default function CareHomeDetailsPage() {
         teams: (teamsData || []).map(team => ({
           id: team.id,
           name: team.name,
-          staffCount: (team as any).unit_staff?.[0]?.count || 0
+          staffCount: (team as any).team_staff?.[0]?.count || 0
         })),
         staff: (staffData || []).map(staff => ({
           id: staff.id,

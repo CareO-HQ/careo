@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +32,7 @@ import {
 import { format } from "date-fns";
 
 interface BedRailsRiskAssessmentDialogProps {
-  residentId: Id<"residents">;
+  residentId: string;
   teamId: string;
   organizationId: string;
   userId: string;
@@ -57,9 +55,7 @@ export default function BedRailsRiskAssessmentDialog({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submitAssessment = useMutation(
-    api.careFiles.bedRailsRiskAssessment.submitBedRailsRiskAssessment
-  );
+  const { supabase } = useSupabase();
 
   const form = useForm<BedRailsRiskAssessmentFormData>({
     resolver: zodResolver(bedRailsRiskAssessmentSchema) as any,
@@ -98,9 +94,9 @@ export default function BedRailsRiskAssessmentDialog({
       teamId,
       organizationId,
       userId,
-      residentName: resident ? `${resident.firstName} ${resident.lastName}` : "",
-      bedroomNumber: resident?.roomNumber || "",
-      dateOfBirth: resident?.dateOfBirth ? new Date(resident.dateOfBirth).getTime() : Date.now(),
+      residentName: resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : "",
+      bedroomNumber: resident?.room_number || "",
+      dateOfBirth: resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
       assessmentCompletedBy: userName || "",
       jobRole: "",
       dateOfAssessment: format(new Date(), "yyyy-MM-dd"),
@@ -204,7 +200,37 @@ export default function BedRailsRiskAssessmentDialog({
 
       const formData = form.getValues();
 
-      await submitAssessment(formData as any);
+      const payload = {
+        resident_id: residentId,
+        organization_id: organizationId,
+        risks_identified: formData.exclusionCriteria,
+        benefits_identified: formData.authorizationRationale,
+        alternatives_considered: {
+          considered: formData.alternativeEquipmentConsidered,
+          reasons: formData.reasonsAlternativesNotSuccessful
+        },
+        decision: {
+          typeOfBed: formData.typeOfBed,
+          typeOfMattress: formData.typeOfMattress,
+          typeOfBedrails: formData.typeOfBedrails,
+          safetyChecklist: formData.safetyChecklist,
+          anySafetyCheckFailed: formData.anySafetyCheckFailed,
+          hasExtendedHeightRails: formData.hasExtendedHeightRails,
+          extendedHeightChecks: formData.extendedHeightChecks,
+          consentObtained: formData.consentObtained,
+          carePlanCompleted: formData.carePlanCompleted
+        },
+        completed_by: formData.assessmentCompletedBy,
+        completion_date: formData.dateOfAssessment,
+        created_by: userId
+      };
+
+      const { error } = await supabase
+        .from("bedrails_risk_assessments")
+        .insert(payload);
+
+      if (error) throw error;
+
       toast.success("Risk assessment submitted successfully");
       onClose?.();
     } catch (error) {
@@ -835,71 +861,71 @@ export default function BedRailsRiskAssessmentDialog({
             <div className="space-y-6">
               {(watchTypeOfBedrails === "EXTENDED_HEIGHT_INTEGRAL" ||
                 watchTypeOfBedrails === "EXTENDED_HEIGHT_NON_INTEGRAL") && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">3. Extended Height Bed Rails</h3>
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">3. Extended Height Bed Rails</h3>
 
-                  <div className="space-y-3">
-                    {[
-                      {
-                        name: "positionedCorrectly" as const,
-                        label: "Is the extended bed rail positioned as far to the head of the bed as possible with a gap of less than 60mm?"
-                      },
-                      {
-                        name: "securelyFastened" as const,
-                        label: "Is the extended height bed rail securely fastened to the integrated bed rail?"
-                      },
-                      {
-                        name: "correctBumpersInstalled" as const,
-                        label: "Are the correct bumpers installed?"
-                      },
-                      {
-                        name: "mattressBelowPlimsollLine" as const,
-                        label: "Does the mattress come below the plimsoll line on the bumper?"
-                      },
-                      {
-                        name: "staffTrained" as const,
-                        label: "Have staff been trained how to attach and remove the extended bed rail?"
-                      },
-                      {
-                        name: "checkedForDamage" as const,
-                        label: "Has the bed and bed rails been checked for any signs of damage or wear and tear?"
-                      }
-                    ].map((item) => (
-                      <FormField
-                        key={item.name}
-                        control={form.control}
-                        name={`extendedHeightChecks.${item.name}`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{item.label}</FormLabel>
-                            <FormControl>
-                              <RadioGroup
-                                onValueChange={field.onChange}
-                                value={field.value}
-                                className="flex gap-4"
-                              >
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                  <FormControl>
-                                    <RadioGroupItem value="YES" />
-                                  </FormControl>
-                                  <FormLabel className="font-normal">Yes</FormLabel>
-                                </FormItem>
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                  <FormControl>
-                                    <RadioGroupItem value="NO" />
-                                  </FormControl>
-                                  <FormLabel className="font-normal">No</FormLabel>
-                                </FormItem>
-                              </RadioGroup>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ))}
+                    <div className="space-y-3">
+                      {[
+                        {
+                          name: "positionedCorrectly" as const,
+                          label: "Is the extended bed rail positioned as far to the head of the bed as possible with a gap of less than 60mm?"
+                        },
+                        {
+                          name: "securelyFastened" as const,
+                          label: "Is the extended height bed rail securely fastened to the integrated bed rail?"
+                        },
+                        {
+                          name: "correctBumpersInstalled" as const,
+                          label: "Are the correct bumpers installed?"
+                        },
+                        {
+                          name: "mattressBelowPlimsollLine" as const,
+                          label: "Does the mattress come below the plimsoll line on the bumper?"
+                        },
+                        {
+                          name: "staffTrained" as const,
+                          label: "Have staff been trained how to attach and remove the extended bed rail?"
+                        },
+                        {
+                          name: "checkedForDamage" as const,
+                          label: "Has the bed and bed rails been checked for any signs of damage or wear and tear?"
+                        }
+                      ].map((item) => (
+                        <FormField
+                          key={item.name}
+                          control={form.control}
+                          name={`extendedHeightChecks.${item.name}`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{item.label}</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                  className="flex gap-4"
+                                >
+                                  <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="YES" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Yes</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="NO" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">No</FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">4. General</h3>

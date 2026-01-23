@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useDebounce } from "@/hooks/use-debounce";
 
 type UseHandoverCommentProps = {
   teamId: string;
-  residentId: Id<"residents">;
+  residentId: string;
   date: string;
   shift: "day" | "night";
   currentUserId: string;
@@ -24,63 +22,100 @@ export function useHandoverComment({
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [commentId, setCommentId] = useState<string | null>(null);
+  const { supabase } = useSupabase();
   const initialLoadComplete = useRef(false);
 
   // Fetch existing comment from database
-  const existingComment = useQuery(api.handoverComments.getComment, {
-    teamId,
-    residentId,
-    date,
-    shift,
-  });
+  const fetchComment = useCallback(async () => {
+    if (!residentId || !date || !shift || !supabase) return;
 
-  // Mutation to save comment
-  const saveComment = useMutation(api.handoverComments.saveComment);
+    try {
+      const { data, error } = await supabase
+        .from("handover_comments")
+        .select("*")
+        .eq("resident_id", residentId)
+        .eq("date", date)
+        .eq("shift", shift)
+        .single();
+
+      if (error && error.code !== "PGRST116") { // PGRST116 is "no rows returned"
+        throw error;
+      }
+
+      if (data) {
+        setComment(data.comment);
+        setCommentId(data.id);
+        setLastSavedAt(new Date(data.updated_at).getTime());
+      }
+      initialLoadComplete.current = true;
+    } catch (error) {
+      console.error("Error fetching handover comment:", error);
+    }
+  }, [residentId, date, shift, supabase]);
+
+  useEffect(() => {
+    fetchComment();
+  }, [fetchComment]);
+
+  // Mutation function to save comment
+  const saveComment = useCallback(async (newComment: string) => {
+    if (!supabase || !residentId || !date || !shift) return;
+
+    setIsSaving(true);
+    try {
+      const payload = {
+        resident_id: residentId,
+        date: date,
+        shift: shift,
+        comment: newComment,
+        created_by: currentUserId,
+        // created_by_name is not in schema, but we can store it in a JSONB if needed 
+        // or just rely on the created_by reference.
+      };
+
+      let result;
+      if (commentId) {
+        result = await supabase
+          .from("handover_comments")
+          .update({
+            comment: newComment,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", commentId)
+          .select()
+          .single();
+      } else {
+        result = await supabase
+          .from("handover_comments")
+          .insert(payload)
+          .select()
+          .single();
+      }
+
+      if (result.error) throw result.error;
+
+      if (result.data) {
+        setCommentId(result.data.id);
+        setLastSavedAt(new Date(result.data.updated_at).getTime());
+      }
+    } catch (error) {
+      console.error("Failed to save comment:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [supabase, residentId, date, shift, currentUserId, commentId]);
 
   // Debounced comment value (auto-save after 2 seconds of no typing)
   const debouncedComment = useDebounce(comment, 2000);
 
-  // Load existing comment on mount
-  useEffect(() => {
-    if (existingComment && !initialLoadComplete.current) {
-      setComment(existingComment.comment);
-      setLastSavedAt(existingComment.updatedAt);
-      initialLoadComplete.current = true;
-    }
-  }, [existingComment]);
-
   // Auto-save when debounced value changes
   useEffect(() => {
-    if (!initialLoadComplete.current) return; // Don't save on initial load
-    if (debouncedComment === existingComment?.comment) return; // Don't save if unchanged
+    if (!initialLoadComplete.current) return;
+    if (debouncedComment.trim() === "" && !commentId) return;
 
-    const saveToDatabase = async () => {
-      if (debouncedComment.trim() === "" && !existingComment) {
-        // Don't create empty comments
-        return;
-      }
-
-      setIsSaving(true);
-      try {
-        await saveComment({
-          teamId,
-          residentId,
-          date,
-          shift,
-          comment: debouncedComment,
-          createdBy: currentUserId,
-          createdByName: currentUserName,
-        });
-        setLastSavedAt(Date.now());
-      } catch (error) {
-        console.error("Failed to save comment:", error);
-      } finally {
-        setIsSaving(false);
-      }
-    };
-
-    saveToDatabase();
-  }, [debouncedComment, teamId, residentId, date, shift, currentUserId, currentUserName, saveComment, existingComment]);
+    saveComment(debouncedComment);
+  }, [debouncedComment, saveComment, commentId]);
 
   // Format last saved time
   const getLastSavedText = useCallback(() => {
@@ -97,28 +132,10 @@ export function useHandoverComment({
     })}`;
   }, [lastSavedAt]);
 
-  // Manual save function (for immediate save without debounce)
+  // Manual save function
   const saveNow = useCallback(async () => {
-    if (comment === existingComment?.comment) return;
-
-    setIsSaving(true);
-    try {
-      await saveComment({
-        teamId,
-        residentId,
-        date,
-        shift,
-        comment,
-        createdBy: currentUserId,
-        createdByName: currentUserName,
-      });
-      setLastSavedAt(Date.now());
-    } catch (error) {
-      console.error("Failed to save comment:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [comment, teamId, residentId, date, shift, currentUserId, currentUserName, saveComment, existingComment]);
+    await saveComment(comment);
+  }, [comment, saveComment]);
 
   return {
     comment,
