@@ -39,8 +39,8 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
 import { Calendar } from "@/components/ui/calendar";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface SkinIntegrityDialogProps {
   teamId: string;
@@ -67,7 +67,6 @@ export default function SkinIntegrityDialog({
 }: SkinIntegrityDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof skinIntegrityAssessmentSchema>>({
     resolver: zodResolver(skinIntegrityAssessmentSchema),
@@ -79,9 +78,10 @@ export default function SkinIntegrityDialog({
         teamId,
         organizationId,
         userId,
-        residentName: initialData.residentName ?? `${resident.firstName} ${resident.lastName}`,
-        bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-        date: initialData.completion_date ? new Date(initialData.completion_date).getTime() : Date.now(),
+        residentName: initialData.residentName ?? `${resident.first_name} ${resident.last_name}`,
+        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
+        completedBy: initialData.completed_by || userName,
 
         sensoryPerception: initialData.assessment_details?.sensoryPerception ?? initialData.sensoryPerception ?? 1,
         moisture: initialData.assessment_details?.moisture ?? initialData.moisture ?? 1,
@@ -95,9 +95,10 @@ export default function SkinIntegrityDialog({
         teamId,
         organizationId,
         userId,
-        residentName: `${resident.firstName} ${resident.lastName}`,
-        bedroomNumber: resident.roomNumber ?? "",
-        date: Date.now(),
+        residentName: `${resident.first_name} ${resident.last_name}`,
+        bedroomNumber: resident.room_number ?? "",
+        assessmentDate: Date.now(),
+        completedBy: userName,
         sensoryPerception: 1,
         moisture: 1,
         activity: 1,
@@ -113,7 +114,7 @@ export default function SkinIntegrityDialog({
     let isValid = false;
 
     if (step === 1) {
-      isValid = await form.trigger(["residentName", "bedroomNumber", "date"]);
+      isValid = await form.trigger(["residentName", "bedroomNumber", "assessmentDate"]);
     } else if (step === 2) {
       isValid = await form.trigger(["sensoryPerception", "moisture", "activity", "mobility", "nutrition", "frictionShear"]);
     }
@@ -133,7 +134,7 @@ export default function SkinIntegrityDialog({
     startTransition(async () => {
       try {
         const formData = form.getValues();
-        const currentUserId = session?.user?.id;
+        const currentUserId = userId;
         if (!currentUserId) throw new Error("User not authenticated");
 
         const totalScore =
@@ -163,18 +164,19 @@ export default function SkinIntegrityDialog({
           risk_score: totalScore,
           risk_level: riskLevel,
           assessment_details: assessmentDetails,
-          completion_date: new Date(formData.date).toISOString().split('T')[0],
-          completed_by: userName, // Or ID if preferrable, schema says text
+          assessment_date: new Date(formData.assessmentDate).toISOString().split('T')[0],
+          completed_by: formData.completedBy,
           created_by: currentUserId
         };
 
-        if (isEditMode && initialData?.id) {
-          const { error } = await supabase
-            .from('skin_integrity_assessments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
+        await submitAssessmentWithVersioning(
+          'skin_integrity_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
 
+        if (isEditMode && initialData?.id) {
           await supabase.from('manager_audits').insert({
             form_type: 'skin_integrity_assessments',
             form_id: initialData.id,
@@ -186,10 +188,6 @@ export default function SkinIntegrityDialog({
           });
           toast.success("Assessment reviewed successfully");
         } else {
-          const { error } = await supabase
-            .from('skin_integrity_assessments')
-            .insert(payload);
-          if (error) throw error;
           toast.success("Assessment saved successfully");
         }
 
@@ -228,7 +226,7 @@ export default function SkinIntegrityDialog({
               <div className="space-y-4">
                 <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><Input {...field} /></FormItem>} />
                 <FormField control={form.control} name="bedroomNumber" render={({ field }) => <FormItem><FormLabel>Room</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="date" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={new Date(field.value)} onSelect={d => field.onChange(d?.getTime())} /></PopoverContent></Popover></FormItem>} />
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={new Date(field.value)} onSelect={d => field.onChange(d?.getTime())} /></PopoverContent></Popover></FormItem>} />
               </div>
             )}
 

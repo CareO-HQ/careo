@@ -35,7 +35,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface OralAssessmentDialogProps {
   teamId: string;
@@ -56,15 +56,14 @@ export default function OralAssessmentDialog({
 }: OralAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof oralAssessmentSchema>>({
     resolver: zodResolver(oralAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData ? {
       residentId, teamId, organizationId, userId,
-      residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: initialData.dateOfBirth || format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
+      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
       weight: initialData.assessment_details?.weight || "", height: initialData.assessment_details?.height || "",
       completedBy: initialData.completed_by || userName, signature: initialData.assessment_details?.signature || userName,
       assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
@@ -95,8 +94,8 @@ export default function OralAssessmentDialog({
       cognitiveImpairment: initialData.symptoms?.cognitiveImpairment || false, cognitiveImpairmentCare: initialData.care_recommendations?.cognitiveImpairmentCare || ""
     } : {
       residentId, teamId, organizationId, userId,
-      residentName: `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
+      residentName: `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "",
       weight: "", height: "", completedBy: userName, signature: userName, assessmentDate: Date.now(),
       normalOralHygieneRoutine: "", isRegisteredWithDentist: false, lastSeenByDentist: "", dentistName: "",
       dentalPracticeAddress: "", contactTelephone: "",
@@ -115,9 +114,10 @@ export default function OralAssessmentDialog({
   const isRegisteredWithDentist = form.watch("isRegisteredWithDentist");
 
   function onSubmit(values: z.infer<typeof oralAssessmentSchema>) {
+    console.log("Submitting oral assessment with values:", values);
     startTransition(async () => {
       try {
-        const currentUserId = session?.user?.id;
+        const currentUserId = userId;
         if (!currentUserId) throw new Error("User not authenticated");
 
         const payload = {
@@ -129,26 +129,36 @@ export default function OralAssessmentDialog({
           care_recommendations: { lipsDryCrackedCare: values.lipsDryCrackedCare, tongueDryCrackedCare: values.tongueDryCrackedCare, tongueUlcerationCare: values.tongueUlcerationCare, topDentureCare: values.topDentureCare, lowerDentureCare: values.lowerDentureCare, denturesAndNaturalTeethCare: values.denturesAndNaturalTeethCare, naturalTeethCare: values.naturalTeethCare, plaqueDebrisCare: values.plaqueDebrisCare, dryMouthCare: values.dryMouthCare, painWhenEatingCare: values.painWhenEatingCare, gumsUlcerationCare: values.gumsUlcerationCare, difficultySwallowingCare: values.difficultySwallowingCare, poorFluidDietaryIntakeCare: values.poorFluidDietaryIntakeCare, dehydratedCare: values.dehydratedCare, speechDifficultyDryMouthCare: values.speechDifficultyDryMouthCare, speechDifficultyDenturesSlippingCare: values.speechDifficultyDenturesSlippingCare, dexterityProblemsCare: values.dexterityProblemsCare, cognitiveImpairmentCare: values.cognitiveImpairmentCare },
           assessment_details: { height: values.height, weight: values.weight, signature: values.signature },
           assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
-          completed_by: values.completedBy, created_by: currentUserId
+          completed_by: values.completedBy, status: 'completed', created_by: currentUserId
         };
 
+        console.log("Payload for oral assessment:", payload);
+
+        await submitAssessmentWithVersioning(
+          'oral_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
         if (isEditMode && initialData?.id) {
-          const { error } = await supabase.from('oral_assessments').update(payload).eq('id', initialData.id);
-          if (error) throw error;
           await supabase.from('manager_audits').insert({ form_type: 'oral_assessments', form_id: initialData.id, resident_id: residentId, audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId });
           toast.success("Oral assessment updated!");
         } else {
-          const { error } = await supabase.from('oral_assessments').insert(payload);
-          if (error) throw error;
           toast.success("Oral assessment submitted");
         }
         setTimeout(() => onClose?.(), 500);
       } catch (error) {
-        console.error("Error submitting:", error);
+        console.error("Error submitting oral assessment:", error);
         toast.error("Failed to submit assessment.");
       }
     });
   }
+
+  const onValidationError = (errors: any) => {
+    console.error("Oral assessment validation errors:", errors);
+    toast.error("Please fill in all required fields.");
+  };
 
   const YesNoField = ({ fieldName, careField, label }: { fieldName: string; careField: string; label: string }) => {
     const show = form.watch(fieldName as any);
@@ -200,7 +210,7 @@ export default function OralAssessmentDialog({
       </div>
       <DialogFooter>
         <Button onClick={onClose} variant="outline" disabled={isLoading}>Cancel</Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
+        <Button onClick={form.handleSubmit(onSubmit, onValidationError)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
       </DialogFooter>
     </>
   );

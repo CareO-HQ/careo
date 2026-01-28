@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface DnacprDialogProps {
   teamId: string;
@@ -269,25 +270,20 @@ export default function DnacprDialog({
           },
           gp_signature: formData.gpSignature,
           gp_date: format(new Date(formData.gpDate), "yyyy-MM-dd"),
-          created_by: userId
+          assessment_date: format(new Date(formData.date), "yyyy-MM-dd"),
+          completed_by: formData.registeredNurseSignature,
+          created_by: userId,
+          status: "completed"
         };
 
-        if (isEditMode && initialData) {
-          const { error } = await supabase
-            .from("dnacprs")
-            .update(payload)
-            .eq("id", initialData.id || initialData._id);
+        await submitAssessmentWithVersioning(
+          'dnacprs',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          if (error) throw error;
-          toast.success("DNACPR form updated successfully");
-        } else {
-          const { error } = await supabase
-            .from("dnacprs")
-            .insert(payload);
-
-          if (error) throw error;
-          toast.success("DNACPR form saved successfully");
-        }
+        toast.success(isEditMode ? "DNACPR form updated successfully" : "DNACPR form saved successfully");
 
         onClose?.();
       } catch (error) {

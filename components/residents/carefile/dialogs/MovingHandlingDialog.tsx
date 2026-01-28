@@ -1,8 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -31,7 +33,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { Loader2 } from "lucide-react";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface MovingHandlingDialogProps {
   teamId: string;
@@ -58,7 +61,6 @@ export default function MovingHandlingDialog({
 }: MovingHandlingDialogProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof movingHandlingAssessmentSchema>>({
     resolver: zodResolver(movingHandlingAssessmentSchema),
@@ -69,9 +71,9 @@ export default function MovingHandlingDialog({
         teamId,
         organizationId,
         userId,
-        residentName: initialData.residentName || (resident ? `${resident.firstName} ${resident.lastName}` : ""),
-        dateOfBirth: initialData.dateOfBirth || (resident ? new Date(resident.dateOfBirth).getTime() : 0),
-        bedroomNumber: initialData.bedroomNumber || resident?.roomNumber || "",
+        residentName: initialData.residentName || (resident ? `${resident.first_name} ${resident.last_name}` : ""),
+        dateOfBirth: initialData.dateOfBirth || (resident && resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).getTime() : 0),
+        bedroomNumber: initialData.bedroomNumber || resident?.room_number || "",
 
         // Flatten mobility_assessment JSONB
         weight: initialData.mobility_assessment?.weight || initialData.weight || 0,
@@ -120,61 +122,60 @@ export default function MovingHandlingDialog({
         completedBy: initialData.completed_by || initialData.completedBy || userName,
         jobRole: initialData.jobRole || "",
         signature: initialData.signature || userName,
-        completionDate: initialData.completion_date ? initialData.completion_date : new Date().toISOString().split("T")[0]
+        assessmentDate: initialData.assessment_date || initialData.completion_date || new Date().toISOString().split("T")[0]
       }
       : {
         residentId,
         teamId,
         organizationId,
         userId,
-        residentName: resident ? `${resident.firstName} ${resident.lastName}` : "",
-        dateOfBirth: resident ? new Date(resident.dateOfBirth).getTime() : 0,
-        bedroomNumber: resident?.roomNumber || "",
+        residentName: resident ? `${resident.first_name} ${resident.last_name}` : "",
+        dateOfBirth: resident && resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).getTime() : 0,
+        bedroomNumber: resident?.room_number || "",
 
         weight: 0,
         height: 0,
         historyOfFalls: false,
         independentMobility: false,
-        canWeightBear: undefined,
-        limbUpperRight: undefined,
-        limbUpperLeft: undefined,
-        limbLowerRight: undefined,
-        limbLowerLeft: undefined,
+        canWeightBear: "NO-WEIGHTBEARING",
+        limbUpperRight: "FULLY",
+        limbUpperLeft: "FULLY",
+        limbLowerRight: "FULLY",
+        limbLowerLeft: "FULLY",
 
         equipmentUsed: "",
         needsRiskStaff: "",
 
-        deafnessState: undefined,
-        blindnessState: undefined,
-        unpredictableBehaviourState: undefined,
-        uncooperativeBehaviourState: undefined,
-        distressedReactionState: undefined,
-        disorientatedState: undefined,
-        unconsciousState: undefined,
-        unbalanceState: undefined,
-        spasmsState: undefined,
-        stiffnessState: undefined,
-        cathetersState: undefined,
-        incontinenceState: undefined,
-        localisedPain: undefined,
-        otherState: undefined,
+        deafnessState: "NEVER",
+        blindnessState: "NEVER",
+        unpredictableBehaviourState: "NEVER",
+        uncooperativeBehaviourState: "NEVER",
+        distressedReactionState: "NEVER",
+        disorientatedState: "NEVER",
+        unconsciousState: "NEVER",
+        unbalanceState: "NEVER",
+        spasmsState: "NEVER",
+        stiffnessState: "NEVER",
+        cathetersState: "NEVER",
+        incontinenceState: "NEVER",
+        localisedPain: "NEVER",
+        otherState: "NEVER",
 
         completedBy: userName,
         jobRole: "",
         signature: userName,
-        completionDate: new Date().toISOString().split("T")[0]
+        assessmentDate: new Date().toISOString().split("T")[0]
       }
   });
 
   if (!resident) return null;
 
-  function onSubmit(values: z.infer<typeof movingHandlingAssessmentSchema>) {
+  const onSubmit = async (values: z.infer<typeof movingHandlingAssessmentSchema>) => {
     startTransition(async () => {
       try {
-        const currentUserId = session?.user?.id;
+        const currentUserId = userId;
         if (!currentUserId) throw new Error("User not authenticated");
 
-        // Construct JSONB payloads
         const mobilityAssessment = {
           weight: values.weight,
           height: values.height,
@@ -226,119 +227,199 @@ export default function MovingHandlingDialog({
           risk_factors: riskFactors,
           equipment_needed: values.equipmentUsed,
           completed_by: values.completedBy,
-          completion_date: values.completionDate,
+          assessment_date: values.assessmentDate,
           created_by: currentUserId,
         };
 
-        if (isEditMode && initialData?.id) {
-          const { error } = await supabase
-            .from('moving_handling_assessments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
+        await submitAssessmentWithVersioning(
+          'moving_handling_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          // Log audit
+        if (isEditMode && initialData?.id) {
           await supabase.from('manager_audits').insert({
-            form_type: 'moving_handling_assessments',
-            form_id: initialData.id,
-            resident_id: resident.id,
-            audited_by: currentUserId,
-            audit_notes: "Form reviewed and updated",
-            organization_id: organizationId,
-            care_home_id: resident.care_home_id || initialData.care_home_id
+            form_type: 'moving_handling_assessments', form_id: initialData.id, resident_id: resident.id,
+            audited_by: currentUserId, audit_notes: "Form updated", organization_id: organizationId
           });
-          toast.success("Assessment updated successfully");
+          toast.success("Assessment updated");
         } else {
-          const { error } = await supabase
-            .from('moving_handling_assessments')
-            .insert(payload);
-          if (error) throw error;
-          toast.success("Assessment submitted successfully");
+          toast.success("Assessment submitted");
         }
-        setTimeout(() => onClose?.(), 500);
+        onClose?.();
       } catch (error) {
         console.error("Error submitting assessment:", error);
         toast.error("Failed to submit assessment.");
       }
     });
-  }
-
-  const handleNext = async () => {
-    let isValid = false;
-    // Step validation logic... (Preserved concept but simplified/flattened for brevity in rewrite logic)
-    // In full implementation, validation triggering per step is critical.
-    if (step === 1) isValid = await form.trigger(["residentName", "weight", "height"]);
-    else isValid = true; // Trusting user action for migration speed in UI logic, schema validation still happens on submit.
-
-    if (isValid || step > 0) setStep(step + 1);
   };
 
-  const handleBack = () => { if (step > 1) setStep(step - 1); };
+  const handleNext = async () => {
+    let fields: any[] = [];
+    if (step === 1) fields = ["residentName", "weight", "height"];
+    else if (step === 2) fields = ["canWeightBear", "limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"];
+
+    const isValid = await form.trigger(fields as any);
+    if (isValid || step > 2) setStep(prev => prev + 1);
+  };
+
+  const RiskEntry = ({ name, label }: { name: string, label: string }) => {
+    const stateName = (name === "localisedPain" ? "localisedPain" : `${name}State`) as any;
+    const commentsName = `${name}Comments` as any;
+    return (
+      <div className="space-y-3 p-4 border rounded-lg bg-card/50">
+        <FormField control={form.control} name={stateName} render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">{label}</FormLabel>
+            <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+              <SelectContent>
+                <SelectItem value="ALWAYS">Always</SelectItem>
+                <SelectItem value="SOMETIMES">Sometimes</SelectItem>
+                <SelectItem value="NEVER">Never</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormItem>
+        )} />
+        <FormField control={form.control} name={commentsName} render={({ field }) => (
+          <FormItem>
+            <FormLabel className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Comments</FormLabel>
+            <FormControl><Input placeholder="Add details..." {...field} /></FormControl>
+          </FormItem>
+        )} />
+      </div>
+    );
+  };
 
   return (
     <div className="max-h-[80vh] flex flex-col">
-      <DialogHeader><DialogTitle>Moving & Handling (Step {step}/7)</DialogTitle><DialogDescription>Assessment</DialogDescription></DialogHeader>
-      <div className="flex-1 overflow-y-auto p-2">
+      <DialogHeader>
+        <DialogTitle>Moving & Handling Assessment (Step {step}/7)</DialogTitle>
+        <DialogDescription>
+          {step === 1 && "Resident Information"}
+          {step === 2 && "Mobility Assessment"}
+          {step === 3 && "Sensory and Behavioral Risk Factors"}
+          {step === 4 && "Cognitive and Emotional Risk Factors"}
+          {step === 5 && "Physical Risk Factors"}
+          {step === 6 && "Additional Risk Factors"}
+          {step === 7 && "Completion"}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="flex-1 overflow-y-auto px-1 py-4">
         <Form {...form}>
-          <form className="space-y-4">
+          <form className="space-y-6 px-1">
             {step === 1 && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight (kg)</FormLabel><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormItem>} />
-                <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height (cm)</FormLabel><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormItem>} />
-                <FormField control={form.control} name="historyOfFalls" render={({ field }) => <FormItem><FormLabel>Falls History</FormLabel><Select onValueChange={v => field.onChange(v === 'true')} defaultValue={String(field.value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormItem>} />
+              <div className="space-y-4">
+                <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight (kg)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
+                  <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height (cm)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
+                </div>
+                <FormField control={form.control} name="historyOfFalls" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <div className="space-y-0.5"><FormLabel>History of Falls?</FormLabel></div>
+                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
               </div>
             )}
+
             {step === 2 && (
               <div className="space-y-4">
-                <FormField control={form.control} name="independentMobility" render={({ field }) => <FormItem><FormLabel>Independent?</FormLabel><Select onValueChange={v => field.onChange(v === 'true')} defaultValue={String(field.value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="canWeightBear" render={({ field }) => <FormItem><FormLabel>Weight Bearing</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="FULLY">Fully</SelectItem><SelectItem value="PARTIALLY">Partially</SelectItem><SelectItem value="WITH-AID">With Aid</SelectItem><SelectItem value="NO-WEIGHTBEARING">None</SelectItem></SelectContent></Select></FormItem>} />
-                {/* Limb fields truncated for brevity in rewriting, but assumed to be here in real code */}
+                <FormField control={form.control} name="independentMobility" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <div className="space-y-0.5"><FormLabel>Independent Mobility?</FormLabel></div>
+                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="canWeightBear" render={({ field }) => (
+                  <FormItem><FormLabel>Weight Bearing Capacity</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="FULLY">Fully</SelectItem>
+                      <SelectItem value="PARTIALLY">Partially</SelectItem>
+                      <SelectItem value="WITH-AID">With Aid</SelectItem>
+                      <SelectItem value="NO-WEIGHTBEARING">No Weightbearing</SelectItem>
+                    </SelectContent>
+                  </Select></FormItem>
+                )} />
                 <div className="grid grid-cols-2 gap-4">
-                  {["limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"].map(key => (
-                    <FormField key={key} control={form.control} name={key as any} render={({ field }) => <FormItem><FormLabel className="capitalize">{key.replace('limb', '')}</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="FULLY">Fully Mobile</SelectItem><SelectItem value="PARTIALLY">Partially</SelectItem><SelectItem value="NONE">None</SelectItem></SelectContent></Select></FormItem>} />
+                  {["limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"].map(k => (
+                    <FormField key={k} control={form.control} name={k as any} render={({ field }) => (
+                      <FormItem><FormLabel className="capitalize">{k.replace('limb', '').replace(/([A-Z])/g, ' $1')}</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent><SelectItem value="FULLY">Fully</SelectItem><SelectItem value="PARTIALLY">Partially</SelectItem><SelectItem value="NONE">None</SelectItem></SelectContent>
+                        </Select></FormItem>
+                    )} />
                   ))}
                 </div>
               </div>
             )}
-            {step > 2 && step < 7 && (
+
+            {step === 3 && (
               <div className="space-y-4">
-                <p>Risk Factors Check (Steps 3-6 combined for display simplicity in migration)</p>
-                {/* Generically rendering fields for remaining steps to ensure Functional UI */}
-                {step === 3 && ["deafness", "blindness", "unpredictableBehaviour", "uncooperativeBehaviour"].map(k => <RiskField key={k} form={form} name={k} label={k} />)}
-                {step === 4 && ["distressedReaction", "disorientated", "unconscious", "unbalance"].map(k => <RiskField key={k} form={form} name={k} label={k} />)}
-                {step === 5 && ["spasms", "stiffness", "catheters", "incontinence"].map(k => <RiskField key={k} form={form} name={k} label={k} />)}
-                {step === 6 && ["localisedPain", "other"].map(k => <RiskField key={k} form={form} name={k} label={k} />)}
+                <RiskEntry name="deafness" label="Deafness" />
+                <RiskEntry name="blindness" label="Blindness" />
+                <RiskEntry name="unpredictableBehaviour" label="Unpredictable Behaviour" />
+                <RiskEntry name="uncooperativeBehaviour" label="Uncooperative Behaviour" />
               </div>
             )}
+
+            {step === 4 && (
+              <div className="space-y-4">
+                <RiskEntry name="distressedReaction" label="Distressed Reaction" />
+                <RiskEntry name="disorientated" label="Disorientated" />
+                <RiskEntry name="unconscious" label="Unconscious" />
+                <RiskEntry name="unbalance" label="Unbalance" />
+              </div>
+            )}
+
+            {step === 5 && (
+              <div className="space-y-4">
+                <RiskEntry name="spasms" label="Spasms" />
+                <RiskEntry name="stiffness" label="Stiffness" />
+                <RiskEntry name="catheters" label="Catheters" />
+                <RiskEntry name="incontinence" label="Incontinence" />
+              </div>
+            )}
+
+            {step === 6 && (
+              <div className="grid gap-6">
+                <div className="space-y-4">
+                  <RiskEntry name="localisedPain" label="Localised Pain" />
+                  <RiskEntry name="other" label="Other Risks" />
+                </div>
+                <div className="space-y-4 pt-4 border-t">
+                  <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (<FormItem><FormLabel>Specific Risk Staff Requirements</FormLabel><FormControl><Textarea placeholder="Details..." {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="equipmentUsed" render={({ field }) => (<FormItem><FormLabel>Equipment Required</FormLabel><FormControl><Input placeholder="Hoist, Slide sheets, etc." {...field} /></FormControl></FormItem>)} />
+                </div>
+              </div>
+            )}
+
             {step === 7 && (
               <div className="space-y-4">
-                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="completionDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Input type="date" {...field} /></FormItem>} />
+                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl></FormItem>} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input placeholder="e.g. Care Manager" {...field} /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Completion Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
               </div>
             )}
           </form>
         </Form>
       </div>
-      <div className="border-t pt-2 flex justify-between">
-        <Button variant="outline" onClick={handleBack} disabled={step === 1}>Back</Button>
-        <Button onClick={step === 7 ? form.handleSubmit(onSubmit) : handleNext}>{step === 7 ? (isLoading ? "Saving..." : "Submit") : "Next"}</Button>
-      </div>
-    </div>
-  );
-}
 
-// Helper component for risk fields to reduce duplication
-function RiskField({ form, name, label }: { form: any, name: string, label: string }) {
-  return (
-    <div className="border p-2 rounded">
-      <FormField control={form.control} name={`${name}State`} render={({ field }) => (
-        <FormItem><FormLabel className="capitalize">{label} Frequency</FormLabel>
-          <Select onValueChange={field.onChange} defaultValue={field.value}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="ALWAYS">Always</SelectItem><SelectItem value="SOMETIMES">Sometimes</SelectItem><SelectItem value="NEVER">Never</SelectItem></SelectContent>
-          </Select></FormItem>
-      )} />
+      <DialogFooter className="border-t p-4 mt-auto">
+        <Button variant="outline" onClick={() => (step === 1 ? onClose?.() : setStep(step - 1))} disabled={isLoading}>
+          {step === 1 ? "Cancel" : "Back"}
+        </Button>
+        <Button onClick={step === 7 ? form.handleSubmit(onSubmit) : handleNext} disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {step === 7 ? "Save Assessment" : "Next"}
+        </Button>
+      </DialogFooter>
     </div>
   );
 }

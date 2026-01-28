@@ -92,8 +92,8 @@ function AcceptInvitationContent() {
           role: invitation.role,
           assigned_at: new Date().toISOString()
         });
-      } 
-      
+      }
+
       // Add owner to users table with organization info
       if (invitation.role === "owner") {
         // Already handled in the users table update above

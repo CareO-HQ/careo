@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface BedrailConsentDialogProps {
   teamId: string;
@@ -223,6 +224,8 @@ export default function BedrailConsentDialog({
             : formData.unableToConsentSection?.residentPreference === "WOULD_PREFER_USE",
           representative_name: formData.unableToConsentSection?.representativeName,
           // signature_id: undefined, // Leave empty as we don't have a signature table yet
+          assessment_date: new Date().toISOString().split("T")[0],
+          completed_by: userName,
           created_by: userId,
           // Store original form data in a separate field if we want to preserve details
           // but the schema doesn't have a JSONB field for this one. 
@@ -231,28 +234,16 @@ export default function BedrailConsentDialog({
 
         setLoadingState("Saving bedrail consent form...");
 
-        if (isEditMode && initialData) {
-          const { error } = await supabase
-            .from("bedrail_consents")
-            .update(payload)
-            .eq("id", initialData.id || initialData._id);
+        setLoadingState("Generating PDF document...");
+        await submitAssessmentWithVersioning(
+          'bedrail_consents',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          if (error) throw error;
-
-          setLoadingState("Generating PDF document...");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          toast.success("Bedrail consent updated successfully");
-        } else {
-          const { error } = await supabase
-            .from("bedrail_consents")
-            .insert(payload);
-
-          if (error) throw error;
-
-          setLoadingState("Generating PDF document...");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          toast.success("Bedrail consent saved successfully");
-        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        toast.success(isEditMode ? "Bedrail consent updated successfully" : "Bedrail consent saved successfully");
 
         setLoadingState("");
         onClose?.();

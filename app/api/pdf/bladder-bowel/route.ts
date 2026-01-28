@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 
 export const runtime = "nodejs";
 
-// Create a Convex client for server-side usage
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -332,11 +333,10 @@ function generateBladderBowelHTML(data: any): string {
             </div>
           </div>
           
-          ${
-            data.caffeineMls24h ||
-            data.caffeineFrequency ||
-            data.caffeineTimeOfDay
-              ? `
+          ${data.caffeineMls24h ||
+      data.caffeineFrequency ||
+      data.caffeineTimeOfDay
+      ? `
             <h3 style="margin-top: 16px;">Caffeine Consumption</h3>
             <div class="space-y-2">
               ${data.caffeineMls24h ? `<div class="field-row"><span class="field-label">Amount (24h):</span><span class="field-value">${data.caffeineMls24h} mls</span></div>` : ""}
@@ -344,14 +344,13 @@ function generateBladderBowelHTML(data: any): string {
               ${data.caffeineTimeOfDay ? `<div class="field-row"><span class="field-label">Time of Day:</span><span class="field-value">${data.caffeineTimeOfDay}</span></div>` : ""}
             </div>
           `
-              : ""
-          }
+      : ""
+    }
 
-          ${
-            data.excersiceType ||
-            data.excersiceFrequency ||
-            data.excersiceTimeOfDay
-              ? `
+          ${data.excersiceType ||
+      data.excersiceFrequency ||
+      data.excersiceTimeOfDay
+      ? `
             <h3 style="margin-top: 16px;">Exercise</h3>
             <div class="space-y-2">
               ${data.excersiceType ? `<div class="field-row"><span class="field-label">Type:</span><span class="field-value">${data.excersiceType}</span></div>` : ""}
@@ -359,14 +358,13 @@ function generateBladderBowelHTML(data: any): string {
               ${data.excersiceTimeOfDay ? `<div class="field-row"><span class="field-label">Time of Day:</span><span class="field-value">${data.excersiceTimeOfDay}</span></div>` : ""}
             </div>
           `
-              : ""
-          }
+      : ""
+    }
 
-          ${
-            data.alcoholAmount24h ||
-            data.alcoholFrequency ||
-            data.alcoholTimeOfDay
-              ? `
+          ${data.alcoholAmount24h ||
+      data.alcoholFrequency ||
+      data.alcoholTimeOfDay
+      ? `
             <h3 style="margin-top: 16px;">Alcohol Consumption</h3>
             <div class="space-y-2">
               ${data.alcoholAmount24h ? `<div class="field-row"><span class="field-label">Amount (24h):</span><span class="field-value">${data.alcoholAmount24h} units</span></div>` : ""}
@@ -374,8 +372,8 @@ function generateBladderBowelHTML(data: any): string {
               ${data.alcoholTimeOfDay ? `<div class="field-row"><span class="field-label">Time of Day:</span><span class="field-value">${data.alcoholTimeOfDay}</span></div>` : ""}
             </div>
           `
-              : ""
-          }
+      : ""
+    }
 
           <div class="checkbox-grid" style="margin-top: 16px;">
             <div class="checkbox-item">
@@ -696,38 +694,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { assessmentId } = await request.json();
+    // Parse the request body
+    const assessmentData = await request.json();
 
-    if (!assessmentId) {
+    if (!assessmentData) {
       return NextResponse.json(
-        { error: "Assessment ID is required" },
+        { error: "Assessment data is required" },
         { status: 400 }
       );
     }
 
-    // Add some debugging
-    console.log(
-      "Bladder bowel PDF API called with assessmentId:",
-      assessmentId
-    );
+    // Deep flattening: merge assessment_data and all nested objects into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      ...(assessmentData.lifestyle_factors || {}),
+      ...(assessmentData.bladder_pattern || {}),
+      ...(assessmentData.bowel_pattern || {}),
+      ...(assessmentData.symptoms || {}),
+      ...(assessmentData.symptoms?.infections || {}),
+      ...(assessmentData.symptoms?.urinalysis || {}),
+      ...(assessmentData.symptoms?.medications || {}),
+      ...(assessmentData.symptoms?.specific || {}),
+      ...(assessmentData.symptoms?.functional || {}),
+      // Ensure resident details and common fields are at the top level
+      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
+      createdAt: assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      // Handle signature field with typo compatibility
+      sigantureCompletingAssessment: assessmentData.sigantureCompletingAssessment || assessmentData.completed_by || assessmentData.completedBy || "Not provided"
+    };
 
-    // Fetch the assessment data directly from Convex
-    const assessmentData = await convexClient.query(
-      api.careFiles.bladderBowel.getBladderBowelAssessment,
-      {
-        id: assessmentId as Id<"bladderBowelAssessments">
-      }
-    );
-
-    if (!assessmentData) {
-      return NextResponse.json(
-        { error: "Assessment not found" },
-        { status: 404 }
-      );
-    }
+    console.log("Bladder bowel PDF API flattening data:", {
+      residentName: flattenedData.residentName,
+      hasBowelPattern: !!assessmentData.bowel_pattern,
+      formId: flattenedData._id || flattenedData.id
+    });
 
     // Generate HTML content
-    const htmlContent = generateBladderBowelHTML(assessmentData);
+    const htmlContent = generateBladderBowelHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -761,10 +767,10 @@ export async function POST(request: NextRequest) {
       await browser.close();
 
       // Return the PDF as a response
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="bladder-bowel-assessment-${assessmentId}.pdf"`,
+          "Content-Disposition": `attachment; filename="bladder-bowel-assessment-${assessmentData.residentName?.replace(/\s+/g, "-") || "record"}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

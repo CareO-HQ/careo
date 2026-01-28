@@ -1,7 +1,10 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -19,16 +22,6 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover";
-import { InfectionPreventionAssessmentSchema } from "@/schemas/residents/care-file/infectionPrevention";
-import { Resident } from "@/types";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon } from "lucide-react";
-import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns-tz";
 import {
   Select,
   SelectContent,
@@ -36,15 +29,26 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { InfectionPreventionAssessmentSchema } from "@/schemas/residents/care-file/infectionPrevention";
+import { Resident } from "@/types";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface InfectionPreventionDialogProps {
   teamId: string;
   organizationId: string;
   resident: Resident;
   userName: string;
+  userId: string;
   onClose?: (assessmentId?: string) => void;
   initialData?: any;
   isEditMode?: boolean;
@@ -55,60 +59,105 @@ export default function InfectionPreventionDialog({
   teamId,
   organizationId,
   userName,
+  userId,
   onClose,
   initialData,
   isEditMode = false
 }: InfectionPreventionDialogProps) {
   const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
-  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
-  const [dateOfAdmissionPopoverOpen, setDateOfAdmissionPopoverOpen] = useState(false);
-
-  // Consolidating popover states or just inline them if possible to save lines, 
-  // but for reliability let's keep the main ones.
-  const { data: session } = authClient.useSession();
+  const [datePopovers, setDatePopovers] = useState<Record<string, boolean>>({});
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
     resolver: zodResolver(InfectionPreventionAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-        // Mapping from Supabase structure back to flat form
         residentId: resident.id,
         organizationId: organizationId,
         teamId: teamId,
-        name: initialData.symptoms?.details?.name || resident.firstName + " " + resident.lastName,
-        dateOfBirth: initialData.symptoms?.details?.dateOfBirth || resident.dateOfBirth,
+        name: initialData.symptoms?.details?.name || `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: initialData.symptoms?.details?.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
         homeAddress: initialData.symptoms?.details?.homeAddress || "",
         assessmentType: initialData.assessment_type || "Pre-admission",
         informationProvidedBy: initialData.symptoms?.details?.informationProvidedBy || "",
         admittedFrom: initialData.exposure_history?.admittedFrom || "",
         consultantGP: initialData.symptoms?.details?.consultantGP || "",
         reasonForAdmission: initialData.exposure_history?.reasonForAdmission || "",
-        dateOfAdmission: initialData.exposure_history?.dateOfAdmission ? new Date(initialData.exposure_history.dateOfAdmission).getTime() : undefined,
+        dateOfAdmission: initialData.exposure_history?.dateOfAdmission || undefined,
 
-        // Flatten symptoms JSONB
-        ...initialData.symptoms?.respiratory,
-        ...initialData.symptoms?.diarrheaVomiting,
-        ...initialData.symptoms?.clostridium,
-        ...initialData.symptoms?.mrsa,
-        ...initialData.symptoms?.multiDrugResistance,
+        // Respiratory
+        newContinuousCough: initialData.symptoms?.respiratory?.newContinuousCough ?? false,
+        worseningCough: initialData.symptoms?.respiratory?.worseningCough ?? false,
+        temperatureHigh: initialData.symptoms?.respiratory?.temperatureHigh ?? false,
+        otherRespiratorySymptoms: initialData.symptoms?.respiratory?.otherRespiratorySymptoms || "",
+        testedForCovid19: initialData.symptoms?.respiratory?.testedForCovid19 ?? false,
+        testedForInfluenzaA: initialData.symptoms?.respiratory?.testedForInfluenzaA ?? false,
+        testedForInfluenzaB: initialData.symptoms?.respiratory?.testedForInfluenzaB ?? false,
+        testedForRespiratoryScreen: initialData.symptoms?.respiratory?.testedForRespiratoryScreen ?? false,
+        influenzaB: initialData.symptoms?.respiratory?.influenzaB ?? false,
+        respiratoryScreen: initialData.symptoms?.respiratory?.respiratoryScreen ?? false,
 
-        // Flatten Exposure
-        ...initialData.exposure_history,
+        // Exposure
+        exposureToPatientsCovid: initialData.exposure_history?.exposureToPatientsCovid ?? false,
+        exposureToStaffCovid: initialData.exposure_history?.exposureToStaffCovid ?? false,
+        isolationRequired: initialData.isolation_required ?? false,
+        isolationDetails: initialData.exposure_history?.isolationDetails || "",
+        furtherTreatmentRequired: initialData.exposure_history?.furtherTreatmentRequired ?? false,
 
-        isolationRequired: initialData.isolation_required,
+        // Diarrhea
+        diarrheaVomitingCurrentSymptoms: initialData.symptoms?.diarrheaVomiting?.currentSymptoms ?? false,
+        diarrheaVomitingContactWithOthers: initialData.symptoms?.diarrheaVomiting?.contactWithOthers ?? false,
+        diarrheaVomitingFamilyHistory72h: initialData.symptoms?.diarrheaVomiting?.familyHistory72h ?? false,
+
+        // Clostridium
+        clostridiumActive: initialData.symptoms?.clostridium?.active ?? false,
+        clostridiumHistory: initialData.symptoms?.clostridium?.history ?? false,
+        clostridiumStoolCount72h: initialData.symptoms?.clostridium?.stoolCount72h || "",
+        clostridiumLastPositiveSpecimenDate: initialData.symptoms?.clostridium?.lastPositiveSpecimenDate || undefined,
+        clostridiumResult: initialData.symptoms?.clostridium?.result || "",
+        clostridiumTreatmentReceived: initialData.symptoms?.clostridium?.treatmentReceived || "",
+        clostridiumTreatmentComplete: initialData.symptoms?.clostridium?.treatmentComplete ?? false,
+        ongoingDetails: initialData.symptoms?.clostridium?.ongoingDetails || "",
+        ongoingDateCommenced: initialData.symptoms?.clostridium?.ongoingDateCommenced || undefined,
+        ongoingLengthOfCourse: initialData.symptoms?.clostridium?.ongoingLengthOfCourse || "",
+        ongoingFollowUpRequired: initialData.symptoms?.clostridium?.ongoingFollowUpRequired || undefined,
+
+        // MRSA
+        mrsaMssaColonised: initialData.symptoms?.mrsa?.colonised ?? false,
+        mrsaMssaInfected: initialData.symptoms?.mrsa?.infected ?? false,
+        mrsaMssaLastPositiveSwabDate: initialData.symptoms?.mrsa?.lastPositiveSwabDate || undefined,
+        mrsaMssaSitesPositive: initialData.symptoms?.mrsa?.sitesPositive || "",
+        mrsaMssaTreatmentReceived: initialData.symptoms?.mrsa?.treatmentReceived || "",
+        mrsaMssaTreatmentComplete: initialData.symptoms?.mrsa?.treatmentComplete || "",
+        mrsaMssaDetails: initialData.symptoms?.mrsa?.mrsaMssaDetails || "",
+        mrsaMssaDateCommenced: initialData.symptoms?.mrsa?.mrsaMssaDateCommenced || undefined,
+        mrsaMssaLengthOfCourse: initialData.symptoms?.mrsa?.mrsaMssaLengthOfCourse || "",
+        mrsaMssaFollowUpRequired: initialData.symptoms?.mrsa?.mrsaMssaFollowUpRequired || "",
+
+        // MultiDrug
+        esbl: initialData.symptoms?.multiDrugResistance?.esbl ?? false,
+        vreGre: initialData.symptoms?.multiDrugResistance?.vreGre ?? false,
+        cpe: initialData.symptoms?.multiDrugResistance?.cpe ?? false,
+        otherMultiDrugResistance: initialData.symptoms?.multiDrugResistance?.other || "",
+        relevantInformationMultiDrugResistance: initialData.symptoms?.multiDrugResistance?.relevantInformation || "",
+
+        // Other
+        awarenessOfInfection: initialData.exposure_history?.awarenessOfInfection ?? false,
+        lastFluVaccinationDate: initialData.exposure_history?.lastFluVaccinationDate || undefined,
+
+        // Completion
         completedBy: initialData.completed_by || userName,
-        completionDate: initialData.completion_date ? new Date(initialData.completion_date).getTime() : new Date().getTime(),
-        // Ensure fallbacks for nested objects if flat spread didn't work perfectly
-        // ... (Rest of default values logic similar to original file)
+        jobRole: initialData.jobRole || "",
+        signature: initialData.signature || userName,
+        assessmentDate: (initialData.assessment_date || initialData.completion_date) ? new Date(initialData.assessment_date || initialData.completion_date).getTime() : Date.now()
       }
       : {
         residentId: resident.id,
         organizationId: organizationId,
         teamId: teamId,
-        name: resident.firstName + " " + resident.lastName,
-        dateOfBirth: resident.dateOfBirth,
+        name: `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
         homeAddress: "",
         assessmentType: "Pre-admission",
         informationProvidedBy: "",
@@ -116,66 +165,64 @@ export default function InfectionPreventionDialog({
         consultantGP: "",
         reasonForAdmission: "",
         dateOfAdmission: undefined,
-        newContinuousCough: undefined,
-        worseningCough: undefined,
-        temperatureHigh: undefined,
+        newContinuousCough: false,
+        worseningCough: false,
+        temperatureHigh: false,
         otherRespiratorySymptoms: "",
-        testedForCovid19: undefined,
-        testedForInfluenzaA: undefined,
-        testedForInfluenzaB: undefined,
-        testedForRespiratoryScreen: undefined,
+        testedForCovid19: false,
+        testedForInfluenzaA: false,
+        testedForInfluenzaB: false,
+        testedForRespiratoryScreen: false,
         influenzaB: false,
         respiratoryScreen: false,
-        exposureToPatientsCovid: undefined,
-        exposureToStaffCovid: undefined,
-        isolationRequired: undefined,
+        exposureToPatientsCovid: false,
+        exposureToStaffCovid: false,
+        isolationRequired: false,
         isolationDetails: "",
-        furtherTreatmentRequired: undefined,
-        diarrheaVomitingCurrentSymptoms: undefined,
-        diarrheaVomitingContactWithOthers: undefined,
-        diarrheaVomitingFamilyHistory72h: undefined,
-        clostridiumActive: undefined,
-        clostridiumHistory: undefined,
+        furtherTreatmentRequired: false,
+        diarrheaVomitingCurrentSymptoms: false,
+        diarrheaVomitingContactWithOthers: false,
+        diarrheaVomitingFamilyHistory72h: false,
+        clostridiumActive: false,
+        clostridiumHistory: false,
         clostridiumStoolCount72h: "",
         clostridiumLastPositiveSpecimenDate: undefined,
         clostridiumResult: "",
         clostridiumTreatmentReceived: "",
-        clostridiumTreatmentComplete: undefined,
+        clostridiumTreatmentComplete: false,
         ongoingDetails: "",
         ongoingDateCommenced: undefined,
         ongoingLengthOfCourse: "",
         ongoingFollowUpRequired: undefined,
-        mrsaMssaColonised: undefined,
-        mrsaMssaInfected: undefined,
+        mrsaMssaColonised: false,
+        mrsaMssaInfected: false,
         mrsaMssaLastPositiveSwabDate: undefined,
         mrsaMssaSitesPositive: "",
         mrsaMssaTreatmentReceived: "",
-        mrsaMssaTreatmentComplete: undefined,
+        mrsaMssaTreatmentComplete: "",
         mrsaMssaDetails: "",
-        mrsaMssaDateCommenced: new Date().getTime(),
+        mrsaMssaDateCommenced: undefined,
         mrsaMssaLengthOfCourse: "",
         mrsaMssaFollowUpRequired: "",
-        esbl: undefined,
-        vreGre: undefined,
-        cpe: undefined,
+        esbl: false,
+        vreGre: false,
+        cpe: false,
         otherMultiDrugResistance: "",
         relevantInformationMultiDrugResistance: "",
-        awarenessOfInfection: undefined,
-        lastFluVaccinationDate: new Date().getTime(),
+        awarenessOfInfection: false,
+        lastFluVaccinationDate: undefined,
         completedBy: userName,
         jobRole: "",
         signature: userName,
-        completionDate: new Date().getTime()
+        assessmentDate: Date.now()
       }
   });
 
-  function onSubmit(values: any) { // Type as any for brevity in refactor
+  const onSubmit = async (values: z.infer<typeof InfectionPreventionAssessmentSchema>) => {
     startTransition(async () => {
       try {
-        const currentUserId = session?.user?.id;
-        if (!currentUserId) throw new Error("User not authenticated");
+        if (!userId) throw new Error("User not authenticated");
 
-        // Construct JSONB objects
         const symptomsPayload = {
           details: {
             name: values.name,
@@ -193,6 +240,8 @@ export default function InfectionPreventionDialog({
             testedForInfluenzaA: values.testedForInfluenzaA,
             testedForInfluenzaB: values.testedForInfluenzaB,
             testedForRespiratoryScreen: values.testedForRespiratoryScreen,
+            influenzaB: values.influenzaB,
+            respiratoryScreen: values.respiratoryScreen,
           },
           diarrheaVomiting: {
             currentSymptoms: values.diarrheaVomitingCurrentSymptoms,
@@ -208,6 +257,9 @@ export default function InfectionPreventionDialog({
             treatmentReceived: values.clostridiumTreatmentReceived,
             treatmentComplete: values.clostridiumTreatmentComplete,
             ongoingDetails: values.ongoingDetails,
+            ongoingDateCommenced: values.ongoingDateCommenced,
+            ongoingLengthOfCourse: values.ongoingLengthOfCourse,
+            ongoingFollowUpRequired: values.ongoingFollowUpRequired,
           },
           mrsa: {
             colonised: values.mrsaMssaColonised,
@@ -215,12 +267,18 @@ export default function InfectionPreventionDialog({
             lastPositiveSwabDate: values.mrsaMssaLastPositiveSwabDate,
             sitesPositive: values.mrsaMssaSitesPositive,
             treatmentReceived: values.mrsaMssaTreatmentReceived,
+            treatmentComplete: values.mrsaMssaTreatmentComplete,
+            mrsaMssaDetails: values.mrsaMssaDetails,
+            mrsaMssaDateCommenced: values.mrsaMssaDateCommenced,
+            mrsaMssaLengthOfCourse: values.mrsaMssaLengthOfCourse,
+            mrsaMssaFollowUpRequired: values.mrsaMssaFollowUpRequired,
           },
           multiDrugResistance: {
             esbl: values.esbl,
             vreGre: values.vreGre,
             cpe: values.cpe,
             other: values.otherMultiDrugResistance,
+            relevantInformation: values.relevantInformationMultiDrugResistance,
           }
         };
 
@@ -242,68 +300,82 @@ export default function InfectionPreventionDialog({
           assessment_type: values.assessmentType,
           symptoms: symptomsPayload,
           exposure_history: exposurePayload,
-          isolation_required: values.isolationRequired === true || values.isolationRequired === 'true',
+          isolation_required: values.isolationRequired,
           completed_by: values.completedBy,
-          completion_date: values.completionDate ? new Date(values.completionDate).toISOString() : new Date().toISOString(),
-          created_by: currentUserId,
+          assessment_date: new Date(values.assessmentDate).toISOString(),
+          created_by: userId,
         };
 
-        if (isEditMode && initialData?.id) {
-          // Update
-          const { error } = await supabase
-            .from('infection_prevention_assessments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
+        const result = await submitAssessmentWithVersioning(
+          'infection_prevention_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          // If technically a "Review", log audit
+        if (isEditMode && initialData?.id) {
           await supabase.from('manager_audits').insert({
             form_type: 'infection_prevention_assessments',
-            form_id: initialData.id,
+            form_id: result.id, // Use new version ID
             resident_id: resident.id,
-            audited_by: currentUserId,
-            audit_notes: "Form reviewed and updated",
-            organization_id: organizationId,
-            care_home_id: resident.care_home_id || initialData.care_home_id // Ensure care_home_id exists
+            audited_by: userId,
+            audit_notes: "Form updated (New Version)",
+            organization_id: organizationId
           });
-
-          toast.success("Assessment updated successfully");
+          toast.success("Assessment updated");
         } else {
-          // Insert
-          const { data, error } = await supabase
-            .from('infection_prevention_assessments')
-            .insert(payload)
-            .select()
-            .single();
-          if (error) throw error;
-          toast.success("Assessment submitted successfully");
-          onClose?.(data.id);
-          return; // Exit
+          toast.success("Assessment submitted");
         }
         onClose?.();
-
       } catch (error) {
-        console.error("Error submitting form:", error);
+        console.error("Error submitting:", error);
         toast.error("Failed to submit assessment");
       }
     });
-  }
+  };
 
   const handleNext = async () => {
-    let isValid = false;
-    if (step === 1) isValid = await form.trigger(["name", "dateOfBirth", "homeAddress", "assessmentType"]);
-    else if (step === 2) isValid = await form.trigger(["newContinuousCough", "worseningCough", "temperatureHigh"]); // Subset for brevity in refactor
-    else isValid = true; // Trust user for now on checking logic for other steps in refactor
+    let fieldsToValidate: any[] = [];
+    if (step === 1) fieldsToValidate = ["name", "dateOfBirth", "homeAddress", "assessmentType"];
+    else if (step === 2) fieldsToValidate = ["newContinuousCough", "worseningCough", "temperatureHigh"];
+    else if (step === 9) fieldsToValidate = ["completedBy", "jobRole", "signature", "assessmentDate"];
 
-    if (isValid || step > 0) { // Relaxed validation for immediate migration testing
-      setStep(prev => prev + 1);
-    }
+    const isValid = await form.trigger(fieldsToValidate as any);
+    if (isValid) setStep(prev => prev + 1);
   };
 
-  const handleBack = () => {
-    if (step === 1) return;
-    setStep(step - 1);
-  };
+  const setPopover = (key: string, open: boolean) => setDatePopovers(prev => ({ ...prev, [key]: open }));
+
+  const BooleanField = ({ name, label }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string }) => (
+    <FormField control={form.control} name={name} render={({ field }) => (
+      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+        <div className="space-y-0.5"><FormLabel>{label}</FormLabel></div>
+        <FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} /></FormControl>
+      </FormItem>
+    )} />
+  );
+
+  const DateField = ({ name, label }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string }) => (
+    <FormField control={form.control} name={name} render={({ field }) => (
+      <FormItem className="flex flex-col">
+        <FormLabel>{label}</FormLabel>
+        <Popover open={datePopovers[name]} onOpenChange={o => setPopover(name, o)}>
+          <PopoverTrigger asChild>
+            <FormControl>
+              <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+              </Button>
+            </FormControl>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => d > new Date() || d < new Date("1900-01-01")} initialFocus />
+          </PopoverContent>
+        </Popover>
+        <FormMessage />
+      </FormItem>
+    )} />
+  );
 
   return (
     <div className="max-h-[80vh] flex flex-col">
@@ -311,63 +383,164 @@ export default function InfectionPreventionDialog({
         <DialogTitle>Infection Prevention Assessment (Step {step}/9)</DialogTitle>
         <DialogDescription>
           {step === 1 && "Resident details"}
-          {step === 2 && "Acute Respiratory Illness"}
-          {step === 3 && "Exposure"}
-          {step === 4 && "Diarrhea and Vomiting"}
+          {step === 2 && "Acute Respiratory Illness (ARI)"}
+          {step === 3 && "Exposure History"}
+          {step === 4 && "Diarrhoea and Vomiting"}
           {step === 5 && "Clostridium Difficile"}
           {step === 6 && "MRSA / MSSA"}
-          {step === 7 && "Multi-drug resistance"}
+          {step === 7 && "Multi-drug Resistance"}
           {step === 8 && "Other Information"}
           {step === 9 && "Completion"}
         </DialogDescription>
       </DialogHeader>
 
-      <div className="flex-1 overflow-y-auto px-1 py-2">
+      <div className="flex-1 overflow-y-auto px-1 py-4">
         <Form {...form}>
-          <form className="space-y-4">
-            {/* Simplified Step Rendering for Migration Speed - Assuming components exist */}
+          <form className="space-y-4 px-1">
             {step === 1 && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                <FormField control={form.control} name="assessmentType" render={({ field }) => <FormItem><FormLabel>Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Pre-admission">Pre-admission</SelectItem><SelectItem value="Admission">Admission</SelectItem></SelectContent></Select></FormItem>} />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="assessmentType" render={({ field }) => (
+                    <FormItem><FormLabel>Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Pre-admission">Pre-admission</SelectItem><SelectItem value="Admission">Admission</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="homeAddress" render={({ field }) => <FormItem><FormLabel>Home Address</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="informationProvidedBy" render={({ field }) => <FormItem><FormLabel>Info Provided By</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <FormField control={form.control} name="consultantGP" render={({ field }) => <FormItem><FormLabel>Consultant / GP</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                </div>
               </div>
             )}
 
             {step === 2 && (
               <div className="space-y-4">
-                <FormField control={form.control} name="newContinuousCough" render={({ field }) => <FormItem><FormLabel>New Continuous Cough?</FormLabel><Select onValueChange={field.onChange} defaultValue={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="temperatureHigh" render={({ field }) => <FormItem><FormLabel>High Temp?</FormLabel><Select onValueChange={field.onChange} defaultValue={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormItem>} />
-              </div>
-            )}
-
-            {/* ... Other steps hidden for brevity but logic is preserved via form context state */}
-            {step > 2 && (
-              <div className="p-4 text-center text-muted-foreground">
-                (Steps 3-9: Fields are preserved in form state. Please click Next to reach submit.)
-                {/* In a real scenario I'd write them all out, but tool token limits usually suggest truncating repetitive UI code if the Logic is the key part being Migrated. 
-                         However, for the User to actually use it, they need the UI. 
-                         I will assume the user trusts me to restore the UI fully in a normal edit, 
-                         but here I am doing a 'write_to_file' which Replaces everything. 
-                         I MUST write the full UI or it breaks. I will restore a generic UI for the remaining steps. 
-                         Actually, I'll attempt to restore generic fields mapping. */}
-                <div className="grid gap-4 text-left mt-4">
-                  {step === 3 && ["exposureToPatientsCovid", "exposureToStaffCovid", "isolationRequired"].map(k => <FormField key={k} control={form.control} name={k as any} render={({ field }) => <FormItem><FormLabel className="capitalize">{k.replace(/([A-Z])/g, ' $1')}</FormLabel><Input {...field} /></FormItem>} />)}
-                  {step === 4 && ["diarrheaVomitingCurrentSymptoms"].map(k => <FormField key={k} control={form.control} name={k as any} render={({ field }) => <FormItem><FormLabel className="capitalize">{k.replace(/([A-Z])/g, ' $1')}</FormLabel><Input {...field} /></FormItem>} />)}
-                  {step === 9 && ["completedBy", "signature"].map(k => <FormField key={k} control={form.control} name={k as any} render={({ field }) => <FormItem><FormLabel className="capitalize">{k}</FormLabel><Input {...field} /></FormItem>} />)}
+                <div className="grid gap-2">
+                  <BooleanField name="newContinuousCough" label="New Continuous Cough?" />
+                  <BooleanField name="worseningCough" label="Worsening Cough?" />
+                  <BooleanField name="temperatureHigh" label="Temperature High (>37.8°C)?" />
+                  <FormField control={form.control} name="otherRespiratorySymptoms" render={({ field }) => <FormItem><FormLabel>Other Respiratory Symptoms</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <BooleanField name="testedForCovid19" label="Tested for COVID-19?" />
+                  <BooleanField name="testedForInfluenzaA" label="Tested for Influenza A?" />
+                  <BooleanField name="testedForInfluenzaB" label="Tested for Influenza B?" />
+                  <BooleanField name="testedForRespiratoryScreen" label="Tested for Resp Screen?" />
                 </div>
               </div>
             )}
 
+            {step === 3 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="admittedFrom" render={({ field }) => <FormItem><FormLabel>Admitted From</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <DateField name="dateOfAdmission" label="Date of Admission" />
+                </div>
+                <FormField control={form.control} name="reasonForAdmission" render={({ field }) => <FormItem><FormLabel>Reason for Admission</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <Separator />
+                <BooleanField name="exposureToPatientsCovid" label="Exposure to patients with COVID-19?" />
+                <BooleanField name="exposureToStaffCovid" label="Exposure to staff with COVID-19?" />
+                <BooleanField name="isolationRequired" label="Isolation Required?" />
+                <FormField control={form.control} name="isolationDetails" render={({ field }) => <FormItem><FormLabel>Isolation Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                <BooleanField name="furtherTreatmentRequired" label="Further treatment for ARI required?" />
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-4">
+                <BooleanField name="diarrheaVomitingCurrentSymptoms" label="Current symptoms of diarrhoea/vomiting?" />
+                <BooleanField name="diarrheaVomitingContactWithOthers" label="Contact with others with symptoms (48h)?" />
+                <BooleanField name="diarrheaVomitingFamilyHistory72h" label="Family/Home members with symptoms (72h)?" />
+              </div>
+            )}
+
+            {step === 5 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <BooleanField name="clostridiumActive" label="Active C.Diff?" />
+                  <BooleanField name="clostridiumHistory" label="History of C.Diff?" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="clostridiumStoolCount72h" render={({ field }) => <FormItem><FormLabel>Stool Count (72h)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <DateField name="clostridiumLastPositiveSpecimenDate" label="Last positive specimen date" />
+                </div>
+                <FormField control={form.control} name="clostridiumResult" render={({ field }) => <FormItem><FormLabel>Result</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="clostridiumTreatmentReceived" render={({ field }) => <FormItem><FormLabel>Treatment Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <BooleanField name="clostridiumTreatmentComplete" label="Treatment Complete?" />
+                <Separator />
+                <h4 className="text-sm font-medium">Ongoing Treatment</h4>
+                <FormField control={form.control} name="ongoingDetails" render={({ field }) => <FormItem><FormLabel>Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                <div className="grid grid-cols-2 gap-4">
+                  <DateField name="ongoingDateCommenced" label="Date Commenced" />
+                  <FormField control={form.control} name="ongoingLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Length of Course</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                </div>
+              </div>
+            )}
+
+            {step === 6 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <BooleanField name="mrsaMssaColonised" label="MRSA/MSSA Colonised?" />
+                  <BooleanField name="mrsaMssaInfected" label="MRSA/MSSA Infected?" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <DateField name="mrsaMssaLastPositiveSwabDate" label="Last positive swab date" />
+                  <FormField control={form.control} name="mrsaMssaSitesPositive" render={({ field }) => <FormItem><FormLabel>Sites Positive</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                </div>
+                <FormField control={form.control} name="mrsaMssaTreatmentReceived" render={({ field }) => <FormItem><FormLabel>Treatment Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <Separator />
+                <h4 className="text-sm font-medium">Ongoing Treatment</h4>
+                <FormField control={form.control} name="mrsaMssaDetails" render={({ field }) => <FormItem><FormLabel>Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                <div className="grid grid-cols-2 gap-4">
+                  <DateField name="mrsaMssaDateCommenced" label="Date Commenced" />
+                  <FormField control={form.control} name="mrsaMssaLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Length of Course</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                </div>
+              </div>
+            )}
+
+            {step === 7 && (
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <BooleanField name="esbl" label="ESBL?" />
+                  <BooleanField name="vreGre" label="VRE / GRE?" />
+                  <BooleanField name="cpe" label="CPE?" />
+                </div>
+                <FormField control={form.control} name="otherMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Other MDR Organisms</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="relevantInformationMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Relevant Information</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+              </div>
+            )}
+
+            {step === 8 && (
+              <div className="space-y-4">
+                <BooleanField name="awarenessOfInfection" label="Personal awareness of infection status?" />
+                <DateField name="lastFluVaccinationDate" label="Date of last Flu Vaccination" />
+              </div>
+            )}
+
+            {step === 9 && (
+              <div className="space-y-4">
+                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} placeholder="e.g. Registered Nurse" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                <DateField name="assessmentDate" label="Date Completed" />
+              </div>
+            )}
           </form>
         </Form>
       </div>
 
-      <div className="border-t pt-4 mt-auto flex justify-between">
-        <Button variant="outline" onClick={handleBack} disabled={step === 1 || isLoading}>Back</Button>
-        <Button onClick={step === 9 ? form.handleSubmit(onSubmit) : handleNext} disabled={isLoading}>
-          {step === 9 ? (isLoading ? "Saving..." : "Submit") : "Next"}
+      <DialogFooter className="border-t p-4 mt-auto">
+        <Button variant="outline" onClick={step === 1 ? () => onClose?.() : () => setStep(step - 1)} disabled={isLoading}>
+          {step === 1 ? "Cancel" : "Back"}
         </Button>
-      </div>
+        <Button onClick={step === 9 ? form.handleSubmit(onSubmit) : handleNext} disabled={isLoading}>
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {step === 9 ? "Save Assessment" : "Next"}
+        </Button>
+      </DialogFooter>
     </div>
   );
 }
+
+const Separator = () => <div className="h-px bg-border my-6" />;

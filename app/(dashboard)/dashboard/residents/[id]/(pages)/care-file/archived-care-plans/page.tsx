@@ -10,20 +10,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { ArrowLeft, Eye, FileText, Archive } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import CarePlanViewDialog from "@/components/residents/carefile/folders/CarePlanViewDialog";
+import { supabase } from "@/lib/supabase";
 
 export default function ArchivedCarePlansPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[3] as Id<"residents">;
+  const residentId = pathname[3];
 
   const [viewingCarePlan, setViewingCarePlan] = useState<{
     formKey: string;
@@ -33,17 +31,53 @@ export default function ArchivedCarePlansPage() {
     isLatest: boolean;
   } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [resident, setResident] = useState<any>(undefined);
+  const [archivedCarePlans, setArchivedCarePlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: residentId as Id<"residents">
-  });
+  useEffect(() => {
+    async function fetchData() {
+      if (!residentId) return;
 
-  // Fetch archived care plans for this resident
-  const archivedCarePlans = useQuery(api.careFiles.carePlan.getArchivedCarePlansForResident, {
-    residentId: residentId as Id<"residents">
-  });
+      try {
+        // Fetch resident
+        const { data: residentData } = await supabase
+          .from('residents')
+          .select('*')
+          .eq('id', residentId)
+          .single();
+        setResident(residentData);
 
-  if (resident === undefined || archivedCarePlans === undefined) {
+        // Fetch archived care plans for resident
+        const { data: carePlansData } = await supabase
+          .from('care_plan_assessments')
+          .select('*')
+          .eq('resident_id', residentId)
+          .eq('status', 'archived')
+          .order('created_at', { ascending: false });
+        
+        // Map to convex-like structure for compatibility
+        const mappedCarePlans = (carePlansData || []).map(cp => ({
+          ...cp,
+          _id: cp.id,
+          _creationTime: new Date(cp.created_at).getTime(),
+          firstName: cp.first_name,
+          lastName: cp.last_name,
+          imageUrl: cp.image_url
+        }));
+        
+        setArchivedCarePlans(mappedCarePlans);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [residentId]);
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -54,7 +88,7 @@ export default function ArchivedCarePlansPage() {
     );
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -72,14 +106,14 @@ export default function ArchivedCarePlansPage() {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const handleViewCarePlan = (carePlan: any) => {
     setViewingCarePlan({
       formKey: "care-plan-form",
       formId: carePlan._id,
-      name: carePlan.nameOfCarePlan || "Care Plan",
+      name: carePlan.name_of_care_plan || "Care Plan",
       completedAt: carePlan._creationTime,
       isLatest: false
     });
@@ -130,51 +164,65 @@ export default function ArchivedCarePlansPage() {
               <TableRow>
                 <TableHead>Care Plan Name</TableHead>
                 <TableHead>Folder</TableHead>
-                <TableHead>Care Plan Number</TableHead>
+                <TableHead>Resident Name</TableHead>
+                <TableHead>Bedroom</TableHead>
                 <TableHead>Written By</TableHead>
                 <TableHead>Date Written</TableHead>
                 <TableHead>Archived At</TableHead>
-                <TableHead>Version</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {archivedCarePlans.map((carePlan: any) => (
-                <TableRow key={carePlan._id} className="bg-muted/20">
-                  <TableCell className="font-medium">
-                    {carePlan.nameOfCarePlan}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded-full">
-                      {carePlan.folderKey || "General"}
-                    </span>
-                  </TableCell>
-                  <TableCell>#{carePlan.carePlanNumber}</TableCell>
-                  <TableCell>{carePlan.writtenBy}</TableCell>
-                  <TableCell>
-                    {format(new Date(carePlan.dateWritten), "dd MMM yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(carePlan._creationTime), "dd MMM yyyy, HH:mm")}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
-                      Archived
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleViewCarePlan(carePlan)}
-                      className="gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {archivedCarePlans.map((carePlan: any) => {
+                const goals = carePlan.goals || {};
+                const residentName = goals.residentName || "N/A";
+                const bedroomNumber = goals.bedroomNumber || "N/A";
+                // Extract writtenBy from goals, fallback to other sources if missing or shows "user"
+                let writtenBy = goals.writtenBy;
+                if (!writtenBy || writtenBy.toLowerCase() === "user") {
+                  writtenBy = carePlan.written_by || "N/A";
+                }
+                const dateWritten = goals.dateWritten || carePlan.date_written;
+
+                return (
+                  <TableRow key={carePlan._id} className="bg-muted/20">
+                    <TableCell className="font-medium">
+                      {carePlan.care_plan_type || "Care Plan"}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded-full">
+                        {carePlan.care_plan_type || "General"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {residentName}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                        {bedroomNumber}
+                      </span>
+                    </TableCell>
+                    <TableCell>{writtenBy}</TableCell>
+                    <TableCell>
+                      {dateWritten ? format(new Date(dateWritten), "dd MMM yyyy") : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {format(new Date(carePlan.archived_at || carePlan._creationTime), "dd MMM yyyy, HH:mm")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewCarePlan(carePlan)}
+                        className="gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

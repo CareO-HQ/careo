@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 
 export const runtime = "nodejs";
 
-// Create a Convex client for server-side usage
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
 // Helper function to generate PDF filename
@@ -26,86 +24,6 @@ function generatePDFFilename(assessment: any): string {
 }
 
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const assessmentId = searchParams.get("assessmentId");
-
-    if (!assessmentId) {
-      return NextResponse.json(
-        { error: "Assessment ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Get the assessment data from Convex
-    const assessment = await convexClient.query(
-      api.careFiles.carePlan.getCarePlanAssessment,
-      {
-        assessmentId: assessmentId as Id<"carePlanAssessments">
-      }
-    );
-
-    if (!assessment) {
-      return NextResponse.json(
-        { error: "Assessment not found" },
-        { status: 404 }
-      );
-    }
-
-    // Generate HTML for the PDF
-    const htmlContent = generateCarePlanHTML(assessment);
-
-    // Generate PDF from HTML using Playwright
-    const browser = await chromium.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-
-    const page = await browser.newPage();
-
-    try {
-      // Set the HTML content directly
-      await page.setContent(htmlContent, {
-        waitUntil: "networkidle",
-        timeout: 30000
-      });
-
-      // Generate PDF
-      const pdfData = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: {
-          top: "20px",
-          bottom: "20px",
-          left: "20px",
-          right: "20px"
-        },
-        displayHeaderFooter: false,
-        preferCSSPageSize: true
-      });
-
-      await browser.close();
-
-      return new NextResponse(pdfData, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${generatePDFFilename(assessment)}"`
-        }
-      });
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
-  } catch (error) {
-    console.error("Error generating Care Plan PDF:", error);
-    return NextResponse.json(
-      { error: "Failed to generate PDF" },
-      { status: 500 }
-    );
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -117,35 +35,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { assessmentId } = await request.json();
+    // Parse the request body
+    const assessmentData = await request.json();
 
-    if (!assessmentId) {
+    if (!assessmentData) {
       return NextResponse.json(
-        { error: "Assessment ID is required" },
+        { error: "Assessment data is required" },
         { status: 400 }
       );
     }
 
     // Add some debugging
-    console.log("Care Plan PDF API called with assessmentId:", assessmentId);
+    console.log("Care Plan PDF API called for resident:", assessmentData.residentName);
 
-    // Fetch the assessment data directly from Convex
-    const assessmentData = await convexClient.query(
-      api.careFiles.carePlan.getCarePlanAssessment,
-      {
-        assessmentId: assessmentId as Id<"carePlanAssessments">
-      }
-    );
+    // Extract goals and interventions if present (Supabase JSONB fields)
+    const goals = assessmentData.goals || {};
+    const interventions = assessmentData.interventions || [];
 
-    if (!assessmentData) {
-      return NextResponse.json(
-        { error: "Assessment not found" },
-        { status: 404 }
-      );
-    }
+    // Map Supabase snake_case to the format expected by generateCarePlanHTML
+    // And ensure resident details passed from the client or stored in goals are used
+    const mappedData = {
+      ...assessmentData,
+      ...goals, // Flatten goals into top level
+      carePlanNumber: assessmentData.care_plan_number || goals.carePlanNumber || assessmentData.carePlanNumber,
+      dateWritten: assessmentData.created_at || goals.dateWritten || assessmentData.dateWritten || new Date().toISOString(),
+      nameOfCarePlan: assessmentData.care_plan_type || assessmentData.name_of_care_plan || goals.nameOfCarePlan || assessmentData.nameOfCarePlan,
+      residentName: assessmentData.residentName || goals.residentName || "Resident",
+      dob: assessmentData.dob || goals.dob,
+      bedroomNumber: assessmentData.bedroomNumber || goals.bedroomNumber,
+      writtenBy: assessmentData.written_by || goals.writtenBy || assessmentData.writtenBy,
+      identifiedNeeds: assessmentData.need_identified || assessmentData.identified_needs || goals.identifiedNeeds || assessmentData.identifiedNeeds,
+      aims: goals.aims || assessmentData.aims,
+      plannedCareDate: interventions.length > 0 ? interventions : (assessmentData.planned_care_date || assessmentData.plannedCareDate || []),
+      discussedWith: goals.discussed_with || goals.discussedWith || assessmentData.discussed_with || assessmentData.discussedWith,
+      signature: goals.signature || assessmentData.signature,
+      date: assessmentData.review_date || assessmentData.date || new Date().toISOString(),
+      staffSignature: goals.staff_signature || goals.staffSignature || assessmentData.staff_signature || assessmentData.staffSignature
+    };
 
     // Generate HTML content
-    const htmlContent = generateCarePlanHTML(assessmentData);
+    const htmlContent = generateCarePlanHTML(mappedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -179,7 +108,7 @@ export async function POST(request: NextRequest) {
       await browser.close();
 
       // Return the PDF as a response
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${generatePDFFilename(assessmentData)}"`,
@@ -352,8 +281,8 @@ function generateCarePlanHTML(assessment: any): string {
           </thead>
           <tbody>
             ${assessment.plannedCareDate
-              .map(
-                (entry: any) => `
+      .map(
+        (entry: any) => `
               <tr>
                 <td>${formatDate(entry.date)}</td>
                 <td>${formatTime(entry.time)}</td>
@@ -361,48 +290,45 @@ function generateCarePlanHTML(assessment: any): string {
                 <td>${entry.signature}</td>
               </tr>
             `
-              )
-              .join("")}
+      )
+      .join("")}
           </tbody>
         </table>
       </div>
 
       <div class="section signature-section">
         <div class="section-title">Review of Patient or Representative</div>
-        ${
-          assessment.discussedWith
-            ? `
+        ${assessment.discussedWith
+      ? `
         <div class="form-group">
           <div class="form-label">Discussed With:</div>
           <div class="form-value">${assessment.discussedWith}</div>
         </div>
         `
-            : ""
-        }
-        ${
-          assessment.signature
-            ? `
+      : ""
+    }
+        ${assessment.signature
+      ? `
         <div class="form-group">
           <div class="form-label">Patient/Representative Signature:</div>
           <div class="form-value">${assessment.signature}</div>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
         <div class="form-group">
           <div class="form-label">Review Date:</div>
           <div class="form-value">${formatDate(assessment.date)}</div>
         </div>
-        ${
-          assessment.staffSignature
-            ? `
+        ${assessment.staffSignature
+      ? `
         <div class="form-group">
           <div class="form-label">Staff Signature:</div>
           <div class="form-value">${assessment.staffSignature}</div>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <div class="footer">

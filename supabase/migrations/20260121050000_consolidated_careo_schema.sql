@@ -143,7 +143,7 @@ $$ LANGUAGE plpgsql;
 -- Organizations (links to auth.organizations if using Supabase organizations, 
 -- or a custom table for multi-tenancy)
 CREATE TABLE public.organizations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -163,7 +163,7 @@ CREATE TABLE public.organization_status (
 
 -- Care Homes (Entities within an organization)
 CREATE TABLE public.care_homes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   created_by UUID NOT NULL,
@@ -174,7 +174,7 @@ CREATE TABLE public.care_homes (
 -- Units / Teams within care homes
 -- Renamed from 'units' to 'teams' to align with custom schema
 CREATE TABLE public.teams (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   care_home_id UUID NOT NULL REFERENCES public.care_homes(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -207,7 +207,7 @@ CREATE TABLE public.users (
 
 -- Care Home Managers (Junction table)
 CREATE TABLE public.care_home_managers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   care_home_id UUID NOT NULL REFERENCES public.care_homes(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   assigned_at TIMESTAMPTZ DEFAULT NOW(),
@@ -218,7 +218,7 @@ CREATE TABLE public.care_home_managers (
 -- Unit Staff (Junction table for Nurses/Care Assistants)
 -- References public.teams (formerly units)
 CREATE TABLE public.unit_staff (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role user_role NOT NULL,
@@ -262,7 +262,7 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 -- Residents
 CREATE TABLE public.residents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   date_of_birth DATE NOT NULL,
@@ -303,7 +303,7 @@ CREATE TABLE public.residents (
 
 -- Emergency Contacts
 CREATE TABLE public.emergency_contacts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   phone_number TEXT NOT NULL,
@@ -317,7 +317,7 @@ CREATE TABLE public.emergency_contacts (
 
 -- Food & Fluid Logs
 CREATE TABLE public.food_fluid_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   timestamp TIMESTAMPTZ NOT NULL,
   section TEXT NOT NULL, -- e.g. 'morning', 'afternoon'
@@ -336,7 +336,7 @@ CREATE TABLE public.food_fluid_logs (
 
 -- Menu Items
 CREATE TABLE public.menu_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   category TEXT,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -348,7 +348,7 @@ CREATE TABLE public.menu_items (
 
 -- Medication
 CREATE TABLE public.medications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   strength TEXT,
@@ -371,7 +371,7 @@ CREATE TABLE public.medications (
 
 -- Medication Intake
 CREATE TABLE public.medication_intakes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   medication_id UUID NOT NULL REFERENCES public.medications(id) ON DELETE CASCADE,
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   scheduled_time TIMESTAMPTZ NOT NULL,
@@ -387,7 +387,7 @@ CREATE TABLE public.medication_intakes (
 
 -- Medication Rounds
 CREATE TABLE public.medication_rounds (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   time TEXT NOT NULL, -- e.g. '08:00'
@@ -403,7 +403,7 @@ CREATE TABLE public.medication_rounds (
 
 -- Vitals
 CREATE TABLE public.vitals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   vital_type TEXT NOT NULL, -- e.g. blood_pressure, heart_rate
   value TEXT NOT NULL,
@@ -434,7 +434,7 @@ CREATE INDEX idx_vitals_resident_date ON public.vitals(resident_id, record_date)
 
 -- Base Incidents table (Aligned with Convex)
 CREATE TABLE public.incidents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID REFERENCES public.residents(id) ON DELETE SET NULL,
   
   -- Section 1: Incident Details
@@ -533,7 +533,7 @@ CREATE TABLE public.incidents (
 
 -- Trust Incident Reports (NHS, BHSCT, SEHSCT)
 CREATE TABLE public.trust_incident_reports (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   incident_id UUID NOT NULL REFERENCES public.incidents(id) ON DELETE CASCADE,
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,
   trust_name TEXT NOT NULL,
@@ -550,7 +550,7 @@ CREATE TABLE public.trust_incident_reports (
 
 -- Reusable templates for all audit categories
 CREATE TABLE public.audit_templates (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   description TEXT,
   category audit_category NOT NULL,
@@ -565,7 +565,7 @@ CREATE TABLE public.audit_templates (
 
 -- Completed audit instances
 CREATE TABLE public.audit_completions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   template_id UUID NOT NULL REFERENCES public.audit_templates(id) ON DELETE CASCADE,
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE, -- Optional (governance audits might not have resident)
   status audit_status NOT NULL DEFAULT 'draft',
@@ -582,7 +582,7 @@ CREATE TABLE public.audit_completions (
 
 -- Action plans linked to audit findings
 CREATE TABLE public.audit_action_plans (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   audit_completion_id UUID REFERENCES public.audit_completions(id) ON DELETE CASCADE,
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
@@ -600,7 +600,7 @@ CREATE TABLE public.audit_action_plans (
 
 -- Manager Audit log
 CREATE TABLE public.manager_audits (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   form_type TEXT NOT NULL, -- Links to the audited assessment/form type
   form_id UUID NOT NULL,   -- ID of the specific form record
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,
@@ -618,7 +618,7 @@ CREATE TABLE public.manager_audits (
 
 -- Handover Reports (Archived shift reports)
 CREATE TABLE public.handover_reports (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   date DATE NOT NULL,
   shift shift_type NOT NULL,
   team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
@@ -630,7 +630,7 @@ CREATE TABLE public.handover_reports (
 
 -- Real-time Handover Comments
 CREATE TABLE public.handover_comments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   shift shift_type NOT NULL,
@@ -642,7 +642,7 @@ CREATE TABLE public.handover_comments (
 
 -- Multidisciplinary Care Team
 CREATE TABLE public.multidisciplinary_care_team (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   designation TEXT NOT NULL,
@@ -659,7 +659,7 @@ CREATE TABLE public.multidisciplinary_care_team (
 
 -- MDT Notes
 CREATE TABLE public.multidisciplinary_notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   team_member_id UUID REFERENCES public.multidisciplinary_care_team(id) ON DELETE SET NULL,
   team_member_name TEXT NOT NULL,
@@ -692,7 +692,7 @@ CREATE INDEX idx_mdt_notes_resident ON public.multidisciplinary_notes(resident_i
 
 -- Pre-admission Care Files
 CREATE TABLE public.pre_admission_care_files (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_home_name TEXT,
@@ -707,7 +707,7 @@ CREATE TABLE public.pre_admission_care_files (
 
 -- Admission Assessments
 CREATE TABLE public.admission_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'draft',
@@ -720,7 +720,7 @@ CREATE TABLE public.admission_assessments (
 
 -- Infection Prevention Assessments
 CREATE TABLE public.infection_prevention_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   assessment_type TEXT, -- Pre-admission / Admission
@@ -736,7 +736,7 @@ CREATE TABLE public.infection_prevention_assessments (
 
 -- Bladder & Bowel Assessments
 CREATE TABLE public.bladder_bowel_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   lifestyle_factors JSONB,
@@ -752,7 +752,7 @@ CREATE TABLE public.bladder_bowel_assessments (
 
 -- Moving & Handling Assessments
 CREATE TABLE public.moving_handling_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   mobility_assessment JSONB, -- Weight bearing, limb mobility, etc.
@@ -767,7 +767,7 @@ CREATE TABLE public.moving_handling_assessments (
 
 -- Falls Risk Assessments (Long Term)
 CREATE TABLE public.long_term_falls_risk_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   assessment_fields JSONB, -- History, mobility, sensory, medical
@@ -786,7 +786,7 @@ CREATE TABLE public.long_term_falls_risk_assessments (
 
 -- Photography Consents
 CREATE TABLE public.photography_consents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   healthcare_records BOOLEAN DEFAULT false,
@@ -803,7 +803,7 @@ CREATE TABLE public.photography_consents (
 
 -- DNACPR
 CREATE TABLE public.dnacprs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   dnacpr_active BOOLEAN DEFAULT false,
@@ -819,7 +819,7 @@ CREATE TABLE public.dnacprs (
 
 -- PEEPs (Personal Emergency Evacuation Plans)
 CREATE TABLE public.peeps (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   assistance_needed JSONB,
@@ -834,7 +834,7 @@ CREATE TABLE public.peeps (
 
 -- Dependency Assessments
 CREATE TABLE public.dependency_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   dependency_level TEXT NOT NULL, -- A, B, C, D
@@ -862,7 +862,7 @@ CREATE INDEX idx_dnacprs_resident ON public.dnacprs(resident_id);
 
 -- TIML Assessments (Transfer/Independent/Mobility/Limbs)
 CREATE TABLE public.timl_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   assessment_data JSONB,
@@ -876,7 +876,7 @@ CREATE TABLE public.timl_assessments (
 
 -- Skin Integrity Assessments (Waterlow/Branden etc.)
 CREATE TABLE public.skin_integrity_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   risk_score INTEGER,
@@ -893,7 +893,7 @@ CREATE TABLE public.skin_integrity_assessments (
 
 -- Resident Valuables Assessments
 CREATE TABLE public.resident_valuables_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   valuables_list JSONB, -- Array of items with descriptions and photos
@@ -906,7 +906,7 @@ CREATE TABLE public.resident_valuables_assessments (
 
 -- Resident Handling Profiles
 CREATE TABLE public.resident_handling_profiles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   transfer_method TEXT,
@@ -921,7 +921,7 @@ CREATE TABLE public.resident_handling_profiles (
 
 -- Pain Assessments (Abbey Pain Scale etc.)
 CREATE TABLE public.pain_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   pain_type TEXT,
@@ -937,7 +937,7 @@ CREATE TABLE public.pain_assessments (
 
 -- Nutritional Assessments (MUST etc.)
 CREATE TABLE public.nutritional_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   bmi_score INTEGER,
@@ -954,7 +954,7 @@ CREATE TABLE public.nutritional_assessments (
 
 -- Oral Health Assessments
 CREATE TABLE public.oral_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   oral_hygiene_status TEXT,
@@ -970,7 +970,7 @@ CREATE TABLE public.oral_assessments (
 
 -- Diet & Lifestyle (Consolidated summary for dashboard)
 CREATE TABLE public.diet_lifestyle (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   diet_types TEXT[],
@@ -992,7 +992,7 @@ CREATE INDEX idx_diet_lifestyle_resident ON public.diet_lifestyle(resident_id);
 
 -- Diet Notifications
 CREATE TABLE public.diet_notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   diet_type TEXT, -- Soft, Pureed, Normal
@@ -1007,7 +1007,7 @@ CREATE TABLE public.diet_notifications (
 
 -- Choking Risk Assessments
 CREATE TABLE public.choking_risk_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   swallowing_difficulty BOOLEAN DEFAULT false,
@@ -1023,7 +1023,7 @@ CREATE TABLE public.choking_risk_assessments (
 
 -- Cornell Depression Scales
 CREATE TABLE public.cornell_depression_scales (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   mood_signs_score INTEGER,
@@ -1041,7 +1041,7 @@ CREATE TABLE public.cornell_depression_scales (
 
 -- Bedrail Consents
 CREATE TABLE public.bedrail_consents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   capacity_assessed BOOLEAN DEFAULT false,
@@ -1055,7 +1055,7 @@ CREATE TABLE public.bedrail_consents (
 
 -- Bedrail Risk Assessments
 CREATE TABLE public.bedrails_risk_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   risks_identified JSONB,
@@ -1071,7 +1071,7 @@ CREATE TABLE public.bedrails_risk_assessments (
 
 -- Best Interest Decisions
 CREATE TABLE public.best_interest_decisions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   decision_details TEXT NOT NULL,
@@ -1100,7 +1100,7 @@ CREATE INDEX idx_bedrail_consents_resident ON public.bedrail_consents(resident_i
 
 -- Care Plan Assessments
 CREATE TABLE public.care_plan_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_plan_type TEXT NOT NULL, -- e.g. Mobility, Nutrition, Personal Care
@@ -1116,7 +1116,7 @@ CREATE TABLE public.care_plan_assessments (
 
 -- Care Plan Evaluations
 CREATE TABLE public.care_plan_evaluations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   care_plan_id UUID NOT NULL REFERENCES public.care_plan_assessments(id) ON DELETE CASCADE,
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -1132,7 +1132,7 @@ CREATE TABLE public.care_plan_evaluations (
 
 -- Care Plan Reminders
 CREATE TABLE public.care_plan_reminders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -1152,7 +1152,7 @@ CREATE TABLE public.care_plan_reminders (
 
 -- Clinical Notes (Advanced)
 CREATE TABLE public.clinical_notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   note_date DATE NOT NULL,
@@ -1167,7 +1167,7 @@ CREATE TABLE public.clinical_notes (
 
 -- Progress Notes (Daily summary)
 CREATE TABLE public.progress_notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -1186,7 +1186,7 @@ CREATE TABLE public.progress_notes (
 
 -- Night Check Configuration
 CREATE TABLE public.night_check_configurations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_home_id UUID REFERENCES public.care_homes(id) ON DELETE CASCADE,
@@ -1206,7 +1206,7 @@ CREATE TABLE public.night_check_configurations (
 
 -- Night Check Recordings
 CREATE TABLE public.night_check_recordings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   configuration_id UUID REFERENCES public.night_check_configurations(id) ON DELETE CASCADE,
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -1233,7 +1233,7 @@ CREATE TABLE public.night_check_recordings (
 
 -- Hospital Passports
 CREATE TABLE public.hospital_passports (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   passport_data JSONB, -- Comprehensive medical history, likes/dislikes
@@ -1245,7 +1245,7 @@ CREATE TABLE public.hospital_passports (
 
 -- Hospital Transfer Logs
 CREATE TABLE public.hospital_transfer_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   transfer_date TIMESTAMPTZ NOT NULL,
@@ -1270,7 +1270,7 @@ CREATE INDEX idx_night_checks_resident ON public.night_check_recordings(resident
 
 -- Daily Care / Personal Care
 CREATE TABLE public.personal_care_daily (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   shift TEXT, -- AM, PM, Night
@@ -1287,7 +1287,7 @@ CREATE TABLE public.personal_care_daily (
 );
 
 CREATE TABLE public.personal_care_task_events (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   daily_id UUID NOT NULL REFERENCES public.personal_care_daily(id) ON DELETE CASCADE,
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   task_type TEXT NOT NULL,
@@ -1310,7 +1310,7 @@ CREATE TABLE public.personal_care_task_events (
 );
 
 CREATE TABLE public.quick_care_notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   category TEXT NOT NULL,
   
@@ -1350,7 +1350,7 @@ CREATE INDEX idx_quick_care_notes_resident ON public.quick_care_notes(resident_i
 
 -- Alerts
 CREATE TABLE public.alerts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_home_id UUID REFERENCES public.care_homes(id) ON DELETE CASCADE,
@@ -1368,7 +1368,7 @@ CREATE TABLE public.alerts (
 
 -- Notifications (System-wide)
 CREATE TABLE public.notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE, -- Optional: targeting a specific user
   title TEXT NOT NULL,
@@ -1380,7 +1380,7 @@ CREATE TABLE public.notifications (
 
 -- Notification Read Status
 CREATE TABLE public.notification_read_status (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   notification_id UUID NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   read_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1393,7 +1393,7 @@ CREATE TABLE public.notification_read_status (
 
 -- Appointments
 CREATE TABLE public.appointments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -1410,7 +1410,7 @@ CREATE TABLE public.appointments (
 
 -- Appointment Read Status
 CREATE TABLE public.appointment_read_status (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   appointment_id UUID NOT NULL REFERENCES public.appointments(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   read_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1419,7 +1419,7 @@ CREATE TABLE public.appointment_read_status (
 
 -- Todos
 CREATE TABLE public.todos (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
@@ -1436,7 +1436,7 @@ CREATE TABLE public.todos (
 
 -- Invitations
 CREATE TABLE public.invitations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_home_id UUID REFERENCES public.care_homes(id) ON DELETE CASCADE,
   team_id UUID REFERENCES public.teams(id) ON DELETE CASCADE,
@@ -1456,7 +1456,7 @@ CREATE TABLE public.invitations (
 
 -- Folders
 CREATE TABLE public.folders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_home_id UUID REFERENCES public.care_homes(id) ON DELETE CASCADE,
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,
@@ -1469,7 +1469,7 @@ CREATE TABLE public.folders (
 
 -- Files
 CREATE TABLE public.files (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   care_home_id UUID REFERENCES public.care_homes(id) ON DELETE CASCADE,
   resident_id UUID REFERENCES public.residents(id) ON DELETE CASCADE,

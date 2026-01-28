@@ -1,69 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { chromium } from "playwright";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function formatDate(dateString?: string | number): string {
+    if (!dateString) return "Not specified";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Not specified";
+    return date.toLocaleDateString("en-GB");
+}
 
 export async function POST(request: NextRequest) {
-  try {
-    const { assessmentId } = await request.json();
+    try {
+        // Parse the request body
+        const assessmentData = await request.json();
 
-    if (!assessmentId) {
-      return NextResponse.json(
-        { error: "Assessment ID is required" },
-        { status: 400 }
-      );
+        if (!assessmentData) {
+            return NextResponse.json(
+                { error: "Assessment data is required" },
+                { status: 400 }
+            );
+        }
+
+        // Flatten the data: merge assessment_data into the top level
+        const flattenedAssessment = {
+            ...assessmentData,
+            ...(assessmentData.assessment_data || {}),
+            // Ensure resident details and common fields are at the top level
+            residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+            dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+            bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
+            completionDate: assessmentData.assessment_date || assessmentData.completionDate || assessmentData.completion_date || assessmentData.assessment_data?.completionDate || new Date().toLocaleDateString(),
+            weight: assessmentData.weight || assessmentData.assessment_data?.weight || "N/A",
+            height: assessmentData.height || assessmentData.assessment_data?.height || "N/A"
+        };
+
+        // Add some debugging
+        console.log(
+            "Moving handling PDF API flattening data:",
+            flattenedAssessment.residentName
+        );
+
+        // Generate HTML for the PDF
+        const htmlContent = generateMovingHandlingHTML(flattenedAssessment);
+
+        // Launch Playwright browser
+        const browser = await chromium.launch({
+            headless: true,
+            args: ["--no-sandbox", "--disable-setuid-sandbox"]
+        });
+
+        const page = await browser.newPage();
+
+        try {
+            // Set the HTML content directly
+            await page.setContent(htmlContent, {
+                waitUntil: "networkidle",
+                timeout: 30000
+            });
+
+            // Generate PDF
+            const pdfBuffer = await page.pdf({
+                format: "A4",
+                printBackground: true,
+                margin: {
+                    top: "20px",
+                    bottom: "20px",
+                    left: "20px",
+                    right: "20px"
+                },
+                displayHeaderFooter: false,
+                preferCSSPageSize: true
+            });
+
+            await browser.close();
+
+            // Return the PDF as a response
+            return new NextResponse(pdfBuffer as any, {
+                status: 200,
+                headers: {
+                    "Content-Type": "application/pdf",
+                    "Content-Disposition": `attachment; filename="moving-handling-assessment-${flattenedAssessment.residentName?.replace(/\s+/g, "-") || "record"}-${new Date().toISOString().split("T")[0]}.pdf"`
+                }
+            });
+        } catch (error) {
+            await browser.close();
+            throw error;
+        }
+    } catch (error) {
+        console.error("Error generating moving handling PDF:", error);
+        return NextResponse.json(
+            { error: "Failed to generate PDF", details: error instanceof Error ? error.message : "Unknown error" },
+            { status: 500 }
+        );
     }
-
-    // Get the assessment data from Convex
-    const assessment = await convex.query(
-      api.careFiles.movingHandling.getMovingHandlingAssessment,
-      {
-        id: assessmentId as Id<"movingHandlingAssessments">
-      }
-    );
-
-    if (!assessment) {
-      return NextResponse.json(
-        { error: "Assessment not found" },
-        { status: 404 }
-      );
-    }
-
-    // Generate HTML for the PDF
-    const htmlContent = generateMovingHandlingHTML(assessment);
-
-    // Use a PDF generation library (you can use puppeteer, jsPDF, or any other)
-    // For this example, I'll show the structure but you'll need to implement actual PDF generation
-    const pdfBuffer = await generatePDFFromHTML(htmlContent);
-
-    return new NextResponse(pdfBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="moving-handling-assessment-${assessment.residentName.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf"`
-      }
-    });
-  } catch (error) {
-    console.error("Error generating moving handling PDF:", error);
-    return NextResponse.json(
-      { error: "Failed to generate PDF" },
-      { status: 500 }
-    );
-  }
 }
 
 function generateMovingHandlingHTML(assessment: any): string {
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
-  };
 
-  const formatRiskState = (state: string) => {
-    return state.charAt(0).toUpperCase() + state.slice(1).toLowerCase();
-  };
+    const formatRiskState = (state: string) => {
+        return state.charAt(0).toUpperCase() + state.slice(1).toLowerCase();
+    };
 
-  return `
+    return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -268,27 +305,25 @@ function generateMovingHandlingHTML(assessment: any): string {
                 </div>
             </div>
 
-            ${
-              assessment.equipmentUsed
-                ? `
+            ${assessment.equipmentUsed
+            ? `
                 <div class="info-item">
                     <div class="info-label">Equipment Used:</div>
                     <div class="info-value">${assessment.equipmentUsed}</div>
                 </div>
             `
-                : ""
-            }
+            : ""
+        }
 
-            ${
-              assessment.needsRiskStaff
-                ? `
+            ${assessment.needsRiskStaff
+            ? `
                 <div class="info-item">
                     <div class="info-label">Staff Risk Assessment:</div>
                     <div class="info-value">${assessment.needsRiskStaff}</div>
                 </div>
             `
-                : ""
-            }
+            : ""
+        }
         </div>
 
         <div class="page-break"></div>
@@ -424,39 +459,39 @@ function generateMovingHandlingHTML(assessment: any): string {
 }
 
 async function generatePDFFromHTML(html: string): Promise<Buffer> {
-  const puppeteer = await import("puppeteer");
+    const puppeteer = await import("puppeteer");
 
-  const browser = await puppeteer.default.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process",
-      "--disable-gpu"
-    ]
-  });
-
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "20px",
-        bottom: "20px",
-        left: "20px",
-        right: "20px"
-      }
+    const browser = await puppeteer.default.launch({
+        headless: true,
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--single-process",
+            "--disable-gpu"
+        ]
     });
 
-    return Buffer.from(pdfBuffer);
-  } finally {
-    await browser.close();
-  }
+    try {
+        const page = await browser.newPage();
+        await page.setContent(html, { waitUntil: "networkidle0" });
+
+        const pdfBuffer = await page.pdf({
+            format: "A4",
+            printBackground: true,
+            margin: {
+                top: "20px",
+                bottom: "20px",
+                left: "20px",
+                right: "20px"
+            }
+        });
+
+        return Buffer.from(pdfBuffer);
+    } finally {
+        await browser.close();
+    }
 }

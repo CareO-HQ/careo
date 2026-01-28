@@ -33,10 +33,9 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface TimlDialogProps {
   teamId: string;
@@ -67,127 +66,114 @@ export default function TimlDialog({
   const [completionDatePopoverOpen, setCompletionDatePopoverOpen] =
     useState(false);
 
-  // TODO: Replace with actual Convex mutations once they're created
-  const submitAssessment = useMutation(api.careFiles.timl.submitTimlAssessment);
-  const updateAssessment = useMutation(api.careFiles.timl.updateTimlAssessment);
-  const submitReviewedFormMutation = useMutation(
-    api.managerAudits.submitReviewedForm
-  );
-
   const form = useForm<z.infer<typeof CreateTimlAssessmentSchema>>({
     resolver: zodResolver(CreateTimlAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-          // Use existing data for editing
-          residentId: residentId as Id<"residents">,
-          teamId,
-          organizationId,
-          userId,
-          agree: initialData.agree ?? false,
-          firstName: initialData.firstName ?? resident.firstName ?? "",
-          lastName: initialData.lastName ?? resident.lastName ?? "",
-          dateOfBirth:
-            initialData.dateOfBirth ?? new Date(resident.dateOfBirth).getTime(),
-          desiredName: initialData.desiredName ?? resident.firstName ?? "",
-          // Childhood
-          born: initialData.born ?? "",
-          parentsSiblingsNames: initialData.parentsSiblingsNames ?? "",
-          familyMembersOccupation: initialData.familyMembersOccupation ?? "",
-          whereLived: initialData.whereLived ?? "",
-          schoolAttended: initialData.schoolAttended ?? "",
-          favouriteSubject: initialData.favouriteSubject ?? "",
-          pets: initialData.pets ?? false,
-          petsNames: initialData.petsNames ?? "",
-          // Adolescence
-          whenLeavingSchool: initialData.whenLeavingSchool ?? "",
-          whatWork: initialData.whatWork ?? "",
-          whereWorked: initialData.whereWorked ?? "",
-          specialTraining: initialData.specialTraining ?? "",
-          specialMemoriesWork: initialData.specialMemoriesWork ?? "",
-          nationalService: initialData.nationalService ?? "",
-          // Adulthood
-          partner: initialData.partner ?? "",
-          partnerName: initialData.partnerName ?? "",
-          whereMet: initialData.whereMet ?? "",
-          whereWhenMarried: initialData.whereWhenMarried ?? "",
-          whatDidYouWear: initialData.whatDidYouWear ?? "",
-          flowers: initialData.flowers ?? "",
-          honeyMoon: initialData.honeyMoon ?? "",
-          whereLivedAdult: initialData.whereLivedAdult ?? "",
-          childrenAndNames: initialData.childrenAndNames ?? "",
-          grandchildrenAndNames: initialData.grandchildrenAndNames ?? "",
-          specialFriendsAndNames: initialData.specialFriendsAndNames ?? "",
-          specialFriendsMetAndStillTouch:
-            initialData.specialFriendsMetAndStillTouch ?? "",
-          // Retirement
-          whenRetired: initialData.whenRetired ?? "",
-          lookingForwardTo: initialData.lookingForwardTo ?? "",
-          hobbiesInterests: initialData.hobbiesInterests ?? "",
-          biggestChangesRetirement: initialData.biggestChangesRetirement ?? "",
-          // Current preferences
-          whatEnjoyNow: initialData.whatEnjoyNow ?? "",
-          whatLikeRead: initialData.whatLikeRead ?? "",
-          // Completion
-          completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
-          completedByJobRole: initialData.completedByJobRole ?? "",
-          completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
-          date: initialData.date ?? Date.now()
-        }
+        // Use existing data for editing
+        agree: initialData.agree ?? false,
+        firstName: initialData.assessment_data?.firstName ?? resident.first_name ?? "",
+        lastName: initialData.assessment_data?.lastName ?? resident.last_name ?? "",
+        dateOfBirth:
+          initialData.assessment_data?.dateOfBirth ?? new Date(resident.date_of_birth).getTime(),
+        desiredName: initialData.assessment_data?.desiredName ?? resident.first_name ?? "",
+        // Childhood
+        born: initialData.assessment_data?.born ?? "",
+        parentsSiblingsNames: initialData.assessment_data?.parentsSiblingsNames ?? "",
+        familyMembersOccupation: initialData.assessment_data?.familyMembersOccupation ?? "",
+        whereLived: initialData.assessment_data?.whereLived ?? "",
+        schoolAttended: initialData.assessment_data?.schoolAttended ?? "",
+        favouriteSubject: initialData.assessment_data?.favouriteSubject ?? "",
+        pets: initialData.assessment_data?.pets ?? false,
+        petsNames: initialData.assessment_data?.petsNames ?? "",
+        // Adolescence
+        whenLeavingSchool: initialData.assessment_data?.whenLeavingSchool ?? "",
+        whatWork: initialData.assessment_data?.whatWork ?? "",
+        whereWorked: initialData.assessment_data?.whereWorked ?? "",
+        specialTraining: initialData.assessment_data?.specialTraining ?? "",
+        specialMemoriesWork: initialData.assessment_data?.specialMemoriesWork ?? "",
+        nationalService: initialData.assessment_data?.nationalService ?? "",
+        // Adulthood
+        partner: initialData.assessment_data?.partner ?? "",
+        partnerName: initialData.assessment_data?.partnerName ?? "",
+        whereMet: initialData.assessment_data?.whereMet ?? "",
+        whereWhenMarried: initialData.assessment_data?.whereWhenMarried ?? "",
+        whatDidYouWear: initialData.assessment_data?.whatDidYouWear ?? "",
+        flowers: initialData.assessment_data?.flowers ?? "",
+        honeyMoon: initialData.assessment_data?.honeyMoon ?? "",
+        whereLivedAdult: initialData.assessment_data?.whereLivedAdult ?? "",
+        childrenAndNames: initialData.assessment_data?.childrenAndNames ?? "",
+        grandchildrenAndNames: initialData.assessment_data?.grandchildrenAndNames ?? "",
+        specialFriendsAndNames: initialData.assessment_data?.specialFriendsAndNames ?? "",
+        specialFriendsMetAndStillTouch:
+          initialData.assessment_data?.specialFriendsMetAndStillTouch ?? "",
+        // Retirement
+        whenRetired: initialData.assessment_data?.whenRetired ?? "",
+        lookingForwardTo: initialData.assessment_data?.lookingForwardTo ?? "",
+        hobbiesInterests: initialData.assessment_data?.hobbiesInterests ?? "",
+        biggestChangesRetirement: initialData.assessment_data?.biggestChangesRetirement ?? "",
+        // Current preferences
+        whatEnjoyNow: initialData.assessment_data?.whatEnjoyNow ?? "",
+        whatLikeRead: initialData.assessment_data?.whatLikeRead ?? "",
+        // Completion
+        completedBy: isEditMode ? userName : (initialData.assessment_data?.completedBy ?? userName),
+        completedByJobRole: initialData.assessment_data?.completedByJobRole ?? "",
+        completedBySignature: initialData.completedBySignature || initialData.completed_by || userName,
+        assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : (initialData.assessment_data?.date ? new Date(initialData.assessment_data.date).getTime() : Date.now()),
+        status: initialData.status || "draft"
+      }
       : {
-          // Default values for new forms
-          residentId: residentId as Id<"residents">,
-          teamId,
-          organizationId,
-          userId,
-          agree: false,
-          firstName: resident.firstName ?? "",
-          lastName: resident.lastName ?? "",
-          dateOfBirth: new Date(resident.dateOfBirth).getTime() ?? Date.now(),
-          desiredName: resident.firstName ?? "",
-          // Childhood
-          born: "",
-          parentsSiblingsNames: "",
-          familyMembersOccupation: "",
-          whereLived: "",
-          schoolAttended: "",
-          favouriteSubject: "",
-          pets: false,
-          petsNames: "",
-          // Adolescence
-          whenLeavingSchool: "",
-          whatWork: "",
-          whereWorked: "",
-          specialTraining: "",
-          specialMemoriesWork: "",
-          nationalService: "",
-          // Adulthood
-          partner: "",
-          partnerName: "",
-          whereMet: "",
-          whereWhenMarried: "",
-          whatDidYouWear: "",
-          flowers: "",
-          honeyMoon: "",
-          whereLivedAdult: "",
-          childrenAndNames: "",
-          grandchildrenAndNames: "",
-          specialFriendsAndNames: "",
-          specialFriendsMetAndStillTouch: "",
-          // Retirement
-          whenRetired: "",
-          lookingForwardTo: "",
-          hobbiesInterests: "",
-          biggestChangesRetirement: "",
-          // Current preferences
-          whatEnjoyNow: "",
-          whatLikeRead: "",
-          // Completion
-          completedBy: userName,
-          completedByJobRole: "",
-          completedBySignature: userName,
-          date: Date.now()
-        }
+        // Default values for new forms
+        agree: false,
+        firstName: resident.first_name ?? "",
+        lastName: resident.last_name ?? "",
+        dateOfBirth: new Date(resident.date_of_birth).getTime() ?? Date.now(),
+        desiredName: resident.first_name ?? "",
+        // Childhood
+        born: "",
+        parentsSiblingsNames: "",
+        familyMembersOccupation: "",
+        whereLived: "",
+        schoolAttended: "",
+        favouriteSubject: "",
+        pets: false,
+        petsNames: "",
+        // Adolescence
+        whenLeavingSchool: "",
+        whatWork: "",
+        whereWorked: "",
+        specialTraining: "",
+        specialMemoriesWork: "",
+        nationalService: "",
+        // Adulthood
+        partner: "",
+        partnerName: "",
+        whereMet: "",
+        whereWhenMarried: "",
+        whatDidYouWear: "",
+        flowers: "",
+        honeyMoon: "",
+        whereLivedAdult: "",
+        childrenAndNames: "",
+        grandchildrenAndNames: "",
+        specialFriendsAndNames: "",
+        specialFriendsMetAndStillTouch: "",
+        // Retirement
+        whenRetired: "",
+        lookingForwardTo: "",
+        hobbiesInterests: "",
+        biggestChangesRetirement: "",
+        // Current preferences
+        whatEnjoyNow: "",
+        whatLikeRead: "",
+        // Completion
+        completedBy: userName,
+        completedByJobRole: "",
+        completedBySignature: userName,
+        assessmentDate: Date.now(),
+        status: "draft"
+      }
   });
 
   const totalSteps = 7;
@@ -288,32 +274,26 @@ export default function TimlDialog({
     startTransition(async () => {
       try {
         const formData = form.getValues();
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          assessment_data: formData,
+          management_plan: (formData as any).managementPlan || null,
+          treatment_recommendation: (formData as any).treatmentRecommendation || null,
+          assessment_date: new Date(formData.assessmentDate).toISOString().split('T')[0],
+          completed_by: formData.completedBy,
+          created_by: userId,
+          status: formData.status
+        };
 
-        if (isEditMode && initialData) {
-          // In review mode, use the special submission that creates audit automatically
-          const data = await submitReviewedFormMutation({
-            formType: "timlAssessment",
-            formData: formData,
-            originalFormData: initialData,
-            originalFormId: initialData?._id,
-            residentId: residentId as Id<"residents">,
-            auditedBy: userName,
-            auditNotes: "Form reviewed and updated",
-            teamId,
-            organizationId
-          } as any);
-          if (data.hasChanges) {
-            toast.success("TIML assessment updated successfully!");
-          } else {
-            toast.success("TIML assessment reviewed and approved without changes!");
-          }
-        } else {
-          await submitAssessment({
-            ...formData,
-            residentId: residentId as Id<"residents">
-          } as any);
-          toast.success("TIML assessment saved successfully");
-        }
+        await submitAssessmentWithVersioning(
+          'timl_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
+        toast.success(isEditMode ? "TIML assessment updated successfully!" : "TIML assessment saved successfully");
 
         onClose?.();
       } catch (error) {
@@ -1126,7 +1106,7 @@ export default function TimlDialog({
               />
               <FormField
                 control={form.control}
-                name="date"
+                name="assessmentDate"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date</FormLabel>
@@ -1144,7 +1124,7 @@ export default function TimlDialog({
                               !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? (
+                            {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? (
                               format(new Date(field.value), "PPP")
                             ) : (
                               <span>Pick a date</span>
@@ -1157,7 +1137,7 @@ export default function TimlDialog({
                         <Calendar
                           mode="single"
                           selected={
-                            field.value ? new Date(field.value) : undefined
+                            field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined
                           }
                           captionLayout="dropdown"
                           onSelect={(date) => {

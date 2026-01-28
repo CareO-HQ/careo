@@ -62,16 +62,16 @@ export default function CarePlanSheetContent({
       // I will assume Supabase columns are snake_case and map them to camelCase here for compatibility.
       setCarePlanData({
         ...data,
-        nameOfCarePlan: data.name_of_care_plan || data.nameOfCarePlan, // Fallback
-        carePlanNumber: data.care_plan_number || data.carePlanNumber,
-        writtenBy: data.written_by || data.writtenBy,
-        dateWritten: data.date_written || data.created_at || data.dateWritten,
-        residentName: data.resident_name || data.residentName,
-        dob: data.dob,
-        bedroomNumber: data.bedroom_number || data.bedroomNumber,
-        aims: data.aims,
-        identifiedNeeds: data.identified_needs || data.identifiedNeeds,
-        plannedCareDate: data.planned_care_date || data.plannedCareDate || [],
+        nameOfCarePlan: data.care_plan_type || data.name_of_care_plan || data.nameOfCarePlan,
+        carePlanNumber: data.goals?.carePlanNumber || data.care_plan_number || data.carePlanNumber,
+        writtenBy: data.goals?.writtenBy || data.written_by || data.writtenBy,
+        dateWritten: data.goals?.dateWritten || data.date_written || data.created_at || data.dateWritten,
+        residentName: data.goals?.residentName || data.resident_name || data.residentName,
+        dob: data.goals?.dob || data.dob,
+        bedroomNumber: data.goals?.bedroomNumber || data.bedroom_number || data.bedroomNumber,
+        aims: data.goals?.aims || data.aims,
+        identifiedNeeds: data.need_identified || data.identified_needs || data.identifiedNeeds,
+        plannedCareDate: data.interventions || data.planned_care_date || data.plannedCareDate || [],
         previousCarePlanId: data.previous_care_plan_id || data.previousCarePlanId
       });
     }
@@ -91,7 +91,7 @@ export default function CarePlanSheetContent({
         ...e,
         _id: e.id,
         evaluationDate: e.evaluation_date || e.created_at,
-        comments: e.comments
+        comments: e.progress_notes || e.comments
       })));
     }
   };
@@ -192,10 +192,11 @@ export default function CarePlanSheetContent({
     try {
       const { error } = await supabase.from('care_plan_evaluations').insert({
         care_plan_id: carePlan.formId,
-        evaluation_date: new Date().toISOString(), // Use ISO string for timestamptz
-        comments: evaluationComments.trim(),
-        user_id: profile.id,
-        created_by_name: profile.name
+        evaluation_date: new Date().toISOString(),
+        progress_notes: evaluationComments.trim(),
+        created_by: profile.id,
+        organization_id: profile.active_organization_id,
+        resident_id: carePlanData.resident_id
       });
 
       if (error) throw error;
@@ -285,7 +286,7 @@ export default function CarePlanSheetContent({
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side="left"
+          side="right"
           size="lg"
           className="z-[60]"
           onClick={(e) => e.stopPropagation()}
@@ -306,7 +307,7 @@ export default function CarePlanSheetContent({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="left"
+        side="right"
         size="lg"
         className="z-[60] overflow-y-auto flex flex-col justify-start"
         onClick={(e) => e.stopPropagation()}
@@ -328,7 +329,7 @@ export default function CarePlanSheetContent({
                   </span>{" "}
                   on{" "}
                   <span className="font-medium text-primary">
-                    {format(new Date(carePlanData.dateWritten), "dd MMM yyyy")}
+                    {carePlanData.dateWritten ? format(new Date(carePlanData.dateWritten), "dd MMM yyyy") : "Unknown Date"}
                   </span>
                 </span>
                 {carePlanData.previousCarePlanId && (
@@ -359,7 +360,7 @@ export default function CarePlanSheetContent({
               <p className="text-sm font-normal text-muted-foreground">
                 Date of Birth:{" "}
                 <span className="font-medium text-primary">
-                  {format(new Date(carePlanData.dob), "dd MMMM yyyy")}
+                  {carePlanData.dob ? format(new Date(carePlanData.dob), "dd MMMM yyyy") : "N/A"}
                 </span>
               </p>
               <p className="text-sm font-normal text-muted-foreground">
@@ -631,10 +632,12 @@ export default function CarePlanSheetContent({
                     >
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">
-                          {format(
-                            new Date(evaluation.evaluationDate),
-                            "dd MMMM yyyy 'at' HH:mm"
-                          )}
+                          {evaluation.evaluationDate
+                            ? format(
+                              new Date(evaluation.evaluationDate),
+                              "dd MMMM yyyy 'at' HH:mm"
+                            )
+                            : "Unknown Date"}
                         </p>
                       </div>
                       <p className="text-sm text-foreground whitespace-pre-wrap">

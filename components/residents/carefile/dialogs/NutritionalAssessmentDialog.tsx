@@ -36,7 +36,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface NutritionalAssessmentDialogProps {
   teamId: string;
@@ -65,7 +65,6 @@ export default function NutritionalAssessmentDialog({
 }: NutritionalAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [assessmentDatePopoverOpen, setAssessmentDatePopoverOpen] = useState(false);
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof nutritionalAssessmentSchema>>({
     resolver: zodResolver(nutritionalAssessmentSchema),
@@ -76,9 +75,9 @@ export default function NutritionalAssessmentDialog({
         teamId,
         organizationId,
         userId,
-        residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-        dateOfBirth: initialData.dateOfBirth || format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
-        bedroomNumber: initialData.bedroomNumber || resident.roomNumber || "",
+        residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
+        bedroomNumber: initialData.bedroomNumber || resident.room_number || "",
         height: initialData.assessment_details?.height || initialData.height || "",
         weight: initialData.assessment_details?.weight || initialData.weight || "",
         mustScore: initialData.must_score || initialData.mustScore || "",
@@ -103,9 +102,9 @@ export default function NutritionalAssessmentDialog({
         teamId,
         organizationId,
         userId,
-        residentName: `${resident.firstName} ${resident.lastName}`,
-        dateOfBirth: format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
-        bedroomNumber: resident.roomNumber || "",
+        residentName: `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "",
+        bedroomNumber: resident.room_number || "",
         height: "",
         weight: "",
         mustScore: "",
@@ -133,8 +132,7 @@ export default function NutritionalAssessmentDialog({
   function onSubmit(values: z.infer<typeof nutritionalAssessmentSchema>) {
     startTransition(async () => {
       try {
-        const currentUserId = session?.user?.id;
-        if (!currentUserId) throw new Error("User not authenticated");
+        if (!userId) throw new Error("User not authenticated");
 
         const assessmentDetails = {
           height: values.height,
@@ -161,31 +159,28 @@ export default function NutritionalAssessmentDialog({
           assessment_details: assessmentDetails,
           assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
           completed_by: values.completedBy,
-          created_by: currentUserId
+          created_by: userId
         };
 
-        if (isEditMode && initialData?.id) {
-          const { error } = await supabase
-            .from('nutritional_assessments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
+        await submitAssessmentWithVersioning(
+          'nutritional_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
 
+        if (isEditMode && initialData?.id) {
           await supabase.from('manager_audits').insert({
             form_type: 'nutritional_assessments',
             form_id: initialData.id,
             resident_id: residentId,
-            audited_by: currentUserId,
+            audited_by: userId,
             audit_notes: "Form reviewed and updated",
             organization_id: organizationId,
             care_home_id: resident.care_home_id
           });
           toast.success("Nutritional assessment updated successfully!");
         } else {
-          const { error } = await supabase
-            .from('nutritional_assessments')
-            .insert(payload);
-          if (error) throw error;
           toast.success("Nutritional assessment submitted successfully");
         }
         setTimeout(() => onClose?.(), 500);

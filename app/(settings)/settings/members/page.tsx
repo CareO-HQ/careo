@@ -31,17 +31,27 @@ export default function MembersPage() {
       }
 
       try {
-        // Fetch members
+        // Fetch fully onboarded members
         const { data: membersData, error: membersError } = await supabase
           .from('users')
           .select('*')
-          .eq('active_organization_id', activeOrganizationId);
+          .eq('active_organization_id', activeOrganizationId)
+          .eq('is_onboarding_complete', true);
 
         if (membersError) throw membersError;
 
         setMembers(membersData || []);
 
-        // Fetch invitations
+        // Fetch users who accepted but haven't finished onboarding
+        const { data: pendingUsersData, error: pendingUsersError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('active_organization_id', activeOrganizationId)
+          .eq('is_onboarding_complete', false);
+
+        if (pendingUsersError) throw pendingUsersError;
+
+        // Fetch pending invitations
         const { data: invitationsData, error: invitationsError } = await supabase
           .from('invitations')
           .select('*')
@@ -50,7 +60,19 @@ export default function MembersPage() {
 
         if (invitationsError) throw invitationsError;
 
-        setInvitations(invitationsData || []);
+        // Combine invitations and users awaiting onboarding
+        // For users, we'll format them to match invitation structure for consistent rendering
+        const normalizedPendingUsers = (pendingUsersData || []).map(u => ({
+          ...u,
+          isUser: true,
+          email: u.email,
+          role: u.role,
+        }));
+
+        setInvitations([
+          ...normalizedPendingUsers,
+          ...(invitationsData || [])
+        ]);
 
       } catch (error) {
         console.error("Error fetching members data:", error);
@@ -80,7 +102,8 @@ export default function MembersPage() {
         .update({
           active_organization_id: null,
           active_care_home_id: null,
-          active_team_id: null
+          active_team_id: null,
+          is_onboarding_complete: false
         })
         .eq('id', memberId);
 
@@ -88,6 +111,8 @@ export default function MembersPage() {
 
       toast.success("Member removed from organization");
       setMembers(members.filter(m => m.id !== memberId));
+      // Also remove from invitations list if they were pending
+      setInvitations(invitations.filter(i => (i.id !== memberId && !i.isUser) || (i.id !== memberId && i.isUser)));
     } catch (error) {
       console.error("Error removing member:", error);
       toast.error("Failed to remove member");
@@ -193,19 +218,35 @@ export default function MembersPage() {
                 key={invitation.id}
                 className="flex flex-row justify-between items-center w-full"
               >
-                <p className="font-medium text-sm text-muted-foreground">
-                  {invitation.email}
-                </p>
+                <div className="flex flex-col">
+                  <p className="font-medium text-sm text-muted-foreground">
+                    {invitation.email}
+                  </p>
+                  {invitation.isUser && (
+                    <p className="text-[10px] text-primary/70 font-medium">Joined - Onboarding pending</p>
+                  )}
+                </div>
                 <div className="flex flex-row justify-end items-center gap-2">
                   <p className="text-xs text-muted-foreground">
                     {formatRoleName(invitation.role)}
                   </p>
-                  <InviteActions invitationId={invitation.id} />
+                  {invitation.isUser ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveMember(invitation.id)}
+                    >
+                      Remove
+                    </Button>
+                  ) : (
+                    <InviteActions invitationId={invitation.id} />
+                  )}
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-xs text-muted-foreground">No invitations sent</p>
+            <p className="text-xs text-muted-foreground">No pending invitations</p>
           )}
         </div>
       )}

@@ -14,20 +14,23 @@ import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import { Resident } from "@/types";
 
 interface ChokingRiskAssessmentDialogProps {
   teamId: string;
   residentId: string;
   organizationId: string;
   userId: string;
-  resident: { firstName: string; lastName: string; dateOfBirth: number; id?: string; care_home_id?: string };
+  userName?: string;
+  resident: Resident;
   isEditMode?: boolean;
   initialData?: any;
   onClose: () => void;
 }
 
 export default function ChokingRiskAssessmentDialog({
-  teamId, residentId, organizationId, userId, resident,
+  teamId, residentId, organizationId, userId, userName, resident,
   isEditMode = false, initialData, onClose
 }: ChokingRiskAssessmentDialogProps) {
   const [currentScore, setCurrentScore] = useState(0);
@@ -39,8 +42,8 @@ export default function ChokingRiskAssessmentDialog({
   const form = useForm<z.infer<typeof chokingRiskAssessmentSchema>>({
     resolver: zodResolver(chokingRiskAssessmentSchema),
     defaultValues: initialData ? {
-      residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: initialData.dateOfBirth || new Date(resident.dateOfBirth).toISOString().split("T")[0],
+      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
       dateOfAssessment: initialData.dateOfAssessment || new Date().toISOString().split("T")[0],
       time: initialData.time || new Date().toTimeString().slice(0, 5),
       completedBy: initialData.completedBy || profile?.name || "",
@@ -76,11 +79,11 @@ export default function ChokingRiskAssessmentDialog({
       drinksIndependently: initialData.risk_factors?.drinksIndependently ?? true,
       eatsIndependently: initialData.risk_factors?.eatsIndependently ?? true
     } : {
-      residentName: `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: new Date(resident.dateOfBirth).toISOString().split("T")[0],
+      residentName: `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
       dateOfAssessment: new Date().toISOString().split("T")[0],
       time: new Date().toTimeString().slice(0, 5),
-      completedBy: profile?.name || "",
+      completedBy: userName || profile?.name || "",
       signature: "",
       weakCough: false, chestInfections: false, breathingDifficulties: false, knownToAspirate: false,
       chokingHistory: false, gurgledVoice: false, epilepsy: false, cerebralPalsy: false, dementia: false,
@@ -101,10 +104,20 @@ export default function ChokingRiskAssessmentDialog({
     setCurrentRiskLevel(riskLevel);
   }, [watchedValues]);
 
+  // Sync completedBy with userName or profile name when they load
+  useEffect(() => {
+    if (!form.getValues("completedBy")) {
+      const name = userName || profile?.name;
+      if (name) {
+        form.setValue("completedBy", name);
+      }
+    }
+  }, [userName, profile, form]);
+
   const onSubmit = async (data: z.infer<typeof chokingRiskAssessmentSchema>) => {
     try {
       setIsSubmitting(true);
-      const currentUserId = profile?.id;
+      const currentUserId = userId;
       if (!currentUserId) throw new Error("User not authenticated");
 
       const riskFactors = {
@@ -131,17 +144,20 @@ export default function ChokingRiskAssessmentDialog({
         created_by: currentUserId
       };
 
+      await submitAssessmentWithVersioning(
+        'choking_risk_assessments',
+        payload,
+        initialData,
+        isEditMode
+      );
+
       if (isEditMode && initialData?.id) {
-        const { error } = await supabase.from('choking_risk_assessments').update(payload).eq('id', initialData.id);
-        if (error) throw error;
         await supabase.from('manager_audits').insert({
           form_type: 'choking_risk_assessments', form_id: initialData.id, resident_id: residentId,
           audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
         });
         toast.success("Choking Risk Assessment updated");
       } else {
-        const { error } = await supabase.from('choking_risk_assessments').insert(payload);
-        if (error) throw error;
         toast.success("Choking Risk Assessment submitted");
       }
       onClose();
@@ -230,7 +246,15 @@ export default function ChokingRiskAssessmentDialog({
             <div className="space-y-4 p-4 border rounded-lg bg-card">
               <h3 className="font-semibold text-sm border-b pb-2">Completion</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="completedBy" className="text-sm">Completed By</Label><Input id="completedBy" {...form.register("completedBy")} disabled className="text-sm" /></div>
+                <div className="space-y-2">
+                  <Label htmlFor="completedBy" className="text-sm">Completed By</Label>
+                  <Input
+                    id="completedBy"
+                    {...form.register("completedBy")}
+                    readOnly
+                    className="text-sm bg-muted cursor-not-allowed"
+                  />
+                </div>
                 <div className="space-y-2"><Label htmlFor="signature" className="text-sm">Signature</Label><Input id="signature" {...form.register("signature")} placeholder="Signature" className="text-sm" /></div>
               </div>
             </div>
@@ -239,7 +263,18 @@ export default function ChokingRiskAssessmentDialog({
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-background">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
-          <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}</Button>
+          <Button
+            type="submit"
+            onClick={() => {
+              form.handleSubmit(onSubmit, (errors) => {
+                console.error("Form errors:", errors);
+                toast.error("Please fill in all required fields");
+              })();
+            }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface DependencyDialogProps {
   teamId: string;
@@ -60,22 +60,21 @@ export default function DependencyDialog({
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof DependencyAssessmentSchema>>({
     resolver: zodResolver(DependencyAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData ? {
       dependencyLevel: initialData.dependency_level || initialData.dependencyLevel || "A",
-      completedBy: isEditMode ? userName : (initialData.completed_by || initialData.completedBy || userName),
-      completedBySignature: isEditMode ? userName : (initialData.completedBySignature || userName),
-      date: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
+      completedBy: initialData.completedBy || initialData.completed_by || userName,
+      completedBySignature: initialData.completedBySignature || initialData.completed_by || userName,
+      assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
       status: initialData.status || "draft"
     } : {
       dependencyLevel: undefined,
       completedBy: userName,
       completedBySignature: userName,
-      date: Date.now(),
+      assessmentDate: Date.now(),
       status: "draft"
     }
   });
@@ -94,7 +93,7 @@ export default function DependencyDialog({
 
   const handleNext = async () => {
     setDatePopoverOpen(false);
-    let isValid = step === 1 ? await form.trigger(["dependencyLevel"]) : await form.trigger(["completedBy", "completedBySignature", "date"]);
+    let isValid = step === 1 ? await form.trigger(["dependencyLevel"]) : await form.trigger(["completedBy", "completedBySignature", "assessmentDate"]);
     if (isValid || step === totalSteps) {
       if (step < totalSteps) setStep(step + 1);
       else await handleSubmit();
@@ -107,29 +106,31 @@ export default function DependencyDialog({
     startTransition(async () => {
       try {
         const formData = form.getValues();
-        const currentUserId = session?.user?.id;
-        if (!currentUserId) throw new Error("User not authenticated");
+        if (!userId) throw new Error("User not authenticated");
 
         const payload = {
           resident_id: residentId,
           organization_id: organizationId,
           dependency_level: formData.dependencyLevel,
-          assessment_date: new Date(formData.date).toISOString().split('T')[0],
+          assessment_date: new Date(formData.assessmentDate).toISOString().split('T')[0],
           completed_by: formData.completedBy,
-          created_by: currentUserId
+          created_by: userId
         };
 
+        await submitAssessmentWithVersioning(
+          'dependency_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
         if (isEditMode && initialData?.id) {
-          const { error } = await supabase.from('dependency_assessments').update(payload).eq('id', initialData.id);
-          if (error) throw error;
           await supabase.from('manager_audits').insert({
             form_type: 'dependency_assessments', form_id: initialData.id, resident_id: residentId,
-            audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
+            audited_by: userId, audit_notes: "Form reviewed", organization_id: organizationId
           });
           toast.success("Dependency assessment updated");
         } else {
-          const { error } = await supabase.from('dependency_assessments').insert(payload);
-          if (error) throw error;
           toast.success("Dependency assessment saved");
         }
         onClose?.();
@@ -175,7 +176,7 @@ export default function DependencyDialog({
               <div className="space-y-4">
                 <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel required>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="completedBySignature" render={({ field }) => (<FormItem><FormLabel required>Digital Signature</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="date" render={({ field }) => (
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
                   <FormItem><FormLabel required>Assessment Date</FormLabel>
                     <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
                       <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>

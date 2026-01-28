@@ -34,7 +34,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface PainAssessmentDialogProps {
   teamId: string;
@@ -55,24 +55,23 @@ export default function PainAssessmentDialog({
 }: PainAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof painAssessmentSchema>>({
     resolver: zodResolver(painAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData ? {
       residentId, teamId, organizationId, userId,
-      residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: initialData.dateOfBirth || format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
-      roomNumber: initialData.roomNumber || resident.roomNumber || "",
+      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
+      roomNumber: initialData.roomNumber || resident.room_number || "",
       nameOfHome: initialData.nameOfHome || careHomeName || "",
       assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
       assessmentEntries: initialData.assessment_entries || []
     } : {
       residentId, teamId, organizationId, userId,
-      residentName: `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
-      roomNumber: resident.roomNumber || "",
+      residentName: `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "",
+      roomNumber: resident.room_number || "",
       nameOfHome: careHomeName || "",
       assessmentDate: Date.now(),
       assessmentEntries: [{
@@ -92,7 +91,7 @@ export default function PainAssessmentDialog({
   function onSubmit(values: z.infer<typeof painAssessmentSchema>) {
     startTransition(async () => {
       try {
-        const currentUserId = session?.user?.id;
+        const currentUserId = userId;
         if (!currentUserId) throw new Error("User not authenticated");
 
         const payload = {
@@ -103,17 +102,20 @@ export default function PainAssessmentDialog({
           created_by: currentUserId
         };
 
+        await submitAssessmentWithVersioning(
+          'pain_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
         if (isEditMode && initialData?.id) {
-          const { error } = await supabase.from('pain_assessments').update(payload).eq('id', initialData.id);
-          if (error) throw error;
           await supabase.from('manager_audits').insert({
             form_type: 'pain_assessments', form_id: initialData.id, resident_id: residentId,
             audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
           });
           toast.success("Pain assessment updated!");
         } else {
-          const { error } = await supabase.from('pain_assessments').insert(payload);
-          if (error) throw error;
           toast.success("Pain assessment submitted");
         }
         setTimeout(() => onClose?.(), 500);

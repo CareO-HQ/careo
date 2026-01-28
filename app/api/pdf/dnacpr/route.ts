@@ -3,15 +3,21 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -193,26 +199,24 @@ function generateDnacprHTML(data: any): string {
           </p>
         </div>
 
-        ${
-          data.dnacpr
-            ? `
+        ${data.dnacpr
+      ? `
         <div class="reason-box">
           <h3>Reason for DNACPR Decision</h3>
           <p><strong>${getReasonText(data.reason)}</strong></p>
-          ${
-            data.dnacprComments
-              ? `
+          ${data.dnacprComments
+        ? `
           <div style="margin-top: 12px;">
             <p><strong>Additional Comments:</strong></p>
             <p style="color: #6b7280; margin-top: 4px;">${data.dnacprComments}</p>
           </div>
           `
-              : ""
-          }
+        : ""
+      }
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Discussions -->
@@ -227,25 +231,23 @@ function generateDnacprHTML(data: any): string {
             <span class="checkbox">${data.discussedResident ? "✓" : "✗"}</span>
             Discussion with Resident
           </h3>
-          ${
-            data.discussedResident
-              ? `
+          ${data.discussedResident
+      ? `
             ${data.discussedResidentDate ? `<p><strong>Date of Discussion:</strong> ${formatDate(data.discussedResidentDate)}</p>` : ""}
-            ${
-              data.discussedResidentComments
-                ? `
+            ${data.discussedResidentComments
+        ? `
             <div style="margin-top: 8px;">
               <p><strong>Comments:</strong></p>
               <p style="color: #6b7280; margin-top: 4px;">${data.discussedResidentComments}</p>
             </div>
             `
-                : ""
-            }
+        : ""
+      }
           `
-              : `
+      : `
             <p style="color: #6b7280; margin-top: 4px;">No discussion held with resident</p>
           `
-          }
+    }
         </div>
 
         <div class="discussion-item">
@@ -253,25 +255,23 @@ function generateDnacprHTML(data: any): string {
             <span class="checkbox">${data.discussedRelatives ? "✓" : "✗"}</span>
             Discussion with Relatives
           </h3>
-          ${
-            data.discussedRelatives
-              ? `
+          ${data.discussedRelatives
+      ? `
             ${data.discussedRelativeDate ? `<p><strong>Date of Discussion:</strong> ${formatDate(data.discussedRelativeDate)}</p>` : ""}
-            ${
-              data.discussedRelativesComments
-                ? `
+            ${data.discussedRelativesComments
+        ? `
             <div style="margin-top: 8px;">
               <p><strong>Comments:</strong></p>
               <p style="color: #6b7280; margin-top: 4px;">${data.discussedRelativesComments}</p>
             </div>
             `
-                : ""
-            }
+        : ""
+      }
           `
-              : `
+      : `
             <p style="color: #6b7280; margin-top: 4px;">No discussion held with relatives</p>
           `
-          }
+    }
         </div>
 
         <div class="discussion-item">
@@ -279,37 +279,34 @@ function generateDnacprHTML(data: any): string {
             <span class="checkbox">${data.discussedNOKs ? "✓" : "✗"}</span>
             Discussion with Next of Kin
           </h3>
-          ${
-            data.discussedNOKs
-              ? `
+          ${data.discussedNOKs
+      ? `
             ${data.discussedNOKsDate ? `<p><strong>Date of Discussion:</strong> ${formatDate(data.discussedNOKsDate)}</p>` : ""}
-            ${
-              data.discussedNOKsComments
-                ? `
+            ${data.discussedNOKsComments
+        ? `
             <div style="margin-top: 8px;">
               <p><strong>Comments:</strong></p>
               <p style="color: #6b7280; margin-top: 4px;">${data.discussedNOKsComments}</p>
             </div>
             `
-                : ""
-            }
+        : ""
+      }
           `
-              : `
+      : `
             <p style="color: #6b7280; margin-top: 4px;">No discussion held with next of kin</p>
           `
-          }
+    }
         </div>
 
-        ${
-          data.comments
-            ? `
+        ${data.comments
+      ? `
         <div class="discussion-item">
           <h3>Additional Comments</h3>
           <p style="color: #6b7280;">${data.comments}</p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Signatures -->
@@ -405,24 +402,35 @@ export async function POST(request: NextRequest) {
     });
 
     // Parse the request body
-    const dnacprData = await request.json();
+    const assessmentData = await request.json();
 
-    if (!dnacprData) {
+    if (!assessmentData) {
       return NextResponse.json(
         { error: "DNACPR data is required" },
         { status: 400 }
       );
     }
 
-    console.log("DNACPR PDF API called with data:", {
-      residentName: dnacprData.residentName,
-      bedroomNumber: dnacprData.bedroomNumber,
-      dnacprDecision: dnacprData.dnacpr,
-      formId: dnacprData._id
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure resident details and common fields are at the top level
+      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      // Scoring and discussion fields are likely already at top level after spread
+    };
+
+    console.log("DNACPR PDF API flattening data:", {
+      residentName: flattenedData.residentName,
+      dnacprDecision: flattenedData.dnacpr,
+      formId: flattenedData._id || flattenedData.id
     });
 
     // Generate HTML content
-    const htmlContent = generateDnacprHTML(dnacprData);
+    const htmlContent = generateDnacprHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -459,7 +467,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="dnacpr-${dnacprData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,
+          "Content-Disposition": `attachment; filename="dnacpr-${flattenedData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

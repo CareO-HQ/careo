@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface ResidentHandlingProfileProps {
   teamId: string;
@@ -49,14 +49,13 @@ interface ResidentHandlingProfileProps {
 }
 
 export default function ResidentHandlingProfile({
-  teamId, residentId, organizationId, userName, resident,
+  teamId, residentId, organizationId, userId, userName, resident,
   onClose, initialData, isEditMode = false
 }: ResidentHandlingProfileProps) {
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [reviewDatePopovers, setReviewDatePopovers] = useState<Record<string, boolean>>({});
-  const { data: session } = authClient.useSession();
 
   const getDefaultActivityValues = () => ({
     nStaff: 0, equipment: "", handlingPlan: "", dateForReview: Date.now()
@@ -70,8 +69,8 @@ export default function ResidentHandlingProfile({
       completedBy: initialData.completed_by || "",
       jobRole: initialData.job_role || "",
       date: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
-      residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-      bedroomNumber: initialData.bedroomNumber || resident.roomNumber || "",
+      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+      bedroomNumber: initialData.bedroomNumber || resident.room_number || "",
       weight: initialData.weight || 0,
       weightBearing: initialData.weight_bearing || "",
       transferBed: initialData.activities?.transferBed || getDefaultActivityValues(),
@@ -83,9 +82,9 @@ export default function ResidentHandlingProfile({
       outdoorMobility: initialData.activities?.outdoorMobility || getDefaultActivityValues()
     } : {
       residentId, teamId, organizationId,
-      completedBy: "", jobRole: "", date: Date.now(),
-      residentName: `${resident.firstName} ${resident.lastName}`,
-      bedroomNumber: resident.roomNumber || "",
+      completedBy: userName || "", jobRole: "", date: Date.now(),
+      residentName: `${resident.first_name} ${resident.last_name}`,
+      bedroomNumber: resident.room_number || "",
       weight: 0, weightBearing: "",
       transferBed: getDefaultActivityValues(),
       transferChair: getDefaultActivityValues(),
@@ -117,8 +116,7 @@ export default function ResidentHandlingProfile({
     startTransition(async () => {
       try {
         const formData = form.getValues();
-        const currentUserId = session?.user?.id;
-        if (!currentUserId) throw new Error("User not authenticated");
+        if (!userId) throw new Error("User not authenticated");
 
         const activities = {
           transferBed: formData.transferBed,
@@ -139,20 +137,23 @@ export default function ResidentHandlingProfile({
           weight_bearing: formData.weightBearing,
           activities: activities,
           assessment_date: new Date(formData.date).toISOString().split('T')[0],
-          created_by: currentUserId
+          created_by: userId
         };
 
+        await submitAssessmentWithVersioning(
+          'handling_profiles',
+          payload,
+          initialData,
+          isEditMode
+        );
+
         if (isEditMode && initialData?.id) {
-          const { error } = await supabase.from('handling_profiles').update(payload).eq('id', initialData.id);
-          if (error) throw error;
           await supabase.from('manager_audits').insert({
             form_type: 'handling_profiles', form_id: initialData.id, resident_id: residentId,
-            audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
+            audited_by: userId, audit_notes: "Form reviewed", organization_id: organizationId
           });
           toast.success("Handling profile updated!");
         } else {
-          const { error } = await supabase.from('handling_profiles').insert(payload);
-          if (error) throw error;
           toast.success("Handling profile saved");
         }
         onClose?.();

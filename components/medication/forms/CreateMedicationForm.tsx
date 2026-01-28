@@ -36,6 +36,8 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useProfile } from "@/hooks/use-profile";
+
 
 export default function CreateMedicationForm({
   residentId,
@@ -48,10 +50,12 @@ export default function CreateMedicationForm({
   organizationId?: string;
   onSuccess: () => void;
 }) {
+  const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
+
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
     resolver: zodResolver(CreateMedicationSchema),
     mode: "onChange",
@@ -99,6 +103,7 @@ export default function CreateMedicationForm({
             resident_id: residentId,
             team_id: teamId,
             organization_id: organizationId,
+            created_by: profile?.id,
             name: values.name,
             strength: values.strength,
             strength_unit: values.strengthUnit,
@@ -120,6 +125,7 @@ export default function CreateMedicationForm({
             max_daily_dose: values.maxDailyDose,
             max_daily_dose_unit: values.maxDailyDoseUnit
           });
+
 
         if (error) throw error;
 

@@ -10,21 +10,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { ArrowLeft, Eye, FileText } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useFolderForms } from "@/hooks/use-folder-forms";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
+import { supabase } from "@/lib/supabase";
 
 export default function AllRiskAssessmentsPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[3] as Id<"residents">;
+  const residentId = pathname[3];
 
   const [viewingAssessment, setViewingAssessment] = useState<{
     formKey: string;
@@ -34,10 +32,29 @@ export default function AllRiskAssessmentsPage() {
     category: string;
   } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [resident, setResident] = useState<any>(undefined);
+  const [loading, setLoading] = useState(true);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: residentId as Id<"residents">
-  });
+  useEffect(() => {
+    async function fetchData() {
+      if (!residentId) return;
+
+      try {
+        const { data: residentData } = await supabase
+          .from('residents')
+          .select('*')
+          .eq('id', residentId)
+          .single();
+        setResident(residentData);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [residentId]);
 
   // Fetch all assessment forms (excluding risk assessments and care plans)
   const {
@@ -65,10 +82,10 @@ export default function AllRiskAssessmentsPage() {
       "resident-valuables-form",
       "resident-handling-profile-form"
     ],
-    organizationId: resident?.organizationId
+    organizationId: resident?.active_organization_id
   });
 
-  if (resident === undefined) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -79,7 +96,7 @@ export default function AllRiskAssessmentsPage() {
     );
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -97,8 +114,8 @@ export default function AllRiskAssessmentsPage() {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   // Helper function to get only the latest form from an array
   const getLatestForm = (forms: any[] | undefined | null) => {

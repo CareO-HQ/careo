@@ -1,13 +1,12 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import {
   Card,
   CardContent,
@@ -82,26 +81,78 @@ type DocumentUploadFormData = z.infer<typeof DocumentUploadSchema>;
 export default function DocumentsPage({ params }: DocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const { profile } = useProfile();
 
-  // Queries
-  const folders = useQuery(api.folders.getByResident, {
-    residentId: id as Id<"residents">,
-  });
+  // State management
+  const [resident, setResident] = React.useState<any>(null);
+  const [folders, setFolders] = React.useState<any[]>([]);
+  const [files, setFiles] = React.useState<any[]>([]);
+  const [selectedFolder, setSelectedFolder] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [isFolderDialogOpen, setIsFolderDialogOpen] = React.useState(false);
+  const [isFolderSheetOpen, setIsFolderSheetOpen] = React.useState(false);
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [folderToDelete, setFolderToDelete] = React.useState<{ id: string; name: string } | null>(null);
+  const [editingFolderId, setEditingFolderId] = React.useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = React.useState("");
 
-  const files = useQuery(api.residentFiles.getByResident, {
-    residentId: id as Id<"residents">,
-  });
+  // Fetch resident and folders
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
 
-  // Mutations
-  const createFolder = useMutation(api.folders.create);
-  const updateFolder = useMutation(api.folders.update);
-  const deleteFolder = useMutation(api.folders.remove);
-  const generateUploadUrl = useMutation(api.residentFiles.generateUploadUrl);
-  const createFile = useMutation(api.residentFiles.create);
-  const deleteFile = useMutation(api.residentFiles.remove);
+        // Fetch resident
+        const { data: residentData, error: residentError } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (residentError || !residentData) {
+          console.error("Error fetching resident:", residentError);
+          setResident(null);
+          setLoading(false);
+          return;
+        }
+
+        setResident(residentData);
+
+        // Fetch folders
+        const { data: foldersData, error: foldersError } = await supabase
+          .from("folders")
+          .select("*")
+          .eq("resident_id", id)
+          .order("created_at", { ascending: false });
+
+        if (foldersError) {
+          console.error("Error fetching folders:", foldersError);
+        } else {
+          setFolders(foldersData || []);
+        }
+
+        // Fetch all files for this resident
+        const { data: filesData, error: filesError } = await supabase
+          .from("files")
+          .select("*")
+          .eq("resident_id", id)
+          .order("created_at", { ascending: false });
+
+        if (filesError) {
+          console.error("Error fetching files:", filesError);
+        } else {
+          setFiles(filesData || []);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
 
   // Form setup
   const folderForm = useForm<FolderFormData>({
@@ -142,34 +193,44 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
   const handleCreateFolder = async (data: FolderFormData) => {
     try {
-      if (!resident) return;
+      if (!resident || !profile) return;
 
       // VALIDATION: Check folder limit (10 folders per resident)
-      if (folders && folders.length >= 10) {
+      if (folders.length >= 10) {
         toast.error("Maximum limit of 10 folders per resident reached");
         return;
       }
 
-      await createFolder({
-        name: data.name,
-        residentId: id as Id<"residents">,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId,
-      });
+      const { error } = await supabase.from("folders").insert([
+        {
+          name: data.name,
+          resident_id: id,
+          organization_id: resident.organization_id || profile.active_organization_id,
+          care_home_id: resident.care_home_id,
+          created_by: profile.id,
+        },
+      ]);
+
+      if (error) throw error;
 
       toast.success("Folder created successfully");
       folderForm.reset();
       setIsFolderDialogOpen(false);
+
+      // Refetch folders
+      const { data: foldersData } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("resident_id", id)
+        .order("created_at", { ascending: false });
+      setFolders(foldersData || []);
     } catch (error: any) {
       console.error("Error creating folder:", error);
       toast.error(error?.message || "Failed to create folder");
     }
   };
 
-  const handleOpenFolder = (folderId: Id<"folders">) => {
-    setSelectedFolder(folderId);
-    setIsFolderSheetOpen(true);
-  };
+  const folderFiles = selectedFolder ? files.filter((f) => f.folder_id === selectedFolder) : [];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -191,52 +252,63 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
   const handleUploadDocument = async (data: DocumentUploadFormData) => {
     try {
-      if (!selectedFile || !resident || !selectedFolder) {
-        toast.error("Please select a file");
+      if (!selectedFile || !resident || !selectedFolder || !profile) {
+        toast.error("Please select a file and folder");
         return;
       }
 
       // VALIDATION: Check file count in folder (50 files max)
-      if (folderFiles && folderFiles.length >= 50) {
+      if (folderFiles.length >= 50) {
         toast.error("Folder has reached maximum limit of 50 files");
         return;
       }
 
       setIsUploading(true);
 
-      // Get upload URL
-      const uploadUrl = await generateUploadUrl();
+      // Upload file to Supabase Storage
+      const fileExt = selectedFile.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${id}/${selectedFolder}/${fileName}`;
 
-      // Upload file
-      const result = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": selectedFile.type },
-        body: selectedFile,
-      });
+      const { error: uploadError } = await supabase.storage
+        .from("resident-files")
+        .upload(filePath, selectedFile);
 
-      if (!result.ok) {
-        throw new Error("Upload failed");
-      }
+      if (uploadError) throw uploadError;
 
-      const { storageId } = await result.json();
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("resident-files")
+        .getPublicUrl(filePath);
 
-      // Create file record in the folder
-      const extension = selectedFile.name.split(".").pop() || "";
-      await createFile({
-        storageId,
-        name: data.name,
-        originalName: selectedFile.name,
-        size: selectedFile.size,
-        extension,
-        residentId: id as Id<"residents">,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId,
-        parentFolderId: selectedFolder,
-      });
+      // Create file record in database
+      const { error: dbError } = await supabase.from("files").insert([
+        {
+          name: data.name,
+          file_type: selectedFile.type,
+          file_size: selectedFile.size,
+          storage_path: filePath,
+          resident_id: id,
+          organization_id: resident.organization_id || profile.active_organization_id,
+          care_home_id: resident.care_home_id,
+          folder_id: selectedFolder,
+          created_by: profile.id,
+        },
+      ]);
+
+      if (dbError) throw dbError;
 
       toast.success("Document uploaded successfully");
       documentForm.reset();
       setSelectedFile(null);
+
+      // Refetch files
+      const { data: filesData } = await supabase
+        .from("files")
+        .select("*")
+        .eq("resident_id", id)
+        .order("created_at", { ascending: false });
+      setFiles(filesData || []);
     } catch (error: any) {
       console.error("Error uploading document:", error);
       toast.error(error?.message || "Failed to upload document");
@@ -245,17 +317,31 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     }
   };
 
-  const handleUpdateFolderName = async (folderId: Id<"folders">, newName: string) => {
+  const handleUpdateFolderName = async (folderId: string, newName: string) => {
     if (!newName.trim()) {
       toast.error("Folder name cannot be empty");
       return;
     }
 
     try {
-      await updateFolder({ folderId, name: newName.trim() });
+      const { error } = await supabase
+        .from("folders")
+        .update({ name: newName.trim(), updated_at: new Date().toISOString() })
+        .eq("id", folderId);
+
+      if (error) throw error;
+
       toast.success("Folder renamed");
       setEditingFolderId(null);
       setEditingFolderName("");
+
+      // Refetch folders
+      const { data: foldersData } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("resident_id", id)
+        .order("created_at", { ascending: false });
+      setFolders(foldersData || []);
     } catch (error) {
       console.error("Error updating folder:", error);
       toast.error("Failed to rename folder");
@@ -266,21 +352,71 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     if (!folderToDelete) return;
 
     try {
-      await deleteFolder({ folderId: folderToDelete.id });
+      // Delete all files in the folder from storage
+      const folderFilesToDelete = files.filter((f) => f.folder_id === folderToDelete.id);
+      for (const file of folderFilesToDelete) {
+        if (file.storage_path) {
+          await supabase.storage.from("resident-files").remove([file.storage_path]);
+        }
+      }
+
+      // Delete folder record (cascade will delete files records)
+      const { error } = await supabase
+        .from("folders")
+        .delete()
+        .eq("id", folderToDelete.id);
+
+      if (error) throw error;
+
       toast.success("Folder deleted");
       setFolderToDelete(null);
       setIsFolderSheetOpen(false);
       setSelectedFolder(null);
+
+      // Refetch data
+      const { data: foldersData } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("resident_id", id)
+        .order("created_at", { ascending: false });
+      setFolders(foldersData || []);
+
+      const { data: filesData } = await supabase
+        .from("files")
+        .select("*")
+        .eq("resident_id", id)
+        .order("created_at", { ascending: false });
+      setFiles(filesData || []);
     } catch (error) {
       console.error("Error deleting folder:", error);
       toast.error("Failed to delete folder");
     }
   };
 
-  const handleDeleteFile = async (fileId: Id<"files">) => {
+  const handleDeleteFile = async (fileId: string) => {
     try {
-      await deleteFile({ fileId });
+      const fileToDelete = files.find((f) => f.id === fileId);
+      if (!fileToDelete) return;
+
+      // Delete from storage
+      if (fileToDelete.storage_path) {
+        await supabase.storage.from("resident-files").remove([fileToDelete.storage_path]);
+      }
+
+      // Delete from database
+      const { error } = await supabase.from("files").delete().eq("id", fileId);
+
+      if (error) throw error;
+
       toast.success("File deleted");
+
+      // Refetch files
+      const { data: filesData } = await supabase
+        .from("files")
+        .select("*")
+        .eq("resident_id", id)
+        .order("created_at", { ascending: false });
+      setFiles(filesData || []);
     } catch (error) {
       console.error("Error deleting file:", error);
       toast.error("Failed to delete file");
@@ -328,7 +464,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     });
   };
 
-  if (resident === undefined) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -339,7 +475,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     );
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -360,8 +496,8 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -372,7 +508,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Avatar className="w-10 h-10">
-            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+            <AvatarImage src={resident.image_url} alt={fullName} className="border" />
             <AvatarFallback className="text-sm bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
@@ -380,7 +516,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Documents</h1>
             <p className="text-muted-foreground text-sm">
-              View and manage files and documents for {resident.firstName} {resident.lastName}.
+              View and manage files and documents for {resident.first_name} {resident.last_name}.
             </p>
           </div>
           <div className="flex flex-row gap-2">
@@ -388,12 +524,12 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
               <Button
                 onClick={() => setIsFolderDialogOpen(true)}
                 className="bg-blue-600 text-white hover:bg-blue-700"
-                disabled={folders && folders.length >= 10}
+                disabled={folders.length >= 10}
               >
                 <FolderPlus className="w-4 h-4 mr-2" />
                 New Folder
               </Button>
-              {folders && folders.length > 0 && (
+              {folders.length > 0 && (
                 <span className={`text-xs mt-1 ${folders.length >= 10 ? 'text-red-600 font-semibold' : folders.length >= 8 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
                   {folders.length}/10 folders
                 </span>
@@ -414,9 +550,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
         {/* Folders List */}
         <div className="flex flex-wrap gap-3">
-          {folders && folders.length > 0 ? (
-            folders.map((folder, index) => (
-              <Sheet key={folder._id} open={isFolderSheetOpen && selectedFolder === folder._id} onOpenChange={(open) => {
+          {folders.length > 0 ? (
+            folders.map((folder) => (
+              <Sheet key={folder.id} open={isFolderSheetOpen && selectedFolder === folder.id} onOpenChange={(open) => {
                 setIsFolderSheetOpen(open);
                 if (!open) {
                   setSelectedFolder(null);
@@ -427,12 +563,12 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 <SheetTrigger asChild>
                   <div
                     className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-all group min-w-[90px] relative"
-                    onClick={() => handleOpenFolder(folder._id)}
+                    onClick={() => setSelectedFolder(folder.id)}
                   >
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setFolderToDelete({ id: folder._id, name: folder.name });
+                        setFolderToDelete({ id: folder.id, name: folder.name });
                       }}
                       className="absolute top-1 right-1 p-1 rounded-full hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -451,14 +587,14 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                 <SheetContent size="lg">
                   <SheetHeader>
                     <div className="flex items-center gap-2">
-                      {editingFolderId === folder._id ? (
+                      {editingFolderId === folder.id ? (
                         <input
                           type="text"
                           value={editingFolderName}
                           onChange={(e) => setEditingFolderName(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
-                              handleUpdateFolderName(folder._id, editingFolderName);
+                              handleUpdateFolderName(folder.id, editingFolderName);
                             } else if (e.key === "Escape") {
                               setEditingFolderId(null);
                               setEditingFolderName("");
@@ -466,7 +602,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                           }}
                           onBlur={() => {
                             if (editingFolderName.trim()) {
-                              handleUpdateFolderName(folder._id, editingFolderName);
+                              handleUpdateFolderName(folder.id, editingFolderName);
                             } else {
                               setEditingFolderId(null);
                               setEditingFolderName("");
@@ -482,7 +618,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setEditingFolderId(folder._id);
+                              setEditingFolderId(folder.id);
                               setEditingFolderName(folder.name);
                             }}
                             className="h-6 w-6 p-0"
@@ -504,16 +640,16 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             accept=".pdf,.jpg,.jpeg,.png,.gif"
                             onChange={handleFileChange}
                             className="hidden"
-                            id={`file-upload-${folder._id}`}
-                            disabled={folderFiles && folderFiles.length >= 50}
+                            id={`file-upload-${folder.id}`}
+                            disabled={folderFiles.length >= 50}
                           />
-                          <label htmlFor={`file-upload-${folder._id}`}>
+                          <label htmlFor={`file-upload-${folder.id}`}>
                             <Button
                               type="button"
                               size="sm"
                               variant="outline"
                               asChild
-                              disabled={folderFiles && folderFiles.length >= 50}
+                              disabled={folderFiles.length >= 50}
                             >
                               <span className="cursor-pointer">
                                 <Upload className="w-4 h-4 mr-2" />
@@ -521,7 +657,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                               </span>
                             </Button>
                           </label>
-                          {folderFiles && folderFiles.length > 0 && (
+                          {folderFiles.length > 0 && (
                             <span className={`text-xs ${folderFiles.length >= 50 ? 'text-red-600 font-semibold' : folderFiles.length >= 45 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
                               {folderFiles.length}/50 files
                             </span>
@@ -595,58 +731,66 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
                       {/* Files List */}
                       <div className="space-y-2">
-                        {folderFiles && folderFiles.length > 0 ? (
-                          folderFiles.map((file) => (
-                            <div key={file._id} className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
-                              <div className="flex-1 flex items-center gap-2">
-                                <div className="bg-red-50 rounded-md">
-                                  <FileText className="w-4 h-4 text-red-500 m-1.5" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-sm font-medium text-primary">
-                                      {file.name}.{file.extension}
-                                    </p>
-                                  </div>
-                                  <div className="flex flex-row items-center gap-2">
-                                    <p className="text-xs text-muted-foreground">
-                                      Uploaded: {new Date(file.uploadedAt || Date.now()).toLocaleDateString("en-GB", {
-                                        day: "numeric",
-                                        month: "short",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit"
-                                      })}
-                                    </p>
-                                    {file.size && (
-                                      <p className="text-xs text-muted-foreground">
-                                        {formatFileSize(file.size)}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
+                        {folderFiles.length > 0 ? (
+                          folderFiles.map((file) => {
+                            // Get public URL for file
+                            const { data: publicUrlData } = supabase.storage
+                              .from("resident-files")
+                              .getPublicUrl(file.storage_path);
+                            const fileUrl = publicUrlData?.publicUrl;
 
-                              <div className="flex items-center gap-1">
-                                {file.url && (
-                                  <>
-                                    <Eye
-                                      className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                                      onClick={() => window.open(file.url, "_blank")}
-                                    />
-                                    <Download
-                                      className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                                      onClick={() => window.open(file.url, "_blank")}
-                                    />
-                                  </>
-                                )}
-                                <Trash2
-                                  className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
-                                  onClick={() => handleDeleteFile(file._id)}
-                                />
+                            return (
+                              <div key={file.id} className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
+                                <div className="flex-1 flex items-center gap-2">
+                                  <div className="bg-red-50 rounded-md">
+                                    <FileText className="w-4 h-4 text-red-500 m-1.5" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-medium text-primary">
+                                        {file.name}
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                      <p className="text-xs text-muted-foreground">
+                                        Uploaded: {new Date(file.created_at).toLocaleDateString("en-GB", {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit"
+                                        })}
+                                      </p>
+                                      {file.file_size && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {formatFileSize(file.file_size)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  {fileUrl && (
+                                    <>
+                                      <Eye
+                                        className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                                        onClick={() => window.open(fileUrl, "_blank")}
+                                      />
+                                      <Download
+                                        className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                                        onClick={() => window.open(fileUrl, "_blank")}
+                                      />
+                                    </>
+                                  )}
+                                  <Trash2
+                                    className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
+                                    onClick={() => handleDeleteFile(file.id)}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         ) : (
                           <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
                             No files uploaded yet. Upload a document to get started.

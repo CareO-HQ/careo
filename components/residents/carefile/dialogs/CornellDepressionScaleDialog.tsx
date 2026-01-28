@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cornellDepressionScaleSchema, calculateCornellScore, getDepressionSeverity, getSeverityColor } from "@/schemas/residents/care-file/cornellDepressionScaleSchema";
+import { Resident } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,37 +13,36 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
-import { authClient } from "@/lib/auth-client";
 import { supabase } from "@/lib/supabase";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface CornellDepressionScaleDialogProps {
   teamId: string;
   residentId: string;
   organizationId: string;
   userId: string;
-  resident: { firstName: string; lastName: string; dateOfBirth: number; care_home_id?: string };
+  userName: string;
+  resident: { firstName?: string; lastName?: string; dateOfBirth?: number | string; first_name?: string; last_name?: string; date_of_birth?: string; care_home_id?: string };
   isEditMode?: boolean;
   initialData?: any;
   onClose: () => void;
 }
 
 export default function CornellDepressionScaleDialog({
-  teamId, residentId, organizationId, userId, resident,
+  teamId, residentId, organizationId, userId, userName, resident,
   isEditMode = false, initialData, onClose
 }: CornellDepressionScaleDialogProps) {
   const [currentScore, setCurrentScore] = useState(0);
   const [currentSeverity, setCurrentSeverity] = useState("No Depression");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: session } = authClient.useSession();
-
   const form = useForm<z.infer<typeof cornellDepressionScaleSchema>>({
     resolver: zodResolver(cornellDepressionScaleSchema),
     defaultValues: initialData ? {
-      residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: initialData.dateOfBirth || new Date(resident.dateOfBirth).toISOString().split("T")[0],
-      dateOfAssessment: initialData.dateOfAssessment || new Date().toISOString().split("T")[0],
-      assessedBy: initialData.assessedBy || session?.user?.name || "",
+      residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
+      dateOfAssessment: initialData.dateOfAssessment || initialData.assessment_date || new Date().toISOString().split("T")[0],
+      assessedBy: initialData.assessedBy || initialData.assessed_by || userName,
       signature: initialData.signature || "",
       // Flatten scale_items JSONB
       anxiety: initialData.scale_items?.anxiety || "0",
@@ -62,11 +62,11 @@ export default function CornellDepressionScaleDialog({
       pessimism: initialData.scale_items?.pessimism || "0",
       moodCongruentDelusions: initialData.scale_items?.moodCongruentDelusions || "0"
     } : {
-      residentName: `${resident.firstName} ${resident.lastName}`,
-      dateOfBirth: new Date(resident.dateOfBirth).toISOString().split("T")[0],
+      residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : "",
       dateOfAssessment: new Date().toISOString().split("T")[0],
-      assessedBy: session?.user?.name || "",
-      signature: "",
+      assessedBy: userName,
+      signature: userName,
       anxiety: "0", sadness: "0", lackOfReactivity: "0", irritability: "0",
       agitation: "0", retardation: "0", multiplePhysicalComplaints: "0", lossOfInterest: "0",
       appetiteLoss: "0", weightLoss: "0", diurnalVariation: "0", sleepDisturbance: "0",
@@ -86,7 +86,7 @@ export default function CornellDepressionScaleDialog({
   const onSubmit = async (data: z.infer<typeof cornellDepressionScaleSchema>) => {
     try {
       setIsSubmitting(true);
-      const currentUserId = session?.user?.id;
+      const currentUserId = userId;
       if (!currentUserId) throw new Error("User not authenticated");
 
       const scaleItems = {
@@ -103,21 +103,24 @@ export default function CornellDepressionScaleDialog({
         total_score: currentScore,
         severity_level: currentSeverity,
         assessment_date: data.dateOfAssessment,
-        assessed_by: data.assessedBy,
+        completed_by: data.assessedBy,
         created_by: currentUserId
       };
 
+      await submitAssessmentWithVersioning(
+        'cornell_depression_scales',
+        payload,
+        initialData,
+        isEditMode
+      );
+
       if (isEditMode && initialData?.id) {
-        const { error } = await supabase.from('cornell_depression_scales').update(payload).eq('id', initialData.id);
-        if (error) throw error;
         await supabase.from('manager_audits').insert({
           form_type: 'cornell_depression_scales', form_id: initialData.id, resident_id: residentId,
           audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
         });
         toast.success("Cornell Depression Scale updated");
       } else {
-        const { error } = await supabase.from('cornell_depression_scales').insert(payload);
-        if (error) throw error;
         toast.success("Cornell Depression Scale submitted");
       }
       onClose();
@@ -196,14 +199,42 @@ export default function CornellDepressionScaleDialog({
 
             <div className="space-y-4 p-4 border rounded-lg bg-card">
               <h3 className="font-semibold text-sm border-b pb-2">Completion</h3>
-              <div className="space-y-2"><Label className="text-sm">Signature</Label><Input {...form.register("signature")} placeholder="Signature" className="text-sm" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm">Assessed By</Label>
+                  <Input
+                    {...form.register("assessedBy")}
+                    readOnly
+                    className="text-sm bg-muted cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Signature</Label>
+                  <Input
+                    {...form.register("signature")}
+                    placeholder="Signature"
+                    className="text-sm"
+                  />
+                </div>
+              </div>
             </div>
           </form>
         </ScrollArea>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-background">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
-          <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}</Button>
+          <Button
+            type="submit"
+            onClick={() => {
+              form.handleSubmit(onSubmit, (errors) => {
+                console.error("Form errors:", errors);
+                toast.error("Please fill in all required fields");
+              })();
+            }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -35,7 +35,7 @@ export const peepSchema = z.object({
   // Completion details
   completedBy: z.string().min(1, "Completed by is required"),
   completedBySignature: z.string().min(1, "Signature is required"),
-  date: z.number().positive("Date is required"),
+  assessmentDate: z.number().positive("Date is required"),
 
   // Optional metadata fields for drafts
   status: z.enum(["draft", "submitted", "reviewed"]).optional()

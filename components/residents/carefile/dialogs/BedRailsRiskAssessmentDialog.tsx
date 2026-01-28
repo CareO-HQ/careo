@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 import {
   Form,
   FormControl,
@@ -69,7 +70,7 @@ export default function BedRailsRiskAssessmentDialog({
       dateOfBirth: initialData.dateOfBirth,
       assessmentCompletedBy: initialData.assessmentCompletedBy,
       jobRole: initialData.jobRole,
-      dateOfAssessment: initialData.dateOfAssessment,
+      assessmentDate: initialData.assessmentDate || initialData.date_of_assessment || initialData.assessment_date,
       alternativeEquipmentConsidered: initialData.alternativeEquipmentConsidered,
       reasonsAlternativesNotSuccessful: initialData.reasonsAlternativesNotSuccessful,
       exclusionCriteria: initialData.exclusionCriteria,
@@ -99,7 +100,7 @@ export default function BedRailsRiskAssessmentDialog({
       dateOfBirth: resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
       assessmentCompletedBy: userName || "",
       jobRole: "",
-      dateOfAssessment: format(new Date(), "yyyy-MM-dd"),
+      assessmentDate: format(new Date(), "yyyy-MM-dd"),
       alternativeEquipmentConsidered: "",
       reasonsAlternativesNotSuccessful: "",
       exclusionCriteria: {
@@ -221,15 +222,16 @@ export default function BedRailsRiskAssessmentDialog({
           carePlanCompleted: formData.carePlanCompleted
         },
         completed_by: formData.assessmentCompletedBy,
-        completion_date: formData.dateOfAssessment,
+        assessment_date: formData.assessmentDate,
         created_by: userId
       };
 
-      const { error } = await supabase
-        .from("bedrails_risk_assessments")
-        .insert(payload);
-
-      if (error) throw error;
+      await submitAssessmentWithVersioning(
+        'bedrails_risk_assessments',
+        payload,
+        initialData,
+        !!initialData // Handled by initialData check in the helper
+      );
 
       toast.success("Risk assessment submitted successfully");
       onClose?.();
@@ -251,7 +253,7 @@ export default function BedRailsRiskAssessmentDialog({
         "dateOfBirth",
         "assessmentCompletedBy",
         "jobRole",
-        "dateOfAssessment",
+        "assessmentDate",
         "alternativeEquipmentConsidered",
         "reasonsAlternativesNotSuccessful",
       ];
@@ -376,7 +378,7 @@ export default function BedRailsRiskAssessmentDialog({
 
                 <FormField
                   control={form.control}
-                  name="dateOfAssessment"
+                  name="assessmentDate"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Date of Assessment</FormLabel>

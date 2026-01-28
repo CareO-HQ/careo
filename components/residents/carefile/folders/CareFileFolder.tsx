@@ -165,13 +165,40 @@ export default function CareFileFolder({
   const completedCount = getCompletedFormsCount(folderFormKeys);
   const totalCount = folderFormKeys.length;
 
-  // Replaced Resident fetch with passed resident prop (CareFilePage handles it mostly, but let's fetch for completeness or use simple prop if we can)
-  // Actually resident is used for name/initials. We can fetch it if not available.
-  // Ideally it should be passed down. For now, fetch locally if needed or just use ID.
-  // Logic below used 'resident.firstName'. Let's fetch resident simply.
+  // Fetch resident data for display purposes
   const [resident, setResident] = useState<any>(null);
+  const [residentLoading, setResidentLoading] = useState(true);
+  const [residentError, setResidentError] = useState<string | null>(null);
+
   useEffect(() => {
-    supabase.from('residents').select('*').eq('id', residentId).single().then(({ data }) => setResident(data));
+    const fetchResident = async () => {
+      try {
+        setResidentLoading(true);
+        setResidentError(null);
+        const { data, error } = await supabase
+          .from('residents')
+          .select('*')
+          .eq('id', residentId)
+          .single();
+
+        if (error) {
+          console.error("Error fetching resident:", error);
+          setResidentError("Failed to load resident data");
+          return;
+        }
+
+        setResident(data);
+      } catch (err) {
+        console.error("Unexpected error fetching resident:", err);
+        setResidentError("Unexpected error loading resident data");
+      } finally {
+        setResidentLoading(false);
+      }
+    };
+
+    if (residentId) {
+      fetchResident();
+    }
   }, [residentId]);
 
   // Custom PDFs - Placeholder or fetch from a future table
@@ -190,6 +217,9 @@ export default function CareFileFolder({
     includeCarePlans: carePlan
   });
 
+  // Add error boundary for form data
+  const [formDataError, setFormDataError] = useState<string | null>(null);
+
   // HELPER MAPPING for Deletes
   const TABLE_MAP: Record<string, string> = {
     "preAdmission-form": "pre_admission_care_files",
@@ -207,7 +237,7 @@ export default function CareFileFolder({
     "timl": "timl_assessments",
     "skin-integrity-form": "skin_integrity_assessments",
     "resident-valuables-form": "resident_valuables_assessments",
-    "resident-handling-profile-form": "resident_handling_profiles",
+    "resident-handling-profile-form": "handling_profiles",
     "pain-assessment-form": "pain_assessments",
     "nutritional-assessment-form": "nutritional_assessments",
     "oral-assessment-form": "oral_assessments",
@@ -240,7 +270,7 @@ export default function CareFileFolder({
       setDeleteCarePlanDialog({ open: false, carePlanId: "", carePlanName: "" });
     } catch (error) {
       console.error("Error deleting care plan:", error);
-      toast.error("Failed to delete care plan");
+      toast.error("Failed to delete care plan. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -312,14 +342,31 @@ export default function CareFileFolder({
 
   useEffect(() => {
     async function fetchEditData() {
-      if (!reviewFormData) {
-        setFormDataForEdit(undefined);
-        return;
-      }
-      const table = TABLE_MAP[reviewFormData.formType] || TABLE_MAP[activeDialogKey || ''];
-      if (table) {
-        const { data } = await supabase.from(table).select('*').eq('id', reviewFormData.formId).single();
-        setFormDataForEdit(data);
+      try {
+        setFormDataError(null);
+        if (!reviewFormData) {
+          setFormDataForEdit(undefined);
+          return;
+        }
+        const table = TABLE_MAP[reviewFormData.formType] || TABLE_MAP[activeDialogKey || ''];
+        if (table) {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq('id', reviewFormData.formId)
+            .single();
+
+          if (error) {
+            console.error("Error fetching form data:", error);
+            setFormDataError("Failed to load form data");
+            return;
+          }
+
+          setFormDataForEdit(data);
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching form data:", err);
+        setFormDataError("Unexpected error loading form data");
       }
     }
     fetchEditData();
@@ -334,8 +381,84 @@ export default function CareFileFolder({
     setIsDialogOpen(true);
   };
 
-  const handleDownloadPDF = async (formKey: CareFileFormKey) => {
-    toast.info("PDF download is temporarily unavailable during migration.");
+  const handleDownloadPDF = async (formKey: CareFileFormKey, fileData?: any) => {
+    if (!fileData) {
+      toast.error("File data is missing.");
+      return;
+    }
+
+    const routeMap: Record<string, string> = {
+      "admission-form": "admission",
+      "blader-bowel-form": "bladder-bowel",
+      "moving-handling-form": "moving-handling",
+      "long-term-fall-risk-form": "long-term-falls",
+      "preAdmission-form": "pre-admission",
+      "infection-prevention": "infection-prevention",
+      "peep": "peep",
+      "photography-consent": "photography-consent",
+      "dnacpr": "dnacpr",
+      "dependency-assessment": "dependency",
+      "timl": "timl",
+      "skin-integrity-form": "skin-integrity",
+      "care-plan-form": "care-plan",
+      "oral-assessment-form": "oral-assessment",
+      "nutritional-assessment-form": "nutritional-assessment",
+      "pain-assessment-form": "pain-assessment",
+      "diet-notification-form": "diet-notification",
+      "choking-risk-assessment-form": "choking-risk",
+      "cornell-depression-scale-form": "cornell-depression",
+      "best-interest-decision-form": "best-interest-decision",
+      "resident-valuables-form": "resident-valuables",
+      "resident-handling-profile-form": "resident-handling-profile",
+      "bedrail-consent-form": "bedrail-consent",
+      "bed-rails-risk-assessment-form": "bed-rails-risk-assessment",
+    };
+
+    const route = routeMap[formKey];
+    if (!route) {
+      toast.info(`PDF download for this form type is not yet fully implemented.`);
+      return;
+    }
+
+    const loadingToast = toast.loading(`Generating PDF for ${fileData.residentName || "the record"}...`);
+
+    try {
+      const response = await fetch(`/api/pdf/${route}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Note: In local/dev we might skip the token if the API allows it, 
+          // or we can pass a token if it's available in the client (usually it's not for safety).
+          // Our API routes current check for process.env.PDF_API_TOKEN.
+        },
+        body: JSON.stringify({
+          ...fileData,
+          residentName: resident ? `${resident.first_name} ${resident.last_name}` : undefined,
+          dob: resident?.date_of_birth,
+          bedroomNumber: resident?.room_number,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate PDF");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${route}-${fileData.residentName?.replace(/\s+/g, "-") || "record"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("PDF downloaded successfully", { id: loadingToast });
+    } catch (error) {
+      console.error("PDF download error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to download PDF.", { id: loadingToast });
+    }
   };
 
   const downloadFromUrl = async (url: string, fallbackFilename: string) => {
@@ -390,6 +513,7 @@ export default function CareFileFolder({
           </div>
         </SheetTrigger>
         <SheetContent size="lg" className="flex flex-col">
+          {/* Dialogs moved outside Sheet to appear as overlays */}
           <SheetHeader className="flex-shrink-0">
             <div className="flex items-center justify-between pr-10">
               <SheetTitle>{folderName}</SheetTitle>
@@ -402,68 +526,73 @@ export default function CareFileFolder({
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col justify-between flex-1 overflow-hidden">
-            <div className="flex flex-col gap-1 px-4 overflow-y-auto flex-1">
-              <p className="text-muted-foreground text-sm font-medium">Forms</p>
-              {forms?.map((form) => {
-                if (form.type === "link") {
+            <div className="flex flex-col gap-1 px-4 overflow-y-auto flex-1 pb-10">
+              <div className="flex flex-row justify-between items-center gap-2 mt-4">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Forms
+                </p>
+              </div>
+              <div className="flex flex-col gap-1 mb-6">
+                {forms?.map((form) => {
+                  if (form.type === "link") {
+                    return (
+                      <a
+                        key={form.key}
+                        href={(form as any).url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group cursor-pointer hover:bg-muted/50 hover:text-primary"
+                      >
+                        <div className="flex flex-row items-center gap-2">
+                          <FileIcon className="size-4 text-muted-foreground" />
+                          <p>{form.value}</p>
+                        </div>
+                      </a>
+                    );
+                  }
+
+                  const formKey = form.key as CareFileFormKey;
+                  const formState = getFormState(formKey);
+                  const isFormDisabled = !canFillForms;
+
                   return (
-                    <a
+                    <div
                       key={form.key}
-                      href={(form as any).url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group cursor-pointer hover:bg-muted/50 hover:text-primary"
+                      className={`text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group ${isFormDisabled
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:bg-muted/50 hover:text-primary"
+                        }`}
+                      onClick={() => {
+                        if (!isFormDisabled) {
+                          handleCareFileClick(form.key);
+                        }
+                      }}
                     >
                       <div className="flex flex-row items-center gap-2">
-                        {/* SVG */}
+                        <FormStatusIndicator
+                          status={formState.status}
+                          className="h-4 max-w-4"
+                        />
                         <p>{form.value}</p>
+                        <FormStatusBadge
+                          status={formState.status}
+                          isAudited={formState.isAudited}
+                        />
                       </div>
-                    </a>
-                  );
-                }
-
-                const formKey = form.key as CareFileFormKey;
-                const formState = getFormState(formKey);
-                const showDownload = false; // canDownloadPdf(formKey); // Disabled for now
-                const isFormDisabled = formState.hasData || !canFillForms;
-
-                return (
-                  <div
-                    key={form.key}
-                    className={`text-sm font-medium flex flex-row justify-between items-center gap-2 px-0.5 py-0.5 rounded-md group ${isFormDisabled
-                      ? "cursor-not-allowed opacity-60"
-                      : "cursor-pointer hover:bg-muted/50 hover:text-primary"
-                      }`}
-                    onClick={() => {
-                      if (!isFormDisabled) {
-                        handleCareFileClick(form.key);
-                      }
-                    }}
-                  >
-                    <div className="flex flex-row items-center gap-2">
-                      <FormStatusIndicator
-                        status={formState.status}
-                        className="h-4 max-w-4"
-                      />
-                      <p>{form.value}</p>
-                      <FormStatusBadge
-                        status={formState.status}
-                        isAudited={formState.isAudited}
-                      />
                     </div>
-                    {/* Download Icon */}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+
               {carePlan && (
                 <>
-                  <div className="flex flex-row justify-between items-center gap-2 mt-10">
+                  <div className="flex flex-row justify-between items-center gap-2 mt-4">
                     <p className="text-muted-foreground text-sm font-medium">
-                      Care plans
+                      Plans
                     </p>
                     <Button variant="outline" size="sm" onClick={handleCreateCarePlan}>+ Create</Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 mb-6">
                     {latestCarePlanForm ? (
                       <PdfFileItem
                         key={latestCarePlanForm._id}
@@ -471,9 +600,10 @@ export default function CareFileFolder({
                         file={{
                           formKey: "care-plan-form",
                           formId: latestCarePlanForm._id,
-                          name: latestCarePlanForm.nameOfCarePlan || "Care Plan Assessment",
+                          name: latestCarePlanForm.care_plan_type || latestCarePlanForm.nameOfCarePlan || "Care Plan",
                           completedAt: latestCarePlanForm._creationTime,
-                          isLatest: true
+                          isLatest: true,
+                          data: latestCarePlanForm
                         }}
                       />
                     ) : (
@@ -485,29 +615,75 @@ export default function CareFileFolder({
                 </>
               )}
 
-              <div className="flex flex-row justify-between items-center gap-2 mt-10">
+              <div className="flex flex-row justify-between items-center gap-2 mt-6">
                 <p className="text-muted-foreground text-sm font-medium">
                   Files
                 </p>
-                <Button variant="ghost" size="sm" onClick={handleDownloadFolder}>
-                  <DownloadIcon className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={handleDownloadFolder}>
+                    <DownloadIcon className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="space-y-2">
-                {/* Generated PDFs from forms */}
-                {folderPdfFiles.length > 0 ? (
-                  folderPdfFiles.map((file) => (
-                    <PdfFileItem
-                      key={`${file.formKey}-${file.formId}`}
-                      file={file}
-                    />
-                  ))
-                ) : (
-                  <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
-                    No PDF files available.
-                  </div>
-                )}
+
+              <div className="space-y-2 mb-6">
+                {(() => {
+                  const latestFiles = folderPdfFiles.filter(f => f.isLatest && f.formKey !== "care-plan-form");
+                  return latestFiles.length > 0 ? (
+                    latestFiles.map((file) => (
+                      <PdfFileItem
+                        key={`${file.formKey}-${file.formId}`}
+                        file={file}
+                      />
+                    ))
+                  ) : (
+                    <div className="w-full text-center p-2 py-6 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                      No generated files available.
+                    </div>
+                  );
+                })()}
               </div>
+
+              {/* Archived Files Section (Version just before) */}
+              <div className="flex flex-row justify-between items-center gap-2 mt-6">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Archived Files
+                </p>
+              </div>
+              <div className="space-y-2 mb-6">
+                {(() => {
+                  // Group by formKey to find the 2nd latest (index 1)
+                  const groupedByForm = folderPdfFiles.reduce((acc, file) => {
+                    if (!acc[file.formKey]) acc[file.formKey] = [];
+                    acc[file.formKey].push(file);
+                    return acc;
+                  }, {} as Record<string, any[]>);
+
+                  const archivedFiles: any[] = [];
+                  Object.values(groupedByForm).forEach(versions => {
+                    if (versions.length > 1) {
+                      archivedFiles.push(versions[1]);
+                    }
+                  });
+
+                  // Sort by date
+                  const sortedArchived = archivedFiles.sort((a, b) => b.completedAt - a.completedAt);
+
+                  return sortedArchived.length > 0 ? (
+                    sortedArchived.map((file) => (
+                      <PdfFileItem
+                        key={`${file.formKey}-${file.formId}`}
+                        file={file}
+                      />
+                    ))
+                  ) : (
+                    <div className="w-full text-center p-2 py-4 border rounded-md bg-muted/60 text-muted-foreground text-xs">
+                      No archived files.
+                    </div>
+                  );
+                })()}
+              </div>
+
             </div>
           </div>
           <div className="p-4 border-t">
@@ -579,40 +755,51 @@ export default function CareFileFolder({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Main Dialog Renderer */}
-      {isDialogOpen && (
-        <CareFileDialogRenderer
-          formKey={activeDialogKey as CareFileFormKey}
-          residentId={residentId as any} // Cast if needed
-          teamId={activeTeamId}
-          organizationId={profile?.active_organization_id ?? ""}
-          userId={profile?.id ?? ""}
-          userName={profile?.name ?? ""}
-          resident={resident}
-          careHomeName={""} // Fetch if needed
-          folderKey={folderKey}
-          formDataForEdit={formDataForEdit}
-          isReviewMode={!!reviewFormData || !!activeDialogKey} // Simplified
-          onClose={() => handleCloseDialog()}
-        />
-      )}
+      {/* Main Dialog Renderer - Rendered outside Sheet to appear as overlay */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {isDialogOpen && (
+            <CareFileDialogRenderer
+              formKey={activeDialogKey as CareFileFormKey}
+              residentId={residentId as any} // Cast if needed
+              teamId={activeTeamId ?? undefined}
+              organizationId={profile?.active_organization_id ?? ""}
+              userId={profile?.id ?? ""}
+              userName={profile?.name || profile?.email || "User"}
+              resident={resident}
+              careHomeName={""} // Fetch if needed
+              folderKey={folderKey}
+              formDataForEdit={formDataForEdit}
+              isReviewMode={!!reviewFormData} // Only true when editing existing form
+              onClose={() => handleCloseDialog()}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
-      {/* Care Plan Dialog (Create) */}
-      {carePlanDialogOpen && (
-        <CarePlanDialog
-          teamId={activeTeamId ?? ""}
-          organizationId={profile?.active_organization_id ?? ""}
-          residentId={residentId as any}
-          userId={profile?.id ?? ""}
-          userName={profile?.name ?? ""}
-          resident={resident}
-          folderKey={folderKey}
-          initialData={selectedCarePlan ? selectedCarePlan : undefined} // This likely needs real data not the file object
-          onClose={() => setCarePlanDialogOpen(false)}
-        />
-      )}
+      {/* Care Plan Dialog (Create) - Rendered outside Sheet to appear as overlay */}
+      {
+        carePlanDialogOpen && profile && (
+          <CarePlanDialog
+            teamId={activeTeamId ?? ""}
+            organizationId={profile?.active_organization_id ?? ""}
+            residentId={residentId as any}
+            userId={profile?.id ?? ""}
+            userName={profile?.name || profile?.email || "Unknown"}
+            resident={resident}
+            folderKey={folderKey}
+            initialData={selectedCarePlan ? selectedCarePlan : undefined}
+            open={carePlanDialogOpen}
+            onOpenChange={setCarePlanDialogOpen}
+            onClose={() => {
+              setCarePlanDialogOpen(false);
+              refetchForms();
+            }}
+          />
+        )
+      }
 
-    </div>
+    </div >
   );
 
   function PdfFileItem({ isCarePlan, file }: { isCarePlan?: boolean; file: any }) {
@@ -629,6 +816,12 @@ export default function CareFileFolder({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {isCarePlan && (
+            <CarePlanEvaluationDialog carePlan={file} />
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownloadPDF(file.formKey as CareFileFormKey, file.data)}>
+            <DownloadIcon className="h-4 w-4" />
+          </Button>
           {/* Actions */}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
             // Determine form type and open for edit/view

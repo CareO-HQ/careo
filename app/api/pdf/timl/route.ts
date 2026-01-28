@@ -3,15 +3,21 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -438,14 +444,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("TIML Assessment PDF API called with data:", {
-      residentName: `${assessmentData.firstName} ${assessmentData.lastName}`,
-      desiredName: assessmentData.desiredName,
-      formId: assessmentData._id
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      date: assessmentData.assessment_date || assessmentData.assessment_data?.date || assessmentData.created_at || Date.now()
+    };
+
+    console.log("TIML Assessment PDF API flattening data:", {
+      hasAssessmentData: !!assessmentData.assessment_data,
+      firstName: flattenedData.firstName,
+      lastName: flattenedData.lastName,
+      formId: flattenedData._id || flattenedData.id
     });
 
     // Generate HTML content
-    const htmlContent = generateTimlAssessmentHTML(assessmentData);
+    const htmlContent = generateTimlAssessmentHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({

@@ -15,8 +15,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
 import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 
 interface DietNotificationDialogProps {
   teamId: string;
@@ -34,15 +34,15 @@ export default function DietNotificationDialog({
   isEditMode = false, initialData, onClose
 }: DietNotificationDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   const form = useForm<z.infer<typeof dietNotificationSchema>>({
     resolver: zodResolver(dietNotificationSchema),
     defaultValues: initialData ? {
-      residentName: initialData.residentName || `${resident?.firstName} ${resident?.lastName}`,
-      roomNumber: initialData.roomNumber || resident?.roomNumber || "",
-      completedBy: initialData.completed_by || session?.user?.name || "",
-      printName: initialData.printName || session?.user?.name || "",
+      residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      roomNumber: initialData.roomNumber || resident.room_number || "",
+      completedBy: initialData.completed_by || profile?.name || "",
+      printName: initialData.printName || profile?.name || "",
       jobRole: initialData.jobRole || "",
       signature: initialData.signature || "",
       dateCompleted: initialData.dateCompleted || Date.now(),
@@ -75,10 +75,10 @@ export default function DietNotificationDialog({
       reviewerPrintName: initialData.kitchen_review?.reviewerPrintName || "",
       reviewerJobTitle: initialData.kitchen_review?.reviewerJobTitle || ""
     } : {
-      residentName: `${resident?.firstName || ''} ${resident?.lastName || ''}`,
-      roomNumber: resident?.roomNumber || "",
-      completedBy: session?.user?.name || "",
-      printName: session?.user?.name || "",
+      residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      roomNumber: resident.room_number || "",
+      completedBy: profile?.name || "",
+      printName: profile?.name || "",
       jobRole: "", signature: "",
       dateCompleted: Date.now(),
       reviewDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
@@ -90,7 +90,7 @@ export default function DietNotificationDialog({
   const onSubmit = async (data: z.infer<typeof dietNotificationSchema>) => {
     try {
       setIsSubmitting(true);
-      const currentUserId = session?.user?.id;
+      const currentUserId = userId;
       if (!currentUserId) throw new Error("User not authenticated");
 
       const payload = {
@@ -128,6 +128,8 @@ export default function DietNotificationDialog({
           reviewerJobTitle: data.reviewerJobTitle
         },
         completed_by: data.completedBy,
+        print_name: data.printName,
+        job_role: data.jobRole,
         created_by: currentUserId
       };
 
@@ -169,6 +171,8 @@ export default function DietNotificationDialog({
                 <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel>Resident Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="roomNumber" render={({ field }) => (<FormItem><FormLabel>Room Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel>Completed By *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="printName" render={({ field }) => (<FormItem><FormLabel>Print Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
               </div>
             </div>

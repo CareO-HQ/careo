@@ -16,6 +16,7 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -40,12 +41,14 @@ import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface AdmissionDialogProps {
   teamId: string;
   residentId: string;
   organizationId: string;
   userId: string;
+  userName?: string;
   resident: Resident;
   onClose?: () => void;
   initialData?: any;
@@ -57,6 +60,7 @@ export default function AdmissionDialog({
   residentId,
   organizationId,
   userId,
+  userName,
   resident,
   onClose,
   initialData,
@@ -67,8 +71,8 @@ export default function AdmissionDialog({
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const { profile } = useProfile();
 
-  const firstKin = resident.emergencyContacts?.find(
-    (contact) => contact.isPrimary
+  const firstKin = resident.emergency_contacts?.find(
+    (contact) => contact.is_primary
   );
 
   const form = useForm<z.infer<typeof admissionAssessmentSchema>>({
@@ -83,9 +87,9 @@ export default function AdmissionDialog({
         userId,
         ...(initialData.assessment_data || {}),
         // Fallback to top-level if needed or strict initialData dump
-        firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.firstName || "",
-        lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.lastName || "",
-        dateOfBirth: initialData.assessment_data?.dateOfBirth ? new Date(initialData.assessment_data.dateOfBirth).getTime() : (resident.dateOfBirth ? new Date(resident.dateOfBirth).getTime() : Date.now()),
+        firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.first_name || "",
+        lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.last_name || "",
+        dateOfBirth: initialData.assessment_data?.dateOfBirth ? new Date(initialData.assessment_data.dateOfBirth).getTime() : (resident.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now()),
         // ... map other fields minimally as they likely exist in spread assessment_data
         // ensure specific complex fields are handled if they differ
         kinRelationship: initialData.assessment_data?.kinRelationship || initialData.kinRelationship || firstKin?.relationship || "",
@@ -95,21 +99,21 @@ export default function AdmissionDialog({
         teamId,
         organizationId,
         userId,
-        firstName: resident.firstName ?? "",
-        lastName: resident.lastName ?? "",
-        dateOfBirth: resident.dateOfBirth ? new Date(resident.dateOfBirth).getTime() : Date.now(),
-        bedroomNumber: resident.roomNumber ?? "",
+        firstName: resident.first_name ?? "",
+        lastName: resident.last_name ?? "",
+        dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
+        bedroomNumber: resident.room_number ?? "",
         admittedFrom: "",
         religion: "",
-        telephoneNumber: resident.phoneNumber ?? "",
+        telephoneNumber: resident.phone_number ?? "",
         gender: undefined,
-        NHSNumber: resident.nhsHealthNumber || "",
+        NHSNumber: resident.nhs_health_number || "",
         ethnicity: "",
         // Next of kin
         kinFirstName: firstKin?.name ?? "",
         kinLastName: "",
         kinRelationship: firstKin?.relationship ?? "",
-        kinTelephoneNumber: firstKin?.phoneNumber ?? "",
+        kinTelephoneNumber: firstKin?.phone_number ?? "",
         kinAddress: "",
         kinEmail: "",
         // Emergency contacts
@@ -118,16 +122,16 @@ export default function AdmissionDialog({
         emergencyContactRelationship: "",
         emergencyContactPhoneNumber: "",
         // Care manager
-        careManagerName: resident.careManagerName ?? "",
-        careManagerTelephoneNumber: resident.careManagerPhone ?? "",
+        careManagerName: resident.care_manager_name ?? "",
+        careManagerTelephoneNumber: resident.care_manager_phone ?? "",
         careManagerRelationship: "",
         careManagerPhoneNumber: "",
         careManagerAddress: "",
         careManagerJobRole: "",
         // GP
-        GPName: resident.gpName ?? "",
+        GPName: resident.gp_name ?? "",
         GPAddress: "",
-        GPPhoneNumber: resident.gpPhone ?? "",
+        GPPhoneNumber: resident.gp_phone ?? "",
         // Medical information
         allergies: "",
         medicalHistory: "",
@@ -186,7 +190,7 @@ export default function AdmissionDialog({
       isValid = await form.trigger(["weight", "height", "iddsiFood", "iddsiFluid", "dietType", "chockingRisk"]);
     }
 
-    if (isValid || step === TotalSteps) { // Oops TotalSteps typo, fixed below
+    if (isValid || step === totalSteps) {
       if (step < totalSteps) setStep(step + 1);
       else await handleSubmit();
     }
@@ -216,24 +220,18 @@ export default function AdmissionDialog({
           created_by: currentUserId,
         };
 
-        if (isEditMode && initialData?.id) {
-          const { error } = await supabase
-            .from('admission_assessments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
-          toast.success("Admission assessment updated successfully");
-        } else {
-          const { error } = await supabase
-            .from('admission_assessments')
-            .insert(payload);
-          if (error) throw error;
-          toast.success("Admission assessment saved successfully");
-        }
+        await submitAssessmentWithVersioning(
+          'admission_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
+        toast.success(isEditMode ? "Admission assessment updated successfully" : "Admission assessment saved successfully");
         onClose?.();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error submitting form:", error);
-        toast.error("Failed to save admission assessment");
+        toast.error(`Failed to save admission assessment: ${error.message}`);
       }
     });
   };
@@ -316,7 +314,7 @@ export default function AdmissionDialog({
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="GPName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
                   <FormField control={form.control} name="GPPhoneNumber" render={({ field }) => <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="GPAddress" className="col-span-2" render={({ field }) => <FormItem><FormLabel>Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="GPAddress" render={({ field }) => <FormItem className="col-span-2"><FormLabel>Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
                 </div>
               </div>
             )}

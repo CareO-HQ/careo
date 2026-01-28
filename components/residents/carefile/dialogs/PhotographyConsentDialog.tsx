@@ -33,10 +33,9 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface PhotographyConsentDialogProps {
   teamId: string;
@@ -68,89 +67,82 @@ export default function PhotographyConsentDialog({
   const [representativeDatePopoverOpen, setRepresentativeDatePopoverOpen] = useState(false);
   const [dateCompletedPopoverOpen, setDateCompletedPopoverOpen] = useState(false);
 
-  const submitPhotographyConsent = useMutation(
-    api.careFiles.photographyConsent.submitPhotographyConsent
-  );
-  const updatePhotographyConsent = useMutation(
-    api.careFiles.photographyConsent.updatePhotographyConsent
-  );
-
   const form = useForm<z.infer<typeof PhotographyConsentSchema>>({
     resolver: zodResolver(PhotographyConsentSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-          // Use existing data for editing
-          residentId: residentId as Id<"residents">,
-          teamId,
-          organizationId,
-          userId,
-          residentName:
-            initialData.residentName ??
-            (`${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
-              ""),
-          bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-          dateOfBirth:
-            initialData.dateOfBirth ??
-            (resident.dateOfBirth
-              ? new Date(resident.dateOfBirth).getTime()
-              : Date.now()),
+        // Use existing data for editing
+        residentId: residentId,
+        teamId,
+        organizationId,
+        userId,
+        residentName:
+          initialData.residentName ??
+          (`${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
+            ""),
+        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        dateOfBirth:
+          initialData.dateOfBirth ??
+          (resident.date_of_birth
+            ? new Date(resident.date_of_birth).getTime()
+            : Date.now()),
 
-          // Consent fields
-          healthcareRecords: initialData.healthcareRecords ?? false,
-          socialActivitiesInternal:
-            initialData.socialActivitiesInternal ?? false,
-          socialActivitiesExternal:
-            initialData.socialActivitiesExternal ?? false,
+        // Consent fields
+        healthcareRecords: initialData.healthcareRecords ?? false,
+        socialActivitiesInternal:
+          initialData.socialActivitiesInternal ?? false,
+        socialActivitiesExternal:
+          initialData.socialActivitiesExternal ?? false,
 
-          // Signature fields
-          residentSignature: initialData.residentSignature ?? "",
+        // Signature fields
+        residentSignature: initialData.residentSignature ?? "",
 
-          // Representative fields
-          representativeName: initialData.representativeName ?? "",
-          representativeRelationship:
-            initialData.representativeRelationship ?? "",
-          representativeSignature: initialData.representativeSignature ?? "",
-          representativeDate: initialData.representativeDate ?? undefined,
+        // Representative fields
+        representativeName: initialData.representativeName ?? "",
+        representativeRelationship:
+          initialData.representativeRelationship ?? "",
+        representativeSignature: initialData.representativeSignature ?? "",
+        representativeDate: initialData.representativeDate ?? undefined,
 
-          // Staff fields
-          nameStaff: initialData.nameStaff ?? userName,
-          staffSignature: initialData.staffSignature ?? userName,
-          date: initialData.date ?? Date.now()
-        }
+        // Staff fields
+        nameStaff: initialData.nameStaff ?? userName,
+        staffSignature: initialData.staffSignature ?? userName,
+        date: initialData.date ?? Date.now()
+      }
       : {
-          // Default values for new forms
-          residentId: residentId as Id<"residents">,
-          teamId,
-          organizationId,
-          userId,
-          residentName:
-            `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
-            "",
-          bedroomNumber: resident.roomNumber ?? "",
-          dateOfBirth: resident.dateOfBirth
-            ? new Date(resident.dateOfBirth).getTime()
-            : Date.now(),
+        // Default values for new forms
+        residentId: residentId,
+        teamId,
+        organizationId,
+        userId,
+        residentName:
+          `${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
+          "",
+        bedroomNumber: resident.room_number ?? "",
+        dateOfBirth: resident.date_of_birth
+          ? new Date(resident.date_of_birth).getTime()
+          : Date.now(),
 
-          // Consent fields
-          healthcareRecords: false,
-          socialActivitiesInternal: false,
-          socialActivitiesExternal: false,
+        // Consent fields
+        healthcareRecords: false,
+        socialActivitiesInternal: false,
+        socialActivitiesExternal: false,
 
-          // Signature fields
-          residentSignature: "",
+        // Signature fields
+        residentSignature: "",
 
-          // Representative fields
-          representativeName: "",
-          representativeRelationship: "",
-          representativeSignature: "",
-          representativeDate: undefined,
+        // Representative fields
+        representativeName: "",
+        representativeRelationship: "",
+        representativeSignature: "",
+        representativeDate: undefined,
 
-          // Staff fields
-          nameStaff: userName,
-          staffSignature: userName,
-          date: Date.now()
-        }
+        // Staff fields
+        nameStaff: userName,
+        staffSignature: userName,
+        date: Date.now()
+      }
   });
 
   const totalSteps = 4;
@@ -230,34 +222,32 @@ export default function PhotographyConsentDialog({
 
         setLoadingState("Saving consent form...");
 
-        if (isEditMode && initialData) {
-          await updatePhotographyConsent({
-            consentId: initialData._id,
-            ...formData,
-            residentId: residentId as Id<"residents">,
-            savedAsDraft: false
-          });
+        const payload = isEditMode && initialData
+          ? {
+            assessment_data: formData,
+            status: "completed",
+            updated_at: new Date().toISOString()
+          }
+          : {
+            resident_id: residentId,
+            organization_id: organizationId,
+            assessment_data: formData,
+            assessment_date: format(new Date(formData.date), "yyyy-MM-dd"),
+            completed_by: formData.nameStaff,
+            created_by: userId,
+            status: "completed"
+          };
 
-          setLoadingState("Generating PDF document...");
+        await submitAssessmentWithVersioning(
+          'photography_consents',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          // Give a brief delay to show the PDF generation state
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          toast.success("Photography consent updated successfully");
-        } else {
-          await submitPhotographyConsent({
-            ...formData,
-            residentId: residentId as Id<"residents">,
-            savedAsDraft: false
-          } as any);
-
-          setLoadingState("Generating PDF document...");
-
-          // Give a brief delay to show the PDF generation state
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          toast.success("Photography consent saved successfully");
-        }
+        setLoadingState("Generating PDF document...");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        toast.success(isEditMode ? "Photography consent updated successfully" : "Photography consent saved successfully");
 
         setLoadingState("");
         onClose?.();

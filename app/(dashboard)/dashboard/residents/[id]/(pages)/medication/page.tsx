@@ -110,9 +110,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       if (meds) {
         setAllActiveMedications(meds.filter(m => m.status === 'active'));
-        setPrnOrTopicalMedications(meds.filter(m => m.status === 'active' && (m.status === 'active' && (m.schedule_type === 'PRN'))));
+        setPrnOrTopicalMedications(meds.filter(m =>
+          m.status === 'active' &&
+          (m.schedule_type === 'PRN (As Needed)' || m.route === 'Topical')
+        ));
         setDiscontinuedMedications(meds.filter(m => m.status === 'discontinued'));
       }
+
 
       // Fetch all users
       const { data: users } = await supabase

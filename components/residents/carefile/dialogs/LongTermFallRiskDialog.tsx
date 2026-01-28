@@ -42,8 +42,8 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { authClient } from "@/lib/auth-client";
 import { Calendar } from "@/components/ui/calendar";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface LongTermFallRiskDialogProps {
   teamId: string;
@@ -71,7 +71,6 @@ export default function LongTermFallRiskDialog({
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
-  const { data: session } = authClient.useSession();
 
   const form = useForm<z.infer<typeof longTermFallsRiskAssessmentSchema>>({
     resolver: zodResolver(longTermFallsRiskAssessmentSchema),
@@ -99,7 +98,7 @@ export default function LongTermFallRiskDialog({
         safetyAwarness: initialData.assessment_fields?.safetyAwarness || initialData.safetyAwarness || false,
         mentalState: initialData.assessment_fields?.mentalState || initialData.mentalState,
         completedBy: initialData.completed_by || initialData.completedBy || userName,
-        completionDate: initialData.completion_date || initialData.completionDate || new Date().toISOString().split("T")[0]
+        assessmentDate: initialData.assessment_date || initialData.completion_date || initialData.completionDate || new Date().toISOString().split("T")[0]
       }
       : {
         residentId,
@@ -107,7 +106,7 @@ export default function LongTermFallRiskDialog({
         organizationId,
         userId,
         completedBy: userName,
-        completionDate: new Date().toISOString().split("T")[0],
+        assessmentDate: new Date().toISOString().split("T")[0],
         standUnsupported: false,
         visionProblems: false,
         residentEnvironmentalRisks: false,
@@ -120,11 +119,11 @@ export default function LongTermFallRiskDialog({
   ) => {
     startTransition(async () => {
       try {
-        const currentUserId = session?.user?.id;
+        const currentUserId = userId;
         if (!currentUserId) throw new Error("User not authenticated");
 
-        const riskScore = calculateFallsRiskScore(data);
-        const riskLevel = riskScore >= 16 ? "HIGH" : riskScore >= 10 ? "MEDIUM" : "LOW";
+        const scoreResult = calculateFallsRiskScore(data);
+        const riskLevel = scoreResult.riskLevel;
 
         const assessmentFields = {
           age: data.age,
@@ -149,20 +148,22 @@ export default function LongTermFallRiskDialog({
           resident_id: resident.id,
           organization_id: organizationId,
           assessment_fields: assessmentFields,
-          total_score: riskScore,
+          total_score: scoreResult.totalScore,
           risk_level: riskLevel,
           completed_by: data.completedBy,
-          completion_date: data.completionDate,
+          assessment_date: data.assessmentDate,
+          status: 'completed',
           created_by: currentUserId
         };
 
-        if (isEditMode && initialData?.id) {
-          const { error } = await supabase
-            .from('long_term_falls_risk_assessments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
+        await submitAssessmentWithVersioning(
+          'long_term_falls_risk_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
 
+        if (isEditMode && initialData?.id) {
           await supabase.from('manager_audits').insert({
             form_type: 'long_term_falls_risk_assessments',
             form_id: initialData.id,
@@ -174,11 +175,6 @@ export default function LongTermFallRiskDialog({
           });
           toast.success("Assessment reviewed successfully");
         } else {
-          const { error } = await supabase
-            .from('long_term_falls_risk_assessments')
-            .insert(payload);
-          if (error) throw error;
-
           toast.success("Assessment submitted successfully");
         }
         onClose?.();
@@ -197,7 +193,7 @@ export default function LongTermFallRiskDialog({
     else if (step === 2) isValid = await form.trigger(["mobilityLevel", "standUnsupported", "personalActivities", "domesticActivities"]);
     else if (step === 3) isValid = await form.trigger(["footwear", "visionProblems", "bladderBowelMovement", "residentEnvironmentalRisks"]);
     else if (step === 4) isValid = await form.trigger(["socialRisks", "medicalCondition", "medicines"]);
-    else if (step === 5) isValid = await form.trigger(["safetyAwarness", "mentalState", "completedBy", "completionDate"]);
+    else if (step === 5) isValid = await form.trigger(["safetyAwarness", "mentalState", "completedBy", "assessmentDate"]);
 
     if (isValid) {
       if (step === 5) {
@@ -261,11 +257,11 @@ export default function LongTermFallRiskDialog({
                 <FormField control={form.control} name="safetyAwarness" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Safety Awareness</FormLabel></FormItem>} />
                 <FormField control={form.control} name="mentalState" render={({ field }) => <FormItem><FormLabel>Mental State</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ORIENTATED">Orientated</SelectItem><SelectItem value="CONFUSED">Confused</SelectItem></SelectContent></Select></FormItem>} />
                 <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="completionDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), 'PPP') : 'Pick date'}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.toISOString().split('T')[0]); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>} />
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), 'PPP') : 'Pick date'}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.toISOString().split('T')[0]); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>} />
 
                 <div className="p-4 bg-muted rounded">
-                  <p className="font-bold">Total Score: {scoreResult}</p>
-                  <p className="text-sm">Risk Level: {scoreResult >= 16 ? "HIGH" : scoreResult >= 10 ? "MEDIUM" : "LOW"}</p>
+                  <p className="font-bold">Total Score: {scoreResult.totalScore}</p>
+                  <p className="text-sm">Risk Level: {scoreResult.riskLevel}</p>
                 </div>
               </div>
             )}

@@ -52,7 +52,7 @@ export const bedRailsRiskAssessmentSchema = z.object({
   dateOfBirth: z.number(),
   assessmentCompletedBy: z.string().min(1, "Assessor name is required"),
   jobRole: z.string().min(1, "Job role is required"),
-  dateOfAssessment: z.string().min(1, "Date of assessment is required"),
+  assessmentDate: z.string().min(1, "Date of assessment is required"),
 
   // Page 1: Trial & Rationale
   alternativeEquipmentConsidered: z.string().min(1, "Please describe alternative equipment considered"),

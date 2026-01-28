@@ -60,6 +60,8 @@ interface CarePlanDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   onClose?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const generateTimeOptions = () => {
@@ -84,9 +86,26 @@ export default function CarePlanDialog({
   folderKey,
   initialData,
   isEditMode = false,
-  onClose
+  onClose,
+  open: controlledOpen,
+  onOpenChange
 }: CarePlanDialogProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(controlledOpen ?? true); // Default true for standalone, will be overridden if controlled
+
+  // Use controlled or uncontrolled open state
+  const isControlled = controlledOpen !== undefined;
+  const dialogOpen = isControlled ? controlledOpen : isOpen;
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (isControlled && onOpenChange) {
+      onOpenChange(newOpen);
+    } else {
+      setIsOpen(newOpen);
+    }
+    if (!newOpen) {
+      handleClose();
+    }
+  };
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
@@ -110,17 +129,15 @@ export default function CarePlanDialog({
         nameOfCarePlan: initialData.care_plan_type || initialData.nameOfCarePlan || "",
         residentName:
           initialData.residentName ||
-          `${resident.firstName} ${resident.lastName}`,
+          `${resident.first_name} ${resident.last_name}`.trim(),
         dob:
           typeof initialData.dob === "number"
             ? initialData.dob
-            : typeof resident.dateOfBirth === "number"
-              ? resident.dateOfBirth
-              : resident.dateOfBirth
-                ? new Date(resident.dateOfBirth).getTime()
-                : Date.now(),
-        bedroomNumber: initialData.bedroomNumber || resident.roomNumber || "",
-        writtenBy: isEditMode ? userName : initialData.writtenBy || userName,
+            : resident.date_of_birth
+              ? new Date(resident.date_of_birth).getTime()
+              : Date.now(),
+        bedroomNumber: initialData.bedroomNumber || resident.room_number || "",
+        writtenBy: isEditMode ? (userName || "Unknown") : (initialData.writtenBy || userName || "Unknown"),
         dateWritten: initialData.dateWritten || Date.now(),
         carePlanNumber: initialData.carePlanNumber || "",
         identifiedNeeds: initialData.need_identified || initialData.identifiedNeeds || "",
@@ -130,30 +147,28 @@ export default function CarePlanDialog({
             date: Date.now(),
             time: "",
             details: "",
-            signature: userName
+            signature: userName || "Unknown"
           }
         ],
         discussedWith: initialData.goals?.discussedWith || initialData.discussedWith || "",
-        signature: initialData.goals?.signature || initialData.signature || userName,
+        signature: initialData.goals?.signature || initialData.signature || userName || "Unknown",
         date: initialData.date || Date.now(),
-        staffSignature: initialData.goals?.staffSignature || initialData.staffSignature || userName
+        staffSignature: initialData.goals?.staffSignature || initialData.staffSignature || userName || "Unknown"
       }
       : {
         residentId: residentId as any,
         userId,
         nameOfCarePlan: "",
         residentName: resident
-          ? `${resident.firstName} ${resident.lastName}`
+          ? `${resident.first_name} ${resident.last_name}`.trim()
           : "",
         dob: resident
-          ? typeof resident.dateOfBirth === "number"
-            ? resident.dateOfBirth
-            : resident.dateOfBirth
-              ? new Date(resident.dateOfBirth).getTime()
-              : Date.now()
+          ? resident.date_of_birth
+            ? new Date(resident.date_of_birth).getTime()
+            : Date.now()
           : Date.now(),
-        bedroomNumber: resident?.roomNumber || "",
-        writtenBy: userName,
+        bedroomNumber: resident?.room_number || "",
+        writtenBy: userName || "Unknown",
         dateWritten: Date.now(),
         carePlanNumber: "",
         identifiedNeeds: "",
@@ -163,13 +178,13 @@ export default function CarePlanDialog({
             date: Date.now(),
             time: "",
             details: "",
-            signature: userName
+            signature: userName || "Unknown"
           }
         ],
         discussedWith: "",
-        signature: userName,
+        signature: userName || "Unknown",
         date: Date.now(),
-        staffSignature: userName
+        staffSignature: userName || "Unknown"
       }
   });
 
@@ -181,6 +196,9 @@ export default function CarePlanDialog({
   const onSubmit = async (values: z.infer<typeof carePlanAssessmentSchema>) => {
     startTransition(async () => {
       try {
+        // Log the values being submitted for debugging
+        console.log("CarePlanDialog onSubmit - values:", values);
+
         const payload = {
           resident_id: residentId,
           organization_id: organizationId || (await supabase.auth.getUser()).data.user?.user_metadata?.organization_id, // Fallback
@@ -189,9 +207,9 @@ export default function CarePlanDialog({
           interventions: values.plannedCareDate as any, // Store array directly as JSON
           goals: {
             aims: values.aims,
-            discussedWith: values.discussedWith,
-            signature: values.signature,
-            staffSignature: values.staffSignature,
+            discussedWith: values.discussedWith || "",
+            signature: values.signature || "",
+            staffSignature: values.staffSignature || "",
             // Meta fields
             residentName: values.residentName,
             dob: values.dob,
@@ -206,23 +224,53 @@ export default function CarePlanDialog({
           // Audit fields ? 
         };
 
+        console.log("CarePlanDialog - payload:", payload);
+
         if (isEditMode && initialData?.id) {
-          // Update
-          const { error } = await supabase
+          // Update mode: Archive the old plan and create a new version
+          // Step 1: Archive the old care plan
+          const archivePayload = {
+            status: 'archived',
+            archived_at: new Date().toISOString()
+          };
+
+          const { error: archiveError } = await supabase
             .from('care_plan_assessments')
-            .update(payload)
+            .update(archivePayload)
             .eq('id', initialData.id);
 
-          if (error) throw error;
-          toast.success("Care plan assessment updated successfully");
+          if (archiveError) {
+            console.error("CarePlanDialog - Archive error:", archiveError);
+            throw archiveError;
+          }
+
+          // Step 2: Create new version with reference to previous
+          const newVersionPayload = {
+            ...payload,
+            previous_care_plan_id: initialData.id
+          };
+
+          const { error: insertError } = await supabase
+            .from('care_plan_assessments')
+            .insert(newVersionPayload);
+
+          if (insertError) {
+            console.error("CarePlanDialog - Insert new version error:", insertError);
+            throw insertError;
+          }
+
+          toast.success("Care plan assessment updated successfully. Previous version archived.");
 
         } else {
-          // Insert
+          // Create new care plan (no previous version)
           const { error } = await supabase
             .from('care_plan_assessments')
             .insert(payload);
 
-          if (error) throw error;
+          if (error) {
+            console.error("CarePlanDialog - Insert error:", error);
+            throw error;
+          }
           toast.success("Care plan assessment submitted successfully");
         }
 
@@ -236,7 +284,17 @@ export default function CarePlanDialog({
         }
       } catch (error) {
         console.error("Error submitting care plan assessment:", error);
-        toast.error("Failed to submit care plan assessment");
+
+        let errorMessage = "Failed to submit care plan assessment";
+
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessage = (error as any).message;
+        }
+
+        console.error("Detailed error:", { error, message: errorMessage });
+        toast.error(errorMessage || "Failed to submit care plan assessment");
       }
     });
   };
@@ -302,12 +360,12 @@ export default function CarePlanDialog({
 
   const handleClose = () => {
     setStep(1);
+    setIsOpen(false);
     if (onClose) {
-      onClose();
+      setTimeout(() => onClose(), 0); // Close parent after dialog animation
     } else {
-      setIsOpen(false);
+      form.reset();
     }
-    form.reset();
   };
 
   // Render content logic unchanged (boilerplate)
@@ -329,7 +387,7 @@ export default function CarePlanDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <FormField control={form.control} name="residentName" render={({ field }) => (
-              <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="dob" render={({ field }) => (
               <FormItem><FormLabel>Date of Birth</FormLabel>
@@ -343,7 +401,7 @@ export default function CarePlanDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
-              <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="carePlanNumber" render={({ field }) => (
               <FormItem><FormLabel>Care Plan Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -352,7 +410,18 @@ export default function CarePlanDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <FormField control={form.control} name="writtenBy" render={({ field }) => (
-              <FormItem><FormLabel>Written By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+              <FormItem>
+                <FormLabel>Written By</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    readOnly
+                    className="bg-muted"
+                    value={field.value || userName || "Unknown"}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )} />
             <FormField control={form.control} name="dateWritten" render={({ field }) => (
               <FormItem><FormLabel>Date Written</FormLabel>
@@ -412,7 +481,18 @@ export default function CarePlanDialog({
             <FormItem><FormLabel>Discussed With</FormLabel><FormControl><Input placeholder="Patient/Rep Name" {...field} /></FormControl><FormMessage /></FormItem>
           )} />
           <FormField control={form.control} name="signature" render={({ field }) => (
-            <FormItem><FormLabel>Signature</FormLabel><FormControl><Input readOnly className="bg-muted" {...field} /></FormControl><FormMessage /></FormItem>
+            <FormItem>
+              <FormLabel>Signature</FormLabel>
+              <FormControl>
+                <Input
+                  readOnly
+                  className="bg-muted"
+                  {...field}
+                  value={field.value || userName || "Unknown"}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )} />
           <FormField control={form.control} name="date" render={({ field }) => (
             <FormItem><FormLabel>Review Date</FormLabel><Popover open={reviewDatePopoverOpen} onOpenChange={setReviewDatePopoverOpen} modal><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setReviewDatePopoverOpen(false); } }} /></PopoverContent></Popover><FormMessage /></FormItem>
@@ -444,9 +524,21 @@ export default function CarePlanDialog({
     );
   }
 
-  // Standalone Dialog Mode
+  // If controlled by parent component, render Dialog without trigger
+  if (isControlled) {
+    return (
+      <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-2xl">
+          {content}
+          {footer}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Standalone Dialog Mode with trigger button
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="gap-2">
           <Plus className="h-4 w-4" /> Create Care Plan

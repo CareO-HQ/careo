@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 
 export const runtime = "nodejs";
 
-// Create a Convex client for server-side usage
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -291,16 +292,15 @@ function generatePreAdmissionHTML(data: any): string {
             <p><strong>Advanced care plan:</strong> ${data.advancedCarePlan ? "Yes" : "No"}</p>
           </div>
         </div>
-        ${
-          data.comments
-            ? `
+        ${data.comments
+      ? `
           <div>
             <h3>Comments</h3>
             <div class="info-box">${data.comments}</div>
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Preferences -->
@@ -362,13 +362,12 @@ function generatePreAdmissionHTML(data: any): string {
         <h2>Assessment Outcome</h2>
         <div class="grid grid-cols-2">
           <p><strong>Outcome:</strong> ${data.outcome}</p>
-          ${
-            data.plannedAdmissionDate
-              ? `
+          ${data.plannedAdmissionDate
+      ? `
             <p><strong>Planned Admission Date:</strong> ${formatDate(data.plannedAdmissionDate)}</p>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -392,32 +391,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { formId } = await request.json();
+    // Parse the request body
+    const assessmentData = await request.json();
 
-    if (!formId) {
+    if (!assessmentData) {
       return NextResponse.json(
-        { error: "Form ID is required" },
+        { error: "Form data is required" },
         { status: 400 }
       );
     }
 
-    // Add some debugging
-    console.log("PDF API called with formId:", formId);
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure resident details and common fields are at the top level
+      firstName: assessmentData.firstName || assessmentData.assessment_data?.firstName || "Resident",
+      lastName: assessmentData.lastName || assessmentData.assessment_data?.lastName || "",
+      careHomeName: assessmentData.careHomeName || assessmentData.assessment_data?.careHomeName || "Care Home",
+      date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      userName: assessmentData.userName || assessmentData.completedBy || assessmentData.completed_by || "Staff Member",
+      jobRole: assessmentData.jobRole || assessmentData.job_role || "Staff",
+      // Sub-objects like professional contacts are likely already at top level after spread
+    };
 
-    // Fetch the form data directly from Convex
-    const formData = await convexClient.query(
-      api.careFiles.preadmission.getPreAdmissionForm,
-      {
-        id: formId as Id<"preAdmissionCareFiles">
-      }
-    );
-
-    if (!formData) {
-      return NextResponse.json({ error: "Form not found" }, { status: 404 });
-    }
+    console.log("Pre-Admission PDF API flattening data:", {
+      firstName: flattenedData.firstName,
+      lastName: flattenedData.lastName,
+      formId: flattenedData._id || flattenedData.id
+    });
 
     // Generate HTML content
-    const htmlContent = generatePreAdmissionHTML(formData);
+    const htmlContent = generatePreAdmissionHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -451,10 +456,10 @@ export async function POST(request: NextRequest) {
       await browser.close();
 
       // Return the PDF as a response
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="pre-admission-form-${formId}.pdf"`,
+          "Content-Disposition": `attachment; filename="pre-admission-form-${flattenedData.firstName?.replace(/\s+/g, "-") || "resident"}-${flattenedData.lastName?.replace(/\s+/g, "-") || ""}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

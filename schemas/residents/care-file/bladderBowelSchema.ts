@@ -13,6 +13,8 @@ export const bladderBowelAssessmentSchema = z.object({
   dateOfBirth: z.number(),
   bedroomNumber: z.string(),
   informationObtainedFrom: z.string().min(1, { message: "Required" }),
+  assessmentDate: z.number(),
+  completedBy: z.string(),
 
   // Section 2 - Infections
   hepatitisAB: z.boolean().optional(),
@@ -91,19 +93,19 @@ export const bladderBowelAssessmentSchema = z.object({
     "FAECAL-INCONTINENCE",
     "IRRITABLE-BOWEL"
   ]),
-  bowelFrequency: z.string(),
-  usualTimeOfDat: z.string(),
-  amountAndStoolType: z.string(),
-  liquidFeeds: z.string(),
-  otherFactors: z.string(),
-  otherRemedies: z.string(),
+  bowelFrequency: z.string().optional(),
+  usualTimeOfDat: z.string().optional(),
+  amountAndStoolType: z.string().optional(),
+  liquidFeeds: z.string().optional(),
+  otherFactors: z.string().optional(),
+  otherRemedies: z.string().optional(),
   medicalOfficerConsulted: z.boolean().optional(),
 
   // Section 8 - Current toileting pattern and products in use
   dayPattern: ToiletingPattern,
   eveningPattern: ToiletingPattern,
   nightPattern: ToiletingPattern,
-  typesOfPads: z.string(),
+  typesOfPads: z.string().optional(),
 
   // Section 9 - Symptoms
   // 9.A (9)
@@ -134,7 +136,7 @@ export const bladderBowelAssessmentSchema = z.object({
   // Bladder
   bladderContinent: z.boolean().optional(),
   bladderIncontinent: z.boolean().optional(),
-  bladderIncontinentType: z.enum(["STRESS", "URGE", "MIXED", "FUNCTIONAL"]),
+  bladderIncontinentType: z.enum(["STRESS", "URGE", "MIXED", "FUNCTIONAL"]).optional(),
   bladderPlanCommenced: z.boolean().optional(),
   bladderReferralRequired: z.enum([
     "DIETICIAN",
@@ -143,13 +145,13 @@ export const bladderBowelAssessmentSchema = z.object({
     "PHYSIOTHERAPIST",
     "CONTINENCE-NURSE",
     "NONE"
-  ]),
+  ]).optional(),
   bladderPlanFollowed: z.enum([
     "STRESS",
     "URGE",
     "MIXED",
     "RETENTION-OVERFLOW"
-  ]),
+  ]).optional(),
   // Bowel
   bowelContinent: z.boolean().optional(),
   bowelIncontinent: z.boolean().optional(),
@@ -161,12 +163,12 @@ export const bladderBowelAssessmentSchema = z.object({
     "OT",
     "PHYSIOTHERAPIST",
     "NONE"
-  ]),
+  ]).optional(),
 
   // Section 13
-  sigantureCompletingAssessment: z.string(),
-  sigantureResident: z.string(),
-  dateNextReview: z.number()
+  sigantureCompletingAssessment: z.string().optional(),
+  sigantureResident: z.string().optional(),
+  dateNextReview: z.number().optional()
 });
 
 export type BladderBowelAssessment = z.infer<

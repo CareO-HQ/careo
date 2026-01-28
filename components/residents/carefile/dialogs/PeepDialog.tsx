@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface PeepDialogProps {
   teamId: string;
@@ -105,11 +106,11 @@ export default function PeepDialog({
           initialData.furnitureFireRetardantComments ?? "",
         completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
         completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
-        date:
-          typeof initialData.date === "number"
-            ? initialData.date
-            : initialData.date
-              ? new Date(initialData.date).getTime()
+        assessmentDate:
+          typeof (initialData.assessment_date || initialData.completion_date || initialData.date) === "number"
+            ? (initialData.assessment_date || initialData.completion_date || initialData.date)
+            : (initialData.assessment_date || initialData.completion_date || initialData.date)
+              ? new Date(initialData.assessment_date || initialData.completion_date || initialData.date).getTime()
               : Date.now(),
         status: initialData.status ?? "draft"
       }
@@ -136,7 +137,7 @@ export default function PeepDialog({
         furnitureFireRetardantComments: "",
         completedBy: userName,
         completedBySignature: userName,
-        date: Date.now(),
+        assessmentDate: Date.now(),
         status: "draft"
       }
   });
@@ -183,7 +184,7 @@ export default function PeepDialog({
       const fieldsToValidate = [
         "completedBy",
         "completedBySignature",
-        "date"
+        "assessmentDate"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     }
@@ -230,26 +231,18 @@ export default function PeepDialog({
             furnitureFireRetardantComments: formData.furnitureFireRetardantComments
           },
           completed_by: formData.completedBy,
-          completion_date: format(new Date(formData.date), "yyyy-MM-dd"),
+          assessment_date: format(new Date(formData.assessmentDate), "yyyy-MM-dd"),
           created_by: userId
         };
 
-        if (isEditMode && initialData) {
-          const { error } = await supabase
-            .from("peeps")
-            .update(payload)
-            .eq("id", initialData.id || initialData._id);
+        await submitAssessmentWithVersioning(
+          'peeps',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          if (error) throw error;
-          toast.success("PEEP updated successfully");
-        } else {
-          const { error } = await supabase
-            .from("peeps")
-            .insert(payload);
-
-          if (error) throw error;
-          toast.success("PEEP saved successfully");
-        }
+        toast.success(isEditMode ? "PEEP updated successfully" : "PEEP saved successfully");
 
         onClose?.();
       } catch (error) {
@@ -681,7 +674,7 @@ export default function PeepDialog({
 
             <FormField
               control={form.control}
-              name="date"
+              name="assessmentDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Completion Date</FormLabel>

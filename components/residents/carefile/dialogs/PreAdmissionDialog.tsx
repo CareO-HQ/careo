@@ -43,8 +43,8 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 // import { useMutation } from "convex/react"; // Removed
-import { authClient } from "@/lib/auth-client";
 import { supabase } from "@/lib/supabase";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface PreAdmissionDialogProps {
   teamId: string;
@@ -52,6 +52,8 @@ interface PreAdmissionDialogProps {
   organizationId: string;
   careHomeName: string;
   resident: Resident;
+  userId: string;
+  userName: string;
   onClose?: () => void;
   initialData?: any; // Data from existing assessment for editing
   isEditMode?: boolean; // Whether this is an edit/review mode
@@ -63,6 +65,8 @@ export default function PreAdmissionDialog({
   organizationId,
   careHomeName,
   resident,
+  userId,
+  userName,
   onClose,
   initialData,
   isEditMode = false
@@ -71,14 +75,11 @@ export default function PreAdmissionDialog({
   const [consentAcceptedAt, setConsentAcceptedAt] = useState(false);
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
+  const [plannedDatePopoverOpen, setPlannedDatePopoverOpen] = useState(false);
   const [isLoading, startTransition] = useTransition();
 
-  const { data: session } = authClient.useSession();
-  const currentUserName = session?.user?.name ?? "";
-  const currentUserId = session?.user?.id;
-
-  const firstKin = resident.emergencyContacts?.find(
-    (contact) => contact.isPrimary
+  const firstKin = resident.emergency_contacts?.find(
+    (contact) => contact.is_primary
   );
 
   const form = useForm<z.infer<typeof preAdmissionSchema>>({
@@ -93,18 +94,18 @@ export default function PreAdmissionDialog({
         savedAsDraft: initialData.saved_as_draft || false,
         consentAcceptedAt: initialData.consent_accepted_at ? new Date(initialData.consent_accepted_at).getTime() : 0,
         careHomeName: initialData.care_home_name || initialData.careHomeName || careHomeName,
-        nhsHealthCareNumber: initialData.nhs_number || initialData.nhsHealthCareNumber || resident.nhsHealthNumber || "",
+        nhsHealthCareNumber: initialData.nhs_number || initialData.nhsHealthCareNumber || resident.nhs_health_number || "",
 
         // Spread assessment_data if available
         ...(initialData.assessment_data || {}),
 
         // Fallbacks for specific fields if not in assessment_data but top level in initialData from Convex
-        userName: initialData.assessment_data?.userName || initialData.userName || currentUserName,
+        userName: initialData.assessment_data?.userName || initialData.userName || userName,
         jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || "",
         date: initialData.assessment_data?.date || initialData.date || undefined,
-        firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.firstName || "",
-        lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.lastName || "",
-        dateOfBirth: initialData.assessment_data?.dateOfBirth || initialData.dateOfBirth || resident.dateOfBirth || "",
+        firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.first_name || "",
+        lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.last_name || "",
+        dateOfBirth: initialData.assessment_data?.dateOfBirth || initialData.dateOfBirth || resident.date_of_birth || "",
         // ... Continue mapping critical fields or rely on spread. 
         // Since spreading flat object is risky if key names differ, validation might fail if mapped incorrectly.
         // But assessment_data should mirror the schema structure ideally.
@@ -116,28 +117,28 @@ export default function PreAdmissionDialog({
         savedAsDraft: false,
         consentAcceptedAt: 0,
         careHomeName,
-        nhsHealthCareNumber: resident.nhsHealthNumber ?? "",
-        userName: currentUserName,
+        nhsHealthCareNumber: resident.nhs_health_number ?? "",
+        userName: userName,
         jobRole: "",
         date: undefined,
-        firstName: resident.firstName ?? "",
-        lastName: resident.lastName ?? "",
+        firstName: resident.first_name ?? "",
+        lastName: resident.last_name ?? "",
         address: "",
-        phoneNumber: resident.phoneNumber ?? "",
+        phoneNumber: resident.phone_number ?? "",
         ethnicity: "",
         gender: undefined,
         religion: "",
-        dateOfBirth: resident.dateOfBirth ?? "",
+        dateOfBirth: resident.date_of_birth ?? "",
         kinFirstName: firstKin?.name ?? "",
         kinLastName: "",
         kinRelationship: firstKin?.relationship ?? "",
-        kinPhoneNumber: firstKin?.phoneNumber ?? "",
-        careManagerName: resident.careManagerName ?? "",
-        careManagerPhoneNumber: resident.careManagerPhone ?? "",
+        kinPhoneNumber: firstKin?.phone_number ?? "",
+        careManagerName: resident.care_manager_name ?? "",
+        careManagerPhoneNumber: resident.care_manager_phone ?? "",
         districtNurseName: "",
         districtNursePhoneNumber: "",
-        generalPractitionerName: resident.gpName ?? "",
-        generalPractitionerPhoneNumber: resident.gpPhone ?? "",
+        generalPractitionerName: resident.gp_name ?? "",
+        generalPractitionerPhoneNumber: resident.gp_phone ?? "",
         providerHealthcareInfoName: "",
         providerHealthcareInfoDesignation: "",
         allergies: "",
@@ -177,7 +178,7 @@ export default function PreAdmissionDialog({
     console.log("Form submission triggered - values:", values);
     startTransition(async () => {
       try {
-        if (!currentUserId) throw new Error("User not authenticated");
+        if (!userId) throw new Error("User not authenticated");
 
         // Prepare Payload
         // Extract top-level columns
@@ -200,29 +201,18 @@ export default function PreAdmissionDialog({
           consent_accepted_at: consentAcceptedAt ? new Date(consentAcceptedAt).toISOString() : null,
           saved_as_draft: savedAsDraft,
           assessment_data: assessmentDataRest, // All other fields go here
-          created_by: currentUserId,
+          created_by: userId,
           // updated_at trigger handles updates
         };
 
-        if (isEditMode && initialData?.id) {
-          // Update
-          const { error } = await supabase
-            .from('pre_admission_care_files')
-            .update(payload)
-            .eq('id', initialData.id);
+        await submitAssessmentWithVersioning(
+          'pre_admission_care_files',
+          payload,
+          initialData,
+          isEditMode
+        );
 
-          if (error) throw error;
-          toast.success("Pre-admission form updated successfully!");
-
-        } else {
-          // Insert
-          const { error } = await supabase
-            .from('pre_admission_care_files')
-            .insert(payload);
-
-          if (error) throw error;
-          toast.success("Pre-admission form submitted successfully!");
-        }
+        toast.success(isEditMode ? "Pre-admission form updated successfully!" : "Pre-admission form submitted successfully!");
 
         setTimeout(() => {
           onClose?.();

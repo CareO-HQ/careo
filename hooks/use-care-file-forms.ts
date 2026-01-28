@@ -4,8 +4,7 @@ import {
   CareFileFormsState,
   CareFileFormStatus
 } from "@/types/care-files";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 interface UseCareFileFormsProps {
@@ -13,7 +12,6 @@ interface UseCareFileFormsProps {
 }
 
 export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
-  const { data: activeOrg } = authClient.useActiveOrganization();
   const [formsState, setFormsState] = useState<CareFileFormsState>({});
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +61,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "timl": "timl_assessments",
       "skin-integrity-form": "skin_integrity_assessments",
       "resident-valuables-form": "resident_valuables_assessments",
-      "resident-handling-profile-form": "resident_handling_profiles",
+      "resident-handling-profile-form": "handling_profiles",
       "pain-assessment-form": "pain_assessments",
       "nutritional-assessment-form": "nutritional_assessments",
       "oral-assessment-form": "oral_assessments",
