@@ -3,6 +3,7 @@
 import { createColumns } from "@/components/medication/daily/columns";
 import { createMedicationColumns } from "@/components/medication/daily/medication-columns";
 import { DataTable } from "@/components/medication/daily/data-table";
+import { MedicationAlertBanner } from "@/components/medication/alerts/MedicationAlertBanner";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
 import { Button } from "@/components/ui/button";
@@ -18,15 +19,21 @@ import { config } from "@/config";
 import { toast } from "sonner";
 import { formatTimestampToUKTime, formatTimestampToUKDateTime } from "@/lib/date-utils";
 
+import { format } from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
+
 type MedicationPageProps = {
   params: Promise<{ id: string }>;
 };
 
+const UK_TIMEZONE = "Europe/London";
+
 // Helper function to find the nearest medication time
 const getNearestMedicationTime = (): string | null => {
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
+  const ukNow = toZonedTime(now, UK_TIMEZONE);
+  const currentHour = ukNow.getHours();
+  const currentMinute = ukNow.getMinutes();
   const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
   // Flatten all times from config
@@ -64,12 +71,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [discontinuedMedications, setDiscontinuedMedications] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [medicationRoundStatus, setMedicationRoundStatus] = useState<any>(null);
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [selectedTime, setSelectedTime] = useState<string | null>(
     getNearestMedicationTime() || config.times[0]?.values[0] || null
   );
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  // Initialize with UK Today
+  const [selectedDate, setSelectedDate] = useState<Date>(() => toZonedTime(new Date(), UK_TIMEZONE));
   const [filteredIntakes, setFilteredIntakes] = useState<any[]>([]);
 
   const fetchData = React.useCallback(async () => {
@@ -84,10 +93,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       if (residentData) setResident(residentData as Resident);
 
-      const todayStart = new Date(selectedDate);
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date(selectedDate);
-      todayEnd.setHours(23, 59, 59, 999);
+      // Construct UK day range for query
+      const startOfDayStr = format(selectedDate, "yyyy-MM-dd");
+      const rangeStart = fromZonedTime(`${startOfDayStr}T00:00:00`, UK_TIMEZONE);
+      const rangeEnd = fromZonedTime(`${startOfDayStr}T23:59:59.999`, UK_TIMEZONE);
 
       // Fetch intakes for selected date
       const { data: intakes } = await supabase
@@ -97,8 +106,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           medication:medication_id (*)
         `)
         .eq("resident_id", id)
-        .gte("scheduled_time", todayStart.toISOString())
-        .lte("scheduled_time", todayEnd.toISOString());
+        .gte("scheduled_time", rangeStart.toISOString())
+        .lte("scheduled_time", rangeEnd.toISOString());
 
       setSelectedDateIntakes(intakes || []);
 
@@ -150,6 +159,45 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetch alerts and setup real-time subscription
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchAlerts = async () => {
+      const { data } = await supabase
+        .from("alerts")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("alert_type", "medication")
+        .eq("is_resolved", false);
+
+      setActiveAlerts(data || []);
+    };
+
+    fetchAlerts();
+
+    // Subscribe to new alerts or updates
+    const subscription = supabase
+      .channel(`resident-alerts-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'alerts',
+          filter: `resident_id=eq.${id}`
+        },
+        () => {
+          fetchAlerts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [id]);
 
   const markMedicationIntakeAsPoppedOut = async (intakeId: string, isPoppedOut: boolean) => {
     const { error } = await supabase
@@ -340,6 +388,29 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           />
         </div>
       </div>
+
+      <MedicationAlertBanner
+        alerts={activeAlerts}
+        onDismiss={async (alertId) => {
+          try {
+            const { error } = await supabase
+              .from('alerts')
+              .update({
+                is_resolved: true,
+                resolved_at: new Date().toISOString(),
+                resolved_by: profile?.id,
+                resolution_note: 'Dismissed by user from medication tab'
+              })
+              .eq('id', alertId);
+
+            if (error) throw error;
+            setActiveAlerts(prev => prev.filter(a => a.id !== alertId));
+          } catch (error) {
+            console.error('Error resolving alert:', error);
+            toast.error('Failed to dismiss alert');
+          }
+        }}
+      />
 
       <div className="flex flex-col items-start">
         <p className="font-semibold mb-1">Today&apos;s Medications</p>

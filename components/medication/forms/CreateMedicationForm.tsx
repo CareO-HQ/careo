@@ -31,6 +31,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -72,7 +73,7 @@ export default function CreateMedicationForm({
       timeQuantities: {},
       instructions: undefined,
       prescriberName: "",
-      startDate: new Date(),
+      startDate: toZonedTime(new Date(), "Europe/London"),
       endDate: undefined,
       status: "active",
       isControlledDrug: false,
@@ -97,7 +98,7 @@ export default function CreateMedicationForm({
 
     startTransition(async () => {
       try {
-        const { error } = await supabase
+        const { data: newMedication, error } = await supabase
           .from("medications")
           .insert({
             resident_id: residentId,
@@ -124,10 +125,61 @@ export default function CreateMedicationForm({
             min_interval_hours: values.minIntervalHours,
             max_daily_dose: values.maxDailyDose,
             max_daily_dose_unit: values.maxDailyDoseUnit
-          });
-
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Generate intakes for today if applicable
+        if (newMedication && values.scheduleType !== "PRN (As Needed)" && values.times && values.times.length > 0) {
+          const UK_TIMEZONE = "Europe/London";
+          // Get current time in UK
+          const now = new Date();
+          const ukNow = toZonedTime(now, UK_TIMEZONE);
+          const ukTodayStr = format(ukNow, "yyyy-MM-dd");
+
+          // Get start date string (treat the selected date as that day in UK time)
+          const startDateStr = format(values.startDate, "yyyy-MM-dd");
+
+          // Check if medication is active today based on dates
+          // We compare standard date strings to avoid time/timezone confusion
+          const isStarted = startDateStr <= ukTodayStr;
+
+          let isEnded = false;
+          if (values.endDate) {
+            const endDateStr = format(values.endDate, "yyyy-MM-dd");
+            if (endDateStr < ukTodayStr) isEnded = true;
+          }
+
+          if (isStarted && !isEnded && values.status === 'active') {
+            const intakes = values.times.map((time) => {
+              // Construct the datetime string for the UK time
+              // e.g. "2024-01-29T08:00:00"
+              const dateTimeStr = `${ukTodayStr}T${time}:00`;
+
+              // Convert this UK time to a UTC Date object for storage
+              const scheduledTimeUTC = fromZonedTime(dateTimeStr, UK_TIMEZONE);
+
+              return {
+                medication_id: newMedication.id,
+                resident_id: residentId,
+                scheduled_time: scheduledTimeUTC.toISOString(),
+                status: 'scheduled',
+                organization_id: organizationId,
+                care_home_id: profile?.active_care_home_id
+              };
+            });
+
+            const { error: intakeError } = await supabase.from("medication_intakes").insert(intakes);
+
+            if (intakeError) {
+              console.error("Error creating initial intakes:", intakeError);
+              // We don't throw here to avoid failing the whole creation, just log it
+              toast.error("Medication created but failed to generate today's schedule");
+            }
+          }
+        }
 
         toast.success("Medication created successfully");
         onSuccess();

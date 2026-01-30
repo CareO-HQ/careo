@@ -105,13 +105,13 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
   useEffect(() => {
     async function fetchNextMedication() {
       const { data, error } = await supabase
-        .from("medication_administration")
+        .from("medication_intakes")
         .select(`
           *,
           medication:medication_id (*)
         `)
         .eq("resident_id", residentId)
-        .eq("status", "scheduled")
+        .in("status", ["scheduled", "pending"])
         .gte("scheduled_time", new Date().toISOString())
         .order("scheduled_time", { ascending: true })
         .limit(1)
