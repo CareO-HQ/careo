@@ -11,6 +11,8 @@ import { canAddDietMenu, canLogFoodFluidEntry } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
+import { getUKTodayDate, formatTimestampToUKTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
+import { formatInTimeZone } from "date-fns-tz";
 import {
   Card,
   CardContent,
@@ -124,7 +126,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
       if (dietData) setExistingDiet(dietData);
 
-      const today = new Date().toISOString().split('T')[0];
+      // Use UK timezone for today's date
+      const today = getUKTodayDate();
 
       // Fetch food logs for today
       const { data: foodData } = await supabase
@@ -312,16 +315,13 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const getCurrentDate = () => {
-    return new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return formatDateForDisplay(getUKTodayDate());
   };
 
   const getCurrentSection = () => {
-    const hour = new Date().getHours();
+    // Get current hour in UK timezone
+    const ukNow = formatInTimeZone(new Date(), UK_TIMEZONE, "HH");
+    const hour = parseInt(ukNow);
     if (hour >= 0 && hour < 7) return "midnight-7am";
     if (hour >= 7 && hour < 12) return "7am-12pm";
     if (hour >= 12 && hour < 17) return "12pm-5pm";
@@ -329,11 +329,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   };
 
   const getCurrentTime = () => {
-    return new Date().toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    return formatTimestampToUKTime(new Date());
   };
 
   const getSectionDisplayName = (section: string) => {
@@ -423,8 +419,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           amount_eaten: values.amountEaten,
           fluid_consumed_ml: values.fluidConsumedMl,
           signature: values.signature,
-          date: new Date().toISOString().split('T')[0],
-          timestamp: new Date().toISOString(),
+          date: getUKTodayDate(), // Use UK timezone date
+          timestamp: new Date().toISOString(), // Keep ISO timestamp for database
           created_by: profile.id,
         });
 
@@ -762,7 +758,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               </div>
               <div className="flex flex-col space-y-2">
                 <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
-                  {new Date().toLocaleDateString()}
+                  {formatInTimeZone(new Date(), UK_TIMEZONE, "dd MMM yyyy")}
                 </Badge>
               </div>
             </CardTitle>
@@ -807,10 +803,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                       {sortedFoodLogs.map((log) => (
                         <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
                           <span className="font-medium">
-                            {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatTimestampToUKTime(new Date(log.timestamp))}
                           </span>
                           {" - "}
                           <span className="text-muted-foreground">{log.type_of_food_drink}</span>
@@ -848,10 +841,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                       {sortedFluidLogs.map((log) => (
                         <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
                           <span className="font-medium">
-                            {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatTimestampToUKTime(new Date(log.timestamp))}
                           </span>
                           {" - "}
                           <span className="text-muted-foreground">{log.type_of_food_drink}</span>
@@ -922,10 +912,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 <div className="relative z-10">
                   <div className="text-3xl font-bold text-gray-600 mb-1">
                     {logSummary?.lastRecorded
-                      ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
+                      ? formatTimestampToUKTime(new Date(logSummary.lastRecorded))
                       : "--:--"
                     }
                   </div>

@@ -1,11 +1,9 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import {
   Card,
   CardContent,
@@ -48,17 +46,41 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
+  User,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
+import { formatTimestampToUKTime, formatTimestampToUKDateTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
 
 type DailyCareDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+// Helper to get day key from a timestamp (8am-8am boundary in UK time)
+// Day runs from 8am to 8am next day
+function getDayKey(timestamp: string | Date): string {
+  const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+  // Convert to UK timezone
+  const ukDate = toZonedTime(date, UK_TIMEZONE);
+  const hour = ukDate.getHours();
+  
+  // If before 8am, it belongs to previous day
+  if (hour < 8) {
+    const prevDay = new Date(ukDate);
+    prevDay.setDate(prevDay.getDate() - 1);
+    return formatInTimeZone(prevDay, UK_TIMEZONE, 'yyyy-MM-dd');
+  }
+  
+  // Otherwise, it belongs to current day
+  return formatInTimeZone(ukDate, UK_TIMEZONE, 'yyyy-MM-dd');
+}
+
 export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const { profile } = useProfile();
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,89 +94,226 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [selectedDayData, setSelectedDayData] = useState<any>(null);
+  const [isLoadingDayData, setIsLoadingDayData] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Data state
+  const [resident, setResident] = useState<any>(null);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Use server-side pagination query
-  const paginatedData = useQuery(api.personalCare.getPaginatedDailyCareReports, {
-    residentId,
-    page: currentPage,
-    pageSize: itemsPerPage,
-    dateRangeFilter,
-    month: selectedMonth !== "all" ? parseInt(selectedMonth) : undefined,
-    year: selectedYear !== "all" ? parseInt(selectedYear) : undefined,
-  });
+  // Fetch resident and all tasks
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id || !profile?.active_organization_id) return;
 
-  // Get the selected report data when viewing
-  const selectedReportData = useQuery(
-    api.personalCare.getDailyPersonalCare,
-    selectedReport ? {
-      residentId: id as Id<"residents">,
-      date: selectedReport.date,
-    } : "skip"
-  );
+      setIsLoading(true);
+      try {
+        // Fetch resident
+        const { data: residentData, error: residentError } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
 
+        if (residentError) throw residentError;
+        setResident(residentData);
 
-  // Calculate resident details
-  const fullName = useMemo(() => {
-    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
-    return `${resident.firstName} ${resident.lastName}`;
-  }, [resident]);
+        // Fetch all personal care daily records
+        const { data: dailyRecords, error: dailyError } = await supabase
+          .from("personal_care_daily")
+          .select("*")
+          .eq("resident_id", id)
+          .order("date", { ascending: false });
 
-  // Transform server-side paginated data
+        if (dailyError) throw dailyError;
+
+        // Fetch all task events
+        const { data: taskEvents, error: tasksError } = await supabase
+          .from("personal_care_task_events")
+          .select("*")
+          .eq("resident_id", id)
+          .order("created_at", { ascending: false });
+
+        if (tasksError) throw tasksError;
+
+        setAllTasks(taskEvents || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load daily care records");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, profile?.active_organization_id]);
+
+  // Group tasks by day (8am-8am boundary)
+  const tasksByDay = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+
+    allTasks.forEach((task) => {
+      if (!task.created_at) return;
+      const dayKey = getDayKey(task.created_at);
+      if (!grouped[dayKey]) {
+        grouped[dayKey] = [];
+      }
+      grouped[dayKey].push(task);
+    });
+
+    return grouped;
+  }, [allTasks]);
+
+  // Get unique days and create report objects
   const reportObjects = useMemo(() => {
-    if (!paginatedData?.dates) return [];
-    return paginatedData.dates.map(dateInfo => ({
-      date: dateInfo.date,
-      formattedDate: format(new Date(dateInfo.date), "PPP"),
-      _id: dateInfo.date,
-      hasData: dateInfo.hasData
-    }));
-  }, [paginatedData]);
+    const days = Object.keys(tasksByDay).sort((a, b) => {
+      return sortOrder === "desc" ? b.localeCompare(a) : a.localeCompare(b);
+    });
 
-  // Get unique years from earliest date for filter
-  const availableYears = useMemo(() => {
-    if (!paginatedData?.earliestDate) return [];
-    const earliestYear = new Date(paginatedData.earliestDate).getFullYear();
-    const currentYear = new Date().getFullYear();
-    const years: number[] = [];
-    for (let year = currentYear; year >= earliestYear; year--) {
-      years.push(year);
+    // Apply date range filter
+    let filteredDays = days;
+    if (dateRangeFilter !== "all") {
+      const now = new Date();
+      const cutoffDate = new Date(now);
+      if (dateRangeFilter === "last_7") {
+        cutoffDate.setDate(cutoffDate.getDate() - 7);
+      } else if (dateRangeFilter === "last_30") {
+        cutoffDate.setDate(cutoffDate.getDate() - 30);
+      } else if (dateRangeFilter === "last_90") {
+        cutoffDate.setDate(cutoffDate.getDate() - 90);
+      }
+      filteredDays = days.filter(day => new Date(day) >= cutoffDate);
     }
-    return years;
-  }, [paginatedData?.earliestDate]);
 
-  // Client-side search filtering (apply to current page only)
+    // Apply month filter
+    if (selectedMonth !== "all") {
+      const month = parseInt(selectedMonth);
+      filteredDays = filteredDays.filter(day => {
+        const date = parseISO(day);
+        return date.getMonth() + 1 === month;
+      });
+    }
+
+    // Apply year filter
+    if (selectedYear !== "all") {
+      const year = parseInt(selectedYear);
+      filteredDays = filteredDays.filter(day => {
+        const date = parseISO(day);
+        return date.getFullYear() === year;
+      });
+    }
+
+    return filteredDays.map(day => ({
+      date: day,
+      formattedDate: format(parseISO(day), "PPP"),
+      _id: day,
+      hasData: tasksByDay[day]?.length > 0,
+      taskCount: tasksByDay[day]?.length || 0,
+    }));
+  }, [tasksByDay, sortOrder, dateRangeFilter, selectedMonth, selectedYear]);
+
+  // Get unique years from data
+  const availableYears = useMemo(() => {
+    const days = Object.keys(tasksByDay);
+    if (days.length === 0) return [];
+    const years = new Set<number>();
+    days.forEach(day => {
+      const date = parseISO(day);
+      years.add(date.getFullYear());
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [tasksByDay]);
+
+  // Client-side search filtering
   const filteredReports = useMemo(() => {
-    if (!reportObjects) return [];
-
     if (!searchQuery) return reportObjects;
-
     return reportObjects.filter(report =>
       report.formattedDate.toLowerCase().includes(searchQuery.toLowerCase()) ||
       report.date.includes(searchQuery)
     );
   }, [reportObjects, searchQuery]);
 
-  // Pagination state from server
-  const totalPages = Math.ceil((paginatedData?.totalCount || 0) / itemsPerPage);
-  const paginatedReports = sortOrder === "desc" ? filteredReports : [...filteredReports].reverse();
+  // Pagination
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedReports = filteredReports.slice(startIndex, endIndex);
 
   // Handlers
-  const handleViewReport = (report: any) => {
+  const handleViewReport = async (report: any) => {
     setSelectedReport(report);
     setIsViewDialogOpen(true);
+    setIsLoadingDayData(true);
+
+    try {
+      const dayTasks = tasksByDay[report.date] || [];
+      setSelectedDayData({
+        date: report.date,
+        tasks: dayTasks,
+      });
+    } catch (error) {
+      console.error("Error loading day data:", error);
+      toast.error("Failed to load report data");
+    } finally {
+      setIsLoadingDayData(false);
+    }
+  };
+
+  const handleDownloadPDF = async (report: any) => {
+    if (!resident) {
+      toast.error('Resident data not available');
+      return;
+    }
+
+    try {
+      const dayTasks = tasksByDay[report.date] || [];
+      const dayData = {
+        date: report.date,
+        tasks: dayTasks,
+      };
+
+      // Call PDF generation API
+      const response = await fetch('/api/pdf/daily-care', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resident,
+          dayData,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily-care-report-${resident.first_name}-${resident.last_name}-${report.date}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('Failed to download PDF');
+    }
   };
 
   const handleExport = () => {
     if (!filteredReports || filteredReports.length === 0) return;
 
-    // Create CSV content
-    const headers = ["Date", "Report Type", "Status"];
+    const headers = ["Date", "Report Type", "Activities Count", "Status"];
     const rows = filteredReports.map(report => [
       report.date,
       "Daily Care Report",
+      report.taskCount.toString(),
       "Archived"
     ]);
 
@@ -163,118 +322,31 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
     ].join("\n");
 
-    // Download CSV
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `daily-care-reports-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    const fullName = resident ? `${resident.first_name}-${resident.last_name}` : "resident";
+    a.download = `daily-care-reports-${fullName}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
-  const handleDownloadReport = (report: any) => {
-    if (!resident) {
-      toast.error('Resident data not available');
-      return;
-    }
-
-    const reportToDownload = selectedReportData && selectedReport?.date === report.date
-      ? selectedReportData
-      : { activities: [], reportGenerated: false };
-
-    const htmlContent = generatePDFContent({
-      resident,
-      report: reportToDownload,
-      date: report.date
-    });
-
-    generatePDFFromHTML(htmlContent);
-    toast.success('Daily care report will open for printing');
-  };
-
-  const generatePDFContent = ({ resident, report, date }: { resident: any; report: any; date: string; }) => {
-    const completedCount = report.tasks?.filter((a: any) => a.status === 'completed').length || 0;
-    const totalActivities = report.tasks?.length || 0;
-    const completionRate = totalActivities > 0 ? Math.round((completedCount / totalActivities) * 100) : 0;
-
-    const formattedDate = new Date(date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-
-    return `
-      <div class="header">
-        <h1>Daily Care Report</h1>
-        <p style="color: #64748B; margin: 0;">${resident.firstName} ${resident.lastName}</p>
-      </div>
-
-      <div class="info-grid">
-        <div class="info-box">
-          <h3>Report Date</h3>
-          <p>${formattedDate}</p>
-        </div>
-        <div class="info-box">
-          <h3>Total Activities</h3>
-          <p>${totalActivities}</p>
-        </div>
-        <div class="info-box">
-          <h3>Completion Rate</h3>
-          <p>${completionRate}%</p>
-        </div>
-      </div>
-
-      <div class="activities">
-        <h2>Activities Log</h2>
-        ${report.tasks && report.tasks.length > 0
-          ? report.tasks.map((activity: any) => `
-              <div class="activity-item">
-                <strong>${activity.taskType}</strong><br>
-                ${activity.completedAt ? `Completed: ${new Date(activity.completedAt).toLocaleTimeString()}` : 'Status: Pending'}<br>
-                ${activity.notes ? `Notes: ${activity.notes}` : ''}
-              </div>
-            `).join('')
-          : '<p>No activities logged for this day.</p>'
-        }
-      </div>
-    `;
-  };
-
-  const generatePDFFromHTML = (content: string) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Daily Care Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
-            .info-box { background: #f5f5f5; padding: 10px; border-radius: 5px; }
-            .activity-item { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; }
-          </style>
-        </head>
-        <body>
-          ${content}
-          <button onclick="window.print()" style="margin-top: 20px; padding: 10px 20px;">Print PDF</button>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
-  };
+  // Calculate stats
+  const reportStats = useMemo(() => {
+    const total = reportObjects.length;
+    const thisMonth = reportObjects.filter(report => {
+      const reportDate = parseISO(report.date);
+      const now = new Date();
+      return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
+    }).length;
+    return { total, thisMonth };
+  }, [reportObjects]);
 
   // Loading state
-  if (!resident || !paginatedData) {
+  if (isLoading || !resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -285,15 +357,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     );
   }
 
-  // Calculate stats from paginated data
-  const reportStats = {
-    total: paginatedData.totalCount || 0,
-    thisMonth: reportObjects.filter(report => {
-      const reportDate = new Date(report.date);
-      const now = new Date();
-      return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
-    }).length,
-  };
+  const fullName = `${resident.first_name} ${resident.last_name}`;
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
@@ -317,7 +381,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           Daily Care
         </Button>
         <span>/</span>
-        <span className="text-foreground">All Reports</span>
+        <span className="text-foreground">All Records</span>
       </div>
 
       {/* Header */}
@@ -334,9 +398,9 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
             <Activity className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Daily Care Reports History</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Daily Care Records History</h1>
             <p className="text-muted-foreground text-sm">
-              Complete history of daily care shift reports for {fullName}
+              Complete history of daily care records for {fullName} (8am-8am days)
             </p>
           </div>
         </div>
@@ -348,7 +412,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-700">Total Reports</p>
+                <p className="text-sm font-medium text-blue-700">Total Days</p>
                 <p className="text-2xl font-bold text-blue-900">{reportStats.total}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
@@ -376,8 +440,8 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-700">Daily Reports</p>
-                <p className="text-2xl font-bold text-purple-900">{reportStats.total}</p>
+                <p className="text-sm font-medium text-purple-700">Total Activities</p>
+                <p className="text-2xl font-bold text-purple-900">{allTasks.length}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
                 <Activity className="w-5 h-5 text-purple-600" />
@@ -393,7 +457,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Filter className="w-5 h-5" />
-              <span>Filter Reports</span>
+              <span>Filter Records</span>
             </div>
             <Button
               variant="outline"
@@ -439,6 +503,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
+                      setCurrentPage(1);
                     }}
                     className="pl-10"
                   />
@@ -508,16 +573,16 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Daily Care Reports ({filteredReports.length})
+            Daily Care Records ({filteredReports.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {filteredReports.length === 0 ? (
             <div className="text-center py-12">
               <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No reports found</p>
+              <p className="text-gray-500 font-medium">No records found</p>
               <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No daily care reports recorded yet"}
+                {searchQuery ? "Try adjusting your search criteria" : "No daily care records recorded yet"}
               </p>
             </div>
           ) : (
@@ -526,8 +591,8 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Report</TableHead>
+                      <TableHead>Date (8am-8am)</TableHead>
+                      <TableHead>Activities</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -538,53 +603,39 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{format(new Date(report.date), "dd MMM yyyy")}</span>
+                            <span>{format(parseISO(report.date), "dd MMM yyyy")}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          {report.hasData ? (
-                            <div className="flex items-center space-x-2">
-                              <Activity className="w-4 h-4 text-blue-600" />
-                              <span className="text-sm">Daily Care Report</span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-400">-</span>
-                          )}
+                          <div className="flex items-center space-x-2">
+                            <Activity className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm">{report.taskCount} activities</span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {report.hasData ? (
-                            <Badge className="bg-green-100 text-green-800 border-0">
-                              Archived
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200">
-                              No Data
-                            </Badge>
-                          )}
+                          <Badge className="bg-green-100 text-green-800 border-0">
+                            Recorded
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {report.hasData ? (
-                            <div className="flex items-center justify-end space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleViewReport(report)}
-                                className="h-8 w-8"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDownloadReport(report)}
-                                className="h-8 w-8"
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">-</span>
-                          )}
+                          <div className="flex items-center justify-end space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewReport(report)}
+                              className="h-8 w-8"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDownloadPDF(report)}
+                              className="h-8 w-8"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -596,7 +647,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Page {currentPage} of {totalPages} ({paginatedData?.totalCount || 0} total reports)
+                    Page {currentPage} of {totalPages} ({filteredReports.length} total records)
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -637,7 +688,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                       variant="outline"
                       size="sm"
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages || !paginatedData?.hasMore}
+                      disabled={currentPage === totalPages}
                       className="h-8 w-8 p-0"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -652,62 +703,101 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
       {/* View Report Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Daily Care Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
+              Daily Care Record - {selectedReport && format(parseISO(selectedReport.date), "PPP")}
             </DialogTitle>
             <DialogDescription>
-              All activities logged for this day
+              All activities logged for this day (8am to 8am next day)
             </DialogDescription>
           </DialogHeader>
-          <div className={`space-y-2 ${(() => {
-            if (!selectedReport) return '';
-            const activityCount = (selectedReportData?.tasks || []).length;
-            return activityCount > 2 ? 'overflow-y-auto max-h-[60vh]' : '';
-          })()}`}>
-            {selectedReportData === undefined ? (
+          <div className="space-y-4">
+            {isLoadingDayData ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-muted-foreground">Loading report...</p>
+                <p className="mt-2 text-muted-foreground">Loading record...</p>
               </div>
-            ) : (() => {
-              const activities = selectedReportData?.tasks || [];
+            ) : selectedDayData && selectedDayData.tasks.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-muted-foreground">Total Activities</div>
+                      <div className="text-2xl font-bold">{selectedDayData.tasks.length}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-muted-foreground">Date</div>
+                      <div className="text-lg font-semibold">{format(parseISO(selectedDayData.date), "EEEE, MMMM d, yyyy")}</div>
+                    </CardContent>
+                  </Card>
+                </div>
 
-              return activities.length > 0 ? (
-                activities.map((activity: any, index: number) => (
-                  <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-sm">{activity.taskType}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {activity.status}
-                          </Badge>
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {activity.createdAt ? new Date(activity.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
-                      </span>
-                    </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg mb-3">Activities</h3>
+                  {selectedDayData.tasks
+                    .sort((a: any, b: any) => {
+                      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      return bTime - aTime;
+                    })
+                    .map((task: any, index: number) => {
+                      const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string } | null;
+                      const displayTime = payload?.time || (task.created_at ? formatTimestampToUKTime(task.created_at) : '--');
+                      const staffName = payload?.primaryStaff || payload?.staff || 'Staff';
+                      const isActivityRecord = task.task_type === 'daily_activity_record';
 
-                    {activity.notes && (
-                      <div className="text-xs text-muted-foreground mt-2">
-                        <span className="font-medium">Notes:</span> {activity.notes}
-                      </div>
-                    )}
-
-                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      Recorded by: {activity.payload?.primaryStaff || activity.payload?.staff || 'Unknown'}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 py-8 text-center">
-                  No activities logged for this day
-                </p>
-              );
-            })()}
+                      return (
+                        <Card key={task.id || index} className="border">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {isActivityRecord ? (
+                                    <Activity className="w-4 h-4 text-green-600" />
+                                  ) : (
+                                    <User className="w-4 h-4 text-blue-600" />
+                                  )}
+                                  <h4 className="font-semibold text-sm">
+                                    {isActivityRecord ? 'Daily Activity Record' : task.task_type}
+                                  </h4>
+                                  <Badge variant="outline" className="text-xs">
+                                    {task.status || 'completed'}
+                                  </Badge>
+                                </div>
+                                {task.notes && (
+                                  <p className="text-sm text-muted-foreground mb-2">{task.notes}</p>
+                                )}
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    <span>{displayTime}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    <span>{staffName}</span>
+                                  </div>
+                                  {payload?.assistedStaff && (
+                                    <div className="flex items-center gap-1">
+                                      <span>Assisted by: {payload.assistedStaff}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                </div>
+              </>
+            ) : (
+              <p className="text-gray-500 py-8 text-center">
+                No activities logged for this day
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

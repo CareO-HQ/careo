@@ -259,15 +259,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     }
   }, [isActivityRecordDialogOpen]);
 
-  // Update staff fields and time when user data loads or when dialog opens
+  // Update staff fields when user data loads or when dialog opens
   React.useEffect(() => {
     if (user?.user && isPersonalCareDialogOpen) {
       const staffName = user.user.name || user.user.email?.split('@')[0] || "";
       form.setValue('staff', staffName);
 
-      // Set current time
-      const currentTime = new Date().toTimeString().slice(0, 5);
-      form.setValue('time', currentTime);
+      // Only set time if it's not already set (don't override user's selection)
+      if (!form.getValues('time')) {
+        const currentTime = new Date().toTimeString().slice(0, 5);
+        form.setValue('time', currentTime);
+      }
     }
   }, [user, form, isPersonalCareDialogOpen]);
 
@@ -319,6 +321,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             resident_id: id,
             organization_id: profile?.active_organization_id,
             date: today,
+            created_by: profile?.id,
           })
           .select()
           .single();
@@ -327,22 +330,29 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
         careDailyId = newDaily.id;
       }
 
-      // 2. Insert task event
-      const { error: taskError } = await supabase
-        .from("personal_care_task_events")
-        .insert({
-          daily_care_id: careDailyId,
+      // 2. Insert task events (one per activity)
+      const taskEventPromises = data.activities.map((activity) =>
+        supabase.from("personal_care_task_events").insert({
+          daily_id: careDailyId,
           resident_id: id,
           organization_id: profile?.active_organization_id,
-          task_type: "personal_care",
-          activities: data.activities,
-          time: data.time,
-          staff_name: data.staff,
-          assisted_staff_name: data.assistedStaff === "none" ? undefined : data.assistedStaff,
+          task_type: activity,
+          status: "completed",
+          performed_by: profile?.id,
           notes: data.notes,
-        });
+          payload: {
+            time: data.time,
+            primaryStaff: data.staff,
+            assistedStaff: data.assistedStaff === "none" ? undefined : data.assistedStaff,
+          },
+        })
+      );
 
-      if (taskError) throw taskError;
+      const taskResults = await Promise.all(taskEventPromises);
+      const taskErrors = taskResults.filter((result) => result.error);
+      if (taskErrors.length > 0) {
+        throw taskErrors[0].error;
+      }
 
       // Reset form with staff name preserved
       form.reset({
@@ -380,6 +390,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             resident_id: id,
             organization_id: profile?.active_organization_id,
             date: today,
+            created_by: profile?.id,
           })
           .select()
           .single();
@@ -392,13 +403,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       const { error: taskError } = await supabase
         .from("personal_care_task_events")
         .insert({
-          daily_care_id: careDailyId,
+          daily_id: careDailyId,
           resident_id: id,
           organization_id: profile?.active_organization_id,
           task_type: "daily_activity_record",
-          time: activityRecordTime,
-          staff_name: currentUserName,
+          status: "completed",
+          performed_by: profile?.id,
           notes: activityRecordNotes || undefined,
+          payload: {
+            time: activityRecordTime,
+            staff: currentUserName,
+          },
         });
 
       if (taskError) throw taskError;
@@ -443,7 +458,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           priority: data.priority,
           organization_id: profile.active_organization_id,
           team_id: profile.active_team_id,
-          created_by_id: user.user.id,
+          created_by: user.user.id,
         });
 
       if (error) throw error;
@@ -754,8 +769,16 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
             ${activityRecords.length > 0 ?
         activityRecords
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .filter(a => a.created_at)
+          .sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime;
+          })
           .map((activity, index) => {
+            const payload = activity.payload as { time?: string; staff?: string } | null;
+            const staffName = payload?.staff;
+            const displayTime = payload?.time || (activity.created_at ? formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm') : '--');
             return `
                     <div class="activity-item green">
                       <div class="activity-header">
@@ -764,8 +787,8 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                       </div>
                       ${activity.notes ? `<div class="activity-notes green">${activity.notes}</div>` : ''}
                       <div class="activity-time">
-                        Recorded: ${formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm')}
-                        ${activity.staff_name ? ` • Staff: ${activity.staff_name}` : ''}
+                        Recorded: ${displayTime}
+                        ${staffName ? ` • Staff: ${staffName}` : ''}
                       </div>
                     </div>
                   `;
@@ -786,8 +809,17 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
             </div>
             ${personalCareTasks.length > 0 ?
         personalCareTasks
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .filter(a => a.created_at)
+          .sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime;
+          })
           .map((activity, index) => {
+            const payload = activity.payload as { time?: string; primaryStaff?: string; assistedStaff?: string } | null;
+            const primaryStaff = payload?.primaryStaff;
+            const assistedStaff = payload?.assistedStaff;
+            const displayTime = payload?.time || (activity.created_at ? formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm') : '--');
             return `
                     <div class="activity-item">
                       <div class="activity-header">
@@ -796,9 +828,9 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                       </div>
                       ${activity.notes ? `<div class="activity-notes">${activity.notes}</div>` : ''}
                       <div class="activity-time">
-                        Recorded: ${formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm')}
-                        ${activity.staff_name ? ` • Primary Staff: ${activity.staff_name}` : ''}
-                        ${activity.assisted_staff_name ? ` • Assisted by: ${activity.assisted_staff_name}` : ''}
+                        Recorded: ${displayTime}
+                        ${primaryStaff ? ` • Primary Staff: ${primaryStaff}` : ''}
+                        ${assistedStaff ? ` • Assisted by: ${assistedStaff}` : ''}
                       </div>
                     </div>
                   `;
@@ -1114,18 +1146,25 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               <TabsContent value="personal_care" className="mt-4">
                 {(() => {
                   const personalCareTasks = allTasks
-                    .filter(task => task.task_type !== 'daily_activity_record')
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    .filter(task => task.task_type !== 'daily_activity_record' && task.created_at)
+                    .sort((a, b) => {
+                      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      return bTime - aTime;
+                    });
 
                   return personalCareTasks.length > 0 ? (
                     <div className="space-y-2">
                       {personalCareTasks.map((task) => {
                         const activity = activityOptions.find(opt => opt.id === task.task_type);
+                        const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string } | null;
+                        const staffName = payload?.primaryStaff || 'Staff';
+                        const displayTime = payload?.time || (task.created_at ? formatTimestampToUKTime(task.created_at) : '--');
 
                         return (
                           <div key={task.id} className="text-sm border-b pb-2 last:border-b-0">
                             <span className="font-medium">
-                              {formatTimestampToUKTime(task.created_at)}
+                              {displayTime}
                             </span>
                             {" - "}
                             <span className="text-muted-foreground">{activity?.label || task.task_type}</span>
@@ -1133,7 +1172,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                               <span className="text-muted-foreground"> - {task.notes}</span>
                             )}
                             <span className="text-xs text-muted-foreground ml-2 italic">
-                              sign by {task.staff_name || 'Staff'}
+                              sign by {staffName}
                             </span>
                           </div>
                         );
@@ -1159,16 +1198,24 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               <TabsContent value="activity_records" className="mt-4">
                 {(() => {
                   const activityRecords = allTasks
-                    .filter(task => task.task_type === 'daily_activity_record')
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    .filter(task => task.task_type === 'daily_activity_record' && task.created_at)
+                    .sort((a, b) => {
+                      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      return bTime - aTime;
+                    });
 
                   return activityRecords.length > 0 ? (
                     <div className="space-y-2">
                       {activityRecords.map((task) => {
+                        const payload = task.payload as { time?: string; staff?: string } | null;
+                        const staffName = payload?.staff || 'Staff';
+                        const displayTime = payload?.time || (task.created_at ? formatTimestampToUKTime(task.created_at) : '--');
+
                         return (
                           <div key={task.id} className="text-sm border-b pb-2 last:border-b-0">
                             <span className="font-medium">
-                              {formatTimestampToUKTime(task.created_at)}
+                              {displayTime}
                             </span>
                             {" - "}
                             <span className="text-muted-foreground">Daily Activity Record</span>
@@ -1176,7 +1223,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                               <span className="text-muted-foreground"> - {task.notes}</span>
                             )}
                             <span className="text-xs text-muted-foreground ml-2 italic">
-                              sign by {task.staff_name || 'Staff'}
+                              sign by {staffName}
                             </span>
                           </div>
                         );
@@ -1235,14 +1282,18 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 </div>
                 <p className="text-sm text-amber-700">Personal Care</p>
                 {(() => {
-                  const personalCareTasks = allTasks.filter(task => task.task_type !== 'daily_activity_record');
+                  const personalCareTasks = allTasks.filter(task => task.task_type !== 'daily_activity_record' && task.created_at);
                   if (personalCareTasks.length > 0) {
-                    const lastTask = personalCareTasks.reduce((latest, task) =>
-                      new Date(task.created_at).getTime() > new Date(latest.created_at).getTime() ? task : latest
-                    );
+                    const lastTask = personalCareTasks.reduce((latest, task) => {
+                      const taskTime = task.created_at ? new Date(task.created_at).getTime() : 0;
+                      const latestTime = latest.created_at ? new Date(latest.created_at).getTime() : 0;
+                      return taskTime > latestTime ? task : latest;
+                    });
+                    const payload = lastTask.payload as { time?: string } | null;
+                    const displayTime = payload?.time || (lastTask.created_at ? formatTimestampToUKTime(lastTask.created_at) : '--');
                     return (
                       <p className="text-xs text-amber-600 mt-1">
-                        Last: {formatTimestampToUKTime(lastTask.createdAt)}
+                        Last: {displayTime}
                       </p>
                     );
                   }
@@ -1258,14 +1309,18 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                 </div>
                 <p className="text-sm text-indigo-700">Daily Activity</p>
                 {(() => {
-                  const activityRecords = allTasks.filter(task => task.task_type === 'daily_activity_record');
+                  const activityRecords = allTasks.filter(task => task.task_type === 'daily_activity_record' && task.created_at);
                   if (activityRecords.length > 0) {
-                    const lastActivity = activityRecords.reduce((latest, task) =>
-                      new Date(task.created_at).getTime() > new Date(latest.created_at).getTime() ? task : latest
-                    );
+                    const lastActivity = activityRecords.reduce((latest, task) => {
+                      const taskTime = task.created_at ? new Date(task.created_at).getTime() : 0;
+                      const latestTime = latest.created_at ? new Date(latest.created_at).getTime() : 0;
+                      return taskTime > latestTime ? task : latest;
+                    });
+                    const payload = lastActivity.payload as { time?: string } | null;
+                    const displayTime = payload?.time || (lastActivity.created_at ? formatTimestampToUKTime(lastActivity.created_at) : '--');
                     return (
                       <p className="text-xs text-indigo-600 mt-1">
-                        Last: {formatTimestampToUKTime(lastActivity.created_at)}
+                        Last: {displayTime}
                       </p>
                     );
                   }
@@ -1274,10 +1329,21 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="text-2xl font-bold text-gray-600">
-                  {allTasks.length > 0
-                    ? formatTimestampToUKTime(Math.max(...allTasks.map(t => new Date(t.created_at).getTime())))
-                    : "--"
-                  }
+                  {(() => {
+                    const validTasks = allTasks.filter(t => t.created_at);
+                    if (validTasks.length > 0) {
+                      // Find the most recent task by created_at
+                      const latestTask = validTasks.reduce((latest, task) => {
+                        const taskTime = task.created_at ? new Date(task.created_at).getTime() : 0;
+                        const latestTime = latest.created_at ? new Date(latest.created_at).getTime() : 0;
+                        return taskTime > latestTime ? task : latest;
+                      });
+                      // Use payload time if available, otherwise fall back to created_at
+                      const payload = latestTask.payload as { time?: string } | null;
+                      return payload?.time || (latestTask.created_at ? formatTimestampToUKTime(latestTask.created_at) : "--");
+                    }
+                    return "--";
+                  })()}
                 </div>
                 <p className="text-sm text-gray-700">Last recorded</p>
               </div>

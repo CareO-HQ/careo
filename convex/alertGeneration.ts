@@ -328,11 +328,15 @@ export const generateNightCheckAlerts = internalMutation({
 
 /**
  * Generate medication alerts for all active residents
- * This function is called by the cron job every 15 minutes
- *
- * Alert Logic:
+ * DISABLED: Medication alerts are now handled by Supabase Edge Function
+ * The Edge Function runs every 2 minutes via pg_cron
+ * 
+ * See: supabase/functions/check-medication-alerts/index.ts
+ * Migration: supabase/migrations/20260130094000_automate_medication_alerts.sql
+ * 
+ * Alert Logic (now handled by Supabase):
  * 1. Due Soon: Medication scheduled within next 30 minutes
- * 2. Overdue: Medication past scheduled time by 15+ minutes
+ * 2. Overdue: Medication past scheduled time by 15+ minutes (after allotted time expires)
  * 3. Missed: Medication in "missed" state that wasn't alerted
  */
 export const generateMedicationAlerts = internalMutation({

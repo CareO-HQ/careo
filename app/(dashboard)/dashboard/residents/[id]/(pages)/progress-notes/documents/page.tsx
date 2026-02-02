@@ -1,9 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -51,6 +48,7 @@ import {
   ChevronRight,
   AlertTriangle,
   Stethoscope,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -61,7 +59,7 @@ type ProgressNotesDocumentsPageProps = {
 export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const residentId = id;
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,11 +74,58 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
   const [selectedNote, setSelectedNote] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
+  // State for data
+  const [resident, setResident] = useState<any>(null);
+  const [progressNotes, setProgressNotes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  useEffect(() => {
+    async function fetchResident() {
+      try {
+        const response = await fetch(`/api/residents/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setResident(data);
+        } else {
+          setResident({ id, firstName: "Resident", lastName: "" });
+        }
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident({ id, firstName: "Resident", lastName: "" });
+      }
+    }
+    if (id) {
+      fetchResident();
+    }
+  }, [id]);
 
   // Fetch progress notes
-  const progressNotes = useQuery(api.progressNotes.getByResidentId, { residentId });
+  useEffect(() => {
+    async function fetchProgressNotes() {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/progress-notes/all?residentId=${residentId}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Error fetching progress notes:", response.status, errorText);
+          toast.error("Failed to load progress notes");
+          return;
+        }
+        const data = await response.json();
+        console.log("Fetched progress notes:", data.length);
+        setProgressNotes(data || []);
+      } catch (error) {
+        console.error("Error fetching progress notes:", error);
+        toast.error("Failed to load progress notes");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    if (residentId) {
+      fetchProgressNotes();
+    }
+  }, [residentId]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -106,9 +151,9 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
     // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(note =>
-        note.note.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.authorName.toLowerCase().includes(searchQuery.toLowerCase())
+        note.note?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.authorName?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -143,11 +188,173 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
     return filtered;
   }, [progressNotes, searchQuery, selectedMonth, selectedYear, selectedType, sortOrder]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredNotes.length / itemsPerPage);
+  // Group notes by day
+  const notesByDay = useMemo(() => {
+    if (!filteredNotes || filteredNotes.length === 0) return [];
+
+    const grouped: Record<string, any[]> = {};
+    
+    filteredNotes.forEach(note => {
+      const dateKey = format(new Date(note.date), 'yyyy-MM-dd');
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(note);
+    });
+
+    // Convert to array and sort by date
+    return Object.entries(grouped)
+      .map(([date, notes]) => ({
+        date,
+        notes: notes.sort((a, b) => {
+          // Sort notes within a day by time (descending by default, or ascending if sortOrder is asc)
+          const timeA = a.time || '00:00';
+          const timeB = b.time || '00:00';
+          // If times are equal, sort by creation time
+          if (timeA === timeB) {
+            const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return sortOrder === "desc" ? createdB - createdA : createdA - createdB;
+          }
+          return sortOrder === "desc" ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
+        })
+      }))
+      .sort((a, b) => {
+        // Sort days by date
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      });
+  }, [filteredNotes, sortOrder]);
+
+  // Download notes for a specific day as PDF
+  const handleDownloadDay = async (dayNotes: any[], date: string) => {
+    try {
+      // Dynamic import to avoid SSR issues
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      let yPos = margin;
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setFont(undefined, 'bold');
+      doc.text('Progress Notes', margin, yPos);
+      yPos += 10;
+      
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Resident: ${fullName}`, margin, yPos);
+      yPos += 7;
+      doc.text(`Date: ${format(new Date(date), "EEEE, dd MMMM yyyy")}`, margin, yPos);
+      yPos += 7;
+      doc.text(`Total Notes: ${dayNotes.length}`, margin, yPos);
+      yPos += 10;
+      
+      // Draw line
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+      
+      // Notes
+      doc.setFontSize(10);
+      dayNotes.forEach((note, index) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 60) {
+          doc.addPage();
+          yPos = margin;
+        }
+        
+        // Note header
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.text(`Note ${index + 1}`, margin, yPos);
+        yPos += 7;
+        
+        // Note details
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        const details = [
+          `Time: ${note.time || "00:00"}`,
+          `Type: ${note.type ? note.type.charAt(0).toUpperCase() + note.type.slice(1) : "Note"}`,
+          `Author: ${note.authorName || "Unknown"}`,
+        ];
+        
+        details.forEach(detail => {
+          doc.text(detail, margin + 5, yPos);
+          yPos += 6;
+        });
+        
+        yPos += 3;
+        
+        // Note content
+        doc.setFont(undefined, 'bold');
+        doc.text('Content:', margin + 5, yPos);
+        yPos += 6;
+        
+        doc.setFont(undefined, 'normal');
+        const noteText = note.note || "No note content";
+        const splitText = doc.splitTextToSize(noteText, maxWidth - 10);
+        
+        splitText.forEach((line: string) => {
+          if (yPos > pageHeight - 30) {
+            doc.addPage();
+            yPos = margin;
+          }
+          doc.text(line, margin + 5, yPos);
+          yPos += 6;
+        });
+        
+        yPos += 5;
+        
+        // Draw separator line
+        if (index < dayNotes.length - 1) {
+          doc.setLineWidth(0.2);
+          doc.line(margin, yPos, pageWidth - margin, yPos);
+          yPos += 5;
+        }
+      });
+      
+      // Footer
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Page ${i} of ${totalPages} - Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
+      
+      // Save PDF
+      doc.save(`progress-notes-${fullName.replace(/\s+/g, "-")}-${date}.pdf`);
+      toast.success("Progress notes downloaded as PDF");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
+
+  // View notes for a specific day
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [isDayViewDialogOpen, setIsDayViewDialogOpen] = useState(false);
+  
+  const handleViewDay = (date: string) => {
+    setSelectedDay(date);
+    setIsDayViewDialogOpen(true);
+  };
+
+  // Pagination for days
+  const totalPages = Math.ceil(notesByDay.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedNotes = filteredNotes.slice(startIndex, endIndex);
+  const paginatedDays = notesByDay.slice(startIndex, endIndex);
 
   // Handlers
   const handleViewNote = (note: any) => {
@@ -155,38 +362,149 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
     setIsViewDialogOpen(true);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!filteredNotes || filteredNotes.length === 0) return;
 
-    // Create CSV content
-    const headers = ["Date", "Time", "Type", "Author", "Note Content"];
-    const rows = filteredNotes.map(note => [
-      note.date,
-      note.time,
-      note.type,
-      note.authorName,
-      note.note.replace(/\n/g, " ")
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
-
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `progress-notes-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    try {
+      // Dynamic import to avoid SSR issues
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      let yPos = margin;
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setFont(undefined, 'bold');
+      doc.text('Progress Notes - Complete History', margin, yPos);
+      yPos += 10;
+      
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Resident: ${fullName}`, margin, yPos);
+      yPos += 7;
+      doc.text(`Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`, margin, yPos);
+      yPos += 7;
+      doc.text(`Total Days: ${notesByDay.length} | Total Notes: ${filteredNotes.length}`, margin, yPos);
+      yPos += 10;
+      
+      // Process each day
+      notesByDay.forEach((dayGroup, dayIndex) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 80) {
+          doc.addPage();
+          yPos = margin;
+        }
+        
+        // Day header
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text(format(new Date(dayGroup.date), "EEEE, dd MMMM yyyy"), margin, yPos);
+        yPos += 7;
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${dayGroup.notes.length} note${dayGroup.notes.length !== 1 ? 's' : ''}`, margin, yPos);
+        yPos += 5;
+        
+        // Draw line
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 8;
+        
+        // Notes for this day
+        dayGroup.notes.forEach((note, noteIndex) => {
+          // Check if we need a new page
+          if (yPos > pageHeight - 60) {
+            doc.addPage();
+            yPos = margin;
+          }
+          
+          // Note header
+          doc.setFont(undefined, 'bold');
+          doc.setFontSize(11);
+          doc.text(`Note ${noteIndex + 1}`, margin, yPos);
+          yPos += 7;
+          
+          // Note details
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(10);
+          const details = [
+            `Time: ${note.time || "00:00"}`,
+            `Type: ${note.type ? note.type.charAt(0).toUpperCase() + note.type.slice(1) : "Note"}`,
+            `Author: ${note.authorName || "Unknown"}`,
+          ];
+          
+          details.forEach(detail => {
+            doc.text(detail, margin + 5, yPos);
+            yPos += 6;
+          });
+          
+          yPos += 3;
+          
+          // Note content
+          doc.setFont(undefined, 'bold');
+          doc.text('Content:', margin + 5, yPos);
+          yPos += 6;
+          
+          doc.setFont(undefined, 'normal');
+          const noteText = note.note || "No note content";
+          const splitText = doc.splitTextToSize(noteText, maxWidth - 10);
+          
+          splitText.forEach((line: string) => {
+            if (yPos > pageHeight - 30) {
+              doc.addPage();
+              yPos = margin;
+            }
+            doc.text(line, margin + 5, yPos);
+            yPos += 6;
+          });
+          
+          yPos += 5;
+          
+          // Draw separator line
+          if (noteIndex < dayGroup.notes.length - 1) {
+            doc.setLineWidth(0.2);
+            doc.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 5;
+          }
+        });
+        
+        // Space between days
+        if (dayIndex < notesByDay.length - 1) {
+          yPos += 10;
+          doc.setLineWidth(0.5);
+          doc.line(margin, yPos, pageWidth - margin, yPos);
+          yPos += 10;
+        }
+      });
+      
+      // Footer
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Page ${i} of ${totalPages} - Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
+      
+      // Save PDF
+      doc.save(`progress-notes-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast.success("Progress notes exported as PDF");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
   };
 
   // Loading state
-  if (!resident || !progressNotes) {
+  if (isLoading || !resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -425,15 +743,15 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         </CardContent>
       </Card>
 
-      {/* Progress Notes Table */}
+      {/* Progress Notes Grouped by Day */}
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Progress Notes ({filteredNotes.length})
+            Progress Notes by Day ({notesByDay.length} days, {filteredNotes.length} total notes)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredNotes.length === 0 ? (
+          {notesByDay.length === 0 ? (
             <div className="text-center py-12">
               <NotebookPen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No progress notes found</p>
@@ -443,68 +761,67 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Author</TableHead>
-                      <TableHead>Note Preview</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedNotes.map((note) => (
-                      <TableRow key={note._id}>
-                        <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{format(new Date(note.date), "dd MMM yyyy")}</span>
-                            <span className="text-xs text-gray-500">{note.time}</span>
+              <div className="space-y-4">
+                {paginatedDays.map((dayGroup) => (
+                  <Card key={dayGroup.date} className="border">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <Calendar className="w-5 h-5 text-blue-600" />
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`text-xs border-0 ${
-                              note.type === "incident" ? "bg-red-100 text-red-800" :
-                              note.type === "medical" ? "bg-blue-100 text-blue-800" :
-                              note.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
-                              note.type === "daily" ? "bg-green-100 text-green-800" :
-                              "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {note.type.charAt(0).toUpperCase() + note.type.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <span>{note.authorName}</span>
+                          <div>
+                            <CardTitle className="text-lg">
+                              {format(new Date(dayGroup.date), "EEEE, dd MMMM yyyy")}
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                              {dayGroup.notes.length} note{dayGroup.notes.length !== 1 ? 's' : ''}
+                            </p>
                           </div>
-                        </TableCell>
-                        <TableCell className="max-w-[300px]">
-                          <p className="truncate">{note.note}</p>
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </div>
+                        <div className="flex items-center space-x-2">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleViewNote(note)}
+                            onClick={() => handleViewDay(dayGroup.date)}
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-4 h-4 mr-2" />
+                            View
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadDay(dayGroup.notes, dayGroup.date)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>First note: {dayGroup.notes[0]?.time || "00:00"}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>Last note: {dayGroup.notes[dayGroup.notes.length - 1]?.time || "00:00"}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} of {filteredNotes.length} notes
+                    Showing {startIndex + 1}-{Math.min(endIndex, notesByDay.length)} of {notesByDay.length} days
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -558,6 +875,91 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         </CardContent>
       </Card>
 
+      {/* Day View Dialog */}
+      <Dialog open={isDayViewDialogOpen} onOpenChange={setIsDayViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Progress Notes - {selectedDay && format(new Date(selectedDay), "EEEE, dd MMMM yyyy")}
+            </DialogTitle>
+            <DialogDescription>
+              All progress notes for this day
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDay && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const dayNotes = notesByDay.find(d => d.date === selectedDay)?.notes || [];
+                    handleDownloadDay(dayNotes, selectedDay);
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download All
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {notesByDay.find(d => d.date === selectedDay)?.notes.map((note) => (
+                  <Card key={note.id || note._id} className="border">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            className={`text-xs ${
+                              note.type === "incident" ? "bg-red-100 text-red-800 border-red-200" :
+                              note.type === "medical" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                              note.type === "behavioral" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                              note.type === "daily" ? "bg-green-100 text-green-800 border-green-200" :
+                              note.type === "other" ? "bg-gray-100 text-gray-800 border-gray-200" :
+                              "bg-gray-100 text-gray-800 border-gray-200"
+                            }`}
+                          >
+                            {note.type ? note.type.charAt(0).toUpperCase() + note.type.slice(1) : "Note"}
+                          </Badge>
+                          <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span className="font-medium">{note.time || "00:00"}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                          <User className="w-3 h-3" />
+                          <span>{note.authorName || "Unknown"}</span>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-md mb-2">
+                        <p className="text-sm whitespace-pre-wrap break-words">{note.note || "No note content"}</p>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
+                        <div>
+                          {note.createdAt && (
+                            <span>Created: {format(new Date(note.createdAt), "PPp")}</span>
+                          )}
+                        </div>
+                        {note.updatedAt && note.updatedAt !== note.createdAt && (
+                          <div>
+                            <span>Updated: {format(new Date(note.updatedAt), "PPp")}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsDayViewDialogOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* View Note Dialog - Matching Food & Fluid style */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -577,16 +979,16 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
                         {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)} Note
                       </h4>
                       <Badge
-                        variant="outline"
-                        className={`text-xs border-0 ${
-                          selectedNote.type === "incident" ? "bg-red-100 text-red-800" :
-                          selectedNote.type === "medical" ? "bg-blue-100 text-blue-800" :
-                          selectedNote.type === "behavioral" ? "bg-yellow-100 text-yellow-800" :
-                          selectedNote.type === "daily" ? "bg-green-100 text-green-800" :
-                          "bg-gray-100 text-gray-800"
+                        className={`text-xs ${
+                          selectedNote.type === "incident" ? "bg-red-100 text-red-800 border-red-200" :
+                          selectedNote.type === "medical" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                          selectedNote.type === "behavioral" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                          selectedNote.type === "daily" ? "bg-green-100 text-green-800 border-green-200" :
+                          selectedNote.type === "other" ? "bg-gray-100 text-gray-800 border-gray-200" :
+                          "bg-gray-100 text-gray-800 border-gray-200"
                         }`}
                       >
-                        {selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1)}
+                        {selectedNote.type ? selectedNote.type.charAt(0).toUpperCase() + selectedNote.type.slice(1) : "Note"}
                       </Badge>
                     </div>
                   </div>
@@ -595,24 +997,37 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
                   </span>
                 </div>
 
-                <div className="mb-3 p-3 bg-gray-50 rounded-md">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNote.note}</p>
+                <div className="mb-3 p-3 bg-gray-50 rounded-md border">
+                  <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
+                    {selectedNote.note || "No note content"}
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>
-                    <span className="font-medium">Date:</span> {format(new Date(selectedNote.date), "MMM d, yyyy")}
-                  </span>
-                  <span>
-                    <span className="font-medium">Time:</span> {selectedNote.time}
-                  </span>
-                  <span>
-                    <span className="font-medium">Author:</span> {selectedNote.authorName}
-                  </span>
-                </div>
-
-                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                  Recorded by: {selectedNote.authorName} on {format(new Date(selectedNote.createdAt), "PPP")}
+                <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-md border">
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground block mb-1">Date</span>
+                    <p className="text-sm font-medium">{format(new Date(selectedNote.date), "EEEE, dd MMMM yyyy")}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground block mb-1">Time</span>
+                    <p className="text-sm font-medium">{selectedNote.time || "00:00"}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground block mb-1">Author</span>
+                    <p className="text-sm font-medium">{selectedNote.authorName || "Unknown"}</p>
+                  </div>
+                  {selectedNote.createdAt && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground block mb-1">Created</span>
+                      <p className="text-sm">{format(new Date(selectedNote.createdAt), "PPp")}</p>
+                    </div>
+                  )}
+                  {selectedNote.updatedAt && selectedNote.updatedAt !== selectedNote.createdAt && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground block mb-1">Last Updated</span>
+                      <p className="text-sm">{format(new Date(selectedNote.updatedAt), "PPp")}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

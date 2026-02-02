@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+import { supabase } from "@/lib/supabase";
+import { getUKTodayDate, formatTimestampToUKTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
 import {
   Card,
   CardContent,
@@ -63,7 +63,6 @@ type FoodFluidDocumentsPageProps = {
 export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,52 +76,200 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
+  // Data state
+  const [resident, setResident] = useState<any>(null);
+  const [paginatedData, setPaginatedData] = useState<{
+    dates: Array<{ date: string; hasReport: boolean }>;
+    totalCount: number;
+    totalPages: number;
+  } | null>(null);
+  const [selectedReportData, setSelectedReportData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  useEffect(() => {
+    const fetchResident = async () => {
+      const { data, error } = await supabase
+        .from("residents")
+        .select("*")
+        .eq("id", id)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching resident:", error);
+        toast.error("Failed to load resident data");
+      } else if (data) {
+        setResident(data);
+      }
+    };
+    fetchResident();
+  }, [id]);
 
-  // Use optimized server-side paginated query
-  const paginatedData = useQuery(
-    api.foodFluidLogs.getPaginatedFoodFluidDates,
-    {
-      residentId,
-      page: currentPage,
-      pageSize: itemsPerPage,
-      year: selectedYear !== "all" ? parseInt(selectedYear) : undefined,
-      month: selectedMonth !== "all" ? parseInt(selectedMonth) : undefined,
-      sortOrder: sortOrder,
+  // Fetch paginated dates
+  const fetchPaginatedDates = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Build query for food_fluid_logs
+      let query = supabase
+        .from("food_fluid_logs")
+        .select("date, timestamp", { count: "exact" })
+        .eq("resident_id", id);
+
+      // Apply date filters
+      if (selectedYear !== "all") {
+        const year = parseInt(selectedYear);
+        if (selectedMonth !== "all") {
+          const month = parseInt(selectedMonth);
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0, 23, 59, 59);
+          query = query
+            .gte("timestamp", startDate.toISOString())
+            .lte("timestamp", endDate.toISOString());
+        } else {
+          const startDate = new Date(year, 0, 1);
+          const endDate = new Date(year, 11, 31, 23, 59, 59);
+          query = query
+            .gte("timestamp", startDate.toISOString())
+            .lte("timestamp", endDate.toISOString());
+        }
+      }
+
+      const { data: logs, error, count } = await query;
+
+      if (error) {
+        console.error("Error fetching logs:", error);
+        toast.error("Failed to load food & fluid logs");
+        return;
+      }
+
+      // Get unique dates
+      const uniqueDates = new Set<string>();
+      logs?.forEach((log: any) => {
+        // Convert timestamp to UK timezone date string
+        const ukDate = formatInTimeZone(new Date(log.timestamp), UK_TIMEZONE, "yyyy-MM-dd");
+        uniqueDates.add(ukDate);
+      });
+
+      // Convert to array and sort
+      const datesArray = Array.from(uniqueDates).map(date => ({
+        date,
+        hasReport: true
+      }));
+
+      // Sort dates
+      datesArray.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return sortOrder === "desc" ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime();
+      });
+
+      // Paginate
+      const totalCount = datesArray.length;
+      const totalPages = Math.ceil(totalCount / itemsPerPage);
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedDates = datesArray.slice(startIndex, endIndex);
+
+      setPaginatedData({
+        dates: paginatedDates,
+        totalCount,
+        totalPages
+      });
+    } catch (error) {
+      console.error("Error in fetchPaginatedDates:", error);
+      toast.error("Failed to load dates");
+    } finally {
+      setIsLoading(false);
     }
-  );
+  }, [id, selectedYear, selectedMonth, sortOrder, currentPage, itemsPerPage]);
 
-  // Get the selected report data when viewing
-  const selectedReportData = useQuery(
-    api.foodFluidLogs.getDailyFoodFluidReport,
-    selectedReport ? {
-      residentId: id as Id<"residents">,
-      date: selectedReport.date
-    } : "skip"
-  );
+  // Fetch paginated dates when filters change
+  useEffect(() => {
+    fetchPaginatedDates();
+  }, [fetchPaginatedDates]);
+
+  // Fetch daily report data
+  useEffect(() => {
+    const fetchDailyReport = async () => {
+      if (!selectedReport?.date) {
+        setSelectedReportData(null);
+        return;
+      }
+
+      setIsLoadingReport(true);
+      try {
+        const { data: logs, error } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", id)
+          .eq("date", selectedReport.date)
+          .order("timestamp", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching daily report:", error);
+          toast.error("Failed to load report");
+          return;
+        }
+
+        // Transform logs to match expected format
+        const transformedLogs = (logs || []).map((log: any) => ({
+          typeOfFoodDrink: log.type_of_food_drink,
+          amountEaten: log.amount_eaten,
+          portionServed: log.portion_served,
+          fluidConsumedMl: log.fluid_consumed_ml,
+          section: log.section,
+          signature: log.signature,
+          timestamp: new Date(log.timestamp).getTime()
+        }));
+
+        const foodEntries = transformedLogs.filter((log: any) => !log.fluidConsumedMl).length;
+        const fluidEntries = transformedLogs.filter((log: any) => log.fluidConsumedMl).length;
+        const totalFluidMl = transformedLogs.reduce((sum: number, log: any) => sum + (log.fluidConsumedMl || 0), 0);
+
+        setSelectedReportData({
+          logs: transformedLogs,
+          reportGenerated: true,
+          totalEntries: transformedLogs.length,
+          foodEntries,
+          fluidEntries,
+          totalFluidMl
+        });
+      } catch (error) {
+        console.error("Error in fetchDailyReport:", error);
+        toast.error("Failed to load report");
+      } finally {
+        setIsLoadingReport(false);
+      }
+    };
+
+    fetchDailyReport();
+  }, [selectedReport, id]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
-    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
-    return `${resident.firstName} ${resident.lastName}`;
+    if (!resident?.first_name || !resident?.last_name) return "Unknown Resident";
+    return `${resident.first_name} ${resident.last_name}`;
   }, [resident]);
 
   // Get unique years from dates for filter
   const availableYears = useMemo(() => {
-    if (!resident?.createdAt) {
-      // Return current year and previous year as defaults
-      const currentYear = new Date().getFullYear();
+    if (!resident?.created_at) {
+      // Return current year and previous year as defaults (UK timezone)
+      const ukNow = formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy");
+      const currentYear = parseInt(ukNow);
       return [currentYear, currentYear - 1];
     }
-    const createdYear = new Date(resident.createdAt).getFullYear();
-    const currentYear = new Date().getFullYear();
+    // Get year from resident creation date in UK timezone
+    const createdYear = parseInt(formatInTimeZone(new Date(resident.created_at), UK_TIMEZONE, "yyyy"));
+    const ukNow = formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy");
+    const currentYear = parseInt(ukNow);
     const years: number[] = [];
     for (let year = currentYear; year >= createdYear; year--) {
       years.push(year);
     }
     return years;
-  }, [resident?.createdAt]);
+  }, [resident?.created_at]);
 
   // Transform paginated data to match existing format
   const reportObjects = useMemo(() => {
@@ -130,7 +277,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
 
     return paginatedData.dates.map(dateObj => ({
       date: dateObj.date,
-      formattedDate: format(new Date(dateObj.date), "PPP"),
+      formattedDate: formatDateForDisplay(dateObj.date),
       _id: dateObj.date,
       hasReport: dateObj.hasReport
     }));
@@ -182,12 +329,12 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
     ].join("\n");
 
-    // Download CSV
+    // Download CSV with UK date
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `food-fluid-reports-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `food-fluid-reports-${fullName.replace(/\s+/g, "-")}-${getUKTodayDate()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -234,17 +381,13 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   };
 
   const generatePDFContent = ({ resident, report, date }: { resident: any; report: any; date: string; }) => {
-    const formattedDate = new Date(date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    // Format date in UK timezone
+    const formattedDate = formatDateForDisplay(date);
 
     return `
       <div class="header">
         <h1>Daily Food & Fluid Report</h1>
-        <p style="color: #64748B; margin: 0;">${resident.firstName} ${resident.lastName}</p>
+        <p style="color: #64748B; margin: 0;">${resident.first_name} ${resident.last_name}</p>
       </div>
 
       <div class="info-grid">
@@ -272,7 +415,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
           ? report.logs.map((log: any) => `
               <div class="log-entry">
                 <strong>${log.typeOfFoodDrink}</strong> - ${log.amountEaten}<br>
-                Time: ${new Date(log.timestamp).toLocaleTimeString()}<br>
+                Time: ${formatTimestampToUKTime(log.timestamp)}<br>
                 Staff: ${log.signature}
               </div>
             `).join('')
@@ -312,7 +455,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   };
 
   // Loading state
-  if (!resident || paginatedData === undefined) {
+  if (!resident || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -557,7 +700,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{format(new Date(report.date), "dd MMM yyyy")}</span>
+                            <span>{formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -671,13 +814,13 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Food & Fluid Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}</DialogTitle>
+            <DialogTitle>Food & Fluid Report - {selectedReport && formatDateForDisplay(selectedReport.date)}</DialogTitle>
             <DialogDescription>
               Detailed view of all entries for this date
             </DialogDescription>
           </DialogHeader>
           <div className={`space-y-2 ${(selectedReportData?.logs?.length || 0) > 2 ? 'overflow-y-auto max-h-[60vh]' : ''}`}>
-            {selectedReportData === undefined ? (
+            {isLoadingReport ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                 <p className="mt-2 text-muted-foreground">Loading report...</p>
@@ -697,7 +840,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                         </div>
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatTimestampToUKTime(log.timestamp)}
                       </span>
                     </div>
 

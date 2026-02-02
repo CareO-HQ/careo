@@ -333,6 +333,12 @@ export default function NotificationPage() {
           label: "Action Plan Completed",
           color: "text-green-600",
         };
+      case "appointment_created":
+        return {
+          icon: <Calendar className="w-4 h-4" />,
+          label: "Appointment Created",
+          color: "text-blue-600",
+        };
       default:
         return {
           icon: <Bell className="w-4 h-4" />,

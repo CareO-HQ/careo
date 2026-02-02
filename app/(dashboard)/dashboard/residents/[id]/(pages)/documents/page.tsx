@@ -169,35 +169,16 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     },
   });
 
-  // Dialog and sheet states
-  const [isFolderDialogOpen, setIsFolderDialogOpen] = React.useState(false);
-  const [selectedFolder, setSelectedFolder] = React.useState<Id<"folders"> | null>(null);
-  const [isFolderSheetOpen, setIsFolderSheetOpen] = React.useState(false);
-  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
-  const [isUploading, setIsUploading] = React.useState(false);
-  const [folderToDelete, setFolderToDelete] = React.useState<{ id: Id<"folders">; name: string } | null>(null);
-  const [editingFolderId, setEditingFolderId] = React.useState<Id<"folders"> | null>(null);
-  const [editingFolderName, setEditingFolderName] = React.useState("");
-
-
   // Get files for the selected folder
-  const folderFiles = useQuery(
-    api.residentFiles.getByResident,
-    selectedFolder
-      ? {
-        residentId: id as Id<"residents">,
-        parentFolderId: selectedFolder,
-      }
-      : "skip"
-  );
+  const folderFiles = selectedFolder ? files.filter((f) => f.folder_id === selectedFolder) : [];
 
   const handleCreateFolder = async (data: FolderFormData) => {
     try {
       if (!resident || !profile) return;
 
-      // VALIDATION: Check folder limit (10 folders per resident)
-      if (folders.length >= 10) {
-        toast.error("Maximum limit of 10 folders per resident reached");
+      // VALIDATION: Check folder limit (1 folder per resident)
+      if (folders.length >= 1) {
+        toast.error("This resident already has a folder. Only one folder is allowed per resident.");
         return;
       }
 
@@ -230,8 +211,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     }
   };
 
-  const folderFiles = selectedFolder ? files.filter((f) => f.folder_id === selectedFolder) : [];
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -257,9 +236,9 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
         return;
       }
 
-      // VALIDATION: Check file count in folder (50 files max)
-      if (folderFiles.length >= 50) {
-        toast.error("Folder has reached maximum limit of 50 files");
+      // VALIDATION: Check file count in folder (10 files max)
+      if (folderFiles.length >= 10) {
+        toast.error("Folder has reached maximum limit of 10 files");
         return;
       }
 
@@ -524,14 +503,14 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
               <Button
                 onClick={() => setIsFolderDialogOpen(true)}
                 className="bg-blue-600 text-white hover:bg-blue-700"
-                disabled={folders.length >= 10}
+                disabled={folders.length >= 1}
               >
                 <FolderPlus className="w-4 h-4 mr-2" />
                 New Folder
               </Button>
               {folders.length > 0 && (
-                <span className={`text-xs mt-1 ${folders.length >= 10 ? 'text-red-600 font-semibold' : folders.length >= 8 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                  {folders.length}/10 folders
+                <span className={`text-xs mt-1 ${folders.length >= 1 ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
+                  {folders.length}/1 folder
                 </span>
               )}
             </div>
@@ -544,7 +523,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
           <ul className="space-y-0.5 ml-4 list-disc">
             <li><span className="font-medium">Create folders</span> to organize documents by category (Medical Records, Care Plans, etc.)</li>
             <li><span className="font-medium">Upload files:</span> PDF, JPG, JPEG, PNG, GIF (Max 10MB per file)</li>
-            <li><span className="font-medium">Limits:</span> Up to 10 folders, 50 files per folder</li>
+            <li><span className="font-medium">Limits:</span> 1 folder per resident, 10 files per folder</li>
           </ul>
         </div>
 
@@ -641,7 +620,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             onChange={handleFileChange}
                             className="hidden"
                             id={`file-upload-${folder.id}`}
-                            disabled={folderFiles.length >= 50}
+                            disabled={folderFiles.length >= 10}
                           />
                           <label htmlFor={`file-upload-${folder.id}`}>
                             <Button
@@ -649,7 +628,7 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                               size="sm"
                               variant="outline"
                               asChild
-                              disabled={folderFiles.length >= 50}
+                              disabled={folderFiles.length >= 10}
                             >
                               <span className="cursor-pointer">
                                 <Upload className="w-4 h-4 mr-2" />
@@ -658,8 +637,8 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                             </Button>
                           </label>
                           {folderFiles.length > 0 && (
-                            <span className={`text-xs ${folderFiles.length >= 50 ? 'text-red-600 font-semibold' : folderFiles.length >= 45 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                              {folderFiles.length}/50 files
+                            <span className={`text-xs ${folderFiles.length >= 10 ? 'text-red-600 font-semibold' : folderFiles.length >= 8 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                              {folderFiles.length}/10 files
                             </span>
                           )}
                         </div>

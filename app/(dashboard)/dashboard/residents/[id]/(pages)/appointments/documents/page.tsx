@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { getAppointmentsByResident } from "@/lib/appointments";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -63,7 +62,7 @@ type AppointmentsDocumentsPageProps = {
 export default function AppointmentsDocumentsPage({ params }: AppointmentsDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const { supabase } = useSupabase();
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,13 +76,69 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Fetch resident data from Supabase
+  const [resident, setResident] = useState<{ firstName?: string; lastName?: string; [key: string]: any } | null>(null);
+  const [residentLoading, setResidentLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchResident() {
+      if (!id || !supabase) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching resident:", error);
+          setResident(null);
+        } else {
+          // Transform Supabase data to match expected format
+          setResident({
+            firstName: data.first_name,
+            lastName: data.last_name,
+            ...data,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      } finally {
+        setResidentLoading(false);
+      }
+    }
+
+    fetchResident();
+  }, [id, supabase]);
 
   // Get all appointments for this resident (archived appointments)
-  const allAppointments = useQuery(api.appointments.getAppointmentsByResident, {
-    residentId: id as Id<"residents">,
-  });
+  const [allAppointments, setAllAppointments] = useState<any[] | undefined>(undefined);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAppointments() {
+      try {
+        setAppointmentsLoading(true);
+        const result = await getAppointmentsByResident(id, { includeAll: true });
+        // Transform appointments to include startTime for compatibility
+        const transformedAppointments = result.appointments?.map((apt: any) => ({
+          ...apt,
+          startTime: apt.start_time,
+          endTime: apt.end_time,
+          staffId: apt.staff_id,
+        })) || [];
+        setAllAppointments(transformedAppointments);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        setAllAppointments([]);
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    }
+    fetchAppointments();
+  }, [id]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -194,7 +249,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   };
 
   // Loading state
-  if (!resident || !allAppointments) {
+  if (!resident || residentLoading || appointmentsLoading || allAppointments === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">

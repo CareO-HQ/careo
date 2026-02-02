@@ -173,17 +173,19 @@ crons.interval(
 
 /**
  * GENERATE MEDICATION ALERTS
- * Checks for due soon, overdue, and missed medications
- * Runs every 15 minutes for timely notifications
+ * DISABLED: Medication alerts are now handled by Supabase Edge Function
+ * The Edge Function runs every 2 minutes via pg_cron and handles:
  * - Due Soon (Info): Medication scheduled within next 30 minutes
- * - Overdue (Critical): Medication past scheduled time by 15+ minutes
- * - Missed (Warning): Medication marked as missed state
+ * - Overdue (Critical): Medication past scheduled time by 15+ minutes (after allotted time expires)
+ * 
+ * See: supabase/functions/check-medication-alerts/index.ts
+ * Migration: supabase/migrations/20260130094000_automate_medication_alerts.sql
  */
-crons.interval(
-  "Generate medication alerts",
-  { minutes: 15 },
-  internal.alertGeneration.generateMedicationAlerts
-);
+// crons.interval(
+//   "Generate medication alerts",
+//   { minutes: 15 },
+//   internal.alertGeneration.generateMedicationAlerts
+// );
 
 /**
  * SEND CARE PLAN EVALUATION NOTIFICATIONS

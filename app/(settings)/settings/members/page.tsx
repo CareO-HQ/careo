@@ -31,6 +31,14 @@ export default function MembersPage() {
       }
 
       try {
+        // Fetch ALL users in the organization to check for existing users
+        const { data: allUsersData, error: allUsersError } = await supabase
+          .from('users')
+          .select('email, is_onboarding_complete')
+          .eq('active_organization_id', activeOrganizationId);
+
+        if (allUsersError) throw allUsersError;
+
         // Fetch fully onboarded members
         const { data: membersData, error: membersError } = await supabase
           .from('users')
@@ -60,9 +68,46 @@ export default function MembersPage() {
 
         if (invitationsError) throw invitationsError;
 
+        // Get emails of ALL existing users in the organization (regardless of onboarding status)
+        // This ensures we filter out invitations for any user that exists in the users table
+        const existingUserEmails = new Set(
+          (allUsersData || [])
+            .map((u: any) => u.email?.toLowerCase().trim())
+            .filter((email: string | undefined) => email) // Remove undefined/null emails
+        );
+        
+        const currentUserEmail = profile?.email?.toLowerCase().trim();
+
+        // Filter out invitations for any existing user and current user
+        const filteredInvitations = (invitationsData || []).filter((invitation: any) => {
+          const invitationEmail = invitation.email?.toLowerCase().trim();
+          
+          // Exclude if email matches any existing user in the organization
+          if (invitationEmail && existingUserEmails.has(invitationEmail)) {
+            return false;
+          }
+          
+          // Exclude if email matches current user
+          if (currentUserEmail && invitationEmail === currentUserEmail) {
+            return false;
+          }
+          
+          return true;
+        });
+
+        // Filter out current user from pending users awaiting onboarding
+        const filteredPendingUsers = (pendingUsersData || []).filter((u: any) => {
+          const userEmail = u.email?.toLowerCase().trim();
+          // Exclude current user
+          if (currentUserEmail && userEmail === currentUserEmail) {
+            return false;
+          }
+          return true;
+        });
+
         // Combine invitations and users awaiting onboarding
         // For users, we'll format them to match invitation structure for consistent rendering
-        const normalizedPendingUsers = (pendingUsersData || []).map(u => ({
+        const normalizedPendingUsers = filteredPendingUsers.map(u => ({
           ...u,
           isUser: true,
           email: u.email,
@@ -71,7 +116,7 @@ export default function MembersPage() {
 
         setInvitations([
           ...normalizedPendingUsers,
-          ...(invitationsData || [])
+          ...filteredInvitations
         ]);
 
       } catch (error) {

@@ -169,7 +169,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         .from("alerts")
         .select("*")
         .eq("resident_id", id)
-        .eq("alert_type", "medication")
+        .eq("type", "medication")
         .eq("is_resolved", false);
 
       setActiveAlerts(data || []);

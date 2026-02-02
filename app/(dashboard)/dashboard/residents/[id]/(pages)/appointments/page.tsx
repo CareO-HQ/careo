@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id, Doc } from "@/convex/_generated/dataModel";
+import React, { useMemo, useState, useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { getUpcomingAppointments, updateAppointment as updateAppointmentAPI, deleteAppointment as deleteAppointmentAPI } from "@/lib/appointments";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -60,22 +59,101 @@ import { CreateAppointmentForm } from "./form/create-appointment-form";
 import { FormDateTimePicker } from "@/components/ui/date-time-picker";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
 };
 
 // Type aliases for better type safety
-type Appointment = Doc<"appointments">;
-type AppointmentNote = Doc<"appointmentNotes">;
-type Resident = Doc<"residents">;
+type Appointment = {
+  id: string;
+  resident_id: string;
+  organization_id: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  location: string;
+  staff_id?: string;
+  team_id?: string;
+  status: "scheduled" | "completed" | "cancelled";
+  created_by: string;
+  created_at: string;
+  updated_at?: string;
+  updated_by?: string;
+  // For compatibility with existing code that uses _id
+  _id?: string;
+  startTime?: string;
+  endTime?: string;
+  staffId?: string;
+};
+type AppointmentNote = {
+  _id: string;
+  residentId: string;
+  category: string;
+  preparationTime?: string;
+  preparationNotes?: string;
+  preferredTime?: string;
+  transportPreference?: string;
+  instructions?: string;
+  transportationNeeds?: string[];
+  medicalNeeds?: string[];
+  priority?: string;
+  isActive?: boolean;
+  createdAt: number;
+};
+
+type Resident = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  imageUrl?: string;
+  [key: string]: any;
+};
 
 function DailyCarePage({ params }: DailyCarePageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const { supabase } = useSupabase();
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [residentLoading, setResidentLoading] = useState(true);
+
+  // Fetch resident from Supabase
+  useEffect(() => {
+    async function fetchResident() {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching resident:", error);
+          setResident(null);
+        } else {
+          // Transform Supabase data to match expected format
+          setResident({
+            id: data.id,
+            firstName: data.first_name,
+            lastName: data.last_name,
+            imageUrl: data.image_url,
+            ...data,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      } finally {
+        setResidentLoading(false);
+      }
+    }
+
+    if (id) {
+      fetchResident();
+    }
+  }, [id, supabase]);
 
   // Get today's date and shift information
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -98,7 +176,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Appointment Notes Dialog state
   const [isAppointmentNotesDialogOpen, setIsAppointmentNotesDialogOpen] = React.useState(false);
-  const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(false);
+  const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(true);
+  const [appointmentNotes, setAppointmentNotes] = useState<AppointmentNote[]>([]);
 
   // Create Appointment Dialog state
   const [isCreateAppointmentDialogOpen, setIsCreateAppointmentDialogOpen] = React.useState(false);
@@ -196,24 +275,278 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     },
   });
 
-  // Get appointment notes for the resident
-  const appointmentNotes = useQuery(api.appointmentNotes.getAppointmentNotesByResident, {
-    residentId: id as Id<"residents">,
-    activeOnly: true,
-  });
+  // Fetch appointment notes from Supabase
+  useEffect(() => {
+    async function fetchAppointmentNotes() {
+      try {
+        setAppointmentNotesLoading(true);
+        const { data, error } = await supabase
+          .from("appointment_notes")
+          .select("*")
+          .eq("resident_id", id)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching appointment notes:", error);
+          setAppointmentNotes([]);
+        } else {
+          // Transform Supabase data to match AppointmentNote type
+          const transformedNotes: AppointmentNote[] = (data || []).map((note: any) => ({
+            _id: note.id,
+            residentId: note.resident_id,
+            category: note.category,
+            preparationTime: note.preparation_time,
+            preparationNotes: note.preparation_notes,
+            preferredTime: note.preferred_time,
+            transportPreference: note.transport_preference,
+            instructions: note.instructions,
+            transportationNeeds: note.transportation_needs || [],
+            medicalNeeds: note.medical_needs || [],
+            priority: note.priority,
+            isActive: note.is_active,
+            createdAt: new Date(note.created_at).getTime(),
+          }));
+          setAppointmentNotes(transformedNotes);
+        }
+      } catch (error) {
+        console.error("Error fetching appointment notes:", error);
+        setAppointmentNotes([]);
+      } finally {
+        setAppointmentNotesLoading(false);
+      }
+    }
+
+    if (id) {
+      fetchAppointmentNotes();
+    }
+  }, [id, supabase]);
 
   // Get upcoming appointments for the resident (server-side filtered)
-  const appointments = useQuery(api.appointments.getUpcomingAppointments, {
-    residentId: id as Id<"residents">,
-    limit: 50, // Reasonable limit for pagination
-  });
+  const [appointments, setAppointments] = useState<Appointment[] | undefined>(undefined);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
 
-  // Get all users for staff selection
-  const allUsers = useQuery(api.user.getAllUsers);
+  useEffect(() => {
+    async function fetchAppointments() {
+      try {
+        setAppointmentsLoading(true);
+        const result = await getUpcomingAppointments({
+          residentId: id,
+          limit: 50,
+        });
+        // Transform appointments to include _id for compatibility
+        const transformedAppointments = result.appointments?.map((apt: any) => ({
+          ...apt,
+          _id: apt.id,
+          startTime: apt.start_time,
+          endTime: apt.end_time,
+          staffId: apt.staff_id,
+        })) || [];
+        setAppointments(transformedAppointments);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        setAppointments([]);
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    }
+    fetchAppointments();
+  }, [id]);
 
   // Auth data
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+  const { activeTeamId } = useActiveTeam();
+
+  // Get all users for staff selection from Supabase
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string; email: string; role?: string; activeTeamId?: string; teamIds?: string[] }>>([]);
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        if (!activeOrganization?.id) {
+          setAllUsers([]);
+          return;
+        }
+
+        console.log("[AppointmentsPage] Fetching users for organization:", activeOrganization.id);
+        
+        // Step 1: Get all teams in this organization
+        const { data: teamsData, error: teamsError } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("organization_id", activeOrganization.id);
+        
+        const teamIds = (teamsData || []).map(t => t.id);
+        console.log("[AppointmentsPage] Teams in org:", teamIds.length);
+        
+        // Step 2: Get all care homes in this organization
+        const { data: careHomes, error: careHomesError } = await supabase
+          .from("care_homes")
+          .select("id")
+          .eq("organization_id", activeOrganization.id);
+        
+        const careHomeIds = (careHomes || []).map(ch => ch.id);
+        console.log("[AppointmentsPage] Care homes in org:", careHomeIds.length);
+        
+        // Step 3: Collect user IDs from multiple sources
+        const allUserIdsSet = new Set<string>();
+        
+        // 3a: Users with active_organization_id set
+        const { data: directOrgUsers, error: directOrgError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("active_organization_id", activeOrganization.id);
+        
+        if (!directOrgError && directOrgUsers) {
+          directOrgUsers.forEach(u => allUserIdsSet.add(u.id));
+          console.log("[AppointmentsPage] Users with active_organization_id:", directOrgUsers.length);
+        }
+        
+        // 3b: Users from team_staff (nurses/care assistants assigned to teams)
+        if (teamIds.length > 0) {
+          const { data: teamStaffData, error: teamStaffError } = await supabase
+            .from("team_staff")
+            .select("user_id")
+            .in("team_id", teamIds);
+          
+          if (!teamStaffError && teamStaffData) {
+            teamStaffData.forEach((ts: any) => allUserIdsSet.add(ts.user_id));
+            console.log("[AppointmentsPage] Users from team_staff:", teamStaffData.length);
+          }
+        }
+        
+        // 3c: Managers from care_home_managers
+        if (careHomeIds.length > 0) {
+          const { data: managersData, error: managersError } = await supabase
+            .from("care_home_managers")
+            .select("user_id")
+            .in("care_home_id", careHomeIds);
+          
+          if (!managersError && managersData) {
+            managersData.forEach((m: any) => allUserIdsSet.add(m.user_id));
+            console.log("[AppointmentsPage] Users from care_home_managers:", managersData.length);
+          }
+        }
+        
+        const allUserIds = Array.from(allUserIdsSet);
+        console.log("[AppointmentsPage] Total unique user IDs to fetch:", allUserIds.length);
+        
+        if (allUserIds.length === 0) {
+          console.warn("[AppointmentsPage] No users found in organization through any method");
+          setAllUsers([]);
+          return;
+        }
+        
+        // Step 4: Fetch user details for all collected user IDs
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, name, email, role, active_team_id, is_saas_admin")
+          .in("id", allUserIds);
+
+        if (usersError) {
+          console.error("[AppointmentsPage] Error fetching user details:", usersError);
+          setAllUsers([]);
+          return;
+        }
+
+        console.log("[AppointmentsPage] Fetched user details:", usersData?.length || 0);
+        if (usersData && usersData.length > 0) {
+          console.log("[AppointmentsPage] All user roles:", usersData.map(u => ({ email: u.email, role: u.role, name: u.name })));
+        }
+
+        if (!usersData || usersData.length === 0) {
+          console.warn("[AppointmentsPage] No users found after fetching details");
+          setAllUsers([]);
+          return;
+        }
+
+        // Step 5: Filter to nurses and managers, and exclude SaaS admins
+        const usersDataFiltered = usersData.filter((u: any) => {
+          const role = u.role?.toLowerCase()?.trim();
+          const isNurseOrManager = role === "nurse" || role === "manager";
+          const isNotSaasAdmin = u.is_saas_admin !== true;
+          
+          if (!isNurseOrManager) {
+            console.log(`[AppointmentsPage] Excluding user ${u.email} - role: ${role} (not nurse/manager)`);
+          }
+          if (!isNotSaasAdmin) {
+            console.log(`[AppointmentsPage] Excluding user ${u.email} - is SaaS admin`);
+          }
+          
+          return isNurseOrManager && isNotSaasAdmin;
+        });
+
+        console.log("[AppointmentsPage] Filtered nurses/managers (excluding SaaS admins):", usersDataFiltered.length);
+
+        if (usersDataFiltered.length === 0) {
+          console.warn("[AppointmentsPage] No nurses or managers found after filtering");
+          setAllUsers([]);
+          return;
+        }
+
+        // Supplementary: Get team assignments for role enrichment and sorting
+        const userIds = usersDataFiltered.map(u => u.id);
+        const { data: teamStaffData, error: teamStaffError } = await supabase
+          .from("team_staff")
+          .select("user_id, team_id, role")
+          .in("user_id", userIds);
+
+        if (teamStaffError) {
+          console.error("[AppointmentsPage] Error fetching team_staff:", teamStaffError);
+        }
+
+        // Create a map of user_id -> team_ids for sorting
+        const userTeamMap = new Map<string, string[]>();
+        (teamStaffData || []).forEach((ts: any) => {
+          if (!userTeamMap.has(ts.user_id)) {
+            userTeamMap.set(ts.user_id, []);
+          }
+          userTeamMap.get(ts.user_id)!.push(ts.team_id);
+        });
+
+        // Transform to match expected format and add team information
+        const transformedUsers = usersDataFiltered.map((u: any) => ({
+          id: u.id,
+          name: u.name || u.email?.split("@")[0] || "",
+          email: u.email || "",
+          role: u.role?.toLowerCase()?.trim() || u.role,
+          activeTeamId: u.active_team_id,
+          teamIds: userTeamMap.get(u.id) || [],
+        }));
+
+        // Sort: current team members first, then alphabetically
+        const sortedUsers = transformedUsers.sort((a, b) => {
+          const aInCurrentTeam = activeTeamId && (
+            a.activeTeamId === activeTeamId || 
+            (a.teamIds && a.teamIds.includes(activeTeamId))
+          );
+          const bInCurrentTeam = activeTeamId && (
+            b.activeTeamId === activeTeamId || 
+            (b.teamIds && b.teamIds.includes(activeTeamId))
+          );
+
+          // Current team members first
+          if (aInCurrentTeam && !bInCurrentTeam) return -1;
+          if (!aInCurrentTeam && bInCurrentTeam) return 1;
+
+          // Then alphabetically by name
+          const aName = a.name.toLowerCase();
+          const bName = b.name.toLowerCase();
+          return aName.localeCompare(bName);
+        });
+
+        setAllUsers(sortedUsers);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setAllUsers([]);
+      }
+    }
+
+    if (activeOrganization?.id) {
+      fetchUsers();
+    }
+  }, [supabase, activeOrganization?.id, activeTeamId]);
 
   // Form setup - after user data is available
   const form = useForm<z.infer<typeof PersonalCareSchema>>({
@@ -243,13 +576,49 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     }
   }, [user, form]);
 
-  // Mutations
-  const createPersonalCareActivities = useMutation(api.personalCare.createPersonalCareActivities);
-  const createDailyActivityRecord = useMutation(api.personalCare.createDailyActivityRecord);
-  const createAppointmentNote = useMutation(api.appointmentNotes.createAppointmentNote);
-  const deleteAppointmentNote = useMutation(api.appointmentNotes.deleteAppointmentNote);
-  const updateAppointment = useMutation(api.appointments.updateAppointment);
-  const deleteAppointment = useMutation(api.appointments.deleteAppointment);
+  // Note: Personal care activities and daily activity records mutations are not yet migrated to Supabase
+  // These will need API routes or direct Supabase operations
+  const createPersonalCareActivities = async (data: any) => {
+    // TODO: Implement with Supabase API route or direct Supabase call
+    console.warn("createPersonalCareActivities not yet implemented with Supabase");
+    throw new Error("Personal care activities not yet implemented with Supabase");
+  };
+
+  const createDailyActivityRecord = async (data: any) => {
+    // TODO: Implement with Supabase API route or direct Supabase call
+    console.warn("createDailyActivityRecord not yet implemented with Supabase");
+    throw new Error("Daily activity records not yet implemented with Supabase");
+  };
+
+  const createAppointmentNote = async (data: any) => {
+    const response = await fetch("/api/appointment-notes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to create appointment note");
+    }
+
+    return await response.json();
+  };
+
+  const deleteAppointmentNote = async (data: { noteId: string }) => {
+    const response = await fetch(`/api/appointment-notes/${data.noteId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to delete appointment note");
+    }
+
+    return await response.json();
+  };
 
   // Define activity options
   const activityOptions = [
@@ -271,12 +640,22 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     { id: "Bed_changed", label: "Bed Cover Changed" }
   ] as const;
 
+  // Helper to format role name
+  const formatRole = (role?: string) => {
+    if (!role) return "";
+    return role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
   // Get other staff (excluding current user) for assisted staff dropdown
-  const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => ({
-    key: u.name,
-    label: u.name,
-    email: u.email
-  })) || [];
+  const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => {
+    const roleText = formatRole(u.role);
+    const label = roleText ? `${u.name} (${roleText})` : u.name;
+    return {
+      key: u.id,
+      label,
+      email: u.email
+    };
+  }) || [];
 
   // Current user info for primary staff
   const currentUserName = user?.user?.name || user?.user?.email?.split('@')[0] || "";
@@ -285,7 +664,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   const onSubmit = async (data: z.infer<typeof PersonalCareSchema>) => {
     try {
       await createPersonalCareActivities({
-        residentId: id as Id<"residents">,
+        residentId: id,
         date: today,
         activities: data.activities,
         time: data.time,
@@ -311,7 +690,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     try {
       await createDailyActivityRecord({
-        residentId: id as Id<"residents">,
+        residentId: id,
         date: today,
         time: activityRecordTime,
         staff: currentUserName,
@@ -339,7 +718,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     setAppointmentNotesLoading(true);
     try {
       await createAppointmentNote({
-        residentId: id as Id<"residents">,
+        residentId: id,
         category: data.category,
         preparationTime: data.preparationTime,
         preparationNotes: data.preparationNotes,
@@ -351,15 +730,41 @@ function DailyCarePage({ params }: DailyCarePageProps) {
         priority: data.priority,
         organizationId: activeOrganization.id,
         teamId: activeOrganization.id, // Using organization ID as team ID for now
-        createdBy: user.user.id,
       });
 
       toast.success("Appointment note saved successfully");
       appointmentNotesForm.reset();
       setIsAppointmentNotesDialogOpen(false);
-    } catch (error) {
+      
+      // Refresh appointment notes list
+      const { data: notesData, error: fetchError } = await supabase
+        .from("appointment_notes")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (!fetchError && notesData) {
+        const transformedNotes: AppointmentNote[] = notesData.map((note: any) => ({
+          _id: note.id,
+          residentId: note.resident_id,
+          category: note.category,
+          preparationTime: note.preparation_time,
+          preparationNotes: note.preparation_notes,
+          preferredTime: note.preferred_time,
+          transportPreference: note.transport_preference,
+          instructions: note.instructions,
+          transportationNeeds: note.transportation_needs || [],
+          medicalNeeds: note.medical_needs || [],
+          priority: note.priority,
+          isActive: note.is_active,
+          createdAt: new Date(note.created_at).getTime(),
+        }));
+        setAppointmentNotes(transformedNotes);
+      }
+    } catch (error: any) {
       console.error("Error saving appointment note:", error);
-      toast.error("Failed to save appointment note");
+      toast.error(error.message || "Failed to save appointment note");
     } finally {
       setAppointmentNotesLoading(false);
     }
@@ -371,13 +776,40 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     setDeleteLoading(true);
     try {
-      await deleteAppointmentNote({ noteId: noteToDelete as Id<"appointmentNotes"> });
+      await deleteAppointmentNote({ noteId: noteToDelete });
       toast.success("Appointment note deleted successfully");
       setDeleteConfirmOpen(false);
       setNoteToDelete(null);
-    } catch (error) {
+      
+      // Refresh appointment notes list
+      const { data: notesData, error: fetchError } = await supabase
+        .from("appointment_notes")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (!fetchError && notesData) {
+        const transformedNotes: AppointmentNote[] = notesData.map((note: any) => ({
+          _id: note.id,
+          residentId: note.resident_id,
+          category: note.category,
+          preparationTime: note.preparation_time,
+          preparationNotes: note.preparation_notes,
+          preferredTime: note.preferred_time,
+          transportPreference: note.transport_preference,
+          instructions: note.instructions,
+          transportationNeeds: note.transportation_needs || [],
+          medicalNeeds: note.medical_needs || [],
+          priority: note.priority,
+          isActive: note.is_active,
+          createdAt: new Date(note.created_at).getTime(),
+        }));
+        setAppointmentNotes(transformedNotes);
+      }
+    } catch (error: any) {
       console.error("Error deleting appointment note:", error);
-      toast.error("Failed to delete appointment note");
+      toast.error(error.message || "Failed to delete appointment note");
     } finally {
       setDeleteLoading(false);
     }
@@ -406,8 +838,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     setEditAppointmentLoading(true);
     try {
-      await updateAppointment({
-        appointmentId: appointmentToEdit._id,
+      const appointmentId = appointmentToEdit._id || appointmentToEdit.id;
+      await updateAppointmentAPI(appointmentId, {
         title: data.title,
         description: data.description,
         startTime: data.startTime,
@@ -415,6 +847,20 @@ function DailyCarePage({ params }: DailyCarePageProps) {
         staffId: data.staffId === "none" ? undefined : data.staffId,
         updatedBy: user.user.id,
       });
+
+      // Refresh appointments list
+      const result = await getUpcomingAppointments({
+        residentId: id,
+        limit: 50,
+      });
+      const transformedAppointments = result.appointments?.map((apt: any) => ({
+        ...apt,
+        _id: apt.id,
+        startTime: apt.start_time,
+        endTime: apt.end_time,
+        staffId: apt.staff_id,
+      })) || [];
+      setAppointments(transformedAppointments);
 
       toast.success("Appointment updated successfully");
       editAppointmentForm.reset();
@@ -449,9 +895,22 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     setDeleteAppointmentLoading(true);
     try {
-      await deleteAppointment({
-        appointmentId: appointmentToDelete._id,
+      const appointmentId = appointmentToDelete._id || appointmentToDelete.id;
+      await deleteAppointmentAPI(appointmentId);
+
+      // Refresh appointments list
+      const result = await getUpcomingAppointments({
+        residentId: id,
+        limit: 50,
       });
+      const transformedAppointments = result.appointments?.map((apt: any) => ({
+        ...apt,
+        _id: apt.id,
+        startTime: apt.start_time,
+        endTime: apt.end_time,
+        staffId: apt.staff_id,
+      })) || [];
+      setAppointments(transformedAppointments);
 
       toast.success("Appointment deleted successfully");
       setIsDeleteAppointmentDialogOpen(false);
@@ -498,7 +957,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   };
 
   // Loading state - queries are still fetching
-  if (resident === undefined || appointments === undefined || appointmentNotes === undefined) {
+  if (residentLoading || resident === null || appointmentsLoading || appointmentNotesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -509,8 +968,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     );
   }
 
-  // Error state - resident not found
-  if (resident === null) {
+  // Error state - resident not found (already handled in loading check)
+  if (!residentLoading && resident === null) {
     return (
       <ErrorState
         message="Resident not found"
@@ -522,7 +981,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   }
 
   // Error state - failed to load appointments
-  if (!appointments) {
+  if (appointments === undefined) {
     return (
       <ErrorState
         message="Failed to load appointments"
@@ -533,8 +992,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`;
+  const fullName = resident ? `${resident.firstName} ${resident.lastName}` : "";
+  const initials = resident ? `${resident.firstName[0]}${resident.lastName[0]}` : "";
 
   // Helper function to get readable category names
   const getCategoryDisplayName = (category: string) => {
@@ -914,7 +1373,23 @@ function DailyCarePage({ params }: DailyCarePageProps) {
         residentId={id}
         residentName={fullName}
         isOpen={isCreateAppointmentDialogOpen}
-        onClose={() => setIsCreateAppointmentDialogOpen(false)}
+        onClose={async () => {
+          setIsCreateAppointmentDialogOpen(false);
+          // Refresh appointments after creation
+          try {
+            const result = await getUpcomingAppointments({ residentId: id, limit: 50 });
+            const transformedAppointments = result.appointments?.map((apt: any) => ({
+              ...apt,
+              _id: apt.id,
+              startTime: apt.start_time,
+              endTime: apt.end_time,
+              staffId: apt.staff_id,
+            })) || [];
+            setAppointments(transformedAppointments);
+          } catch (error) {
+            console.error("Error refreshing appointments:", error);
+          }
+        }}
       />
 
       {/* Add Appointment Notes Dialog - keeping the existing dialog code here for now */}

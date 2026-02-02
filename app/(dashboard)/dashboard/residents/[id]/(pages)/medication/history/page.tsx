@@ -50,11 +50,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Download
+  Download,
+  Eye,
+  FileDown
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useMemo, useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
+import { toast } from "sonner";
 
 type MedicationHistoryPageProps = {
   params: Promise<{ id: string }>;
@@ -102,15 +105,41 @@ export default function MedicationHistoryPage({
 
         if (residentData) setResident(residentData as Resident);
 
+        // Fetch medication intakes
         const { data: intakes } = await supabase
           .from("medication_intakes")
           .select(`
             *,
-            medication:medication_id (*),
-            administered_by:administered_by_id (name),
-            witness:witness_id (name)
+            medication:medication_id (*)
           `)
           .eq("resident_id", id);
+
+        // Fetch user names separately if we have user IDs
+        if (intakes && intakes.length > 0) {
+          const userIds = new Set<string>();
+          intakes.forEach(intake => {
+            if (intake.administered_by_id) userIds.add(intake.administered_by_id);
+            if (intake.witness_id) userIds.add(intake.witness_id);
+          });
+
+          if (userIds.size > 0) {
+            const { data: users } = await supabase
+              .from("users")
+              .select("id, name")
+              .in("id", Array.from(userIds));
+
+            // Map user data to intakes
+            const userMap = new Map((users || []).map(u => [u.id, u]));
+            intakes.forEach(intake => {
+              if (intake.administered_by_id && userMap.has(intake.administered_by_id)) {
+                intake.administered_by = userMap.get(intake.administered_by_id);
+              }
+              if (intake.witness_id && userMap.has(intake.witness_id)) {
+                intake.witness = userMap.get(intake.witness_id);
+              }
+            });
+          }
+        }
 
         setAllIntakes(intakes || []);
       } catch (error) {
@@ -169,23 +198,28 @@ export default function MedicationHistoryPage({
       {} as Record<string, any[]>
     );
 
-    // Transform to array with aggregated stats
+        // Transform to array with aggregated stats
     const groupedArray: GroupedIntake[] = Object.entries(grouped).map(
       ([date, intakes]) => {
         const dateObj = new Date(date);
         const intakesArray = intakes as any[];
+        // Use status if available, otherwise fall back to state
+        const getStatus = (i: any) => i.status || i.state || "scheduled";
         return {
           date,
           dateObj,
           intakes: intakesArray,
           totalCount: intakesArray.length,
           administeredCount: intakesArray.filter(
-            (i) => i.status === "administered" || i.status === "given"
+            (i) => {
+              const status = getStatus(i);
+              return status === "administered" || status === "given";
+            }
           ).length,
-          givenCount: intakesArray.filter((i) => i.status === "given").length,
-          missedCount: intakesArray.filter((i) => i.status === "missed").length,
-          refusedCount: intakesArray.filter((i) => i.status === "refused").length,
-          skippedCount: intakesArray.filter((i) => i.status === "skipped").length
+          givenCount: intakesArray.filter((i) => getStatus(i) === "given").length,
+          missedCount: intakesArray.filter((i) => getStatus(i) === "missed").length,
+          refusedCount: intakesArray.filter((i) => getStatus(i) === "refused").length,
+          skippedCount: intakesArray.filter((i) => getStatus(i) === "skipped").length
         };
       }
     );
@@ -202,7 +236,10 @@ export default function MedicationHistoryPage({
     const topical: any[] = [];
 
     const now = new Date();
-    const isToday = format(selectedDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
+    const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+    const todayStr = format(now, "yyyy-MM-dd");
+    const isToday = selectedDateStr === todayStr;
+    const isPastDate = selectedDate < new Date(todayStr);
     const currentTime = format(now, "HH:mm");
 
     const groupedByTime: Record<string, any[]> = {};
@@ -210,12 +247,22 @@ export default function MedicationHistoryPage({
     intakes.forEach((intake) => {
       const medication = intake.medication;
 
-      if (medication?.schedule_type === "PRN (As Needed)") {
+      // If medication data is missing, treat as scheduled
+      if (!medication) {
+        const time = intake.scheduled_time ? format(new Date(intake.scheduled_time), "HH:mm") : "Unknown";
+        if (!groupedByTime[time]) {
+          groupedByTime[time] = [];
+        }
+        groupedByTime[time].push(intake);
+        return;
+      }
+
+      if (medication.schedule_type === "PRN (As Needed)") {
         prn.push(intake);
-      } else if (medication?.route === "Topical") {
+      } else if (medication.route === "Topical") {
         topical.push(intake);
       } else {
-        const time = format(new Date(intake.scheduled_time), "HH:mm");
+        const time = intake.scheduled_time ? format(new Date(intake.scheduled_time), "HH:mm") : "Unknown";
         if (!groupedByTime[time]) {
           groupedByTime[time] = [];
         }
@@ -223,12 +270,24 @@ export default function MedicationHistoryPage({
       }
     });
 
+    // For past dates or today's completed rounds, show all scheduled medications
     Object.entries(groupedByTime).forEach(([time, timeIntakes]) => {
-      const isRoundCompleted = timeIntakes.every(
-        (intake) => intake.status !== "scheduled"
-      );
-
-      if (!isToday || time <= currentTime || isRoundCompleted) {
+      if (isPastDate) {
+        // For past dates, always show all medications
+        scheduled[time] = timeIntakes;
+      } else if (isToday) {
+        // For today, only show if time has passed or round is completed
+        const isRoundCompleted = timeIntakes.every(
+          (intake) => {
+            const status = intake.status || intake.state || "scheduled";
+            return status !== "scheduled";
+          }
+        );
+        if (time <= currentTime || isRoundCompleted) {
+          scheduled[time] = timeIntakes;
+        }
+      } else {
+        // For future dates (shouldn't happen in history, but handle it)
         scheduled[time] = timeIntakes;
       }
     });
@@ -238,6 +297,224 @@ export default function MedicationHistoryPage({
       .sort((a, b) => a.time.localeCompare(b.time));
 
     return { scheduled: scheduledArray, prn, topical };
+  };
+
+  const generatePDFFromHTML = (content: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Medication History Report</title>
+          <style>
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+            body { 
+              font-family: Arial, sans-serif; 
+              padding: 20px; 
+              color: #111827;
+              line-height: 1.6;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+            }
+            th, td {
+              padding: 12px;
+              text-align: left;
+              border-bottom: 1px solid #e5e7eb;
+            }
+            th {
+              background-color: #f9fafb;
+              font-weight: 600;
+            }
+          </style>
+        </head>
+        <body>
+          ${content}
+          <div class="no-print" style="margin-top: 24px; text-align: center;">
+            <button onclick="window.print()" style="padding: 12px 24px; background-color: #111827; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer;">
+              Print PDF
+            </button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
+  };
+
+  const generatePDFContent = ({ resident, groupedIntake, date }: { resident: Resident; groupedIntake: GroupedIntake; date: string }) => {
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const { scheduled, prn, topical } = organizeIntakesByCategory(groupedIntake.intakes, groupedIntake.dateObj);
+
+    // Flatten scheduled medications (remove time grouping)
+    const allScheduledMedications = scheduled.flatMap(group => group.intakes);
+
+    const renderMedicationRow = (intake: any) => {
+      const status = intake.status || intake.state || "scheduled";
+      
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 12px; vertical-align: top;">
+            <strong>${intake.medication?.name || "N/A"}</strong><br>
+            <span style="color: #6b7280; font-size: 12px;">
+              ${intake.medication?.strength || ""} ${intake.medication?.strength_unit || ""} - 
+              ${intake.medication?.dosage_form || "N/A"}
+            </span><br>
+            <span style="color: #6b7280; font-size: 12px;">Route: ${intake.medication?.route || "N/A"}</span>
+          </td>
+          <td style="padding: 12px; vertical-align: top;">
+            <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; ${getStateBadgeStyle(status).includes('green') ? 'background-color: #dcfce7; color: #166534;' : getStateBadgeStyle(status).includes('red') ? 'background-color: #fee2e2; color: #991b1b;' : getStateBadgeStyle(status).includes('orange') ? 'background-color: #fed7aa; color: #9a3412;' : 'background-color: #f3f4f6; color: #374151;'}">
+              ${status}
+            </span>
+          </td>
+          <td style="padding: 12px; vertical-align: top; font-size: 14px;">
+            <div>${intake.administered_by?.name || "-"}</div>
+            ${intake.witness?.name ? `<div style="color: #6b7280; font-size: 12px; margin-top: 4px;">Witness: ${intake.witness.name}</div>` : ""}
+          </td>
+          <td style="padding: 12px; vertical-align: top; font-size: 14px; font-style: italic; color: #6b7280;">
+            ${intake.comment || intake.notes || "-"}
+          </td>
+        </tr>
+      `;
+    };
+
+    let scheduledHTML = "";
+    if (allScheduledMedications.length > 0) {
+      scheduledHTML = `
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: #374151;">Scheduled Medications</h3>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+            <thead style="background-color: #f9fafb;">
+              <tr>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allScheduledMedications.map(renderMedicationRow).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    let prnHTML = "";
+    if (prn.length > 0) {
+      prnHTML = `
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: #374151;">PRN (As Needed) Medications</h3>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+            <thead style="background-color: #f9fafb;">
+              <tr>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Time</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${prn.map(renderMedicationRow).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    let topicalHTML = "";
+    if (topical.length > 0) {
+      topicalHTML = `
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: #374151;">Topical Medications</h3>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+            <thead style="background-color: #f9fafb;">
+              <tr>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Time</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${topical.map(renderMedicationRow).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="header" style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #e5e7eb;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #111827;">Medication History Report</h1>
+        <p style="margin: 0; color: #6b7280; font-size: 16px;">${resident.first_name} ${resident.last_name}</p>
+      </div>
+
+      <div class="info-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;">
+        <div class="info-box" style="background-color: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Report Date</h3>
+          <p style="margin: 0; font-size: 16px; font-weight: 600; color: #111827;">${formattedDate}</p>
+        </div>
+        <div class="info-box" style="background-color: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Total Medications</h3>
+          <p style="margin: 0; font-size: 16px; font-weight: 600; color: #111827;">${groupedIntake.totalCount}</p>
+        </div>
+        <div class="info-box" style="background-color: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Administered</h3>
+          <p style="margin: 0; font-size: 16px; font-weight: 600; color: #16a34a;">${groupedIntake.administeredCount}</p>
+        </div>
+        <div class="info-box" style="background-color: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Missed / Refused</h3>
+          <p style="margin: 0; font-size: 16px; font-weight: 600; color: #dc2626;">${groupedIntake.missedCount + groupedIntake.refusedCount}</p>
+        </div>
+      </div>
+
+      <div class="medications" style="margin-top: 24px;">
+        <h2 style="margin-bottom: 16px; font-size: 18px; font-weight: 600; color: #111827;">Medication Details</h2>
+        ${scheduledHTML}
+        ${prnHTML}
+        ${topicalHTML}
+        ${allScheduledMedications.length === 0 && prn.length === 0 && topical.length === 0 ? '<p style="color: #6b7280; font-style: italic;">No medications recorded for this date.</p>' : ''}
+      </div>
+    `;
+  };
+
+  const handleViewClick = (groupedIntake: GroupedIntake) => {
+    setSelectedDateIntakeGroup(groupedIntake);
+    setIsSheetOpen(true);
+  };
+
+  const handleDownloadPDF = (groupedIntake: GroupedIntake) => {
+    if (!resident) {
+      toast.error('Resident data not available');
+      return;
+    }
+
+    const pdfContent = generatePDFContent({
+      resident,
+      groupedIntake,
+      date: groupedIntake.date
+    });
+
+    generatePDFFromHTML(pdfContent);
+    toast.success('Medication history report will open for printing');
   };
 
   const groupedColumns: ColumnDef<GroupedIntake>[] = [
@@ -285,6 +562,39 @@ export default function MedicationHistoryPage({
           </div>
         );
       }
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const groupedIntake = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewClick(groupedIntake);
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              View
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownloadPDF(groupedIntake);
+              }}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              PDF
+            </Button>
+          </div>
+        );
+      }
     }
   ];
 
@@ -299,11 +609,6 @@ export default function MedicationHistoryPage({
     initialState: { pagination: { pageSize: 25 } }
   });
 
-  const handleRowClick = (groupedIntake: GroupedIntake) => {
-    setSelectedDateIntakeGroup(groupedIntake);
-    setIsSheetOpen(true);
-  };
-
   const downloadCSV = () => {
     const allIntakesForExport = table.getFilteredRowModel().rows.flatMap(row => row.original.intakes);
     if (!allIntakesForExport.length) return;
@@ -315,9 +620,9 @@ export default function MedicationHistoryPage({
       Strength: intake.medication ? `${intake.medication.strength} ${intake.medication.strength_unit}` : "N/A",
       "Dosage Form": intake.medication?.dosage_form || "N/A",
       Route: intake.medication?.route || "N/A",
-      Status: intake.status,
+      Status: intake.status || intake.state || "scheduled",
       "Popped Out": intake.popped_out_at ? format(new Date(intake.popped_out_at), "HH:mm") : "-",
-      Notes: intake.comment || ""
+      Notes: intake.comment || intake.notes || ""
     }));
 
     const headers = Object.keys(csvData[0]);
@@ -400,7 +705,7 @@ export default function MedicationHistoryPage({
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map(row => (
-                <TableRow key={row.id} onClick={() => handleRowClick(row.original)} className="cursor-pointer hover:bg-muted/30">
+                <TableRow key={row.id} className="hover:bg-muted/30">
                   {row.getVisibleCells().map(c => <TableCell key={c.id}>{flexRender(c.column.columnDef.cell, c.getContext())}</TableCell>)}
                 </TableRow>
               ))
@@ -419,43 +724,80 @@ export default function MedicationHistoryPage({
           </SheetHeader>
           <div className="mt-6 space-y-8">
             {selectedDateIntakeGroup && (() => {
-              const { scheduled } = organizeIntakesByCategory(selectedDateIntakeGroup.intakes, selectedDateIntakeGroup.dateObj);
-              return scheduled.map(group => (
-                <div key={group.time} className="space-y-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md w-fit">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-semibold text-sm">{group.time}</span>
-                  </div>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-muted/30">
-                        <TableRow>
-                          <TableHead>Medication</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Administered By</TableHead>
-                          <TableHead>Notes</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.intakes.map(intake => (
-                          <TableRow key={intake.id}>
-                            <TableCell>
-                              <p className="font-medium">{intake.medication?.name}</p>
-                              <p className="text-xs text-muted-foreground">{intake.medication?.strength} {intake.medication?.strength_unit}</p>
-                            </TableCell>
-                            <TableCell><Badge className={getStateBadgeStyle(intake.status)} variant="outline">{intake.status}</Badge></TableCell>
-                            <TableCell className="text-sm">
-                              <div>{intake.administered_by?.name || "-"}</div>
-                              {intake.witness?.name && <div className="text-xs text-muted-foreground">Witness: {intake.witness.name}</div>}
-                            </TableCell>
-                            <TableCell className="text-sm italic">{intake.comment || "-"}</TableCell>
+              const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDateIntakeGroup.intakes, selectedDateIntakeGroup.dateObj);
+              
+              // Flatten scheduled medications (remove time grouping)
+              const allScheduledMedications = scheduled.flatMap(group => group.intakes);
+              
+              const renderMedicationTable = (intakes: any[], title?: string) => {
+                if (!intakes || intakes.length === 0) return null;
+                
+                return (
+                  <div className="space-y-3">
+                    {title && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md w-fit">
+                        <span className="font-semibold text-sm">{title}</span>
+                      </div>
+                    )}
+                    <div className="border rounded-lg overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-muted/30">
+                          <TableRow>
+                            <TableHead>Medication</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Administered By</TableHead>
+                            <TableHead>Notes</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {intakes.map(intake => (
+                            <TableRow key={intake.id}>
+                              <TableCell>
+                                <p className="font-medium">{intake.medication?.name || "N/A"}</p>
+                                <p className="text-xs text-muted-foreground">{intake.medication?.strength || ""} {intake.medication?.strength_unit || ""}</p>
+                              </TableCell>
+                              <TableCell><Badge className={getStateBadgeStyle(intake.status || intake.state || "scheduled")} variant="outline">{intake.status || intake.state || "scheduled"}</Badge></TableCell>
+                              <TableCell className="text-sm">
+                                <div>{intake.administered_by?.name || "-"}</div>
+                                {intake.witness?.name && <div className="text-xs text-muted-foreground">Witness: {intake.witness.name}</div>}
+                              </TableCell>
+                              <TableCell className="text-sm italic">{intake.comment || intake.notes || "-"}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
-                </div>
-              ));
+                );
+              };
+
+              // Show all scheduled medications in a single table
+              const scheduledElement = renderMedicationTable(allScheduledMedications, "Scheduled Medications");
+              
+              // Show PRN medications
+              const prnElement = renderMedicationTable(prn, "PRN (As Needed) Medications");
+              
+              // Show Topical medications
+              const topicalElement = renderMedicationTable(topical, "Topical Medications");
+
+              // Check if there's any content to show
+              const hasContent = allScheduledMedications.length > 0 || prn.length > 0 || topical.length > 0;
+
+              if (!hasContent) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <p className="text-muted-foreground">No medications recorded for this date.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  {scheduledElement}
+                  {prnElement}
+                  {topicalElement}
+                </>
+              );
             })()}
           </div>
         </SheetContent>

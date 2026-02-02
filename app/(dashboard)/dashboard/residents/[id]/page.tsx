@@ -74,20 +74,40 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       setResident(residentData as Resident);
     }
 
-    if (userRole) {
+    if (userRole && profile?.id) {
+      // Fetch active alerts for the resident
       const { data: alertsData, error: alertsError } = await supabase
         .from("alerts")
         .select("*")
         .eq("resident_id", id)
-        .eq("status", "active")
+        .eq("is_resolved", false)
         .order("created_at", { ascending: false });
 
-      if (!alertsError) {
-        setAlerts(alertsData || []);
+      if (alertsError) {
+        setAlerts([]);
+        return;
       }
+
+      // Fetch dismissals for current user
+      const { data: dismissalsData } = await supabase
+        .from("alert_dismissals")
+        .select("alert_id")
+        .eq("user_id", profile.id);
+
+      // Create a set of dismissed alert IDs for quick lookup
+      const dismissedAlertIds = new Set(
+        (dismissalsData || []).map((d: any) => d.alert_id)
+      );
+
+      // Filter out alerts dismissed by current user
+      const filteredAlerts = (alertsData || []).filter(
+        (alert: any) => !dismissedAlertIds.has(alert.id)
+      );
+      
+      setAlerts(filteredAlerts);
     }
     setIsLoading(false);
-  }, [id, userRole]);
+  }, [id, userRole, profile?.id]);
 
   useEffect(() => {
     fetchResidentData();
@@ -105,15 +125,16 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   }, [alerts]);
 
   const handleDismissAlert = async (alertId: string) => {
+    if (!profile?.id) return;
+    
     try {
+      // Insert into alert_dismissals table for per-user dismissal tracking
       const { error } = await supabase
-        .from("alerts")
-        .update({
-          status: "resolved",
-          resolved_at: new Date().toISOString(),
-          resolved_by: profile?.id
-        })
-        .eq("id", alertId);
+        .from("alert_dismissals")
+        .insert({
+          alert_id: alertId,
+          user_id: profile.id
+        });
 
       if (error) throw error;
       toast.success("Alert dismissed");

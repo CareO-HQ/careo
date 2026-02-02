@@ -1031,33 +1031,6 @@ export default defineSchema({
     .index("byActiveStatus", ["isActive"])
     .index("byCreatedBy", ["createdBy"]),
 
-  // Appointments for residents
-  appointments: defineTable({
-    residentId: v.id("residents"),
-    title: v.string(),
-    description: v.optional(v.string()),
-    startTime: v.string(), // ISO date-time string
-    endTime: v.string(), // ISO date-time string
-    location: v.string(),
-    staffId: v.optional(v.string()),
-    status: v.union(
-      v.literal("scheduled"),
-      v.literal("completed"),
-      v.literal("cancelled")
-    ),
-    organizationId: v.string(),
-    teamId: v.string(),
-    createdBy: v.string(),
-    createdAt: v.number(),
-    updatedBy: v.optional(v.string()),
-    updatedAt: v.optional(v.number())
-  })
-    .index("byResidentId", ["residentId"])
-    .index("byStatus", ["status"])
-    .index("byStartTime", ["startTime"])
-    .index("byOrganizationId", ["organizationId"])
-    .index("byTeamId", ["teamId"])
-    .index("byCreatedBy", ["createdBy"]),
 
   preAdmissionCareFiles: defineTable({
     residentId: v.id("residents"),
@@ -2932,14 +2905,6 @@ export default defineSchema({
     .index("by_incident", ["incidentId"])
     .index("by_user_and_incident", ["userId", "incidentId"]),
 
-  appointmentReadStatus: defineTable({
-    userId: v.id("users"),
-    appointmentId: v.id("appointments"),
-    readAt: v.number()
-  })
-    .index("by_user", ["userId"])
-    .index("by_appointment", ["appointmentId"])
-    .index("by_user_and_appointment", ["userId", "appointmentId"]),
 
   // Resident Audit System (Production)
   // Reusable audit templates that define question sets

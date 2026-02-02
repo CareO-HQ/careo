@@ -1,9 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
 import { useProfile } from "@/hooks/use-profile";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -105,52 +102,160 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const [noteToDelete, setNoteToDelete] = useState<any>(null);
   const ITEMS_PER_PAGE = 10;
 
+  // State for progress notes
+  const [progressNotes, setProgressNotes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [canLoadMore, setCanLoadMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [noteStats, setNoteStats] = useState({
+    total: 0,
+    daily: 0,
+    medical: 0,
+    incident: 0,
+    behavioral: 0,
+    other: 0,
+  });
+  const [resident, setResident] = useState<any>(null);
+
   // Auth data - matching daily care pattern
   const { profile } = useProfile();
 
   // Current user info for staff display
   const currentUserName = profile?.name || profile?.email?.split('@')[0] || "";
 
-  // Get resident data
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  // Fetch resident data - using Convex for now as it's used elsewhere
+  useEffect(() => {
+    // For now, we'll fetch resident from Convex
+    // TODO: Migrate to Supabase API when residents are migrated
+    async function fetchResident() {
+      try {
+        // Using a simple fetch to Convex HTTP endpoint or direct Supabase query
+        // For now, we'll use the resident data structure expected
+        // This will be updated when residents are fully migrated to Supabase
+        const response = await fetch(`/api/residents/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setResident(data);
+        } else {
+          // Fallback: set basic resident structure
+          setResident({ id, firstName: "Resident", lastName: "" });
+        }
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        // Fallback: set basic resident structure
+        setResident({ id, firstName: "Resident", lastName: "" });
+      }
+    }
+    if (id) {
+      fetchResident();
+    }
+  }, [id]);
 
-  // Use paginated query for progress notes
-  const {
-    results: paginatedResults,
-    status,
-    loadMore,
-  } = usePaginatedQuery(
-    api.progressNotes.getByResidentIdPaginated,
-    {
-      residentId: id as Id<"residents">,
-      filterType: filterType,
-      searchQuery: searchQuery,
-    },
-    { initialNumItems: ITEMS_PER_PAGE }
-  );
+  // Fetch progress notes
+  const fetchProgressNotes = async (cursor: string | null = null, append: boolean = false) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        residentId: id,
+        limit: ITEMS_PER_PAGE.toString(),
+        filterType: filterType,
+      });
+      if (searchQuery) {
+        params.append("searchQuery", searchQuery);
+      }
+      if (cursor) {
+        params.append("cursor", cursor);
+      }
 
-  // Get cached stats (single fast query instead of 4 slow ones)
-  const noteStatsData = useQuery(api.progressNotes.getStatsByResidentId, {
-    residentId: id as Id<"residents">
-  });
+      const response = await fetch(`/api/progress-notes?${params.toString()}`);
+      
+      // Get response text first to see what we're actually getting
+      const responseText = await response.text();
+      console.log("API Response Status:", response.status);
+      console.log("API Response Text:", responseText);
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (e) {
+          errorData = { error: responseText || `HTTP ${response.status}: ${response.statusText}` };
+        }
+        console.error("API Error:", errorData);
+        throw new Error(errorData.error || `Failed to fetch progress notes: ${response.status}`);
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Failed to parse JSON:", e, "Response:", responseText);
+        throw new Error("Invalid JSON response from server");
+      }
+      
+      if (append) {
+        setProgressNotes(prev => [...prev, ...data.page]);
+      } else {
+        setProgressNotes(data.page);
+      }
+      
+      setCanLoadMore(!data.isDone);
+      setNextCursor(data.continueCursor);
+    } catch (error) {
+      console.error("Error fetching progress notes:", error);
+      toast.error("Failed to load progress notes");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // Create progress note mutation
-  const createProgressNote = useMutation(api.progressNotes.create);
+  // Fetch stats
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`/api/progress-notes/stats?residentId=${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNoteStats({
+          total: data.totalCount || 0,
+          daily: data.dailyCount || 0,
+          medical: data.medicalCount || 0,
+          incident: data.incidentCount || 0,
+          behavioral: data.behavioralCount || 0,
+          other: data.otherCount || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
 
-  // Update progress note mutation
-  const updateProgressNote = useMutation(api.progressNotes.update);
+  // Load more notes
+  const loadMore = () => {
+    if (nextCursor && canLoadMore) {
+      fetchProgressNotes(nextCursor, true);
+    }
+  };
 
-  // Delete progress note mutation
-  const deleteProgressNote = useMutation(api.progressNotes.deleteNote);
+  // Fetch notes when filters change
+  useEffect(() => {
+    if (id) {
+      fetchProgressNotes(null, false);
+      fetchStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, filterType, searchQuery]);
 
   const form = useForm<ProgressNoteFormData>({
     resolver: zodResolver(progressNoteSchema),
     defaultValues: {
       type: "daily",
       date: new Date(),
-      time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      time: (() => {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      })(),
       note: "",
     },
   });
@@ -158,30 +263,69 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const onSubmit = async (data: ProgressNoteFormData) => {
     try {
       if (editingNote) {
-        await updateProgressNote({
-          noteId: editingNote._id,
-          type: data.type,
-          date: format(data.date, 'yyyy-MM-dd'),
-          time: data.time,
-          note: data.note,
+        const response = await fetch(`/api/progress-notes/${editingNote.id || editingNote._id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: data.type,
+            date: format(data.date, 'yyyy-MM-dd'),
+            time: data.time,
+            note: data.note,
+          }),
         });
+
+        if (!response.ok) {
+          const responseText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+          } catch (e) {
+            errorData = { error: responseText || `HTTP ${response.status}: ${response.statusText}` };
+          }
+          console.error("API Error:", errorData);
+          throw new Error(errorData.error || `Failed to update progress note: ${response.status}`);
+        }
+        
         toast.success("Progress note updated successfully");
       } else {
-        await createProgressNote({
-          residentId: id as Id<"residents">,
-          type: data.type,
-          date: format(data.date, 'yyyy-MM-dd'),
-          time: data.time,
-          note: data.note,
-          authorId: profile?.id || "",
-          authorName: currentUserName || "Unknown",
-          createdAt: new Date().toISOString(),
+        const response = await fetch("/api/progress-notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            residentId: id,
+            type: data.type,
+            date: format(data.date, 'yyyy-MM-dd'),
+            time: data.time,
+            note: data.note,
+            authorId: profile?.id || "",
+            authorName: currentUserName || "Unknown",
+          }),
         });
+
+        if (!response.ok) {
+          const responseText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+          } catch (e) {
+            errorData = { error: responseText || `HTTP ${response.status}: ${response.statusText}` };
+          }
+          console.error("API Error:", errorData);
+          throw new Error(errorData.error || `Failed to create progress note: ${response.status}`);
+        }
+        
         toast.success("Progress note added successfully");
       }
+      
       form.reset();
       setIsDialogOpen(false);
       setEditingNote(null);
+      fetchProgressNotes(null, false);
+      fetchStats();
+      
+      // Refresh notes and stats
+      fetchProgressNotes(null, false);
+      fetchStats();
     } catch (error) {
       toast.error("Failed to save progress note");
       console.error("Error saving progress note:", error);
@@ -190,10 +334,19 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
 
   const handleEdit = (note: any) => {
     setEditingNote(note);
+    // Round time to nearest 15-minute interval for dropdown
+    const roundTimeTo15Minutes = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const roundedMinutes = Math.round(minutes / 15) * 15;
+      const finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
+      const finalHours = roundedMinutes === 60 ? (hours + 1) % 24 : hours;
+      return `${String(finalHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
+    };
+    
     form.reset({
       type: note.type,
       date: new Date(note.date),
-      time: note.time,
+      time: roundTimeTo15Minutes(note.time || '00:00'),
       note: note.note,
     });
     setIsDialogOpen(true);
@@ -208,10 +361,19 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     if (!noteToDelete) return;
 
     try {
-      await deleteProgressNote({ noteId: noteToDelete._id });
+      const response = await fetch(`/api/progress-notes/${noteToDelete.id || noteToDelete._id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete progress note");
+      
       toast.success("Progress note deleted successfully");
       setShowDeleteDialog(false);
       setNoteToDelete(null);
+      
+      // Refresh notes and stats
+      fetchProgressNotes(null, false);
+      fetchStats();
     } catch (error) {
       toast.error("Failed to delete progress note");
       console.error("Error deleting progress note:", error);
@@ -305,14 +467,6 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     `;
   };
 
-  // Extract notes from paginated results (usePaginatedQuery returns an array directly)
-  const progressNotes = useMemo(() => {
-    // usePaginatedQuery returns the accumulated results directly as an array
-    return paginatedResults || [];
-  }, [paginatedResults]);
-
-  const canLoadMore = status === "CanLoadMore";
-  const isLoading = status === "LoadingMore" || status === "LoadingFirstPage";
 
 
 
@@ -328,7 +482,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     return age;
   };
 
-  if (resident === undefined || status === "LoadingFirstPage") {
+  if (isLoading && progressNotes.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -339,7 +493,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     );
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -363,13 +517,6 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   const fullName = `${resident.firstName} ${resident.lastName}`;
   const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
 
-  // Use cached stats (single query, instant response)
-  const noteStats = {
-    total: noteStatsData?.totalCount || 0,
-    daily: noteStatsData?.dailyCount || 0,
-    medical: noteStatsData?.medicalCount || 0,
-    incident: noteStatsData?.incidentCount || 0,
-  };
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -398,7 +545,12 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 form.reset({
                   type: "daily",
                   date: new Date(),
-                  time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                  time: (() => {
+                    const now = new Date();
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0');
+                    return `${hours}:${minutes}`;
+                  })(),
                   note: "",
                 });
                 setIsDialogOpen(true);
@@ -546,7 +698,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                     <Button
                       variant="outline"
                       onClick={() => loadMore(ITEMS_PER_PAGE)}
-                      disabled={isLoading}
+                      disabled={isLoading || !canLoadMore}
                       className="w-full sm:w-auto"
                     >
                       {isLoading ? (
@@ -570,6 +722,12 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                       Showing {progressNotes.length} of {noteStats.total} notes
                       {(searchQuery || filterType !== "all") && " (filtered)"}
                     </p>
+                  </div>
+                )}
+
+                {isLoading && progressNotes.length > 0 && (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mx-auto"></div>
                   </div>
                 )}
               </div>
@@ -759,12 +917,28 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Time</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="time"
-                            {...field}
-                          />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select time" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="max-h-[300px]">
+                            {Array.from({ length: 96 }, (_, i) => {
+                              const hours = Math.floor(i / 4);
+                              const minutes = (i % 4) * 15;
+                              const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                              return (
+                                <SelectItem key={timeString} value={timeString}>
+                                  {timeString}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -837,7 +1011,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 p-4 border border-purple-200">
                 <div className="relative z-10">
                   <div className="text-3xl font-bold text-purple-600 mb-1">
@@ -870,7 +1044,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                   <p className="text-sm font-medium text-green-700">Medical Notes</p>
                 </div>
                 <div className="absolute -right-2 -bottom-2 opacity-10">
-                  <Plus className="w-16 h-16 text-green-600" />
+                  <AlertTriangle className="w-16 h-16 text-green-600" />
                 </div>
               </div>
 
@@ -883,6 +1057,18 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                 </div>
                 <div className="absolute -right-2 -bottom-2 opacity-10">
                   <AlertTriangle className="w-16 h-16 text-red-600" />
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 border border-yellow-200">
+                <div className="relative z-10">
+                  <div className="text-3xl font-bold text-yellow-600 mb-1">
+                    {noteStats.behavioral}
+                  </div>
+                  <p className="text-sm font-medium text-yellow-700">Behavioral Notes</p>
+                </div>
+                <div className="absolute -right-2 -bottom-2 opacity-10">
+                  <User className="w-16 h-16 text-yellow-600" />
                 </div>
               </div>
             </div>

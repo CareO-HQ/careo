@@ -1,7 +1,7 @@
 "use client";
 
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { Resident } from "@/types";
@@ -18,37 +18,65 @@ export default function ResidentsPage() {
 
   const contextLoading = isProfileLoading || isSupabaseLoading;
 
-  useEffect(() => {
+  const fetchResidents = useCallback(async () => {
     if (contextLoading) return;
 
-    async function fetchResidents() {
-      setIsLoading(true);
-      try {
-        let query = supabase.from("residents").select("*");
+    setIsLoading(true);
+    try {
+      let query = supabase.from("residents").select("*");
 
-        if (activeTeamId) {
-          query = query.eq("team_id", activeTeamId);
-        } else if (activeOrganizationId) {
-          query = query.eq("organization_id", activeOrganizationId);
-        } else {
-          setResidents([]);
-          setIsLoading(false);
-          return;
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        setResidents(data as Resident[]);
-      } catch (error: any) {
-        console.error("Error fetching residents:", error);
-        // toast.error("Failed to load residents");
-      } finally {
+      if (activeTeamId) {
+        query = query.eq("team_id", activeTeamId);
+      } else if (activeOrganizationId) {
+        query = query.eq("organization_id", activeOrganizationId);
+      } else {
+        setResidents([]);
         setIsLoading(false);
+        return;
       }
-    }
 
-    fetchResidents();
+      const { data, error } = await query;
+      if (error) throw error;
+      setResidents(data as Resident[]);
+    } catch (error: any) {
+      console.error("Error fetching residents:", error);
+      // toast.error("Failed to load residents");
+    } finally {
+      setIsLoading(false);
+    }
   }, [activeTeamId, activeOrganizationId, contextLoading, supabase]);
+
+  useEffect(() => {
+    fetchResidents();
+  }, [fetchResidents]);
+
+  // Set up real-time subscription for residents
+  useEffect(() => {
+    if (contextLoading || (!activeTeamId && !activeOrganizationId)) return;
+
+    const channel = supabase
+      .channel("residents-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "residents",
+          filter: activeTeamId
+            ? `team_id=eq.${activeTeamId}`
+            : `organization_id=eq.${activeOrganizationId}`,
+        },
+        (payload) => {
+          // Refetch residents when any change occurs (INSERT, UPDATE, DELETE)
+          fetchResidents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeTeamId, activeOrganizationId, contextLoading, supabase, fetchResidents]);
 
   // Determine display name for header
   const displayName = activeTeamId

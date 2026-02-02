@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useCallback, useEffect } from "react";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
@@ -34,43 +36,63 @@ function StaffPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [staff, setStaff] = useState<StaffMember[] | undefined>(undefined);
   const router = useRouter();
-  const { profile, refresh: refreshProfile } = useProfile();
+  const { profile } = useProfile();
   const { supabase } = useSupabase();
 
   const activeTeamId = profile?.active_team_id;
   const activeOrganizationId = profile?.active_organization_id;
 
-  const fetchStaff = React.useCallback(async () => {
+  const fetchStaff = useCallback(async () => {
     if (!supabase || !activeOrganizationId) return;
 
-    // Base query for users in this organization
-    let query = supabase
-      .from("users")
-      .select(`
-        *,
-        teams:active_team_id (
-          id,
-          name
-        )
-      `)
-      .eq("active_organization_id", activeOrganizationId);
+    try {
+      // Base query - get all users in organization
+      let query = supabase
+        .from("users")
+        .select(`
+          *,
+          teams:active_team_id (
+            id,
+            name
+          )
+        `)
+        .eq("active_organization_id", activeOrganizationId);
 
-    // If a team is selected, filter by it
-    if (activeTeamId) {
-      query = query.eq("active_team_id", activeTeamId);
-    }
+      // Only filter by team if explicitly provided
+      if (activeTeamId) {
+        query = query.eq("active_team_id", activeTeamId);
+      }
 
-    const { data, error } = await query;
+      const { data, error } = await query;
 
-    if (error) {
-      console.error("Error fetching staff:", error);
-      setStaff([]);
-    } else {
+      if (error) {
+        console.error("Error fetching staff:", error);
+        // Log RLS policy errors specifically
+        if (error.code === '42501' || error.message?.includes('policy') || error.message?.includes('permission')) {
+          console.error("RLS policy violation - check user permissions and JWT metadata");
+          console.error("Current user organization ID:", activeOrganizationId);
+          console.error("Error details:", {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+        }
+        setStaff([]);
+        return;
+      }
+
+      console.log(`[Staff Page] Found ${data?.length || 0} staff members for organization ${activeOrganizationId}${activeTeamId ? ` (filtered by team ${activeTeamId})` : ''}`);
+
       const mappedStaff = (data || []).map((p: any) => ({
         ...p,
-        team_name: p.teams?.name
+        team_name: p.teams?.name || null
       }));
+
       setStaff(mappedStaff);
+    } catch (err) {
+      console.error("Unexpected error fetching staff:", err);
+      setStaff([]);
     }
   }, [supabase, activeOrganizationId, activeTeamId]);
 

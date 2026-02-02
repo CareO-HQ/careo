@@ -181,23 +181,41 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
   const userRole = profile?.role;
 
   const fetchAlerts = useCallback(async () => {
-    if (!userRole) return;
+    if (!userRole || !profile?.id) return;
 
-    // Simplification: In reality, we'd filter alerts by userRole permissions
-    // But for the table view, we'll just fetch active alerts for the resident
-    const { data, error } = await supabase
+    // Fetch active alerts for the resident
+    const { data: alertsData, error: alertsError } = await supabase
       .from("alerts")
       .select("*")
       .eq("resident_id", residentId)
-      .eq("status", "active")
+      .eq("is_resolved", false)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setAlerts(data);
-      setAlertData({ total: data.length });
+    if (alertsError) {
+      setIsLoading(false);
+      return;
     }
+
+    // Fetch dismissals for current user
+    const { data: dismissalsData } = await supabase
+      .from("alert_dismissals")
+      .select("alert_id")
+      .eq("user_id", profile.id);
+
+    // Create a set of dismissed alert IDs for quick lookup
+    const dismissedAlertIds = new Set(
+      (dismissalsData || []).map((d: any) => d.alert_id)
+    );
+
+    // Filter out alerts dismissed by current user
+    const filteredAlerts = (alertsData || []).filter(
+      (alert: any) => !dismissedAlertIds.has(alert.id)
+    );
+    
+    setAlerts(filteredAlerts);
+    setAlertData({ total: filteredAlerts.length });
     setIsLoading(false);
-  }, [residentId, userRole]);
+  }, [residentId, userRole, profile?.id]);
 
   useEffect(() => {
     fetchAlerts();
@@ -205,11 +223,16 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
 
   const handleDismissAlert = async (alertId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!profile?.id) return;
+    
     try {
+      // Insert into alert_dismissals table for per-user dismissal tracking
       const { error } = await supabase
-        .from("alerts")
-        .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile?.id })
-        .eq("id", alertId);
+        .from("alert_dismissals")
+        .insert({
+          alert_id: alertId,
+          user_id: profile.id
+        });
 
       if (error) throw error;
       toast.success("Alert dismissed");

@@ -25,8 +25,20 @@ import {
   FileText,
   Users,
   Edit3,
+  Bell,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+import { toast } from "sonner";
 
 type OverviewPageProps = {
   params: Promise<{ id: string }>;
@@ -36,7 +48,9 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [showAlertsDialog, setShowAlertsDialog] = React.useState(false);
   const [resident, setResident] = React.useState<Resident | null | undefined>(undefined);
+  const [alerts, setAlerts] = React.useState<any[]>([]);
   const { profile } = useProfile();
   const { supabase } = useSupabase();
   const userRole = profile?.role;
@@ -57,7 +71,41 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     } else {
       setResident(data as Resident);
     }
-  }, [id, supabase]);
+
+    // Fetch alerts if user has a role
+    if (userRole && profile?.id) {
+      // Fetch active alerts for the resident
+      const { data: alertsData, error: alertsError } = await supabase
+        .from("alerts")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("is_resolved", false)
+        .order("created_at", { ascending: false });
+
+      if (alertsError) {
+        setAlerts([]);
+        return;
+      }
+
+      // Fetch dismissals for current user
+      const { data: dismissalsData } = await supabase
+        .from("alert_dismissals")
+        .select("alert_id")
+        .eq("user_id", profile.id);
+
+      // Create a set of dismissed alert IDs for quick lookup
+      const dismissedAlertIds = new Set(
+        (dismissalsData || []).map((d: any) => d.alert_id)
+      );
+
+      // Filter out alerts dismissed by current user
+      const filteredAlerts = (alertsData || []).filter(
+        (alert: any) => !dismissedAlertIds.has(alert.id)
+      );
+      
+      setAlerts(filteredAlerts);
+    }
+  }, [id, supabase, userRole, profile?.id]);
 
   React.useEffect(() => {
     fetchResidentData();
@@ -105,6 +153,38 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
     }
   }, [resident?.admission_date]);
+
+  // Derive alert count from alerts
+  const alertCount = React.useMemo(() => {
+    if (!alerts) return { total: 0, critical: 0, warning: 0, info: 0 };
+    return {
+      total: alerts.length,
+      critical: alerts.filter(a => a.severity === "critical").length,
+      warning: alerts.filter(a => a.severity === "warning").length,
+      info: alerts.filter(a => a.severity === "info").length,
+    };
+  }, [alerts]);
+
+  const handleDismissAlert = async (alertId: string) => {
+    if (!supabase || !profile?.id) return;
+    
+    try {
+      // Insert into alert_dismissals table for per-user dismissal tracking
+      const { error } = await supabase
+        .from("alert_dismissals")
+        .insert({
+          alert_id: alertId,
+          user_id: profile.id
+        });
+
+      if (error) throw error;
+      toast.success("Alert dismissed");
+      fetchResidentData();
+    } catch (error) {
+      console.error("Failed to dismiss alert:", error);
+      toast.error("Failed to dismiss alert");
+    }
+  };
 
   // Now safe to do early returns after all hooks have been called
   if (resident === undefined) {
@@ -163,6 +243,20 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </p>
         </div>
         <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="relative bg-gray-50 hover:bg-gray-100"
+            onClick={() => setShowAlertsDialog(true)}
+          >
+            <Bell className="h-5 w-5" />
+            {alertCount && alertCount.total > 0 && (
+              <span className={`absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-xs flex items-center justify-center font-semibold shadow-md ${alertCount.critical > 0 ? 'bg-red-600' : 'bg-orange-500'
+              }`}>
+                {alertCount.total}
+              </span>
+            )}
+          </Button>
           {canEditOverview(userRole) && (
             <Button
               variant="ghost"
@@ -412,6 +506,78 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Alerts Dialog */}
+      <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Alerts for {resident.first_name} {resident.last_name}</DialogTitle>
+            <DialogDescription>
+              {alerts && alerts.length > 0
+                ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} requiring attention`
+                : "No active alerts"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {alerts && alerts.length > 0 ? (
+              alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={cn(
+                    "p-4 rounded-lg border-2",
+                    alert.severity === "critical"
+                      ? "border-red-300 bg-red-50"
+                      : alert.severity === "warning"
+                        ? "border-orange-300 bg-orange-50"
+                        : "border-blue-300 bg-blue-50"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge
+                          variant="table"
+                          className={cn(
+                            alert.severity === "critical"
+                              ? "bg-red-100 text-red-800 border-red-400"
+                              : alert.severity === "warning"
+                                ? "bg-orange-100 text-orange-800 border-orange-400"
+                                : "bg-blue-100 text-blue-800 border-blue-400"
+                          )}
+                        >
+                          {alert.severity === "critical"
+                            ? "Critical"
+                            : alert.severity === "warning"
+                              ? "Warning"
+                              : "Info"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
+                      <p className="text-sm text-muted-foreground">{alert.message}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDismissAlert(alert.id)}
+                      className="flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No active alerts</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Resident Dialog */}
       <CreateResidentDialog

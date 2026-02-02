@@ -62,7 +62,7 @@ export function DataTable<TData, TValue>({
     }
   ]);
   const [searchValue, setSearchValue] = React.useState<string>("");
-
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
 
   const table = useReactTable({
     data,
@@ -121,7 +121,7 @@ export function DataTable<TData, TValue>({
             {table.getCoreRowModel().rows.length} resident(s)
           </div>
           {canCreateResident(userRole) && (
-            <Dialog>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">Add Resident</Button>
               </DialogTrigger>
@@ -129,11 +129,11 @@ export function DataTable<TData, TValue>({
                 <DialogHeader>
                   <DialogTitle>Create New Resident Profile</DialogTitle>
                   <DialogDescription>
-                    Enter the resident’s personal information and relevant care
+                    Enter the resident's personal information and relevant care
                     details to create their profile.
                   </DialogDescription>
                 </DialogHeader>
-                <CreateResidentForm />
+                <CreateResidentForm onSuccess={() => setIsDialogOpen(false)} />
               </DialogContent>
             </Dialog>
           )}
