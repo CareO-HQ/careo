@@ -126,36 +126,19 @@ export function AppSidebar() {
         );
         setUnreadNotificationCount(unreadNotifs.length);
 
-        // 4. Action Plans
-        if (user) {
-          const apTables = [
-            'audit_resident_action_plans',
-            'audit_care_file_action_plans',
-            'audit_governance_action_plans',
-            'audit_clinical_action_plans',
-            'audit_environment_action_plans'
-          ];
+        // 4. Action Plans (via notifications table)
+        // We now track "unread" updates instead of "total pending tasks" for the badge
+        const { data: allActionPlanNotifs } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .in("type", ["action_plan", "action_plan_status"])
+          .or(`user_id.eq.${user.id},user_id.is.null`);
 
-          const isManagement = effectiveRole === 'owner' || effectiveRole === 'manager' || effectiveRole === 'saas_admin';
-
-          let totalAP = 0;
-          for (const table of apTables) {
-            let query = supabase
-              .from(table)
-              .select("id", { count: "exact", head: true })
-              .eq("organization_id", activeOrganizationId)
-              .eq("status", "pending");
-
-            if (!isManagement) {
-              // Staff only see their assigned plans
-              query = query.or(`assigned_to.eq.${user.id},assigned_to.eq.${user.email}`);
-            }
-
-            const { count } = await query;
-            totalAP += (count || 0);
-          }
-          setTotalNewActionPlansCount(totalAP);
-        }
+        const unreadActionPlanList = (allActionPlanNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
+        setTotalNewActionPlansCount(unreadActionPlanList.length);
       } catch (error) {
         console.error("Error fetching sidebar counts:", error);
       }

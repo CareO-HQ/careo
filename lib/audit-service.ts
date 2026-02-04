@@ -968,7 +968,7 @@ export const auditService = {
     async getOrganizationMembers(organizationId: string) {
         const { data, error } = await supabase
             .from('users')
-            .select('id, email, name, image_url')
+            .select('id, email, name, image_url, role')
             .eq('active_organization_id', organizationId);
         if (error) {
             console.warn("Could not fetch users:", error);
@@ -1047,22 +1047,51 @@ export const auditService = {
         if (error) throw error;
 
         // Create notification for managers/owners
+        // Create notification for managers/owners and assignee
         if (data) {
-            // Check if status is completed or in_progress to notify the creator
             const notificationTitle = `Action Plan ${status.replace('_', ' ')}`;
             const notificationMessage = `Action plan "${data.description}" marked as ${status.replace('_', ' ')} by ${userName || "Staff"}`;
 
-            supabase.from("notifications").insert({
-                organization_id: data.organization_id,
-                user_id: null, // Broadcast to managers of the org
-                type: "action_plan_status",
-                title: notificationTitle,
-                message: notificationMessage,
-                link: `/dashboard/action-plans`,
-                sender_id: userId,
-                sender_name: userName,
-                metadata: { actionPlanId: data.id, status, category }
-            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
+            // Get all organization members to find managers
+            const members = await auditService.getOrganizationMembers(data.organization_id);
+
+            // Filter recipients: 
+            // 1. The assignee (if not the one updating)
+            // 2. Managers/Owners/Admins (if not the one updating)
+            const recipients = members.filter((member: any) => {
+                // Don't notify the person who made the update
+                if (member.id === userId) return false;
+
+                // Notify assignee
+                if (member.id === data.assigned_to) return true;
+
+                // Notify managers/owners/admins
+                const role = member.role || '';
+                return role === 'manager' || role === 'owner' || role === 'saas_admin' || role === 'admin';
+            });
+
+            // Send to each recipient
+            // Note: We can't batch insert easily with different user_ids efficiently for a small number, 
+            // but we could map them. Supabase insert accepts an array.
+            if (recipients.length > 0) {
+                const notifications = recipients.map((member: any) => ({
+                    organization_id: data.organization_id,
+                    user_id: member.id,
+                    type: "action_plan_status",
+                    title: notificationTitle,
+                    message: notificationMessage,
+                    link: `/dashboard/action-plans`,
+                    sender_id: userId,
+                    sender_name: userName,
+                    metadata: { actionPlanId: data.id, status, category }
+                }));
+
+                const { error: notifError } = await supabase
+                    .from("notifications")
+                    .insert(notifications);
+
+                if (notifError) console.error("Notification error:", notifError);
+            }
         }
 
         return data;

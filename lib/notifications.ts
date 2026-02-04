@@ -165,6 +165,40 @@ export const markIncidentNotificationsAsRead = async (userId: string, organizati
     return { success: true };
 };
 
+export const markActionPlanNotificationsAsRead = async (userId: string, organizationId: string) => {
+    // 1. Get all unread action plan notification IDs for this user/organization
+    const { data: notifications } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .in("type", ["action_plan", "action_plan_status"])
+        .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (!notifications || notifications.length === 0) return { success: true };
+
+    const notificationIds = notifications.map((n) => n.id);
+
+    // 2. Insert records into notification_read_status for these IDs
+    const readRecords = notificationIds.map((id) => ({
+        notification_id: id,
+        user_id: userId,
+        read_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase
+        .from("notification_read_status")
+        .upsert(readRecords, {
+            onConflict: 'notification_id,user_id'
+        });
+
+    if (error) {
+        console.error("Error marking action plan notifications as read:", error);
+        throw error;
+    }
+
+    return { success: true };
+};
+
 export const deleteAllNotifications = async (userId: string) => {
     // Instead of hard deleting, we verify specifically which notifications we see, 
     // and then insert into notification_dismissals for ALL of them.

@@ -10,6 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Squad {
   id: string;
@@ -31,6 +38,7 @@ interface CareHomeDetails {
   createdAt: string;
   staffCount: number;
   teamsCount: number;
+  residentCount: number;
   teams: Squad[];
   staff: StaffMember[];
 }
@@ -44,6 +52,7 @@ export default function CareHomeDetailsPage() {
 
   const [careHomeDetails, setCareHomeDetails] = useState<CareHomeDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRole, setSelectedRole] = useState<string>("all");
 
   // Redirect if not SaaS Admin
   useEffect(() => {
@@ -89,12 +98,21 @@ export default function CareHomeDetailsPage() {
 
       if (staffError) throw staffError;
 
+      // 4. Fetch resident count
+      const { count: residentCount, error: residentError } = await supabase
+        .from("residents")
+        .select("id", { count: "exact", head: true })
+        .eq("care_home_id", careHomeId);
+
+      if (residentError) throw residentError;
+
       setCareHomeDetails({
         id: chData.id,
         name: chData.name,
         createdAt: chData.created_at,
         staffCount: staffData?.length || 0,
         teamsCount: teamsData?.length || 0,
+        residentCount: residentCount || 0,
         teams: (teamsData || []).map(team => ({
           id: team.id,
           name: team.name,
@@ -105,7 +123,7 @@ export default function CareHomeDetailsPage() {
           email: staff.email,
           name: staff.name,
           role: staff.role,
-          teamNames: (staff.teams as any || []).map((u: any) => u.name)
+          teamNames: staff.teams ? [(staff.teams as any).name] : []
         }))
       });
 
@@ -144,6 +162,10 @@ export default function CareHomeDetailsPage() {
       </div>
     );
   }
+
+  const filteredStaff = selectedRole === "all"
+    ? careHomeDetails.staff
+    : careHomeDetails.staff.filter(staff => staff.role === selectedRole);
 
   return (
     <div className="w-full p-6 space-y-6">
@@ -208,6 +230,19 @@ export default function CareHomeDetailsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Residents</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{careHomeDetails.residentCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Residents in this care home
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Teams List */}
@@ -251,17 +286,32 @@ export default function CareHomeDetailsPage() {
       {/* Staff List */}
       <Card>
         <CardHeader>
-          <CardTitle>Members</CardTitle>
-          <CardDescription>
-            {careHomeDetails.staffCount === 0
-              ? "No members yet"
-              : `${careHomeDetails.staffCount} member${careHomeDetails.staffCount === 1 ? "" : "s"} in this care home`}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Members</CardTitle>
+              <CardDescription>
+                {filteredStaff.length} member{filteredStaff.length === 1 ? "" : "s"} found
+                {selectedRole !== "all" && ` (${selectedRole})`}
+              </CardDescription>
+            </div>
+            <Select value={selectedRole} onValueChange={setSelectedRole}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="nurse">Nurse</SelectItem>
+                <SelectItem value="care_assistant">Care Assistant</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          {careHomeDetails.staff.length > 0 ? (
+          {filteredStaff.length > 0 ? (
             <div className="space-y-4">
-              {careHomeDetails.staff.map((staffMember) => (
+              {filteredStaff.map((staffMember) => (
                 <div
                   key={staffMember.id}
                   className="flex items-center justify-between p-3 border rounded-lg"

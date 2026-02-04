@@ -35,6 +35,7 @@ import { Trash2 } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { auditService } from "@/lib/audit-service";
+import { markActionPlanNotificationsAsRead } from "@/lib/notifications";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
@@ -59,7 +60,7 @@ export default function MyActionPlansPage() {
     if (!userEmail) return;
     setIsLoading(true);
     try {
-      let plans = [];
+      let plans: any[] = [];
       if (isOwner && activeOrganizationId) {
         plans = await auditService.getOrgActionPlans(activeOrganizationId);
       } else {
@@ -83,6 +84,13 @@ export default function MyActionPlansPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Mark all action plan related notifications as read when visiting this page
+  useEffect(() => {
+    if (user?.id && activeOrganizationId) {
+      markActionPlanNotificationsAsRead(user.id, activeOrganizationId);
+    }
+  }, [user?.id, activeOrganizationId]);
 
   // Group action plans by status
   const pendingPlans = allActionPlans.filter((p) => p.status === "pending" || !p.status) || [];
@@ -110,6 +118,7 @@ export default function MyActionPlansPage() {
   // Handle status update
   const handleStatusUpdate = async () => {
     if (!selectedActionPlan) return;
+    if (!user) return;
 
     try {
       await auditService.updateActionPlanStatus(

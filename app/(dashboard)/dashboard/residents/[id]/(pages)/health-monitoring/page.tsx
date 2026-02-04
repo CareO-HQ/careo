@@ -67,6 +67,8 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { TimePicker } from "@/components/ui/date-time-picker";
 
+import { formatInTimeZone } from "date-fns-tz";
+
 type HealthMonitoringPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -95,6 +97,8 @@ const SingleVitalSchema = z.object({
 
 type SingleVitalFormData = z.infer<typeof SingleVitalSchema>;
 
+const UK_TIMEZONE = "Europe/London";
+
 export default function HealthMonitoringPage({ params }: HealthMonitoringPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
@@ -105,9 +109,10 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
   const [recentVitals, setRecentVitals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get today's date
-  const today = new Date().toISOString().split('T')[0];
-  const currentTime = new Date().toTimeString().slice(0, 5);
+  // Get today's date in UK time
+  const now = new Date();
+  const today = formatInTimeZone(now, UK_TIMEZONE, 'yyyy-MM-dd');
+  const currentTime = formatInTimeZone(now, UK_TIMEZONE, 'HH:mm');
 
   // Form setup
   const form = useForm<SingleVitalFormData>({
