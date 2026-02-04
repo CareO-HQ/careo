@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { formatDateForDisplay } from "@/lib/date-utils";
 import { format } from "date-fns";
+import { generateIncidentPDF } from "../utils";
 import {
   Card,
   CardContent,
@@ -66,7 +66,7 @@ type IncidentsDocumentsPageProps = {
 export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const residentId = id;
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,19 +82,55 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Data state
+  const [resident, setResident] = useState<any>(null);
+  const [allIncidents, setAllIncidents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch all incidents
-  const allIncidents = useQuery(api.incidents.getByResident, {
-    residentId: id as Id<"residents">
-  });
+  // Fetch data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!residentId) return;
+      setIsLoading(true);
+
+      try {
+        // Fetch resident
+        const { data: resData, error: resError } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
+
+        if (resError) throw resError;
+        setResident(resData);
+
+        // Fetch incidents
+        const { data: incData, error: incError } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", residentId)
+          .order("date", { ascending: false })
+          .order("time", { ascending: false });
+
+        if (incError) throw incError;
+        setAllIncidents(incData || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load incidents data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [residentId]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
-    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
-    return `${resident.firstName} ${resident.lastName}`;
+    if (!resident?.first_name || !resident?.last_name) return "Unknown Resident";
+    return `${resident.first_name} ${resident.last_name}`;
   }, [resident]);
+
 
   // Get unique years from incidents for filter
   const availableYears = useMemo(() => {
@@ -110,8 +146,8 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
     if (!allIncidents || allIncidents.length === 0) return [];
     const types = new Set<string>();
     allIncidents.forEach(incident => {
-      if (incident.incidentTypes) {
-        incident.incidentTypes.forEach((type: string) => types.add(type));
+      if (incident.incident_types) {
+        incident.incident_types.forEach((type: string) => types.add(type));
       }
     });
     return Array.from(types).sort();
@@ -126,12 +162,12 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
     // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(incident =>
-        incident.detailedDescription?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.incidentTypes?.some((type: string) => type.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        incident.completedByFullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.injuredPersonFirstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.injuredPersonSurname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.homeName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.detailed_description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.incident_types?.some((type: string) => type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        incident.completed_by_full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.injured_person_first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.injured_person_surname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.home_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         incident.unit?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -154,13 +190,13 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
 
     // Apply severity filter
     if (selectedSeverity !== "all") {
-      filtered = filtered.filter(incident => incident.incidentLevel === selectedSeverity);
+      filtered = filtered.filter(incident => incident.incident_level === selectedSeverity);
     }
 
     // Apply type filter
     if (selectedType !== "all") {
       filtered = filtered.filter(incident =>
-        incident.incidentTypes?.includes(selectedType)
+        incident.incident_types?.includes(selectedType)
       );
     }
 
@@ -186,6 +222,36 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
     setIsViewDialogOpen(true);
   };
 
+  const handleDownloadIncident = async (incidentId: string) => {
+    try {
+      const incident = allIncidents?.find((i) => i.id === incidentId);
+      if (!incident) {
+        toast.error("Incident not found");
+        return;
+      }
+
+      const fullName = `${resident?.first_name} ${resident?.last_name}`;
+      // Generate PDF content
+      const pdfContent = generateIncidentPDF(incident, fullName);
+
+      // Create a blob and download
+      const blob = new Blob([pdfContent], { type: "text/html" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `incident-report-${incident.date}-${incidentId.slice(-6)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Incident report downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading incident:", error);
+      toast.error("Failed to download incident report");
+    }
+  };
+
   const handleExport = () => {
     if (!filteredIncidents || filteredIncidents.length === 0) return;
 
@@ -194,12 +260,12 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
     const rows = filteredIncidents.map(incident => [
       incident.date,
       incident.time,
-      incident.incidentTypes?.join("; ") || "",
-      incident.incidentLevel?.replace("_", " ") || "",
-      `${incident.homeName} - ${incident.unit}`,
-      incident.detailedDescription || "",
-      `${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}`,
-      incident.completedByFullName
+      incident.incident_types?.join("; ") || "",
+      incident.incident_level?.replace("_", " ") || "",
+      `${incident.home_name} - ${incident.unit}`,
+      incident.detailed_description || "",
+      `${incident.injured_person_first_name} ${incident.injured_person_surname}`,
+      incident.completed_by_full_name
     ]);
 
     const csvContent = [
@@ -261,7 +327,7 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
   };
 
   // Loading state
-  if (!resident || !allIncidents) {
+  if (isLoading || !resident || allIncidents.length === 0 && isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -287,7 +353,7 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
       return incidentDate >= weekAgo;
     }).length,
     severe: allIncidents.filter(incident =>
-      incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm"
+      incident.incident_level === "death" || incident.incident_level === "permanent_harm"
     ).length,
   };
 
@@ -561,16 +627,16 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                   </TableHeader>
                   <TableBody>
                     {paginatedIncidents.map((incident) => (
-                      <TableRow key={incident._id}>
+                      <TableRow key={incident.id}>
                         <TableCell className="font-medium">
                           <div className="flex flex-col">
-                            <span>{format(new Date(incident.date), "dd MMM yyyy")}</span>
+                            <span>{formatDateForDisplay(incident.date)}</span>
                             <span className="text-xs text-gray-500">{incident.time}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {incident.incidentTypes?.map((type: string, index: number) => (
+                            {incident.incident_types?.map((type: string, index: number) => (
                               <Badge
                                 key={index}
                                 className="text-xs bg-blue-100 text-blue-800 border-0"
@@ -582,19 +648,19 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={`text-xs border-0 ${getSeverityColor(incident.incidentLevel)}`}>
-                            {getSeverityIcon(incident.incidentLevel)}
+                          <Badge className={`text-xs border-0 ${getSeverityColor(incident.incident_level)}`}>
+                            {getSeverityIcon(incident.incident_level)}
                             <span className="ml-1">
-                              {incident.incidentLevel?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                              {incident.incident_level?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
                             </span>
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {incident.homeName && incident.unit ? (
+                          {incident.home_name && incident.unit ? (
                             <div className="flex items-center space-x-2">
                               <MapPin className="w-4 h-4 text-gray-400" />
                               <div className="text-sm">
-                                <p className="font-medium">{incident.homeName}</p>
+                                <p className="font-medium">{incident.home_name}</p>
                                 <p className="text-gray-500">{incident.unit}</p>
                               </div>
                             </div>
@@ -723,15 +789,15 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                     <div>
                       <p className="text-sm text-gray-500">Date & Time</p>
                       <p className="font-medium">
-                        {format(new Date(selectedIncident.date), "PPP")} at {selectedIncident.time}
+                        {formatDateForDisplay(selectedIncident.date)} at {selectedIncident.time}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Incident Level</p>
-                      <Badge className={`${getSeverityColor(selectedIncident.incidentLevel)} border-0`}>
-                        {getSeverityIcon(selectedIncident.incidentLevel)}
+                      <Badge className={`${getSeverityColor(selectedIncident.incident_level)} border-0`}>
+                        {getSeverityIcon(selectedIncident.incident_level)}
                         <span className="ml-1">
-                          {selectedIncident.incidentLevel?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                          {selectedIncident.incident_level?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
                         </span>
                       </Badge>
                     </div>
@@ -739,13 +805,13 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                       <p className="text-sm text-gray-500">Location</p>
                       <div className="flex items-center space-x-2">
                         <MapPin className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedIncident.homeName} - {selectedIncident.unit}</p>
+                        <p className="font-medium">{selectedIncident.home_name} - {selectedIncident.unit}</p>
                       </div>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Incident Types</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedIncident.incidentTypes?.map((type: string, index: number) => (
+                        {selectedIncident.incident_types?.map((type: string, index: number) => (
                           <Badge key={index} variant="secondary">{type.replace("_", " ")}</Badge>
                         ))}
                       </div>
@@ -760,20 +826,20 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                     <div>
                       <p className="text-sm text-gray-500">Name</p>
                       <p className="font-medium">
-                        {selectedIncident.injuredPersonFirstName} {selectedIncident.injuredPersonSurname}
+                        {selectedIncident.injured_person_first_name} {selectedIncident.injured_person_surname}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Date of Birth</p>
-                      <p className="font-medium">{selectedIncident.injuredPersonDOB}</p>
+                      <p className="font-medium">{selectedIncident.injured_person_dob}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Status</p>
-                      <p className="font-medium">{selectedIncident.injuredPersonStatus?.join(", ") || "N/A"}</p>
+                      <p className="font-medium">{selectedIncident.injured_person_status?.join(", ") || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Health Care Number</p>
-                      <p className="font-medium">{selectedIncident.healthCareNumber || "N/A"}</p>
+                      <p className="font-medium">{selectedIncident.health_care_number || "N/A"}</p>
                     </div>
                   </div>
                 </div>
@@ -782,29 +848,29 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                 <div className="border-b pb-4">
                   <h3 className="font-semibold text-lg mb-3">Detailed Description</h3>
                   <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                    {selectedIncident.detailedDescription || "No description provided"}
+                    {selectedIncident.detailed_description || "No description provided"}
                   </p>
                 </div>
 
                 {/* Treatment Information */}
-                {(selectedIncident.treatmentTypes?.length > 0 || selectedIncident.treatmentDetails) && (
+                {(selectedIncident.treatment_types?.length > 0 || selectedIncident.treatment_details) && (
                   <div className="border-b pb-4">
                     <h3 className="font-semibold text-lg mb-3">Treatment Information</h3>
-                    {selectedIncident.treatmentTypes?.length > 0 && (
+                    {selectedIncident.treatment_types?.length > 0 && (
                       <div className="mb-3">
                         <p className="text-sm text-gray-500 mb-2">Treatment Types</p>
                         <div className="flex flex-wrap gap-2">
-                          {selectedIncident.treatmentTypes.map((type: string, index: number) => (
+                          {selectedIncident.treatment_types.map((type: string, index: number) => (
                             <Badge key={index} variant="outline">{type}</Badge>
                           ))}
                         </div>
                       </div>
                     )}
-                    {selectedIncident.treatmentDetails && (
+                    {selectedIncident.treatment_details && (
                       <div>
                         <p className="text-sm text-gray-500 mb-2">Treatment Details</p>
                         <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-                          {selectedIncident.treatmentDetails}
+                          {selectedIncident.treatment_details}
                         </p>
                       </div>
                     )}
@@ -820,8 +886,8 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                       <div className="flex items-center space-x-2">
                         <User className="w-4 h-4 text-gray-400" />
                         <div>
-                          <p className="font-medium">{selectedIncident.completedByFullName}</p>
-                          <p className="text-sm text-gray-600">{selectedIncident.completedByJobTitle}</p>
+                          <p className="font-medium">{selectedIncident.completed_by_full_name}</p>
+                          <p className="text-sm text-gray-600">{selectedIncident.completed_by_job_title}</p>
                         </div>
                       </div>
                     </div>
@@ -829,7 +895,7 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                       <p className="text-sm text-gray-500">Date Completed</p>
                       <div className="flex items-center space-x-2">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedIncident.dateCompleted}</p>
+                        <p className="font-medium">{selectedIncident.date_completed}</p>
                       </div>
                     </div>
                   </div>
@@ -843,6 +909,10 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
               onClick={() => setIsViewDialogOpen(false)}
             >
               Close
+            </Button>
+            <Button onClick={() => handleDownloadIncident(selectedIncident.id)}>
+              <Download className="w-4 h-4 mr-2" />
+              Download Report
             </Button>
           </div>
         </DialogContent>

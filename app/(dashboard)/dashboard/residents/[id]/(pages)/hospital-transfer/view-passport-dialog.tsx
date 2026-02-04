@@ -29,20 +29,22 @@ function ViewPassportDialogComponent({
   // Early return if dialog is not open to prevent unnecessary renders
   if (!open || !passport) return null;
 
-  const formatDateTime = (dateTimeString: string) => {
-    try {
-      return new Date(dateTimeString).toLocaleString();
-    } catch {
-      return dateTimeString;
-    }
+  const formatDateTime = (dateValue: string | number | Date) => {
+    if (!dateValue) return "Not specified";
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return String(dateValue);
+    return date.toLocaleString('en-GB', {
+      timeZone: 'Europe/London'
+    });
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
+  const formatDate = (dateValue: string | number | Date) => {
+    if (!dateValue) return "Not specified";
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return String(dateValue);
+    return date.toLocaleDateString('en-GB', {
+      timeZone: 'Europe/London'
+    });
   };
 
   const BooleanIcon = ({ value }: { value: boolean }) => (

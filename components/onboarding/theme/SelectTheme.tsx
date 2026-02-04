@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
@@ -44,6 +45,7 @@ export default function SelectTheme({
 
         if (error) {
           console.error("Error updating onboarding status:", error);
+          toast.error("Failed to complete onboarding");
           return;
         }
 

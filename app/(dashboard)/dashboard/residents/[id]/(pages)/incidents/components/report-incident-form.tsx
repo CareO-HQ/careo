@@ -1,9 +1,8 @@
 "use client";
 
 import React from "react";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -43,7 +42,7 @@ import {
 import { CalendarIcon, Clock, MapPin, User, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { TimePicker } from "@/components/ui/date-time-picker";
+
 
 const IncidentSchema = z.object({
   type: z.enum([
@@ -92,7 +91,7 @@ export function ReportIncidentForm({
   onSuccess
 }: ReportIncidentFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const createIncident = useMutation(api.incidents.create);
+  const { profile } = useProfile();
 
   const form = useForm<z.infer<typeof IncidentSchema>>({
     resolver: zodResolver(IncidentSchema),
@@ -119,24 +118,72 @@ export function ReportIncidentForm({
   async function onSubmit(values: z.infer<typeof IncidentSchema>) {
     try {
       setIsSubmitting(true);
-      
-      await createIncident({
-        residentId: residentId as Id<"residents">,
-        date: values.date.toISOString(),
+
+      // First fetch resident to get organization and care home info
+      const { data: resident, error: residentError } = await supabase
+        .from("residents")
+        .select("care_home_id, organization_id")
+        .eq("id", residentId)
+        .single();
+
+      if (residentError) throw residentError;
+
+      const incidentData = {
+        resident_id: residentId,
+        date: values.date.toISOString().split('T')[0],
         time: values.time,
-        location: values.location,
-        witnesses: values.witnesses || "",
-        description: values.description,
-        immediateAction: values.immediateAction,
-        medicalAttention: values.medicalAttention,
-        doctorNotified: values.doctorNotified,
-        familyNotified: values.familyNotified,
-        injuriesNoted: values.injuriesNoted || "",
-        followUpRequired: values.followUpRequired || "",
-        preventativeMeasures: values.preventativeMeasures || "",
-        reportedBy: values.reportedBy,
-        reporterRole: values.reporterRole,
-      } as any);
+        home_name: values.location,
+        unit: values.location,
+        detailed_description: values.description,
+        incident_types: [values.type],
+        incident_level: values.severity === "critical" ? "permanent_harm" : values.severity === "high" ? "minor_injury" : "no_harm",
+        injured_person_first_name: residentName.split(' ')[0] || '',
+        injured_person_surname: residentName.split(' ').slice(1).join(' ') || '',
+        injured_person_dob: new Date().toISOString().split('T')[0],
+        witness1_name: values.witnesses || '',
+        prevention_measures: values.preventativeMeasures || '',
+        treatment_details: values.immediateAction,
+        completed_by_full_name: values.reportedBy,
+        completed_by_job_title: values.reporterRole,
+        date_completed: new Date().toISOString().split('T')[0],
+        care_home_id: resident?.care_home_id,
+        organization_id: resident?.organization_id,
+        created_by: profile?.id,
+      };
+
+      const { data: createdIncident, error } = await supabase
+        .from("incidents")
+        .insert(incidentData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create notification for the incident
+      if (createdIncident) {
+        try {
+          await supabase.from("notifications").insert({
+            organization_id: resident?.organization_id,
+            // null user_id means it's for all managers/admins (based on AppSidebar logic)
+            user_id: null,
+            type: "incident",
+            title: `New Incident: ${values.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`,
+            message: `${values.severity} severity incident reported for ${residentName} in ${values.location}`,
+            link: `/dashboard/residents/${residentId}/incidents/${createdIncident.id}`,
+            sender_id: profile?.id,
+            sender_name: profile?.name || profile?.email || "Unknown",
+            metadata: {
+              incidentId: createdIncident.id,
+              residentId: residentId,
+              severity: values.severity,
+              type: values.type
+            }
+          });
+        } catch (notifError) {
+          console.error("Failed to create notification:", notifError);
+          // Don't block success just because notification failed
+        }
+      }
 
       toast.success("Incident report submitted successfully");
       form.reset();
@@ -149,6 +196,7 @@ export function ReportIncidentForm({
       setIsSubmitting(false);
     }
   }
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -263,19 +311,42 @@ export function ReportIncidentForm({
               <FormField
                 control={form.control}
                 name="time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Time of Incident</FormLabel>
-                    <FormControl>
-                      <TimePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="Select time"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  // Generate time options (15 minute intervals)
+                  const timeOptions = React.useMemo(() => {
+                    const options: string[] = [];
+                    for (let i = 0; i < 24; i++) {
+                      for (let j = 0; j < 60; j += 15) {
+                        const hour = i.toString().padStart(2, "0");
+                        const minute = j.toString().padStart(2, "0");
+                        options.push(`${hour}:${minute}`);
+                      }
+                    }
+                    return options;
+                  }, []);
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Time of Incident</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="pl-10 relative">
+                            <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <SelectValue placeholder="Select time" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="max-h-[200px]">
+                          {timeOptions.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <FormField

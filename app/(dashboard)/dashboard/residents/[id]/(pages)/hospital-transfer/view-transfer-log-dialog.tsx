@@ -32,17 +32,27 @@ export function ViewTransferLogDialog({
     return null;
   }
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-GB', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch {
-      return dateString;
-    }
+  const formatDate = (dateValue: string | number | Date) => {
+    if (!dateValue) return "Not specified";
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return String(dateValue);
+
+    return date.toLocaleDateString('en-GB', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'Europe/London'
+    });
+  };
+
+  const formatDateTime = (dateValue: string | number | Date) => {
+    if (!dateValue) return "Not specified";
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return String(dateValue);
+    return date.toLocaleString('en-GB', {
+      timeZone: 'Europe/London'
+    });
   };
 
   const getCreatedByName = () => {
@@ -230,11 +240,11 @@ export function ViewTransferLogDialog({
 
             <div className="bg-white rounded-lg border p-4 space-y-2">
               <div className="text-sm text-gray-600">
-                <span>Created: {new Date(transferLog.createdAt).toLocaleString()}</span>
+                <span>Created: {formatDateTime(transferLog.createdAt)}</span>
               </div>
               {transferLog.updatedAt && (
                 <div className="text-sm text-gray-600">
-                  <span>Last updated: {new Date(transferLog.updatedAt).toLocaleString()}</span>
+                  <span>Last updated: {formatDateTime(transferLog.updatedAt)}</span>
                 </div>
               )}
               {getCreatedByName() && (

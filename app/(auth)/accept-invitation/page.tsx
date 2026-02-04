@@ -57,17 +57,12 @@ function AcceptInvitationContent() {
     setIsAccepting(true);
     try {
       // 1. Update user role in auth.users metadata
-      const { error: authError } = await supabase.auth.updateUser({
-        data: { role: invitation.role }
-      });
-
-      if (authError) throw authError;
-
-      // 2. Update user with organization and care home info
+      // 2. Update user with organization and care home info in public.users
+      // The DB trigger on_user_change_sync_metadata will automatically sync this to auth.users metadata
       const { error: userError } = await supabase
         .from("users")
         .update({
-          role: invitation.role, // ← ADD THIS: Set the role in the users table
+          role: invitation.role,
           active_organization_id: invitation.organization_id,
           active_care_home_id: invitation.care_home_id,
           active_team_id: invitation.team_id,
@@ -76,8 +71,10 @@ function AcceptInvitationContent() {
         })
         .eq("id", session?.user.id);
 
-      if (userError) throw userError;
-
+      if (userError) {
+        console.error("User update error:", userError);
+        throw userError;
+      }
       // 3. Add to junction tables based on role
       if (invitation.role === "manager" && invitation.care_home_id) {
         await supabase.from("care_home_managers").upsert({

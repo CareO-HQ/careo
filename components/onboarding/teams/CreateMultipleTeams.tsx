@@ -98,11 +98,6 @@ export default function CreateMultipleTeams({
 
         if (completionError) throw completionError;
 
-        // Sync with auth metadata for middleware/JWT consistency
-        await supabase.auth.updateUser({
-          data: { is_onboarding_complete: true }
-        });
-
         await refreshProfile();
         toast.success("Onboarding complete!");
         router.push("/dashboard");

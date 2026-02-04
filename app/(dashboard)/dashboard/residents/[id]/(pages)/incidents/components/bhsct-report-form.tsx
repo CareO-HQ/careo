@@ -285,7 +285,7 @@ export function BHSCTReportForm({
           resident_id: resident.id,
           trust_name: "BHSCT",
           report_type: "bhsct",
-          created_by: user?.user?.id || null,
+          created_by: user?.id || null,
           report_data: {
             providerName: formData.providerName.trim(),
             serviceUserName: formData.serviceUserName.trim(),

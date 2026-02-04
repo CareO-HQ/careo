@@ -64,46 +64,81 @@ export function AppSidebar() {
   const userRole = profile?.role;
   const effectiveRole = userRole;
 
-  // Fetch all counts
+  // Fetch all counts and set up real-time subscription
   useEffect(() => {
     if (!profile || !user) return;
 
     async function fetchCounts() {
+      if (!user) return;
       try {
         // 1. Unread Incidents (via notifications table with type incident)
-        const { count: incidents } = await supabase
+        // Check read status for incidents
+        const { data: allIncidentNotifs } = await supabase
           .from("notifications")
-          .select("id", { count: "exact", head: true })
+          .select("id")
           .eq("organization_id", activeOrganizationId)
-          .eq("type", "incident");
-        // Simplified: just getting total for now, real implementation would exclude read status
-        setUnreadIncidentCount(incidents || 0);
+          .eq("type", "incident")
+          .or(`user_id.eq.${user.id},user_id.is.null`);
 
-        // 2. Unread Appointments
-        const { count: appointments } = await supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
+        const { data: incidentReadStatuses } = await supabase
+          .from("notification_read_status")
+          .select("notification_id")
+          .eq("user_id", user.id);
+
+        const incidentReadIds = new Set((incidentReadStatuses || []).map(r => r.notification_id));
+        const unreadIncidentList = (allIncidentNotifs || []).filter(n => !incidentReadIds.has(n.id));
+        setUnreadIncidentCount(unreadIncidentList.length);
+
+        // 2. Unread Appointments (via notifications table)
+        const { data: allAppointmentNotifs } = await supabase
+          .from("notifications")
+          .select("id")
           .eq("organization_id", activeOrganizationId)
-          .eq("status", "scheduled")
-          .gte("start_time", new Date().toISOString());
-        setUnreadAppointmentsCount(appointments || 0);
+          .like("type", "appointment_%")
+          .or(`user_id.eq.${user.id},user_id.is.null`);
+
+        const unreadAppointmentList = (allAppointmentNotifs || []).filter(n => !incidentReadIds.has(n.id));
+        setUnreadAppointmentsCount(unreadAppointmentList.length);
 
         // 3. System Notifications
-        const { count: notifications } = await supabase
+        const { data: allNotifs } = await supabase
           .from("notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", activeOrganizationId);
-        setUnreadNotificationCount(notifications || 0);
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .or(`user_id.eq.${user.id},user_id.is.null`);
+
+        const unreadNotifs = (allNotifs || []).filter(n => !incidentReadIds.has(n.id));
+        setUnreadNotificationCount(unreadNotifs.length);
 
         // 4. Action Plans
         if (user) {
-          const { count: actionPlans } = await supabase
-            .from("audit_action_plans")
-            .select("id", { count: "exact", head: true })
-            .eq("organization_id", activeOrganizationId)
-            .eq("status", "pending")
-            .eq("assigned_to", user.id);
-          setTotalNewActionPlansCount(actionPlans || 0);
+          const apTables = [
+            'audit_resident_action_plans',
+            'audit_care_file_action_plans',
+            'audit_governance_action_plans',
+            'audit_clinical_action_plans',
+            'audit_environment_action_plans'
+          ];
+
+          const isManagement = effectiveRole === 'owner' || effectiveRole === 'manager' || effectiveRole === 'saas_admin';
+
+          let totalAP = 0;
+          for (const table of apTables) {
+            let query = supabase
+              .from(table)
+              .select("id", { count: "exact", head: true })
+              .eq("organization_id", activeOrganizationId)
+              .eq("status", "pending");
+
+            if (!isManagement) {
+              // Staff only see their assigned plans
+              query = query.or(`assigned_to.eq.${user.id},assigned_to.eq.${user.email}`);
+            }
+
+            const { count } = await query;
+            totalAP += (count || 0);
+          }
+          setTotalNewActionPlansCount(totalAP);
         }
       } catch (error) {
         console.error("Error fetching sidebar counts:", error);
@@ -111,6 +146,67 @@ export function AppSidebar() {
     }
 
     fetchCounts();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel("sidebar-notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `organization_id=eq.${activeOrganizationId}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notification_read_status",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to all action plan tables
+    const apTables = [
+      'audit_resident_action_plans',
+      'audit_care_file_action_plans',
+      'audit_governance_action_plans',
+      'audit_clinical_action_plans',
+      'audit_environment_action_plans'
+    ];
+
+    const apChannels = apTables.map(tableName =>
+      supabase
+        .channel(`${tableName}-sidebar-changes`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: tableName,
+            filter: `organization_id=eq.${activeOrganizationId}`,
+          },
+          () => {
+            fetchCounts();
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      supabase.removeChannel(channel);
+      apChannels.forEach(ch => supabase.removeChannel(ch));
+    };
   }, [profile, user, activeOrganizationId, supabase]);
 
   const displayName = profile?.care_home_name || profile?.organization_name || "";

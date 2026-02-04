@@ -50,21 +50,31 @@ export default function MembersPage() {
 
         setMembers(membersData || []);
 
-        // Fetch users who accepted but haven't finished onboarding
+        // 1. Fetch current members (onboarding complete)
+        const { data: currentMembers, error: currentMembersError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("active_organization_id", activeOrganizationId)
+          .eq("is_onboarding_complete", true);
+
+        if (currentMembersError) throw currentMembersError;
+        setMembers(currentMembers || []);
+
+        // 2. Fetch pending users (accepted invitation but onboarding incomplete)
         const { data: pendingUsersData, error: pendingUsersError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('active_organization_id', activeOrganizationId)
-          .eq('is_onboarding_complete', false);
+          .from("users")
+          .select("*")
+          .eq("active_organization_id", activeOrganizationId)
+          .eq("is_onboarding_complete", false);
 
         if (pendingUsersError) throw pendingUsersError;
 
-        // Fetch pending invitations
+        // 3. Fetch invitations that haven't been accepted yet
         const { data: invitationsData, error: invitationsError } = await supabase
-          .from('invitations')
-          .select('*')
-          .eq('organization_id', activeOrganizationId)
-          .eq('status', 'pending');
+          .from("invitations")
+          .select("*")
+          .eq("organization_id", activeOrganizationId)
+          .eq("status", "pending");
 
         if (invitationsError) throw invitationsError;
 
@@ -75,23 +85,23 @@ export default function MembersPage() {
             .map((u: any) => u.email?.toLowerCase().trim())
             .filter((email: string | undefined) => email) // Remove undefined/null emails
         );
-        
+
         const currentUserEmail = profile?.email?.toLowerCase().trim();
 
         // Filter out invitations for any existing user and current user
         const filteredInvitations = (invitationsData || []).filter((invitation: any) => {
           const invitationEmail = invitation.email?.toLowerCase().trim();
-          
+
           // Exclude if email matches any existing user in the organization
           if (invitationEmail && existingUserEmails.has(invitationEmail)) {
             return false;
           }
-          
+
           // Exclude if email matches current user
           if (currentUserEmail && invitationEmail === currentUserEmail) {
             return false;
           }
-          
+
           return true;
         });
 

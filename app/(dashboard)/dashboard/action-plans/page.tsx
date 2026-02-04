@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,7 +13,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -36,6 +33,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
@@ -46,6 +45,8 @@ export default function MyActionPlansPage() {
   const isOwner = role === "owner" || role === "saas_admin";
 
   // State
+  const [allActionPlans, setAllActionPlans] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedActionPlan, setSelectedActionPlan] = useState<any>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<ActionPlanStatus>("pending");
@@ -53,230 +54,40 @@ export default function MyActionPlansPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<any>(null);
 
-  // Queries - Get RESIDENT audit action plans assigned to user
-  const assignedActionPlans = useQuery(
-    api.auditActionPlans.getMyActionPlans,
-    userEmail ? { assignedTo: userEmail, status: "all" } : "skip"
-  );
+  // Fetch Data
+  const fetchData = React.useCallback(async () => {
+    if (!userEmail) return;
+    setIsLoading(true);
+    try {
+      let plans = [];
+      if (isOwner && activeOrganizationId) {
+        plans = await auditService.getOrgActionPlans(activeOrganizationId);
+      } else {
+        plans = await auditService.getMyActionPlans(userEmail);
+      }
 
-  // Get RESIDENT audit action plans created by user
-  const createdActionPlans = useQuery(
-    api.auditActionPlans.getCreatedActionPlans,
-    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
-  );
+      // Remove duplicates by id if any
+      const uniquePlans = plans.filter((plan, index, self) =>
+        index === self.findIndex((p) => p.id === plan.id)
+      );
 
-  // Get CARE FILE audit action plans assigned to user
-  const assignedCareFileActionPlans = useQuery(
-    api.careFileAuditActionPlans.getMyActionPlans,
-    userEmail ? { assignedTo: userEmail, status: "all" } : "skip"
-  );
-
-  // Get CARE FILE audit action plans created by user
-  const createdCareFileActionPlans = useQuery(
-    api.careFileAuditActionPlans.getCreatedActionPlans,
-    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
-  );
-
-  // Get GOVERNANCE audit action plans assigned to user
-  const assignedGovernanceActionPlans = useQuery(
-    api.governanceAuditActionPlans.getActionPlansByAssignee,
-    userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
-  );
-
-  // Get CLINICAL audit action plans assigned to user
-  const assignedClinicalActionPlans = useQuery(
-    api.clinicalAuditActionPlans.getActionPlansByAssignee,
-    userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
-  );
-
-  // Get ENVIRONMENT audit action plans assigned to user
-  const assignedEnvironmentActionPlans = useQuery(
-    api.environmentAuditActionPlans.getActionPlansByAssignee,
-    userEmail && activeOrganizationId ? { assignedTo: userEmail, organizationId: activeOrganizationId } : "skip"
-  );
-
-  // Get GOVERNANCE audit action plans created by user
-  const createdGovernanceActionPlans = useQuery(
-    api.governanceAuditActionPlans.getCreatedActionPlans,
-    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
-  );
-
-  // Get CLINICAL audit action plans created by user
-  const createdClinicalActionPlans = useQuery(
-    api.clinicalAuditActionPlans.getCreatedActionPlans,
-    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
-  );
-
-  // Get ENVIRONMENT audit action plans created by user
-  const createdEnvironmentActionPlans = useQuery(
-    api.environmentAuditActionPlans.getCreatedActionPlans,
-    userEmail ? { createdBy: userEmail, status: "all" } : "skip"
-  );
-
-  // Get all action plans for the organization (for Owners)
-  const orgResidentActionPlans = useQuery(
-    api.auditActionPlans.getOrgActionPlans,
-    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
-  );
-
-  const orgCareFileActionPlans = useQuery(
-    api.careFileAuditActionPlans.getOrgActionPlans,
-    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
-  );
-
-  const orgGovernanceActionPlans = useQuery(
-    api.governanceAuditActionPlans.getOrgActionPlans,
-    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
-  );
-
-  const orgClinicalActionPlans = useQuery(
-    api.clinicalAuditActionPlans.getOrgActionPlans,
-    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
-  );
-
-  const orgEnvironmentActionPlans = useQuery(
-    api.environmentAuditActionPlans.getOrgActionPlans,
-    isOwner && activeOrganizationId ? { organizationId: activeOrganizationId, status: "all" } : "skip"
-  );
-
-  // Merge all lists and remove duplicates
-  const allActionPlans = React.useMemo(() => {
-    const residentAssigned = assignedActionPlans || [];
-    const residentCreated = createdActionPlans || [];
-    const careFileAssigned = assignedCareFileActionPlans || [];
-    const careFileCreated = createdCareFileActionPlans || [];
-    const governanceAssigned = assignedGovernanceActionPlans || [];
-    const governanceCreated = createdGovernanceActionPlans || [];
-    const clinicalAssigned = assignedClinicalActionPlans || [];
-    const clinicalCreated = createdClinicalActionPlans || [];
-    const environmentAssigned = assignedEnvironmentActionPlans || [];
-    const environmentCreated = createdEnvironmentActionPlans || [];
-
-    // Combine all arrays
-    const combined = [
-      ...residentAssigned,
-      ...residentCreated,
-      ...careFileAssigned,
-      ...careFileCreated,
-      ...governanceAssigned,
-      ...governanceCreated,
-      ...clinicalAssigned,
-      ...clinicalCreated,
-      ...environmentAssigned,
-      ...environmentCreated,
-      ...(orgResidentActionPlans || []),
-      ...(orgCareFileActionPlans || []),
-      ...(orgGovernanceActionPlans || []),
-      ...(orgClinicalActionPlans || []),
-      ...(orgEnvironmentActionPlans || []),
-    ];
-
-    // Remove duplicates by _id
-    const uniquePlans = combined.filter((plan, index, self) =>
-      index === self.findIndex((p) => p._id === plan._id)
-    );
-
-    return uniquePlans;
-  }, [
-    assignedActionPlans, createdActionPlans,
-    assignedCareFileActionPlans, createdCareFileActionPlans,
-    assignedGovernanceActionPlans, createdGovernanceActionPlans,
-    assignedClinicalActionPlans, createdClinicalActionPlans,
-    assignedEnvironmentActionPlans, createdEnvironmentActionPlans,
-    orgResidentActionPlans, orgCareFileActionPlans,
-    orgGovernanceActionPlans, orgClinicalActionPlans,
-    orgEnvironmentActionPlans
-  ]);
-
-  // Check if user has created any action plans (they're a manager/creator)
-  const hasCreatedPlans = (createdActionPlans?.length || 0) > 0 || (createdCareFileActionPlans?.length || 0) > 0;
-
-  // Get new action plans count (only for assigned plans)
-  const newActionPlansCount = useQuery(
-    api.auditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
-
-  const newCareFileActionPlansCount = useQuery(
-    api.careFileAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
-
-  const newGovernanceActionPlansCount = useQuery(
-    api.governanceAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
-
-  const newClinicalActionPlansCount = useQuery(
-    api.clinicalAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
-
-  const newEnvironmentActionPlansCount = useQuery(
-    api.environmentAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
-
-  // Mutations for RESIDENT audits
-  const updateResidentAuditStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
-  const deleteResidentAuditActionPlan = useMutation(api.auditActionPlans.deleteActionPlan);
-  const markResidentAuditsAsViewed = useMutation(api.auditActionPlans.markActionPlansAsViewed);
-
-  // Mutations for CARE FILE audits
-  const updateCareFileAuditStatus = useMutation(api.careFileAuditActionPlans.updateActionPlanStatus);
-  const deleteCareFileAuditActionPlan = useMutation(api.careFileAuditActionPlans.deleteActionPlan);
-  const markCareFileAuditsAsViewed = useMutation(api.careFileAuditActionPlans.markActionPlansAsViewed);
-
-  // Mutations for GOVERNANCE audits
-  const updateGovernanceAuditStatus = useMutation(api.governanceAuditActionPlans.updateActionPlanStatus);
-  const deleteGovernanceAuditActionPlan = useMutation(api.governanceAuditActionPlans.deleteActionPlan);
-  const markGovernanceAuditsAsViewed = useMutation(api.governanceAuditActionPlans.markActionPlansAsViewed);
-
-  // Mutations for CLINICAL audits
-  const updateClinicalAuditStatus = useMutation(api.clinicalAuditActionPlans.updateActionPlanStatus);
-  const deleteClinicalAuditActionPlan = useMutation(api.clinicalAuditActionPlans.deleteActionPlan);
-  const markClinicalAuditsAsViewed = useMutation(api.clinicalAuditActionPlans.markActionPlansAsViewed);
-
-  // Mutations for ENVIRONMENT audits
-  const updateEnvironmentAuditStatus = useMutation(api.environmentAuditActionPlans.updateActionPlanStatus);
-  const deleteEnvironmentAuditActionPlan = useMutation(api.environmentAuditActionPlans.deleteActionPlan);
-  const markEnvironmentAuditsAsViewed = useMutation(api.environmentAuditActionPlans.markActionPlansAsViewed);
-
-  // Mark action plans as viewed when page is loaded (only for assigned plans)
-  useEffect(() => {
-    if (userEmail && newActionPlansCount && newActionPlansCount > 0) {
-      markResidentAuditsAsViewed({ assignedTo: userEmail });
+      setAllActionPlans(uniquePlans);
+    } catch (error) {
+      console.error("Failed to fetch action plans:", error);
+      toast.error("Failed to load action plans");
+    } finally {
+      setIsLoading(false);
     }
-  }, [userEmail, newActionPlansCount, markResidentAuditsAsViewed]);
+  }, [userEmail, activeOrganizationId, isOwner]);
 
   useEffect(() => {
-    if (userEmail && newCareFileActionPlansCount && newCareFileActionPlansCount > 0) {
-      markCareFileAuditsAsViewed({ assignedTo: userEmail });
-    }
-  }, [userEmail, newCareFileActionPlansCount, markCareFileAuditsAsViewed]);
-
-  useEffect(() => {
-    if (userEmail && newGovernanceActionPlansCount && newGovernanceActionPlansCount > 0) {
-      markGovernanceAuditsAsViewed({ assignedTo: userEmail });
-    }
-  }, [userEmail, newGovernanceActionPlansCount, markGovernanceAuditsAsViewed]);
-
-  useEffect(() => {
-    if (userEmail && newClinicalActionPlansCount && newClinicalActionPlansCount > 0) {
-      markClinicalAuditsAsViewed({ assignedTo: userEmail });
-    }
-  }, [userEmail, newClinicalActionPlansCount, markClinicalAuditsAsViewed]);
-
-  useEffect(() => {
-    if (userEmail && newEnvironmentActionPlansCount && newEnvironmentActionPlansCount > 0) {
-      markEnvironmentAuditsAsViewed({ assignedTo: userEmail });
-    }
-  }, [userEmail, newEnvironmentActionPlansCount, markEnvironmentAuditsAsViewed]);
+    fetchData();
+  }, [fetchData]);
 
   // Group action plans by status
-  const pendingPlans = allActionPlans?.filter((p) => p.status === "pending") || [];
-  const inProgressPlans = allActionPlans?.filter((p) => p.status === "in_progress") || [];
-  const completedPlans = allActionPlans?.filter((p) => p.status === "completed") || [];
+  const pendingPlans = allActionPlans.filter((p) => p.status === "pending" || !p.status) || [];
+  const inProgressPlans = allActionPlans.filter((p) => p.status === "in_progress") || [];
+  const completedPlans = allActionPlans.filter((p) => p.status === "completed") || [];
 
   const pendingCount = pendingPlans.length;
   const inProgressCount = inProgressPlans.length;
@@ -284,14 +95,15 @@ export default function MyActionPlansPage() {
 
   // Check if overdue
   const isOverdue = (plan: any) => {
-    return plan.dueDate && plan.dueDate < Date.now() && plan.status !== "completed";
+    const dueDate = plan.due_date || plan.dueDate;
+    return dueDate && new Date(dueDate).getTime() < Date.now() && plan.status !== "completed";
   };
 
   // Handle action plan click
   const handleActionPlanClick = (plan: any) => {
     setSelectedActionPlan(plan);
-    setNewStatus(plan.status);
-    setStatusComment("");
+    setNewStatus(plan.status || "pending");
+    setStatusComment(plan.latest_comment || "");
     setIsDetailModalOpen(true);
   };
 
@@ -300,37 +112,20 @@ export default function MyActionPlansPage() {
     if (!selectedActionPlan) return;
 
     try {
-      // Determine which mutation to use based on audit category
-      let updateMutation;
-      switch (selectedActionPlan.auditCategory) {
-        case "carefile":
-          updateMutation = updateCareFileAuditStatus;
-          break;
-        case "clinical":
-          updateMutation = updateClinicalAuditStatus;
-          break;
-        case "governance":
-          updateMutation = updateGovernanceAuditStatus;
-          break;
-        case "environment":
-          updateMutation = updateEnvironmentAuditStatus;
-          break;
-        default:
-          updateMutation = updateResidentAuditStatus;
-      }
-
-      await updateMutation({
-        actionPlanId: selectedActionPlan._id,
-        status: newStatus,
-        comment: statusComment || undefined,
-        updatedBy: userEmail,
-        updatedByName: user?.user_metadata?.name || userEmail,
-      });
+      await auditService.updateActionPlanStatus(
+        selectedActionPlan.auditCategory,
+        selectedActionPlan.id,
+        newStatus,
+        statusComment || undefined,
+        userEmail,
+        user?.user_metadata?.name || userEmail
+      );
 
       toast.success("Status updated successfully");
       setIsDetailModalOpen(false);
       setSelectedActionPlan(null);
       setStatusComment("");
+      fetchData(); // Refresh list
     } catch (error) {
       console.error("Failed to update status:", error);
       toast.error("Failed to update status. Please try again.");
@@ -348,29 +143,11 @@ export default function MyActionPlansPage() {
     if (!planToDelete) return;
 
     try {
-      // Determine which mutation to use based on audit category
-      let deleteMutation;
-      switch (planToDelete.auditCategory) {
-        case "carefile":
-          deleteMutation = deleteCareFileAuditActionPlan;
-          break;
-        case "clinical":
-          deleteMutation = deleteClinicalAuditActionPlan;
-          break;
-        case "governance":
-          deleteMutation = deleteGovernanceAuditActionPlan;
-          break;
-        case "environment":
-          deleteMutation = deleteEnvironmentAuditActionPlan;
-          break;
-        default:
-          deleteMutation = deleteResidentAuditActionPlan;
-      }
-
-      await deleteMutation({ actionPlanId: planToDelete._id });
+      await auditService.deleteActionPlan(planToDelete.auditCategory, planToDelete.id);
       toast.success("Action plan deleted successfully");
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
+      fetchData(); // Refresh list
     } catch (error) {
       console.error("Failed to delete action plan:", error);
       toast.error("Failed to delete action plan. Please try again.");
@@ -379,12 +156,12 @@ export default function MyActionPlansPage() {
 
   // Get priority color
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "High":
+    switch (priority?.toLowerCase()) {
+      case "high":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-      case "Medium":
+      case "medium":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-      case "Low":
+      case "low":
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
@@ -417,7 +194,7 @@ export default function MyActionPlansPage() {
       case "completed":
         return "Completed";
       default:
-        return status;
+        return status || "Pending";
     }
   };
 
@@ -426,16 +203,22 @@ export default function MyActionPlansPage() {
     switch (category) {
       case "resident":
         return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
-      case "clinical":
+      case "carefile":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
       case "environment":
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
       case "governance":
         return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
+      case "clinical":
+        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400";
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
     }
   };
+
+  if (isLoading && allActionPlans.length === 0) {
+    return <div className="p-10 text-center">Loading action plans...</div>;
+  }
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -448,11 +231,6 @@ export default function MyActionPlansPage() {
               Track action plans you&apos;ve created and been assigned to
             </p>
           </div>
-          {newActionPlansCount !== undefined && newActionPlansCount > 0 && (
-            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-red-500 text-white text-sm font-bold">
-              {newActionPlansCount}
-            </div>
-          )}
         </div>
       </div>
 
@@ -471,7 +249,7 @@ export default function MyActionPlansPage() {
           <div className="space-y-2">
             {pendingPlans.map((plan) => (
               <div
-                key={plan._id}
+                key={plan.id}
                 className={`border rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950 ${isOverdue(plan) ? "border-l-4 border-l-red-500" : "border-gray-200 dark:border-gray-800"
                   }`}
                 onClick={() => handleActionPlanClick(plan)}
@@ -481,12 +259,12 @@ export default function MyActionPlansPage() {
                     {plan.priority}
                   </Badge>
                   <div className="flex items-center gap-1.5">
-                    <Badge className={getStatusColor(plan.status) + " text-xs font-normal"}>
+                    <Badge className={getStatusColor(plan.status || "pending") + " text-xs font-normal"}>
                       {getStatusLabel(plan.status)}
                     </Badge>
-                    {plan.dueDate && (
+                    {(plan.due_date || plan.dueDate) && (
                       <span className={`text-xs ${isOverdue(plan) ? "text-red-500 font-medium" : "text-gray-500"}`}>
-                        {format(new Date(plan.dueDate), "MMM dd")}
+                        {format(new Date(plan.due_date || plan.dueDate), "dd/MM/yyyy")}
                       </span>
                     )}
                   </div>
@@ -495,12 +273,19 @@ export default function MyActionPlansPage() {
                   {plan.description}
                 </p>
                 <div className="space-y-1">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {(plan as { templateName?: string }).templateName || "Action Plan"}
-                  </p>
-                  {plan.createdBy === userEmail && plan.assignedTo !== userEmail && (
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(plan.auditCategory)}`}>
+                      {plan.auditCategory}
+                    </Badge>
+                    {plan.resident_name && (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        {plan.resident_name}
+                      </span>
+                    )}
+                  </div>
+                  {plan.created_by === userEmail && plan.assigned_to !== userEmail && (
                     <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Assigned to: {plan.assignedToName || plan.assignedTo}
+                      Assigned to: {plan.assigned_to_name || plan.assigned_to}
                     </p>
                   )}
                 </div>
@@ -527,7 +312,7 @@ export default function MyActionPlansPage() {
           <div className="space-y-2">
             {inProgressPlans.map((plan) => (
               <div
-                key={plan._id}
+                key={plan.id}
                 className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950"
                 onClick={() => handleActionPlanClick(plan)}
               >
@@ -539,9 +324,9 @@ export default function MyActionPlansPage() {
                     <Badge className={getStatusColor(plan.status) + " text-xs font-normal"}>
                       {getStatusLabel(plan.status)}
                     </Badge>
-                    {plan.dueDate && (
+                    {(plan.due_date || plan.dueDate) && (
                       <span className="text-xs text-gray-500">
-                        {format(new Date(plan.dueDate), "MMM dd")}
+                        {format(new Date(plan.due_date || plan.dueDate), "dd/MM/yyyy")}
                       </span>
                     )}
                   </div>
@@ -550,12 +335,19 @@ export default function MyActionPlansPage() {
                   {plan.description}
                 </p>
                 <div className="space-y-1">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {(plan as { templateName?: string }).templateName || "Action Plan"}
-                  </p>
-                  {plan.createdBy === userEmail && plan.assignedTo !== userEmail && (
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(plan.auditCategory)}`}>
+                      {plan.auditCategory}
+                    </Badge>
+                    {plan.resident_name && (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        {plan.resident_name}
+                      </span>
+                    )}
+                  </div>
+                  {plan.created_by === userEmail && plan.assigned_to !== userEmail && (
                     <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Assigned to: {plan.assignedToName || plan.assignedTo}
+                      Assigned to: {plan.assigned_to_name || plan.assigned_to}
                     </p>
                   )}
                 </div>
@@ -582,7 +374,7 @@ export default function MyActionPlansPage() {
           <div className="space-y-2">
             {completedPlans.map((plan) => (
               <div
-                key={plan._id}
+                key={plan.id}
                 className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950 relative group"
                 onClick={() => handleActionPlanClick(plan)}
               >
@@ -594,9 +386,9 @@ export default function MyActionPlansPage() {
                     <Badge className={getStatusColor(plan.status) + " text-xs font-normal"}>
                       {getStatusLabel(plan.status)}
                     </Badge>
-                    {plan.dueDate && (
+                    {(plan.due_date || plan.dueDate) && (
                       <span className="text-xs text-gray-500">
-                        {format(new Date(plan.dueDate), "MMM dd")}
+                        {format(new Date(plan.due_date || plan.dueDate), "dd/MM/yyyy")}
                       </span>
                     )}
                   </div>
@@ -606,9 +398,16 @@ export default function MyActionPlansPage() {
                 </p>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {(plan as { templateName?: string }).templateName || "Action Plan"}
-                    </p>
+                    <div className="flex gap-2">
+                      <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(plan.auditCategory)}`}>
+                        {plan.auditCategory}
+                      </Badge>
+                      {plan.resident_name && (
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {plan.resident_name}
+                        </span>
+                      )}
+                    </div>
                     {/* Delete Button */}
                     <Button
                       variant="ghost"
@@ -619,9 +418,9 @@ export default function MyActionPlansPage() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {plan.createdBy === userEmail && plan.assignedTo !== userEmail && (
+                  {plan.created_by === userEmail && plan.assigned_to !== userEmail && (
                     <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Assigned to: {plan.assignedToName || plan.assignedTo}
+                      Assigned to: {plan.assigned_to_name || plan.assigned_to}
                     </p>
                   )}
                 </div>
@@ -653,23 +452,29 @@ export default function MyActionPlansPage() {
 
                 {/* Compact Info */}
                 <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                  <Badge variant="outline" className="text-xs">
-                    {selectedActionPlan.templateName}
+                  <Badge variant="outline" className="text-xs uppercase">
+                    {selectedActionPlan.auditCategory}
                   </Badge>
+                  {selectedActionPlan.resident_name && (
+                    <>
+                      <span>•</span>
+                      <span className="font-medium">{selectedActionPlan.resident_name}</span>
+                    </>
+                  )}
                   <span>•</span>
                   <span className={selectedActionPlan.priority === "High" ? "text-red-600 font-medium" : ""}>
                     {selectedActionPlan.priority} Priority
                   </span>
-                  {selectedActionPlan.dueDate && (
+                  {(selectedActionPlan.due_date || selectedActionPlan.dueDate) && (
                     <>
                       <span>•</span>
                       <span className={isOverdue(selectedActionPlan) ? "text-red-600 font-medium" : ""}>
-                        Due {format(new Date(selectedActionPlan.dueDate), "MMM dd, yyyy")}
+                        Due {format(new Date(selectedActionPlan.due_date || selectedActionPlan.dueDate), "dd/MM/yyyy")}
                       </span>
                     </>
                   )}
                   <span>•</span>
-                  <span>By {selectedActionPlan.createdByName || selectedActionPlan.createdBy}</span>
+                  <span>By {selectedActionPlan.assigned_to_name || selectedActionPlan.created_by || selectedActionPlan.createdBy}</span>
                 </div>
 
                 {/* Status Update */}
@@ -710,7 +515,7 @@ export default function MyActionPlansPage() {
                 </Button>
                 <Button
                   onClick={handleStatusUpdate}
-                  disabled={newStatus === selectedActionPlan.status && !statusComment}
+                  disabled={newStatus === selectedActionPlan.status && statusComment === (selectedActionPlan.latest_comment || "")}
                 >
                   Update
                 </Button>
@@ -726,15 +531,15 @@ export default function MyActionPlansPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Action Plan</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this completed action plan? This action cannot be undone.
+              Are you sure you want to delete this action plan? This action cannot be undone.
             </AlertDialogDescription>
             {planToDelete && (
               <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   {planToDelete.description}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {planToDelete.templateName}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase">
+                  {planToDelete.auditCategory}
                 </p>
               </div>
             )}

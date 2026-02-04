@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -33,66 +34,82 @@ interface StaffMember {
 }
 
 function StaffPage() {
+  // State for filtering
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null); // Initialized to null for organization-wide view
+  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(true);
   const [staff, setStaff] = useState<StaffMember[] | undefined>(undefined);
   const router = useRouter();
   const { profile } = useProfile();
   const { supabase } = useSupabase();
 
-  const activeTeamId = profile?.active_team_id;
+  // Handle team change
+  const handleTeamChange = (value: string) => {
+    setActiveTeamId(value === "all" ? null : value);
+  };
   const activeOrganizationId = profile?.active_organization_id;
 
   const fetchStaff = useCallback(async () => {
     if (!supabase || !activeOrganizationId) return;
 
     try {
-      // Base query - get all users in organization
+      setIsLoading(true);
+      // Base query - get all users that RLS allows (scoped to active care home)
       let query = supabase
         .from("users")
         .select(`
           *,
-          teams:active_team_id (
-            id,
-            name
+          team_staff:team_staff!team_staff_user_id_fkey (
+            team_id,
+            teams (
+              id,
+              name
+            )
           )
         `)
         .eq("active_organization_id", activeOrganizationId);
 
-      // Only filter by team if explicitly provided
+      // Filter by team assignment if explicitly provided
+      // If activeTeamId is set, we only want staff assigned to that unit
       if (activeTeamId) {
-        query = query.eq("active_team_id", activeTeamId);
+        // Using filter on the relationship. 
+        // Note: This requires the user to have at least one assignment matching this team.
+        query = query.filter("team_staff.team_id", "eq", activeTeamId);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching staff:", error);
-        // Log RLS policy errors specifically
-        if (error.code === '42501' || error.message?.includes('policy') || error.message?.includes('permission')) {
-          console.error("RLS policy violation - check user permissions and JWT metadata");
-          console.error("Current user organization ID:", activeOrganizationId);
-          console.error("Error details:", {
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint
-          });
-        }
         setStaff([]);
         return;
       }
 
-      console.log(`[Staff Page] Found ${data?.length || 0} staff members for organization ${activeOrganizationId}${activeTeamId ? ` (filtered by team ${activeTeamId})` : ''}`);
+      // Map data to preserve existing expected format for table columns
+      const mappedStaff = (data || []).map((p: any) => {
+        // Get primary unit assignment for display
+        const primaryTeam = p.team_staff?.[0]?.teams;
+        return {
+          ...p,
+          team_name: primaryTeam?.name || null
+        };
+      }).filter(p => {
+        // If filtering by team but the join didn't filter strictly (Supabase JS can sometimes be tricky with nested filters)
+        // Ensure the staff member has the target team in their assignments
+        if (activeTeamId) {
+          return p.team_staff?.some((ts: any) => ts.team_id === activeTeamId);
+        }
+        return true;
+      });
 
-      const mappedStaff = (data || []).map((p: any) => ({
-        ...p,
-        team_name: p.teams?.name || null
-      }));
-
+      console.log(`[Staff Page] Found ${mappedStaff.length} staff members for organization ${activeOrganizationId}${activeTeamId ? ` (filtered by team ${activeTeamId})` : ''}`);
       setStaff(mappedStaff);
     } catch (err) {
       console.error("Unexpected error fetching staff:", err);
-      setStaff([]);
+      toast.error("Failed to load staff members");
+    } finally {
+      setIsLoading(false);
     }
   }, [supabase, activeOrganizationId, activeTeamId]);
 

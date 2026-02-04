@@ -4,6 +4,8 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { formatDateForDisplay, formatTimestampToUKTime } from "@/lib/date-utils";
+import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
 import {
   Card,
   CardContent,
@@ -57,6 +59,7 @@ import { ComprehensiveIncidentForm } from "./components/comprehensive-incident-f
 import { NHSReportForm } from "./components/nhs-report-form";
 import { BHSCTReportForm } from "./components/bhsct-report-form";
 import { SEHSCTReportForm } from "./components/sehsct-report-form";
+import { generateIncidentPDF } from "./utils";
 
 import {
   Dialog,
@@ -101,8 +104,26 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [selectedTrust, setSelectedTrust] = React.useState<string>("");
   const [showTrustForm, setShowTrustForm] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [showRestrictivePracticeForm, setShowRestrictivePracticeForm] = React.useState(false);
+  const [restrictivePracticeIncident, setRestrictivePracticeIncident] = React.useState<any>(null);
 
   const [resident, setResident] = React.useState<any>(undefined);
+  const fullName = resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : "";
+  const initials = resident ? `${(resident.first_name || "R")[0]}${(resident.last_name || "E")[0]}`.toUpperCase() : "RE";
+
+  const calculateAge = (dateOfBirth: string) => {
+    if (!dateOfBirth) return 0;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    return age;
+  };
   const [incidents, setIncidents] = React.useState<any[]>([]);
   const [incidentStats, setIncidentStats] = React.useState<any>(null);
   const [trustReports, setTrustReports] = React.useState<any[]>([]);
@@ -190,6 +211,18 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   // Mutation for deleting incidents
   const handleDeleteIncidentMutation = async (incidentId: string) => {
     try {
+      // 1. Delete associated trust reports first to avoid foreign key constraints
+      const { error: trustReportsError } = await supabase
+        .from("trust_incident_reports")
+        .delete()
+        .eq("incident_id", incidentId);
+
+      if (trustReportsError) {
+        console.warn("Could not delete associated trust reports:", trustReportsError);
+        // We continue anyway, as the main delete might still work or have its own error
+      }
+
+      // 2. Delete the incident itself
       const { error } = await supabase
         .from("incidents")
         .delete()
@@ -202,6 +235,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     } catch (error) {
       console.error("Error deleting incident:", error);
       toast.error("Failed to delete incident report");
+      throw error; // Rethrow so the caller knows it failed
     }
   };
 
@@ -227,25 +261,32 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
   // Get trust reports for a specific incident (including BHSCT and SEHSCT reports)
   const getTrustReportsForIncident = React.useCallback((incidentId: string) => {
-    const oldTrustReports = trustReports?.filter(report => report.incident_id === incidentId) || [];
+    const oldTrustReportsRaw = trustReports?.filter(report => report.incident_id === incidentId) || [];
     const bhsctReportsForIncident = bhsctReports?.filter(report => report.incident_id === incidentId) || [];
     const sehsctReportsForIncident = sehsctReports?.filter(report => report.incident_id === incidentId) || [];
+
+    // Format NHS reports with trust_name fallback
+    const formattedOldTrustReports = oldTrustReportsRaw.map(report => ({
+      ...report,
+      trust_name: report.trust_name || "NHS",
+      report_type: report.report_type || "nhs",
+    }));
 
     // Convert BHSCT reports to the same format as trust reports
     const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
       ...report,
-      trust_name: "BHSCT",
+      trust_name: report.trust_name || "BHSCT",
       report_type: "bhsct",
     }));
 
     // Convert SEHSCT reports to the same format as trust reports
     const formattedSehsctReports = sehsctReportsForIncident.map(report => ({
       ...report,
-      trust_name: "SEHSCT",
+      trust_name: report.trust_name || "SEHSCT",
       report_type: "sehsct",
     }));
 
-    return [...oldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
+    return [...formattedOldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
   }, [trustReports, bhsctReports, sehsctReports]);
 
   // No longer need manual getUser effect
@@ -282,35 +323,18 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     );
   }
 
-  const fullName = `${resident.first_name} ${resident.last_name}`;
-  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
-
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
-  };
-
+  // Placeholder removed
   const handleViewIncident = (incidentId: string) => {
-    const incident = incidents?.find(i => i._id === incidentId);
+    const incident = incidents?.find(i => i.id === incidentId);
     if (incident) {
-      // Deep clone the incident object to prevent Convex real-time updates from triggering re-renders
       setSelectedIncident(JSON.parse(JSON.stringify(incident)));
       setShowViewDialog(true);
     }
   };
 
   const handleEditIncident = (incidentId: string) => {
-    const incident = incidents?.find(i => i._id === incidentId);
+    const incident = incidents?.find(i => i.id === incidentId);
     if (incident) {
-      // Deep clone the incident object to prevent Convex real-time updates from triggering useEffect loops
       setSelectedIncident(JSON.parse(JSON.stringify(incident)));
       setShowReportForm(true);
     }
@@ -323,23 +347,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
     try {
       await handleDeleteIncidentMutation(incidentId);
-      toast.success("Incident report deleted successfully");
+      // Success toast is handled in the mutation
     } catch (error) {
-      console.error("Error deleting incident:", error);
-      toast.error("Failed to delete incident report");
+      // Error toast is handled in the mutation
     }
   };
 
   const handleDownloadIncident = async (incidentId: string) => {
     try {
-      const incident = incidents?.find(i => i._id === incidentId);
+      const incident = incidents?.find(i => i.id === incidentId);
       if (!incident) {
         toast.error("Incident not found");
         return;
       }
 
       // Generate PDF content
-      const pdfContent = generateIncidentPDF(incident);
+      const pdfContent = generateIncidentPDF(incident, fullName);
 
       // Create a blob and download
       const blob = new Blob([pdfContent], { type: 'text/html' });
@@ -381,16 +404,32 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     setShowTrustForm(false);
     setSelectedTrust("");
     setTrustPickerIncident(null);
+    // Refresh data to show newly created trust reports
+    fetchData();
   };
 
-  const handleNHSReportCreated = (reportId: string) => {
-    // Optionally download the NHS report immediately after creation
-    const incident = nhsReportIncident;
-    if (incident) {
-      const trustReport = trustReports?.find(r => r.incident_id === incident.id && r.report_type === "nhs");
-      if (trustReport) {
-        generateAndDownloadNHSReport(incident, trustReport);
+  const handleNHSReportCreated = async (reportId: string) => {
+    // Refresh the UI list
+    fetchData();
+
+    // Fetch the newly created report directly for immediate download
+    try {
+      const { data: report, error } = await supabase
+        .from('trust_incident_reports')
+        .select('*')
+        .eq('id', reportId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching new report for download:", error);
+        return;
       }
+
+      if (report && nhsReportIncident) {
+        generateAndDownloadNHSReport(nhsReportIncident, report);
+      }
+    } catch (err) {
+      console.error("Failed to handle new report creation:", err);
     }
   };
 
@@ -490,108 +529,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     }
   };
 
-  const generateIncidentPDF = (incident: any) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Incident Report - ${incident.date}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
-            h2 { color: #555; margin-top: 20px; }
-            .section { margin-bottom: 20px; }
-            .field { margin-bottom: 10px; }
-            .label { font-weight: bold; color: #666; }
-            .value { margin-left: 10px; }
-            .header { background: #f5f5f5; padding: 10px; margin-bottom: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Incident Report</h1>
-            <div class="field">
-              <span class="label">Resident:</span>
-              <span class="value">${fullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Report Date:</span>
-              <span class="value">${incident.date} ${incident.time}</span>
-            </div>
-          </div>
-          
-          <div class="section">
-            <h2>Incident Details</h2>
-            <div class="field">
-              <span class="label">Type:</span>
-              <span class="value">${incident.incident_types?.join(", ") || "N/A"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Level:</span>
-              <span class="value">${incident.incident_level?.replace("_", " ").toUpperCase() || "N/A"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Location:</span>
-              <span class="value">${incident.home_name} - ${incident.unit}</span>
-            </div>
-          </div>
 
-          <div class="section">
-            <h2>Description</h2>
-            <p>${incident.detailed_description || "No description provided"}</p>
-          </div>
-
-          <div class="section">
-            <h2>Injured Person</h2>
-            <div class="field">
-              <span class="label">Name:</span>
-              <span class="value">${incident.injured_person_first_name} ${incident.injured_person_surname}</span>
-            </div>
-            <div class="field">
-              <span class="label">DOB:</span>
-              <span class="value">${incident.injured_person_dob}</span>
-            </div>
-            <div class="field">
-              <span class="label">Status:</span>
-              <span class="value">${incident.injured_person_status?.join(", ") || "N/A"}</span>
-            </div>
-          </div>
-
-          ${incident.treatment_types && incident.treatment_types.length > 0 ? `
-          <div class="section">
-            <h2>Treatment</h2>
-            <div class="field">
-              <span class="label">Types:</span>
-              <span class="value">${incident.treatment_types.join(", ")}</span>
-            </div>
-            ${incident.treatment_details ? `
-            <div class="field">
-              <span class="label">Details:</span>
-              <span class="value">${incident.treatment_details}</span>
-            </div>
-            ` : ''}
-          </div>
-          ` : ''}
-
-          <div class="section">
-            <h2>Report Completion</h2>
-            <div class="field">
-              <span class="label">Completed By:</span>
-              <span class="value">${incident.completed_by_full_name}</span>
-            </div>
-            <div class="field">
-              <span class="label">Job Title:</span>
-              <span class="value">${incident.completed_by_job_title}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date Completed:</span>
-              <span class="value">${incident.date_completed}</span>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-  };
 
   const generateBHSCTReportPDF = (incident: any, report: any) => {
     // BHSCT Official Logo (simplified SVG version based on official branding)
@@ -659,7 +597,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <div class="report-meta">
             <div class="meta-item">
               <div class="meta-label">Report ID</div>
-              <div class="meta-value">#${report._id.slice(-8).toUpperCase()}</div>
+              <div class="meta-value">#${report.id.slice(-8).toUpperCase()}</div>
             </div>
             <div class="meta-item">
               <div class="meta-label">Report Date</div>
@@ -836,7 +774,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
           <div class="footer">
             <p><strong>Generated by CareO System</strong></p>
-            <p>Report ID: ${report._id} | Generated on: ${new Date().toLocaleString()}</p>
+            <p>Report ID: ${report.id} | Generated on: ${new Date().toLocaleString()}</p>
             <p>Reported by: ${report.reportedByName} | Original Report Date: ${new Date(report.createdAt).toLocaleDateString()}</p>
             <p style="margin-top: 10px;">© ${new Date().getFullYear()} Belfast Health and Social Care Trust. All rights reserved.</p>
           </div>
@@ -1490,13 +1428,12 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>{new Date(incident.date).toLocaleDateString()}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
+
+                          <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-1">
                             <Clock className="w-3 h-3" />
-                            <span>{incident.time}</span>
+                            <span>{formatDateForDisplay(incident.date)}</span>
+                            <span>at</span>
+                            <span>{incident.time ? formatTimestampToUKTime(incident.date + 'T' + incident.time) : '--'}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <User className="w-3 h-3" />
@@ -1548,21 +1485,37 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {canForwardIncident(profile?.role as any) && (
-                            <DropdownMenuItem
-                              onClick={() => handleNHSReport(incident.id)}
-                              disabled={nhsReportExistsMap.get(incident.id) || false}
-                            >
-                              <FileBarChart className="w-4 h-4 mr-2" />
-                              {nhsReportExistsMap.get(incident.id)
-                                ? "NHS Report Generated"
-                                : "Generate NHS Report"}
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleNHSReport(incident.id)}
+                              >
+                                <FileBarChart className="w-4 h-4 mr-2" />
+                                <span>{nhsReportExistsMap.get(incident.id) ? "Generate Another NHS Report" : "Generate NHS Report"}</span>
+                              </DropdownMenuItem>
+
+                              {nhsReportExistsMap.get(incident.id) && (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const reports = getTrustReportsForIncident(incident.id);
+                                    if (reports.length > 0) {
+                                      handleViewNHSReport(reports[0], incident);
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  <span>View NHS Report(s)</span>
+                                </DropdownMenuItem>
+                              )}
+                            </>
                           )}
                           <DropdownMenuItem>
                             <User className="w-4 h-4 mr-2" />
                             <span>Body Map</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            setRestrictivePracticeIncident(incident);
+                            setShowRestrictivePracticeForm(true);
+                          }}>
                             <ShieldAlert className="w-4 h-4 mr-2" />
                             <span>Restrictive Practice Form</span>
                           </DropdownMenuItem>
@@ -1574,7 +1527,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleDeleteIncident(incident._id)}
+                                onClick={() => handleDeleteIncident(incident.id)}
                                 className="text-red-600 focus:text-red-600 focus:bg-red-50"
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -2873,6 +2826,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               {[
                 { code: "BHSCT", name: "Belfast Health and Social Care Trust", color: "blue" },
                 { code: "SEHSCT", name: "South Eastern Health and Social Care Trust", color: "green" },
+                { code: "NHS", name: "Generic NHS Trust Report", color: "gray" },
                 { code: "WHSCT", name: "Western Health and Social Care Trust", color: "purple" },
                 { code: "SHSCT", name: "Southern Health and Social Care Trust", color: "orange" },
                 { code: "NHSCT", name: "Northern Health and Social Care Trust", color: "red" }
@@ -2914,6 +2868,19 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             user={profile as any}
             open={showTrustForm}
             onClose={handleCloseTrustForm}
+          />
+        ) : selectedTrust === "NHS" ? (
+          <NHSReportForm
+            isOpen={showTrustForm}
+            onClose={handleCloseTrustForm}
+            incidentId={trustPickerIncident?.id || ""}
+            residentId={id}
+            incident={trustPickerIncident}
+            user={profile}
+            onReportCreated={(reportId) => {
+              handleCloseTrustForm();
+              fetchData();
+            }}
           />
         ) : (
           <Dialog open={showTrustForm} onOpenChange={handleCloseTrustForm}>
@@ -3083,6 +3050,43 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   {isSubmitting ? "Submitting..." : "Submit Report"}
                 </Button>
               </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Restrictive Practice Form Dialog */}
+        {showRestrictivePracticeForm && restrictivePracticeIncident && resident && profile && (
+          <Dialog open={showRestrictivePracticeForm} onOpenChange={(open) => {
+            if (!open) {
+              setShowRestrictivePracticeForm(false);
+              setRestrictivePracticeIncident(null);
+            }
+          }}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Restrictive Practice Form</DialogTitle>
+                <DialogDescription>
+                  Complete restrictive practice documentation for incident on {restrictivePracticeIncident.date}
+                </DialogDescription>
+              </DialogHeader>
+              <BestInterestDecisionDialog
+                residentId={id}
+                teamId={resident.team_id || ""}
+                organizationId={resident.organization_id || ""}
+                userId={profile.id || ""}
+                userName={profile.name || ""}
+                resident={resident}
+                onClose={() => {
+                  setShowRestrictivePracticeForm(false);
+                  setRestrictivePracticeIncident(null);
+                  fetchData();
+                }}
+                initialData={{
+                  typeOfDecision: ["Restraint / Restrictive practice"],
+                  detailsOfDecision: restrictivePracticeIncident.detailed_description || "",
+                  dateOfDecision: restrictivePracticeIncident.date || "",
+                }}
+              />
             </DialogContent>
           </Dialog>
         )}

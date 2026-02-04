@@ -560,6 +560,9 @@ export function ComprehensiveIncidentForm({
         completed_by_job_title: values.completedByJobTitle,
         completed_by_signature: values.completedBySignature,
         date_completed: values.dateCompleted.toISOString().split('T')[0],
+
+        // Created by (required field)
+        created_by: profile?.id,
       };
 
       // Check if we're editing an existing incident or creating a new one
@@ -572,11 +575,40 @@ export function ComprehensiveIncidentForm({
         if (error) throw error;
         toast.success("Incident report updated successfully");
       } else {
-        const { error } = await supabase
+        const { data: createdIncident, error } = await supabase
           .from("incidents")
-          .insert(incidentData);
+          .insert(incidentData)
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Create notification for the incident
+        if (createdIncident && resident) {
+          try {
+            await supabase.from("notifications").insert({
+              organization_id: resident.organization_id,
+              // null user_id means it's for all managers/admins (based on AppSidebar logic)
+              user_id: null,
+              type: "incident",
+              title: `New Incident: ${values.incidentTypes[0]?.replace(/([A-Z])/g, ' $1').trim() || "Reported"}`,
+              message: `${values.incidentLevel.replace(/_/g, ' ')} incident reported for ${residentName}`,
+              link: `/dashboard/residents/${residentId}/incidents/${createdIncident.id}`,
+              sender_id: profile?.id,
+              sender_name: profile?.name || profile?.email || "Unknown",
+              metadata: {
+                incidentId: createdIncident.id,
+                residentId: residentId,
+                severity: values.incidentLevel,
+                types: values.incidentTypes
+              }
+            });
+          } catch (notifError) {
+            console.error("Failed to create notification:", notifError);
+            // Don't block success just because notification failed
+          }
+        }
+
         toast.success("Incident report created successfully");
       }
 
@@ -749,22 +781,42 @@ export function ComprehensiveIncidentForm({
                     <FormField
                       control={form.control}
                       name="time"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Time of Incident</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                              <Input
-                                type="time"
-                                {...field}
-                                className="pl-10"
-                              />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        // Generate time options (15 minute intervals)
+                        const timeOptions = React.useMemo(() => {
+                          const options: string[] = [];
+                          for (let i = 0; i < 24; i++) {
+                            for (let j = 0; j < 60; j += 15) {
+                              const hour = i.toString().padStart(2, "0");
+                              const minute = j.toString().padStart(2, "0");
+                              options.push(`${hour}:${minute}`);
+                            }
+                          }
+                          return options;
+                        }, []);
+
+                        return (
+                          <FormItem>
+                            <FormLabel required>Time of Incident</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="pl-10 relative">
+                                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <SelectValue placeholder="Select time" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[200px]">
+                                {timeOptions.map((time) => (
+                                  <SelectItem key={time} value={time}>
+                                    {time}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     <FormField

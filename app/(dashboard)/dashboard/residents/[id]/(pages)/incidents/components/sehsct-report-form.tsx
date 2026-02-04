@@ -400,7 +400,7 @@ export function SEHSCTReportForm({
           resident_id: resident.id,
           trust_name: "SEHSCT",
           report_type: "sehsct",
-          created_by: user?.user?.id || null,
+          created_by: user?.id || null,
           report_data: {
             datixRef: formData.datixRef.trim() || undefined,
             incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",

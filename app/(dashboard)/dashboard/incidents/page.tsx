@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { useActiveTeam } from "@/hooks/use-active-team";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Filter, Bell, ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
@@ -19,92 +17,150 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Id } from "@/convex/_generated/dataModel";
+import { formatTimestampToUKDateTime } from "@/lib/date-utils";
 
 type NotificationType = "info" | "warning" | "success" | "urgent";
 
-export default function NotificationPage() {
+export default function IncidentsPage() {
   const router = useRouter();
-  const { activeTeam, activeTeamId, activeOrganization, activeOrganizationId, isLoading: isTeamLoading } = useActiveTeam();
-  const { data: user } = authClient.useSession();
-  const { data: activeMember } = authClient.useActiveMember();
-  const userRole = activeMember?.role as string | undefined;
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // For managers, always use organization-based queries; for other roles, use team if available
-  const shouldUseOrganization = userRole === "manager";
+  const userRole = profile?.role;
+  const activeOrganizationId = profile?.active_organization_id;
+  const activeTeamId = profile?.active_team_id;
 
-  // Debug logging
-  console.log('Notification Page Debug:', {
-    activeTeamId,
-    activeOrganizationId,
-    activeTeam,
-    activeOrganization,
-    isTeamLoading,
-    userRole,
-    shouldUseOrganization
-  });
+  const fetchIncidents = useCallback(async () => {
+    if (!activeOrganizationId || !profile) return;
 
-  // Fetch incidents - either for specific team or entire organization
-  const organizationIncidents = useQuery(
-    api.incidents.getIncidentsByOrganization,
-    (shouldUseOrganization && activeOrganizationId) || (!activeTeamId && activeOrganizationId)
-      ? { organizationId: activeOrganizationId, limit: 50 }
-      : "skip"
-  );
-
-  const teamIncidents = useQuery(
-    api.incidents.getIncidentsByTeam,
-    !shouldUseOrganization && activeTeamId
-      ? { teamId: activeTeamId, limit: 50 }
-      : "skip"
-  );
-
-  // Use organization incidents if manager or no team, otherwise use team incidents
-  const incidents = (shouldUseOrganization || !activeTeamId) ? organizationIncidents : teamIncidents;
-
-  // Mutations
-  const markIncidentAsRead = useMutation(api.notifications.markIncidentAsRead);
-  const markMultipleAsRead = useMutation(api.notifications.markMultipleIncidentsAsRead);
-
-  // Only show loading if we're waiting for team info, not if no team is selected
-  const isLoading = isTeamLoading;
-  const hasMarkedAsRead = useRef(false);
-
-  // Removed auto-mark as read functionality - incidents only marked as read when clicked
-
-  // Filter incidents based on read status from database
-  const filteredIncidents = incidents?.filter((incident) => {
-    if (filter === "unread") return !incident.isRead;
-    return true;
-  }) || [];
-
-  const unreadCount = incidents?.filter((incident) => !incident.isRead).length || 0;
-
-  const markAsRead = async (incidentId: Id<"incidents">) => {
     try {
-      await markIncidentAsRead({ incidentId });
+      setIsLoading(true);
+      let query = supabase
+        .from("incidents")
+        .select(`
+          *,
+          resident:residents(id, first_name, last_name, image_url)
+        `)
+        .eq("organization_id", activeOrganizationId)
+        .order("date", { ascending: false })
+        .order("time", { ascending: false });
+
+      // If not manager/owner, filter by team
+      if (userRole !== "manager" && userRole !== "owner" && userRole !== "saas_admin" && activeTeamId) {
+        query = query.eq("team_id", activeTeamId);
+      }
+
+      const { data: incidentsData, error } = await query.limit(50);
+
+      if (error) throw error;
+
+      // Fetch read status for these incidents from notification_read_status
+      // We need to find notifications associated with these incidents
+      const incidentIds = (incidentsData || []).map(i => i.id);
+      let readStatusMap: Record<string, boolean> = {};
+
+      if (incidentIds.length > 0) {
+        // Find notifications for these incident IDs
+        const { data: notifications } = await supabase
+          .from("notifications")
+          .select("id, metadata->incidentId")
+          .eq("organization_id", activeOrganizationId)
+          .eq("type", "incident");
+
+        const relevantNotifIds = (notifications || [])
+          .map(n => ({ id: n.id, incidentId: String(n.incidentId || "") }))
+          .filter(n => incidentIds.includes(n.incidentId))
+          .map(n => n.id);
+
+        if (relevantNotifIds.length > 0) {
+          const { data: readStatuses } = await supabase
+            .from("notification_read_status")
+            .select("notification_id")
+            .eq("user_id", profile.id)
+            .in("notification_id", relevantNotifIds);
+
+          if (readStatuses) {
+            // Map incidentId to read status
+            const readNotifIds = new Set(readStatuses.map(rs => rs.notification_id));
+            (notifications || []).forEach(n => {
+              const incidentId = String(n.incidentId || "");
+              if (readNotifIds.has(n.id) && incidentId) {
+                readStatusMap[incidentId] = true;
+              }
+            });
+          }
+        }
+      }
+
+      const incidentsWithReadStatus = (incidentsData || []).map(i => ({
+        ...i,
+        is_read: !!readStatusMap[i.id]
+      }));
+
+      setIncidents(incidentsWithReadStatus);
     } catch (error) {
-      console.error("Error marking incident as read:", error);
-      toast.error("Failed to mark as read");
+      console.error("Error fetching incidents:", error);
+      toast.error("Failed to load incidents");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeOrganizationId, activeTeamId, userRole, profile]);
+
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
+
+  // Mark all incident notifications as read on mount
+  useEffect(() => {
+    if (activeOrganizationId && profile?.id) {
+      import("@/lib/notifications").then(({ markIncidentNotificationsAsRead }) => {
+        markIncidentNotificationsAsRead(profile.id, activeOrganizationId)
+          .then(() => {
+            // After marking as read, we might want to refresh the local state
+            // but fetchIncidents should already be covering the initial load.
+          })
+          .catch(err => console.error("Failed to mark notifications as read:", err));
+      });
+    }
+  }, [activeOrganizationId, profile?.id]);
+
+  const markAsRead = async (incidentId: string) => {
+    if (!profile?.id || !activeOrganizationId) return;
+
+    try {
+      // Find the notification for this incident
+      const { data: notifications } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("organization_id", activeOrganizationId)
+        .eq("type", "incident")
+        .filter("metadata->>incidentId", "eq", incidentId)
+        .maybeSingle();
+
+      if (notifications) {
+        const { markNotificationAsRead } = await import("@/lib/notifications");
+        await markNotificationAsRead(notifications.id, profile.id);
+
+        setIncidents(prev => prev.map(i =>
+          i.id === incidentId ? { ...i, is_read: true } : i
+        ));
+      }
+    } catch (error) {
+      console.error("Error marking as read:", error);
     }
   };
 
   const markAllAsRead = async () => {
-    if (!incidents) return;
-
-    const unreadIncidentIds = incidents
-      .filter((incident) => !incident.isRead)
-      .map((incident) => incident._id);
-
-    if (unreadIncidentIds.length === 0) {
-      toast.info("No unread notifications");
-      return;
-    }
+    if (!profile?.id || !activeOrganizationId) return;
 
     try {
-      await markMultipleAsRead({ incidentIds: unreadIncidentIds });
-      toast.success("All notifications marked as read");
+      const { markIncidentNotificationsAsRead } = await import("@/lib/notifications");
+      await markIncidentNotificationsAsRead(profile.id, activeOrganizationId);
+
+      setIncidents(prev => prev.map(i => ({ ...i, is_read: true })));
+      toast.success("All incidents marked as read");
     } catch (error) {
       console.error("Error marking all as read:", error);
       toast.error("Failed to mark all as read");
@@ -140,10 +196,6 @@ export default function NotificationPage() {
     }
   };
 
-  const getTypeBadgeText = (type: NotificationType) => {
-    return type.charAt(0).toUpperCase() + type.slice(1);
-  };
-
   const formatIncidentLevel = (level: string) => {
     return level
       .split("_")
@@ -163,18 +215,20 @@ export default function NotificationPage() {
   };
 
   const handleIncidentClick = async (incident: any) => {
-    // Mark as read when clicking
-    if (!incident.isRead) {
-      await markAsRead(incident._id);
-    }
-
-    if (incident.residentId) {
-      router.push(`/dashboard/residents/${incident.residentId}/incidents`);
+    if (incident.resident_id) {
+      router.push(`/dashboard/residents/${incident.resident_id}/incidents`);
     }
   };
 
-  // Loading state
-  if (isLoading) {
+  // Filter incidents locally for now if needed
+  const filteredIncidents = incidents.filter((incident) => {
+    if (filter === "unread") return !incident.is_read; // Assuming is_read column exists or is handled
+    return true;
+  });
+
+  const unreadCount = incidents.filter((incident) => !incident.is_read).length;
+
+  if (isProfileLoading || isLoading) {
     return (
       <div className="w-full flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -182,8 +236,7 @@ export default function NotificationPage() {
     );
   }
 
-  // No active team or organization selected state
-  if (!activeTeamId && !activeOrganizationId) {
+  if (!activeOrganizationId) {
     return (
       <div className="w-full">
         <Button
@@ -197,7 +250,7 @@ export default function NotificationPage() {
         </Button>
         <div className="text-center py-12">
           <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Please select a care home to see notifications</p>
+          <p className="text-muted-foreground">Please ensure you are assigned to an organization</p>
         </div>
       </div>
     );
@@ -205,7 +258,6 @@ export default function NotificationPage() {
 
   return (
     <div className="w-full">
-      {/* Back Button */}
       <Button
         variant="ghost"
         size="sm"
@@ -216,14 +268,13 @@ export default function NotificationPage() {
         Back
       </Button>
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Bell className="w-6 h-6" />
           <div>
             <h1 className="text-2xl font-semibold">Incidents</h1>
             <p className="text-sm text-muted-foreground">
-              Incident reports for {shouldUseOrganization || !activeTeamId ? `All units in ${activeOrganization?.name || 'care home'}` : activeTeam?.name || 'selected unit'}
+              Incident reports for your organization
             </p>
           </div>
         </div>
@@ -234,7 +285,6 @@ export default function NotificationPage() {
         )}
       </div>
 
-      {/* Filter and Actions */}
       <div className="flex items-center justify-between mb-4">
         <Select value={filter} onValueChange={(value: "all" | "unread") => setFilter(value)}>
           <SelectTrigger className="w-[180px]">
@@ -260,10 +310,6 @@ export default function NotificationPage() {
         )}
       </div>
 
-      {/* TODO: Add role-based filtering here in the future */}
-      {/* For now, showing all incidents for the selected team/unit */}
-
-      {/* Incidents List */}
       <div className="space-y-0">
         {filteredIncidents.length === 0 ? (
           <div className="text-center py-12">
@@ -274,63 +320,46 @@ export default function NotificationPage() {
           </div>
         ) : (
           filteredIncidents.map((incident) => {
-            const severity = getIncidentSeverity(incident.incidentLevel);
+            const severity = getIncidentSeverity(incident.incident_level);
             const residentName = incident.resident
-              ? `${incident.resident.firstName} ${incident.resident.lastName}`
-              : `${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}`;
+              ? `${incident.resident.first_name} ${incident.resident.last_name}`
+              : `${incident.injured_person_first_name} ${incident.injured_person_surname}`;
             const initials = incident.resident
-              ? `${incident.resident.firstName[0]}${incident.resident.lastName[0]}`
-              : incident.injuredPersonFirstName && incident.injuredPersonSurname
-              ? `${incident.injuredPersonFirstName[0]}${incident.injuredPersonSurname[0]}`
-              : "U";
+              ? `${incident.resident.first_name[0]}${incident.resident.last_name[0]}`
+              : incident.injured_person_first_name && incident.injured_person_surname
+                ? `${incident.injured_person_first_name[0]}${incident.injured_person_surname[0]}`
+                : "U";
 
             return (
               <div
-                key={incident._id}
-                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${
-                  !incident.isRead ? "bg-muted/50" : "bg-muted/5"
-                }`}
+                key={incident.id}
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${!incident.is_read ? "bg-muted/50" : "bg-muted/5"
+                  }`}
                 onClick={() => handleIncidentClick(incident)}
               >
-                {/* Resident Avatar */}
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={incident.resident?.imageUrl ?? undefined} alt={residentName} />
+                  <AvatarImage src={incident.resident?.image_url ?? undefined} alt={residentName} />
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
 
-                {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <p className={`text-sm ${incident.isRead ? "text-muted-foreground" : "font-medium text-foreground"}`}>
-                        <span className="font-semibold">Incident Report</span> - {residentName} • {formatIncidentTypes(incident.incidentTypes)}
+                      <p className={`text-sm ${incident.is_read ? "text-muted-foreground" : "font-medium text-foreground"}`}>
+                        <span className="font-semibold">Incident Report</span> - {residentName} • {formatIncidentTypes(incident.incident_types)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          Created: {format(new Date(incident.date + " " + incident.time), "PPp")}
+                          Created: {formatTimestampToUKDateTime(incident.date + "T" + incident.time, "dd MMM yyyy")} at {formatTimestampToUKDateTime(incident.date + "T" + incident.time, "HH:mm")}
                         </span>
                         <Badge
                           variant="outline"
                           className={`text-xs h-5 ${getTypeColor(severity)}`}
                         >
-                          {formatIncidentLevel(incident.incidentLevel)}
+                          {formatIncidentLevel(incident.incident_level)}
                         </Badge>
                       </div>
                     </div>
-                    {!incident.isRead && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markAsRead(incident._id);
-                        }}
-                        className="h-7 px-2 text-xs shrink-0"
-                      >
-                        <Check className="w-3 h-3 mr-1" />
-                        Mark as read
-                      </Button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -341,3 +370,4 @@ export default function NotificationPage() {
     </div>
   );
 }
+
