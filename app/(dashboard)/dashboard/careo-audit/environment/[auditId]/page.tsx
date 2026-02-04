@@ -130,6 +130,11 @@ export default function EnvironmentAuditPage() {
       }));
       setAuditDetailItems(loadedItems);
     }
+    if (auditResponse.audited_by_name) {
+      setAuditorName(auditResponse.audited_by_name);
+    } else if (auditResponse.audited_by) {
+      setAuditorName(auditResponse.audited_by);
+    }
     if (auditResponse.id) {
       auditService.getEnvironmentActionPlans(auditResponse.id).then(plans => {
         if (plans) {
@@ -170,10 +175,12 @@ export default function EnvironmentAuditPage() {
             template_name: template.name,
             category: 'environment',
             organization_id: activeOrganizationId,
-            audited_by: profile?.name || profile?.email || "Unknown",
+            audited_by: profile?.email || "Unknown",
+            audited_by_name: profile?.name || profile?.email || "Unknown",
             frequency: template.frequency,
             status: 'draft'
           });
+          setAuditorName(profile?.name || profile?.email || "Unknown");
           setResponseId(newDraft.id);
           setResponse(newDraft);
           isCreatingDraft.current = false;
@@ -217,9 +224,12 @@ export default function EnvironmentAuditPage() {
 
   const [auditDetailItems, setAuditDetailItems] = useState<AuditDetailItem[]>([]);
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
+  const [auditorName, setAuditorName] = useState("");
+
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [newItemForm, setNewItemForm] = useState({ question: "", status: "", date: "", comment: "" });
   const [openDatePopover, setOpenDatePopover] = useState<string | null>(null);
+  const [newItemDatePopoverOpen, setNewItemDatePopoverOpen] = useState(false);
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
@@ -247,24 +257,51 @@ export default function EnvironmentAuditPage() {
 
   const handleAddItem = async () => {
     if (!newItemForm.question || !template) return;
+
+    const newItemId = `item_${Date.now()}`;
     const updatedTemplateItems = [
       ...(template.items || []),
-      { id: `item_${Date.now()}`, name: newItemForm.question, type: 'compliance' }
+      { id: newItemId, name: newItemForm.question, type: 'compliance' }
     ];
+
     try {
+      // 1. Update the template so future audits have this item
       await auditService.updateEnvironmentTemplate(template.id, { items: updatedTemplateItems });
-      setAuditDetailItems([...auditDetailItems, {
-        id: `item_${Date.now()}`,
+
+      const newItem: AuditDetailItem = {
+        id: newItemId,
         itemName: newItemForm.question,
-        status: "",
+        status: newItemForm.status || "",
         reviewer: null,
-        lastReviewed: null,
-        notes: null
-      }]);
-      toast.success("Item added");
+        lastReviewed: newItemForm.date || null,
+        notes: newItemForm.comment || null
+      };
+
+      const newItemsList = [...auditDetailItems, newItem];
+      setAuditDetailItems(newItemsList);
+
+      // 2. If we have an active draft response, update it immediately to persist the new item
+      if (responseId) {
+        const itemsToSave = newItemsList.map(item => ({
+          itemId: item.id,
+          itemName: item.itemName,
+          status: item.status,
+          notes: item.notes,
+          date: item.lastReviewed
+        }));
+
+        await auditService.updateEnvironmentResponse(responseId, {
+          items: itemsToSave
+        });
+      }
+
+      toast.success("Question added");
       setIsAddItemDialogOpen(false);
       setNewItemForm({ question: "", status: "", date: "", comment: "" });
-    } catch (e) { toast.error("Failed to add item"); }
+    } catch (e) {
+      console.error("Error adding item:", e);
+      toast.error("Failed to add question");
+    }
   };
 
   const handleAddActionPlan = async () => {
@@ -337,7 +374,7 @@ export default function EnvironmentAuditPage() {
       await auditService.completeEnvironmentResponse(responseId, {
         items: itemsToSave,
         audited_by: profile?.email,
-        audited_by_name: profile?.name || profile?.email,
+        audited_by_name: auditorName || profile?.name || profile?.email,
         organization_id: activeOrganizationId
       });
 
@@ -378,22 +415,23 @@ export default function EnvironmentAuditPage() {
         notes: item.notes,
         date: item.lastReviewed
       }));
-      const hash = JSON.stringify(itemsToSave);
+      const hash = JSON.stringify({ items: itemsToSave, auditor: auditorName });
       if (hash === lastSavedData.current) return;
 
       isSaving.current = true;
       try {
         await auditService.updateEnvironmentResponse(responseId, {
           items: itemsToSave,
+          audited_by_name: auditorName,
           status: 'in-progress'
         });
         lastSavedData.current = hash;
         console.log("Auto-saved environment audit");
       } catch (e) { console.error(e); }
       finally { isSaving.current = false; }
-    }, 4000);
+    }, 2000); // Reduced time to 2s
     return () => clearTimeout(timer);
-  }, [auditDetailItems, responseId]);
+  }, [auditDetailItems, responseId, auditorName]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -405,7 +443,7 @@ export default function EnvironmentAuditPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col min-h-full bg-background">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/careo-audit?tab=environment")}>
@@ -433,13 +471,14 @@ export default function EnvironmentAuditPage() {
           </Button>
         </div>
       </div>
+
       <div className="flex-1 overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead className="w-[40%]">Item</TableHead>
+              <TableHead className="w-[150px]">Status</TableHead>
+              <TableHead className="w-[120px]">Date</TableHead>
               <TableHead>Comment</TableHead>
             </TableRow>
           </TableHeader>
@@ -479,6 +518,79 @@ export default function EnvironmentAuditPage() {
           </TableBody>
         </Table>
       </div>
+      <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Question</DialogTitle>
+            <DialogDescription>Add a new audit question/item to this audit.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="question">Question</Label>
+              <Input
+                id="question"
+                value={newItemForm.question}
+                onChange={(e) => setNewItemForm({ ...newItemForm, question: e.target.value })}
+                placeholder="e.g., Is the fire alarm system tested weekly?"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={newItemForm.status}
+                onValueChange={(val) => setNewItemForm({ ...newItemForm, status: val })}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compliant">Compliant</SelectItem>
+                  <SelectItem value="non-compliant">Non-Compliant</SelectItem>
+                  <SelectItem value="n/a">N/A</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Popover open={newItemDatePopoverOpen} onOpenChange={setNewItemDatePopoverOpen} modal={true}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newItemForm.date ? format(new Date(newItemForm.date), "PPP") : <span>Select date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={newItemForm.date ? new Date(newItemForm.date) : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        setNewItemForm({ ...newItemForm, date: date.toISOString() });
+                        setNewItemDatePopoverOpen(false);
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="comment">Comment</Label>
+              <Input
+                id="comment"
+                value={newItemForm.comment}
+                onChange={(e) => setNewItemForm({ ...newItemForm, comment: e.target.value })}
+                placeholder="Add any notes or comments..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddItemDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddItem}>Add Question</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isActionPlanDialogOpen} onOpenChange={setIsActionPlanDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -559,57 +671,59 @@ export default function EnvironmentAuditPage() {
       </Dialog>
 
       {/* Action Plans Summary */}
-      {actionPlans.length > 0 && (
-        <div className="p-6 border-t bg-muted/30">
-          <h3 className="text-lg font-semibold mb-4 text-primary">Audit Action Plans</h3>
-          <div className="rounded-md border bg-card overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Action Required</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Latest Comment</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {actionPlans.map((plan) => (
-                  <TableRow key={plan.id}>
-                    <TableCell className="font-medium">{plan.text}</TableCell>
-                    <TableCell>{plan.assignedTo}</TableCell>
-                    <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>
-                        {plan.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={
-                        plan.status === 'completed' ? 'bg-green-500 hover:bg-green-600' :
-                          plan.status === 'in_progress' ? 'bg-blue-500 hover:bg-blue-600' :
-                            'bg-yellow-500 hover:bg-yellow-600'
-                      }>
-                        {(plan.status || 'pending').replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate">
-                      {plan.latestComment || '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveActionPlan(plan.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+      {
+        actionPlans.length > 0 && (
+          <div className="p-6 border-t bg-muted/30">
+            <h3 className="text-lg font-semibold mb-4 text-primary">Audit Action Plans</h3>
+            <div className="rounded-md border bg-card overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Action Required</TableHead>
+                    <TableHead>Assigned To</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Latest Comment</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {actionPlans.map((plan) => (
+                    <TableRow key={plan.id}>
+                      <TableCell className="font-medium">{plan.text}</TableCell>
+                      <TableCell>{plan.assignedTo}</TableCell>
+                      <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
+                      <TableCell>
+                        <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>
+                          {plan.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={
+                          plan.status === 'completed' ? 'bg-green-500 hover:bg-green-600' :
+                            plan.status === 'in_progress' ? 'bg-blue-500 hover:bg-blue-600' :
+                              'bg-yellow-500 hover:bg-yellow-600'
+                        }>
+                          {(plan.status || 'pending').replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[150px] truncate">
+                        {plan.latestComment || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveActionPlan(plan.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

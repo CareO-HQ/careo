@@ -215,9 +215,10 @@ export const auditService = {
     },
 
     async createResidentActionPlan(plan: any) {
+        const { creatorId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_resident_action_plans')
-            .insert({ ...plan, status: plan.status || 'pending' })
+            .insert({ ...dbPlan, status: dbPlan.status || 'pending' })
             .select()
             .single();
         if (error) throw error;
@@ -231,7 +232,7 @@ export const auditService = {
                 title: "New Action Plan Assigned",
                 message: `You have been assigned a new action plan: ${data.description}`,
                 link: `/dashboard/action-plans`,
-                sender_id: data.created_by,
+                sender_id: creatorId || null,
                 sender_name: data.created_by_name || "Manager",
                 metadata: { actionPlanId: data.id, auditCategory: 'resident' }
             }).then(({ error }) => { if (error) console.error("Notification error:", error); });
@@ -400,9 +401,10 @@ export const auditService = {
     },
 
     async createCareFileActionPlan(plan: any) {
+        const { creatorId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_care_file_action_plans')
-            .insert({ ...plan, status: plan.status || 'pending' })
+            .insert({ ...dbPlan, status: dbPlan.status || 'pending' })
             .select()
             .single();
         if (error) throw error;
@@ -416,7 +418,7 @@ export const auditService = {
                 title: "New Action Plan Assigned",
                 message: `You have been assigned a new action plan: ${data.description}`,
                 link: `/dashboard/action-plans`,
-                sender_id: data.created_by,
+                sender_id: creatorId || null,
                 sender_name: data.created_by_name || "Manager",
                 metadata: { actionPlanId: data.id, auditCategory: 'carefile' }
             }).then(({ error }) => { if (error) console.error("Notification error:", error); });
@@ -576,9 +578,10 @@ export const auditService = {
     },
 
     async createGovernanceActionPlan(plan: any) {
+        const { creatorId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_governance_action_plans')
-            .insert({ ...plan, status: plan.status || 'pending' })
+            .insert({ ...dbPlan, status: dbPlan.status || 'pending' })
             .select()
             .single();
         if (error) throw error;
@@ -592,7 +595,7 @@ export const auditService = {
                 title: "New Action Plan Assigned",
                 message: `You have been assigned a new action plan: ${data.description}`,
                 link: `/dashboard/action-plans`,
-                sender_id: data.created_by,
+                sender_id: creatorId || null,
                 sender_name: data.created_by_name || "Manager",
                 metadata: { actionPlanId: data.id, auditCategory: 'governance' }
             }).then(({ error }) => { if (error) console.error("Notification error:", error); });
@@ -1028,7 +1031,7 @@ export const auditService = {
         return allPlans;
     },
 
-    async updateActionPlanStatus(category: string, planId: string, status: string, comment?: string, updatedBy?: string, updatedByName?: string) {
+    async updateActionPlanStatus(category: string, planId: string, status: string, comment?: string, userId?: string, userName?: string) {
         const tableName = `audit_${category === 'carefile' ? 'care_file' : category}_action_plans`;
         const { data, error } = await supabase
             .from(tableName)
@@ -1047,7 +1050,7 @@ export const auditService = {
         if (data) {
             // Check if status is completed or in_progress to notify the creator
             const notificationTitle = `Action Plan ${status.replace('_', ' ')}`;
-            const notificationMessage = `Action plan "${data.description}" marked as ${status.replace('_', ' ')} by ${updatedByName || "Staff"}`;
+            const notificationMessage = `Action plan "${data.description}" marked as ${status.replace('_', ' ')} by ${userName || "Staff"}`;
 
             supabase.from("notifications").insert({
                 organization_id: data.organization_id,
@@ -1056,8 +1059,8 @@ export const auditService = {
                 title: notificationTitle,
                 message: notificationMessage,
                 link: `/dashboard/action-plans`,
-                sender_id: updatedBy,
-                sender_name: updatedByName,
+                sender_id: userId,
+                sender_name: userName,
                 metadata: { actionPlanId: data.id, status, category }
             }).then(({ error }) => { if (error) console.error("Notification error:", error); });
         }

@@ -117,7 +117,7 @@ export default function MyActionPlansPage() {
         selectedActionPlan.id,
         newStatus,
         statusComment || undefined,
-        userEmail,
+        user.id, // Pass UUID instead of email for sender_id
         user?.user_metadata?.name || userEmail
       );
 

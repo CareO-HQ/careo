@@ -71,6 +71,14 @@ export function AppSidebar() {
     async function fetchCounts() {
       if (!user) return;
       try {
+        // Fetch dismissals first
+        const { data: dismissals } = await supabase
+          .from("notification_dismissals")
+          .select("notification_id")
+          .eq("user_id", user.id);
+
+        const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
+
         // 1. Unread Incidents (via notifications table with type incident)
         // Check read status for incidents
         const { data: allIncidentNotifs } = await supabase
@@ -86,7 +94,11 @@ export function AppSidebar() {
           .eq("user_id", user.id);
 
         const incidentReadIds = new Set((incidentReadStatuses || []).map(r => r.notification_id));
-        const unreadIncidentList = (allIncidentNotifs || []).filter(n => !incidentReadIds.has(n.id));
+
+        // Filter out read AND dismissed
+        const unreadIncidentList = (allIncidentNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
         setUnreadIncidentCount(unreadIncidentList.length);
 
         // 2. Unread Appointments (via notifications table)
@@ -97,7 +109,9 @@ export function AppSidebar() {
           .like("type", "appointment_%")
           .or(`user_id.eq.${user.id},user_id.is.null`);
 
-        const unreadAppointmentList = (allAppointmentNotifs || []).filter(n => !incidentReadIds.has(n.id));
+        const unreadAppointmentList = (allAppointmentNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
         setUnreadAppointmentsCount(unreadAppointmentList.length);
 
         // 3. System Notifications
@@ -107,7 +121,9 @@ export function AppSidebar() {
           .eq("organization_id", activeOrganizationId)
           .or(`user_id.eq.${user.id},user_id.is.null`);
 
-        const unreadNotifs = (allNotifs || []).filter(n => !incidentReadIds.has(n.id));
+        const unreadNotifs = (allNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
         setUnreadNotificationCount(unreadNotifs.length);
 
         // 4. Action Plans
@@ -148,15 +164,17 @@ export function AppSidebar() {
     fetchCounts();
 
     // Subscribe to real-time changes
+    const channelName = `sidebar-notifs-${user.id}-${activeOrganizationId || 'no-org'}`;
     const channel = supabase
-      .channel("sidebar-notifications")
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "notifications",
-          filter: `organization_id=eq.${activeOrganizationId}`,
+          // Only filter by org if we have one, otherwise listen to all (RLS will still protect)
+          ...(activeOrganizationId ? { filter: `organization_id=eq.${activeOrganizationId}` } : {}),
         },
         () => {
           fetchCounts();
@@ -174,7 +192,11 @@ export function AppSidebar() {
           fetchCounts();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[AppSidebar] Subscribed to real-time changes for user ${user.id}`);
+        }
+      });
 
     // Subscribe to all action plan tables
     const apTables = [
@@ -194,7 +216,7 @@ export function AppSidebar() {
             event: "*",
             schema: "public",
             table: tableName,
-            filter: `organization_id=eq.${activeOrganizationId}`,
+            ...(activeOrganizationId ? { filter: `organization_id=eq.${activeOrganizationId}` } : {}),
           },
           () => {
             fetchCounts();

@@ -327,6 +327,7 @@ function CareFileAuditEditorPageContent() {
           organization_id: activeOrganizationId,
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
+          creatorId: profile?.id,
           status: 'pending'
         });
       }
@@ -402,6 +403,7 @@ function CareFileAuditEditorPageContent() {
           resident_name: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown",
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
+          creatorId: profile?.id,
           status: 'pending'
         });
       }
@@ -429,7 +431,7 @@ function CareFileAuditEditorPageContent() {
   if (!resident) return <div className="p-10">Loading...</div>;
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col h-full w-full bg-background">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`)}>

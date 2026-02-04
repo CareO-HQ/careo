@@ -21,7 +21,15 @@ export interface Notification {
 }
 
 export const getNotifications = async (userId: string, limit = 50, onlyUnread = false) => {
-    // Fetch notifications
+    // 1. Fetch dismissals first to filter them out
+    const { data: dismissals } = await supabase
+        .from("notification_dismissals")
+        .select("notification_id")
+        .eq("user_id", userId);
+
+    const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
+
+    // 2. Fetch notifications
     let query = supabase
         .from("notifications")
         .select("*")
@@ -36,8 +44,11 @@ export const getNotifications = async (userId: string, limit = 50, onlyUnread = 
         throw error;
     }
 
-    // Fetch read status
-    const notificationIds = (notifications || []).map((n) => n.id);
+    // Filter out dismissed notifications
+    const activeNotifications = (notifications || []).filter(n => !dismissedIds.has(n.id));
+
+    // 3. Fetch read status for active notifications
+    const notificationIds = activeNotifications.map((n) => n.id);
     let readStatusMap: Record<string, boolean> = {};
 
     if (notificationIds.length > 0) {
@@ -56,7 +67,7 @@ export const getNotifications = async (userId: string, limit = 50, onlyUnread = 
     }
 
     // Transform and filter
-    const transformed = (notifications || []).map((n) => ({
+    const transformed = activeNotifications.map((n) => ({
         ...n,
         isRead: !!readStatusMap[n.id],
     }));
@@ -89,6 +100,7 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
 
 export const markAllNotificationsAsRead = async (userId: string) => {
     // 1. Get all notification IDs for this user (including global once) that aren't read yet
+    // We should technically exclude dismissed ones too, but marking a dismissed one as read doesn't hurt.
     const { data: notifications } = await supabase
         .from("notifications")
         .select("id")
@@ -154,20 +166,41 @@ export const markIncidentNotificationsAsRead = async (userId: string, organizati
 };
 
 export const deleteAllNotifications = async (userId: string) => {
-    // We can only delete notifications specifically for this user
-    // Or handle it by marking them as "deleted" (not in schema yet)
-    // For now, let's delete records targeting this user directly
-    const { error, count } = await supabase
+    // Instead of hard deleting, we verify specifically which notifications we see, 
+    // and then insert into notification_dismissals for ALL of them.
+    // This handles both personal and global notifications properly from the user's perspective.
+
+    // 1. Fetch all visible notification IDs for this user
+    const { data: notifications } = await supabase
         .from("notifications")
-        .delete()
-        .eq("user_id", userId);
+        .select("id")
+        .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (!notifications || notifications.length === 0) return { deleted: 0 };
+
+    const notificationIds = notifications.map(n => n.id);
+
+    // 2. Insert into notification_dismissals
+    const dismissalRecords = notificationIds.map(id => ({
+        notification_id: id,
+        user_id: userId,
+        dismissed_at: new Date().toISOString()
+    }));
+
+    // Upsert to handle cases where some might already be dismissed (idempotent)
+    const { error, count } = await supabase
+        .from("notification_dismissals")
+        .upsert(dismissalRecords, { onConflict: 'notification_id,user_id' });
 
     if (error) {
-        console.error("Error deleting notifications:", error);
+        console.error("Error deleting (dismissing) notifications:", error);
         throw error;
     }
 
-    return { deleted: count || 0 };
+    // Optionally hard delete personal ones to save space, but keeping it simple is safer.
+    // We already achieved "clearing the inbox".
+
+    return { deleted: notificationIds.length };
 };
 
 export const getActionPlanById = async (actionPlanId: string) => {

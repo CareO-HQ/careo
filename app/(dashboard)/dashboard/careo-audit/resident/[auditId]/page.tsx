@@ -343,6 +343,7 @@ export default function ResidentAuditPage() {
           organization_id: activeOrganizationId,
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
+          creatorId: profile?.id,
           resident_id: selectedResidentForActionPlan?._id,
           resident_name: selectedResidentForActionPlan ? `${selectedResidentForActionPlan.firstName} ${selectedResidentForActionPlan.lastName}` : undefined,
           status: 'pending'
@@ -511,6 +512,7 @@ export default function ResidentAuditPage() {
             organization_id: activeOrganizationId,
             created_by: profile?.email,
             created_by_name: profile?.name || profile?.email,
+            creatorId: profile?.id,
             resident_id: plan.residentId,
             resident_name: plan.residentName,
             status: 'pending'

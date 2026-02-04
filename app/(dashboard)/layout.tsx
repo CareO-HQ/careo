@@ -30,7 +30,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <main className="flex p-10 w-full">
+    <main className="flex px-6 py-10 w-full">
       <AppSidebar />
       <div className="flex-1">
         {children}

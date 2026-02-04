@@ -201,7 +201,7 @@ function CareFileAuditPageContent() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col h-full w-full bg-background">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-4">
           <Button
@@ -238,8 +238,8 @@ function CareFileAuditPageContent() {
       <div className="flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-2"></div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setIsAddAuditDialogOpen(true)} size="sm" className="h-8">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => setIsAddAuditDialogOpen(true)} variant="default" className="bg-black hover:bg-black/90 text-white rounded-md px-4 py-2 flex items-center gap-2">
+            <Plus className="h-4 w-4" />
             Add Audit
           </Button>
         </div>
@@ -250,7 +250,7 @@ function CareFileAuditPageContent() {
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
               <TableHead className="w-12 border-r last:border-r-0">
-                <input type="checkbox" className="rounded border-gray-300" />
+                <input type="checkbox" className="rounded border-gray-300 ml-1" />
               </TableHead>
               <TableHead className="font-medium border-r last:border-r-0">Audit Name</TableHead>
               <TableHead className="font-medium border-r last:border-r-0">Status</TableHead>
@@ -289,23 +289,9 @@ function CareFileAuditPageContent() {
                       </button>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
-                      {isCompleted ? (
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-green-500 rounded-full transition-all"
-                              style={{ width: `${completionPercentage}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {completionPercentage}%
-                          </span>
-                        </div>
-                      ) : (
-                        <Badge variant="secondary" className={`text-xs h-6 ${getStatusColor("new")}`}>
-                          New
-                        </Badge>
-                      )}
+                      <Badge variant={completionPercentage === 100 ? "default" : "secondary"}>
+                        {completionPercentage === 100 ? "completed" : "new"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
                       {latestCompletion?.audited_by_name || latestCompletion?.audited_by || "-"}

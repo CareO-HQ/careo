@@ -13,7 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, ClipboardCheck, Eye, Download, Trash2, Archive } from "lucide-react";
+import { Plus, MoreHorizontal, ArrowUpDown, SlidersHorizontal, ClipboardCheck, Eye, Download, Trash2, Archive, UserPlus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
 import { useProfile } from "@/hooks/use-profile";
 import { withRoleGuard } from "@/lib/route-guards";
 import { auditService, AuditTemplate, AuditCompletion } from "@/lib/audit-service";
@@ -58,6 +60,7 @@ interface Audit {
 }
 
 interface Resident {
+  id: string; // Added id for compatibility
   _id: string;
   firstName: string;
   lastName: string;
@@ -102,7 +105,7 @@ function CareOAuditPageContent() {
     if (!activeOrganizationId) return;
 
     try {
-      if (activeTab === 'resident') {
+      if (activeTab === 'resident' || activeTab === 'careFile') {
         const templates = await auditService.getResidentTemplates(activeOrganizationId);
         setResidentTemplates(templates);
 
@@ -111,17 +114,18 @@ function CareOAuditPageContent() {
           setLatestCompletions(completions);
 
           // Fetch residents (simple fetch)
-          const { data: resData } = await supabase.from('residents').select('*').eq('teamId', activeTeamId);
-          // Manually mapping Supabase response to Resident interface if needed, or simple cast
+          const { data: resData } = await supabase.from('residents').select('*').eq('team_id', activeTeamId);
+          // Manually mapping Supabase response to Resident interface
           if (resData) {
             const mappedResidents = resData.map((r: any) => ({
-              _id: r.id, // Supabase ID mapped to _id for compatibility
-              firstName: r.firstName,
-              lastName: r.lastName,
-              roomNumber: r.roomNumber,
-              dateOfBirth: r.dateOfBirth,
-              teamId: r.teamId,
-              imageUrl: r.imageUrl
+              _id: r.id,
+              id: r.id, // Ensure id is also available
+              firstName: r.first_name,
+              lastName: r.last_name,
+              roomNumber: r.room_number,
+              dateOfBirth: r.date_of_birth,
+              teamId: r.team_id,
+              imageUrl: r.image_url
             }));
             setResidents(mappedResidents);
           }
@@ -176,16 +180,17 @@ function CareOAuditPageContent() {
         const latestCompletion = governanceCompletions?.find(
           (completion) => completion.template_id === template.id
         );
+        const isCompleted = latestCompletion && latestCompletion.status === "completed";
 
         return {
           id: template.id,
           name: template.name,
-          status: latestCompletion ? "completed" : "new",
+          status: isCompleted ? "completed" : "new",
           auditor: latestCompletion?.audited_by_name || latestCompletion?.audited_by || template.created_by,
-          lastAudited: latestCompletion?.completed_at
+          lastAudited: isCompleted && latestCompletion?.completed_at
             ? new Date(latestCompletion.completed_at).toLocaleDateString()
             : "-",
-          dueDate: latestCompletion?.next_audit_due
+          dueDate: isCompleted && latestCompletion?.next_audit_due
             ? new Date(latestCompletion.next_audit_due).toLocaleDateString()
             : "-",
           category: "governance",
@@ -198,16 +203,17 @@ function CareOAuditPageContent() {
         const latestCompletion = clinicalCompletions?.find(
           (completion) => completion.template_id === template.id
         );
+        const isCompleted = latestCompletion && latestCompletion.status === "completed";
 
         return {
           id: template.id,
           name: template.name,
-          status: latestCompletion ? "completed" : "new",
+          status: isCompleted ? "completed" : "new",
           auditor: latestCompletion?.audited_by_name || latestCompletion?.audited_by || template.created_by,
-          lastAudited: latestCompletion?.completed_at
+          lastAudited: isCompleted && latestCompletion?.completed_at
             ? new Date(latestCompletion.completed_at).toLocaleDateString()
             : "-",
-          dueDate: latestCompletion?.next_audit_due
+          dueDate: isCompleted && latestCompletion?.next_audit_due
             ? new Date(latestCompletion.next_audit_due).toLocaleDateString()
             : "-",
           category: "clinical",
@@ -220,16 +226,17 @@ function CareOAuditPageContent() {
         const latestCompletion = environmentCompletions?.find(
           (completion) => completion.template_id === template.id
         );
+        const isCompleted = latestCompletion && latestCompletion.status === "completed";
 
         return {
           id: template.id,
           name: template.name,
-          status: latestCompletion ? "completed" : "new",
+          status: isCompleted ? "completed" : "new",
           auditor: latestCompletion?.audited_by_name || latestCompletion?.audited_by || template.created_by,
-          lastAudited: latestCompletion?.completed_at
+          lastAudited: isCompleted && latestCompletion?.completed_at
             ? new Date(latestCompletion.completed_at).toLocaleDateString()
             : "-",
-          dueDate: latestCompletion?.next_audit_due
+          dueDate: isCompleted && latestCompletion?.next_audit_due
             ? new Date(latestCompletion.next_audit_due).toLocaleDateString()
             : "-",
           category: "environment",
@@ -282,6 +289,10 @@ function CareOAuditPageContent() {
   });
 
   const handleNewAudit = () => {
+    setFormData(prev => ({
+      ...prev,
+      auditorName: profile?.name || profile?.email || ""
+    }));
     setIsDialogOpen(true);
   };
 
@@ -298,7 +309,7 @@ function CareOAuditPageContent() {
 
     try {
       let newTemplateId;
-      const createdBy = profile.name || profile.email || "Unknown";
+      const createdBy = formData.auditorName || profile.name || profile.email || "Unknown";
 
       if (activeTab === "resident") {
         if (!activeTeamId) {
@@ -428,7 +439,7 @@ function CareOAuditPageContent() {
   const [residentCompletions, setResidentCompletions] = useState<{ [residentId: string]: number }>({});
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
+    <div className="flex-1 space-y-4 p-4 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Care O Audit</h2>
         <div className="flex items-center space-x-2">
@@ -520,38 +531,111 @@ function CareOAuditPageContent() {
         </TabsContent>
 
         <TabsContent value="careFile" className="space-y-4">
-          {/* Care File Audit Content - assuming reusing residents list and calculating logic */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {residents.map((resident) => {
-              // Logic to calculate progress would go here, simplified compared to original which was long.
-              // I am rendering a placeholder list for residents to audit.
-              // IMPORTANT: The key property must use _id as fetched from Supabase-mapped resident
-              const lastAudit = careFileResponses.find(r => r.resident_id === resident._id || r.resident_id === (resident as any).id); // Check both just in case
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox />
+                  </TableHead>
+                  <TableHead>Resident +</TableHead>
+                  <TableHead className="w-[30%]">Status</TableHead>
+                  <TableHead>Last Audited</TableHead>
+                  <TableHead>Next Audit</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {residents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      No residents found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  residents.map((resident) => {
+                    const completedResponses = careFileResponses.filter(
+                      r => (r.resident_id === resident._id || (r as any).resident_id === (resident as any).id) && r.status === 'completed'
+                    );
 
-              return (
-                <div key={resident._id} className="rounded-xl border bg-card text-card-foreground shadow">
-                  <div className="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
-                    <h3 className="tracking-tight text-sm font-medium">{resident.firstName} {resident.lastName}</h3>
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={resident.imageUrl} />
-                      <AvatarFallback>{resident.firstName[0]}{resident.lastName[0]}</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <div className="p-6 pt-0">
-                    <div className="text-2xl font-bold">
-                      {lastAudit ? 'Audited' : 'Pending'}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Room: {resident.roomNumber || 'N/A'}
-                    </p>
-                    <Button className="mt-4 w-full" onClick={() => router.push(`/dashboard/careo-audit/carefile/${resident._id}`)}>
-                      Audit Care File
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-            {residents.length === 0 && <div className="p-4">No residents found.</div>}
+                    // Sort completed responses by date to find the latest
+                    const sortedResponses = [...completedResponses].sort((a, b) =>
+                      new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+                    );
+
+                    const latestCompletion = sortedResponses[0];
+                    const uniqueCompletedTemplates = new Set(completedResponses.map(r => r.template_id));
+                    const progress = careFileTemplates.length > 0
+                      ? Math.round((uniqueCompletedTemplates.size / careFileTemplates.length) * 100)
+                      : 0;
+
+                    return (
+                      <TableRow
+                        key={resident.id || resident._id}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          const id = resident.id || resident._id;
+                          if (id) router.push(`/dashboard/careo-audit/${id}/carefileaudit`);
+                        }}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={resident.imageUrl} />
+                              <AvatarFallback>
+                                {resident.firstName[0]}
+                                {resident.lastName[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">
+                              {resident.firstName} {resident.lastName}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={progress} className="h-2 flex-1" />
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {progress}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {latestCompletion?.completed_at
+                            ? new Date(latestCompletion.completed_at).toLocaleDateString("en-GB")
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {latestCompletion?.next_audit_due
+                            ? new Date(latestCompletion.next_audit_due).toLocaleDateString("en-GB")
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => {
+                                const id = resident.id || resident._id;
+                                if (id) router.push(`/dashboard/careo-audit/${id}/carefileaudit`);
+                              }}>
+                                <Eye className="mr-2 h-4 w-4" /> View Audits
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
         </TabsContent>
 
@@ -635,6 +719,18 @@ function CareOAuditPageContent() {
                 value={formData.auditName}
                 onChange={(e) => setFormData({ ...formData, auditName: e.target.value })}
                 className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="auditorName" className="text-right">
+                Auditor
+              </Label>
+              <Input
+                id="auditorName"
+                value={formData.auditorName}
+                onChange={(e) => setFormData({ ...formData, auditorName: e.target.value })}
+                className="col-span-3"
+                placeholder="Enter auditor name (optional)"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
