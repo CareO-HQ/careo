@@ -39,12 +39,10 @@ export default function HandoverPage() {
   const router = useRouter();
   const { supabase } = useSupabase();
   const { activeTeamId, activeTeam } = useActiveTeam();
-  const { profile: currentUser } = useProfile();
-  const [residents, setResidents] = useState<Resident[]>([]);
-  const [isLoadingResidents, setIsLoadingResidents] = useState(true);
-
+  const { profile: currentUser, isLoading: isProfileLoading } = useProfile();
   const [residents, setResidents] = useState<Resident[]>([]);
   const [isResidentsLoading, setIsResidentsLoading] = useState(true);
+  const [isLoadingResidents, setIsLoadingResidents] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<"day" | "night">(getCurrentShift());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());

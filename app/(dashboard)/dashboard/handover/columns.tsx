@@ -464,6 +464,7 @@ export const getColumns = (
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
+      return 0;
     },
     cell: ({ row }) => {
       return (
@@ -542,20 +543,20 @@ export const getColumns = (
         <div className="text-left text-muted-foreground text-sm">Medication</div>
       );
     },
-    {
-      accessorKey: "medication",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">Medication</div>
-        );
-      },
-      enableSorting: false,
-      size: 70,
-      cell: ({ row }) => {
-        return (
-          <div className="text-sm text-muted-foreground">—</div>
-        );
-      }
+    enableSorting: false,
+    size: 70,
+    cell: ({ row }) => {
+      return (
+        <div className="text-sm text-muted-foreground">—</div>
+      );
+    }
+  },
+  {
+    accessorKey: "comments",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Comments</div>
+      );
     },
     enableSorting: false,
     size: 300,
@@ -567,7 +568,9 @@ export const getColumns = (
           teamId={teamId}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
+          organizationId={organizationId}
         />
       );
     }
+  }
   ];
