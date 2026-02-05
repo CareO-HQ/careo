@@ -1,67 +1,102 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { chromium } from "playwright";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { assessmentId } = await request.json();
+    // Parse the request body
+    const assessmentData = await request.json();
 
-    if (!assessmentId) {
+    if (!assessmentData) {
       return NextResponse.json(
-        { error: "Assessment ID is required" },
+        { error: "Assessment data is required" },
         { status: 400 }
       );
     }
 
-    // Get the assessment data from Convex
-    const assessment = await convex.query(
-      api.careFiles.longTermFalls.getLongTermFallsAssessment,
-      {
-        id: assessmentId as Id<"longTermFallsRiskAssessments">
-      }
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedAssessment = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure resident details and scoring fields are at the top level
+      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      completionDate: assessmentData.completionDate || assessmentData.completion_date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      // Scoring fields
+      age: assessmentData.age || assessmentData.assessment_data?.age || "65-80",
+      gender: assessmentData.gender || assessmentData.assessment_data?.gender || "MALE",
+      historyOfFalls: assessmentData.historyOfFalls || assessmentData.assessment_data?.historyOfFalls || "NO-FALLS-LAST-12",
+      mobilityLevel: assessmentData.mobilityLevel || assessmentData.assessment_data?.mobilityLevel || "INDEPENDENT"
+    };
+
+    // Add some debugging
+    console.log(
+      "Long term falls PDF API flattening data:",
+      flattenedAssessment.residentName
     );
 
-    if (!assessment) {
-      return NextResponse.json(
-        { error: "Assessment not found" },
-        { status: 404 }
-      );
-    }
-
     // Generate HTML for the PDF
-    const htmlContent = generateLongTermFallsHTML(assessment);
+    const htmlContent = generateLongTermFallsHTML(flattenedAssessment);
 
-    // Generate PDF from HTML
-    const pdfBuffer = await generatePDFFromHTML(htmlContent);
-
-    return new NextResponse(pdfBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="long-term-falls-assessment-${assessment.completedBy.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf"`
-      }
+    // Launch Playwright browser
+    const browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
+
+    const page = await browser.newPage();
+
+    try {
+      // Set the HTML content directly
+      await page.setContent(htmlContent, {
+        waitUntil: "networkidle",
+        timeout: 30000
+      });
+
+      // Generate PDF
+      const pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: {
+          top: "20px",
+          bottom: "20px",
+          left: "20px",
+          right: "20px"
+        },
+        displayHeaderFooter: false,
+        preferCSSPageSize: true
+      });
+
+      await browser.close();
+
+      // Return the PDF as a response
+      return new NextResponse(pdfBuffer as any, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="long-term-falls-assessment-${flattenedAssessment.residentName?.replace(/\s+/g, "-") || "record"}.pdf"`
+        }
+      });
+    } catch (error) {
+      await browser.close();
+      throw error;
+    }
   } catch (error) {
     console.error("Error generating Long Term Falls PDF:", error);
     return NextResponse.json(
-      { error: "Failed to generate PDF" },
+      { error: "Failed to generate PDF", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
 }
 
 function generateLongTermFallsHTML(assessment: any): string {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    });
-  };
-
   const formatValue = (value: string) => {
     return value
       .split("-")
@@ -226,16 +261,15 @@ function generateLongTermFallsHTML(assessment: any): string {
           <div class="form-label">Personal Care Activities:</div>
           <div class="form-value">${formatValue(assessment.personalActivities)}</div>
         </div>
-        ${
-          assessment.domesticActivities
-            ? `
+        ${assessment.domesticActivities
+      ? `
         <div class="form-group">
           <div class="form-label">Domestic Activities:</div>
           <div class="form-value">${formatValue(assessment.domesticActivities)}</div>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <div class="section">
@@ -324,32 +358,6 @@ function generateLongTermFallsHTML(assessment: any): string {
   `;
 }
 
-// PDF generation function using Puppeteer
-async function generatePDFFromHTML(html: string): Promise<Buffer> {
-  const puppeteer = await import("puppeteer");
-
-  const browser = await puppeteer.launch({
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  });
-
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: "networkidle0" });
-
-  const pdfBuffer = await page.pdf({
-    format: "A4",
-    printBackground: true,
-    margin: {
-      top: "20mm",
-      right: "15mm",
-      bottom: "20mm",
-      left: "15mm"
-    }
-  });
-
-  await browser.close();
-
-  return Buffer.from(pdfBuffer);
-}
 
 // Calculate falls risk score (you'll need to implement this based on your scoring system)
 function calculateFallsRiskScore(assessment: any) {

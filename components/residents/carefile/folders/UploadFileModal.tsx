@@ -11,18 +11,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { authClient } from "@/lib/auth-client";
-import { useMutation } from "convex/react";
+import { useProfile } from "@/hooks/use-profile";
 import { FileIcon, Upload, X } from "lucide-react";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface UploadFileModalProps {
   folderName: string;
-  residentId: Id<"residents">;
+  residentId: string;
   variant?: "text" | "button";
 }
 
@@ -38,11 +36,9 @@ export default function UploadFileModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { activeTeamId } = useActiveTeam();
-  const { data: activeOrg } = authClient.useActiveOrganization();
-  const { data: currentUser } = authClient.useSession();
-
-  const generateUploadUrl = useMutation(api.careFilePdfs.generateUploadUrl);
-  const uploadPdf = useMutation(api.careFilePdfs.uploadPdf);
+  const { profile } = useProfile();
+  const activeOrgId = profile?.active_organization_id;
+  const userEmail = profile?.email;
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -82,8 +78,8 @@ export default function UploadFileModal({
     // Validate required context
     const missingInfo: string[] = [];
     if (!activeTeamId) missingInfo.push("Active Team");
-    if (!activeOrg?.id) missingInfo.push("Organization");
-    if (!currentUser?.user.email) missingInfo.push("User Session");
+    if (!activeOrgId) missingInfo.push("Organization");
+    if (!userEmail) missingInfo.push("User Session");
 
     if (missingInfo.length > 0) {
       toast.error(`Missing required information: ${missingInfo.join(", ")}. Please refresh the page and try again.`);
@@ -99,50 +95,67 @@ export default function UploadFileModal({
         fileName: fileName.trim(),
         folderName,
         residentId,
-        organizationId: activeOrg?.id || "",
+        organizationId: activeOrgId || "",
         teamId: activeTeamId,
-        uploadedBy: currentUser?.user?.email || ""
+        uploadedBy: userEmail || ""
       });
 
-      // Generate upload URL
-      console.log("Generating upload URL...");
-      const uploadUrl = await generateUploadUrl();
-      console.log("Upload URL generated:", uploadUrl);
+      // Upload file to Supabase Storage
+      console.log("Uploading file to Supabase storage...");
+      const sanitizedFileName = fileName.trim().replace(/[^a-zA-Z0-9._-]/g, "_");
+      const timestamp = Date.now();
+      const storagePath = `${residentId}/${folderName}/${timestamp}_${sanitizedFileName}.pdf`;
 
-      // Upload file to Convex storage
-      console.log("Uploading file to storage...");
-      const result = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": selectedFile.type },
-        body: selectedFile
-      });
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("resident-files")
+        .upload(storagePath, selectedFile, {
+          contentType: "application/pdf",
+          upsert: false
+        });
 
-      console.log("Upload response status:", result.status);
-
-      if (!result.ok) {
-        const errorText = await result.text();
-        console.error("Upload failed with response:", errorText);
-        throw new Error(`Failed to upload file: ${result.status} ${result.statusText}`);
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw new Error(`Failed to upload file to storage: ${uploadError.message}`);
       }
 
-      const { storageId } = await result.json();
-      console.log("File uploaded, storageId:", storageId);
+      console.log("File uploaded successfully:", uploadData);
 
-      // Save PDF metadata
-      console.log("Saving PDF metadata...");
-      await uploadPdf({
-        fileId: storageId,
-        name: fileName.trim(),
-        originalName: selectedFile.name,
-        folderName,
-        residentId,
-        organizationId: activeOrg?.id || "",
-        teamId: activeTeamId,
-        uploadedBy: currentUser?.user?.email || "",
-        size: selectedFile.size
-      });
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("resident-files")
+        .getPublicUrl(storagePath);
 
-      console.log("PDF metadata saved successfully");
+      const publicUrl = publicUrlData?.publicUrl || "";
+
+      // Save file metadata to database
+      console.log("Saving file metadata to database...");
+      const { error: insertError } = await supabase
+        .from("files")
+        .insert([
+          {
+            name: fileName.trim(),
+            original_name: selectedFile.name,
+            file_type: selectedFile.type || "application/pdf",
+            file_size: selectedFile.size,
+            storage_path: storagePath,
+            public_url: publicUrl,
+            resident_id: residentId,
+            organization_id: activeOrgId,
+            folder_name: folderName,
+            team_id: activeTeamId,
+            created_by: userEmail,
+            created_at: new Date().toISOString()
+          }
+        ]);
+
+      if (insertError) {
+        // Delete uploaded file if metadata save fails
+        await supabase.storage.from("resident-files").remove([storagePath]);
+        console.error("Metadata insert error:", insertError);
+        throw new Error(`Failed to save file metadata: ${insertError.message}`);
+      }
+
+      console.log("File metadata saved successfully");
       toast.success("PDF uploaded successfully");
 
       // Reset form and close modal
@@ -277,13 +290,13 @@ export default function UploadFileModal({
           )}
 
           {/* Missing Context Warning */}
-          {(!activeTeamId || !activeOrg?.id || !currentUser?.user.email) && (
+          {(!activeTeamId || !activeOrgId || !userEmail) && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
               <p className="text-sm text-yellow-800">
                 <strong>Warning:</strong> Missing required information.
                 {!activeTeamId && " Please select an active team."}
-                {!activeOrg?.id && " Organization not found."}
-                {!currentUser?.user.email && " User session not found."}
+                {!activeOrgId && " Organization not found."}
+                {!userEmail && " User session not found."}
                 {" "}Please refresh the page and try again.
               </p>
             </div>
@@ -303,7 +316,7 @@ export default function UploadFileModal({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || !fileName.trim() || isUploading || !activeTeamId || !activeOrg?.id || !currentUser?.user.email}
+            disabled={!selectedFile || !fileName.trim() || isUploading || !activeTeamId || !activeOrgId || !userEmail}
           >
             {isUploading ? "Uploading..." : "Upload PDF"}
           </Button>

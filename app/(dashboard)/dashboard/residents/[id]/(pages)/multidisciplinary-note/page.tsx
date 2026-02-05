@@ -1,14 +1,15 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
+import { residentService, Resident } from "@/lib/resident-service";
+import { multidisciplinaryService, MultidisciplinaryCareTeamMember, MultidisciplinaryNote } from "@/lib/multidisciplinary-service";
+import { useProfile } from "@/hooks/use-profile";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { getUKTodayDate, getUKNow } from "@/lib/date-utils";
+import { TimePicker } from "@/components/ui/date-time-picker";
 import {
   Card,
   CardContent,
@@ -58,6 +59,7 @@ import {
   UserCheck,
   FileText,
   Users,
+  Download,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -99,27 +101,41 @@ type TeamMemberFormData = z.infer<typeof TeamMemberSchema>;
 export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryNotePageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
 
-  // Fetch multidisciplinary care team members
-  const careTeamMembers = useQuery(api.multidisciplinaryCareTeam.getByResidentId, {
-    residentId: id as Id<"residents">
-  });
+  const [resident, setResident] = React.useState<Resident | null | undefined>(undefined);
+  const [careTeamMembers, setCareTeamMembers] = React.useState<MultidisciplinaryCareTeamMember[]>([]);
+  const [multidisciplinaryNotes, setMultidisciplinaryNotes] = React.useState<MultidisciplinaryNote[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  // Fetch multidisciplinary notes
-  const multidisciplinaryNotes = useQuery(api.multidisciplinaryNotes.getByResidentId, {
-    residentId: id as Id<"residents">
-  });
+  // Auth data
+  const { profile } = useProfile();
 
-  // Mutations
-  const createTeamMember = useMutation(api.multidisciplinaryCareTeam.create);
-  const createNote = useMutation(api.multidisciplinaryNotes.create);
+  // Fetch data
+  const fetchData = React.useCallback(async () => {
+    try {
+      const [resData, teamData, notesData] = await Promise.all([
+        residentService.getResidentById(id),
+        multidisciplinaryService.getCareTeamByResidentId(id),
+        multidisciplinaryService.getNotesByResidentId(id)
+      ]);
+      setResident(resData);
+      setCareTeamMembers(teamData);
+      setMultidisciplinaryNotes(notesData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
 
-  // Get today's date
-  const today = new Date().toISOString().split('T')[0];
-  const currentTime = new Date().toTimeString().slice(0, 5);
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Get today's date in UK time
+  const today = getUKTodayDate();
+  const currentTime = format(getUKNow(), "HH:mm");
 
   // Form setup
   const form = useForm<MultidisciplinaryNoteFormData>({
@@ -153,27 +169,30 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
   // Dialog states
   const [isNoteDialogOpen, setIsNoteDialogOpen] = React.useState(false);
   const [isTeamMemberDialogOpen, setIsTeamMemberDialogOpen] = React.useState(false);
-  const [selectedNote, setSelectedNote] = React.useState<any>(null);
+  const [selectedNote, setSelectedNote] = React.useState<MultidisciplinaryNote | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = React.useState(false);
+
+  // New states for daily grouping and PDF
+  const [selectedDayNotes, setSelectedDayNotes] = React.useState<MultidisciplinaryNote[]>([]);
+  const [isDailyViewDialogOpen, setIsDailyViewDialogOpen] = React.useState(false);
+  const [selectedDay, setSelectedDay] = React.useState<string>("");
+  const [isDownloading, setIsDownloading] = React.useState(false);
 
   // Multi-step form state
   const [currentStep, setCurrentStep] = React.useState(1);
   const totalSteps = 2;
 
-  // Auth data
-  const { data: user } = authClient.useSession();
-
   // Set default signature when user data loads
   React.useEffect(() => {
-    if (user?.user) {
-      const staffName = user.user.name || user.user.email?.split('@')[0] || "";
+    if (profile) {
+      const staffName = profile.name || profile.email?.split('@')[0] || "";
       form.setValue('signature', staffName);
     }
-  }, [user, form]);
+  }, [profile, form]);
 
   const handleSubmit = async (data: MultidisciplinaryNoteFormData) => {
     try {
-      if (!resident || !user?.user) {
+      if (!resident || !profile) {
         toast.error("Missing required information");
         return;
       }
@@ -192,7 +211,7 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
         teamMemberId = `care-manager-${resident.careManagerName}`;
       } else {
         // Regular database team member
-        const selectedTeamMember = careTeamMembers?.find(member => member._id === data.teamMemberId);
+        const selectedTeamMember = careTeamMembers?.find(member => member.id === data.teamMemberId);
         if (!selectedTeamMember) {
           toast.error("Selected team member not found");
           return;
@@ -200,29 +219,28 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
         teamMemberName = selectedTeamMember.name;
       }
 
-      // For GP and Care Manager, we need to handle the teamMemberId differently since they're not in the database
-      await createNote({
-        residentId: id as Id<"residents">,
+      await multidisciplinaryService.createNote({
+        residentId: id,
         teamMemberId: teamMemberId.startsWith('gp-') || teamMemberId.startsWith('care-manager-')
-          ? teamMemberId as any // Use the special ID for GP/Care Manager
-          : data.teamMemberId as Id<"multidisciplinaryCareTeam">,
+          ? undefined // Don't store GP/Care Manager as UUID
+          : data.teamMemberId,
         teamMemberName: teamMemberName,
         reasonForVisit: data.reasonForVisit,
         outcome: data.outcome,
-        relativeInformed: data.relativeInformed,
+        relativeInformed: data.relativeInformed === "yes",
         relativeInformedDetails: data.relativeInformedDetails || undefined,
         signature: data.signature,
         noteDate: data.noteDate,
         noteTime: data.noteTime,
         organizationId: resident.organizationId,
-        teamId: resident.teamId,
-        createdBy: user.user.id,
+        createdBy: profile.id,
       });
 
       toast.success("Multidisciplinary note created successfully");
       form.reset();
       setCurrentStep(1);
       setIsNoteDialogOpen(false);
+      fetchData(); // Refresh data
     } catch (error) {
       console.error("Error creating multidisciplinary note:", error);
       toast.error("Failed to create multidisciplinary note");
@@ -231,13 +249,13 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
 
   const handleTeamMemberSubmit = async (data: TeamMemberFormData) => {
     try {
-      if (!resident || !user?.user) {
+      if (!resident || !profile) {
         toast.error("Missing required information");
         return;
       }
 
-      await createTeamMember({
-        residentId: id as Id<"residents">,
+      await multidisciplinaryService.createCareTeamMember({
+        residentId: id,
         name: data.name,
         designation: data.designation,
         phone: data.phone || undefined,
@@ -246,13 +264,13 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
         organisation: data.organisation || undefined,
         email: data.email || undefined,
         organizationId: resident.organizationId,
-        teamId: resident.teamId,
-        createdBy: user.user.id,
+        createdBy: profile.id,
       });
 
       toast.success("Team member added successfully");
       teamMemberForm.reset();
       setIsTeamMemberDialogOpen(false);
+      fetchData(); // Refresh data
     } catch (error) {
       console.error("Error adding team member:", error);
       toast.error("Failed to add team member");
@@ -292,6 +310,66 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
     }
   };
 
+  const handleViewNote = (note: MultidisciplinaryNote) => {
+    setSelectedNote(note);
+    setIsViewDialogOpen(true);
+  };
+
+  const handleViewDay = (day: string, notes: MultidisciplinaryNote[]) => {
+    setSelectedDay(day);
+    setSelectedDayNotes(notes);
+    setIsDailyViewDialogOpen(true);
+  };
+
+  const handleDownloadDailyPDF = async (day: string, notes: MultidisciplinaryNote[]) => {
+    if (!resident) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch('/api/pdf/multidisciplinary-note', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resident: {
+            first_name: resident.firstName,
+            last_name: resident.lastName,
+          },
+          dayData: {
+            date: day,
+            notes: notes.map(n => ({
+              team_member_name: n.teamMemberName,
+              note_time: n.noteTime,
+              reason_for_visit: n.reasonForVisit,
+              outcome: n.outcome,
+              relative_informed: n.relativeInformed,
+              relative_informed_details: n.relativeInformedDetails,
+              signature: n.signature
+            }))
+          }
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mdt-report-${resident.firstName}-${resident.lastName}-${day}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("MDT report downloaded successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to download MDT report");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+
   const resetForm = () => {
     form.reset();
     setCurrentStep(1);
@@ -304,16 +382,25 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     return age;
   };
 
-  // Use the fetched notes
-  const recentNotes = multidisciplinaryNotes || [];
+  // Group notes by date
+  const groupedNotes = React.useMemo(() => {
+    const groups: { [key: string]: MultidisciplinaryNote[] } = {};
+    (multidisciplinaryNotes || []).forEach(note => {
+      if (!groups[note.noteDate]) {
+        groups[note.noteDate] = [];
+      }
+      groups[note.noteDate].push(note);
+    });
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [multidisciplinaryNotes]);
 
   // Build disciplinary team from resident data and database team members
   const buildDisciplinaryTeam = () => {
@@ -361,10 +448,10 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
     if (careTeamMembers) {
       careTeamMembers.forEach((member) => {
         team.push({
-          id: member._id,
+          id: member.id,
           name: member.name,
           role: member.designation,
-          department: member.specialty,
+          department: member.specialty || "General",
           contact: member.phone,
           address: member.address,
           email: member.email,
@@ -454,229 +541,226 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
           </div>
         </div>
 
-      {/* Care Team Overview */}
-      <Card className="border-0">
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center justify-between mb-2">
+        {/* Care Team Overview */}
+        <Card className="border-0">
+          <CardHeader>
+            {/* Mobile Layout */}
+            <CardTitle className="block sm:hidden">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  <span>Care Team</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTeamMemberDialogOpen(true)}
+                  className="bg-gray-50 hover:bg-gray-100 text-gray-700"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                {disciplinaryTeam.length} team members
+              </Badge>
+            </CardTitle>
+            {/* Desktop Layout */}
+            <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
               <div className="flex items-center space-x-2">
                 <Users className="w-5 h-5 text-blue-600" />
-                <span>Care Team</span>
+                <span>Multidisciplinary Care Team</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsTeamMemberDialogOpen(true)}
-                className="bg-gray-50 hover:bg-gray-100 text-gray-700"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-              {disciplinaryTeam.length} team members
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              <span>Multidisciplinary Care Team</span>
-            </div>
-            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsTeamMemberDialogOpen(true)}
-                className="bg-gray-50 hover:bg-gray-100 text-gray-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Member
-              </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {disciplinaryTeam.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {disciplinaryTeam.map((member: any, index: number) => (
-                <div key={member.id || index} className="p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <div className={`p-2 rounded-lg ${
-                      member.isFromResidentData ? 'bg-blue-100' :
-                      member.isFromDatabase ? 'bg-green-100' : 'bg-gray-100'
-                    }`}>
-                      <User className={`w-4 h-4 ${
-                        member.isFromResidentData ? 'text-blue-600' :
-                        member.isFromDatabase ? 'text-green-600' : 'text-gray-600'
-                      }`} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTeamMemberDialogOpen(true)}
+                  className="bg-gray-50 hover:bg-gray-100 text-gray-700"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Member
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {disciplinaryTeam.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {disciplinaryTeam.map((member: any, index: number) => (
+                  <div key={member.id || index} className="p-4 border rounded-lg">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className={`p-2 rounded-lg ${member.isFromResidentData ? 'bg-blue-100' :
+                        member.isFromDatabase ? 'bg-green-100' : 'bg-gray-100'
+                        }`}>
+                        <User className={`w-4 h-4 ${member.isFromResidentData ? 'text-blue-600' :
+                          member.isFromDatabase ? 'text-green-600' : 'text-gray-600'
+                          }`} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm">{member.name}</h4>
+                        <p className="text-xs text-gray-600">{member.role}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-sm">{member.name}</h4>
-                      <p className="text-xs text-gray-600">{member.role}</p>
+                    <div className="space-y-1">
+                      <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700 text-xs">
+                        {member.department}
+                      </Badge>
+                      {member.contact && (
+                        <p className="text-xs text-gray-600 break-words">
+                          {member.contact}
+                        </p>
+                      )}
+                      {member.email && (
+                        <p className="text-xs text-gray-600 break-words">
+                          {member.email}
+                        </p>
+                      )}
+
+
+
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-700 text-xs">
-                      {member.department}
-                    </Badge>
-                    {member.contact && (
-                      <p className="text-xs text-gray-600 break-words">
-                        {member.contact}
-                      </p>
-                    )}
-                    {member.email && (
-                      <p className="text-xs text-gray-600 break-words">
-                        {member.email}
-                      </p>
-                    )}
-                 
-             
-                 
-                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <h3 className="text-lg font-medium text-gray-600 mb-2">No team members found</h3>
+                  <p className="text-gray-500 text-sm">
+                    No GP or Care Manager information is available in the resident data.
+                  </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <h3 className="text-lg font-medium text-gray-600 mb-2">No team members found</h3>
-                <p className="text-gray-500 text-sm">
-                  No GP or Care Manager information is available in the resident data.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Multidisciplinary Notes */}
+        <Card className="border-0">
+          <CardHeader>
+            {/* Mobile Layout */}
+            <CardTitle className="block sm:hidden">
+              <div className="flex items-center space-x-2 mb-2">
+                <FileText className="w-5 h-5 text-indigo-600" />
+                <span>Recent Notes</span>
+              </div>
+              <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700">
+                {(multidisciplinaryNotes || []).length} recent notes
+              </Badge>
+            </CardTitle>
+            {/* Desktop Layout */}
+            <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-indigo-600" />
+                <span>Recent Multidisciplinary Notes</span>
+              </div>
+              <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700">
+                {(multidisciplinaryNotes || []).length} recent notes
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {!multidisciplinaryNotes || multidisciplinaryNotes.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No multidisciplinary notes recorded</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  Click the Create Note button to add the first note
                 </p>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent Multidisciplinary Notes */}
-      <Card className="border-0">
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              <span>Recent Notes</span>
-            </div>
-            <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700">
-              {recentNotes.length} recent notes
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              <span>Recent Multidisciplinary Notes</span>
-            </div>
-            <Badge variant="outline" className="bg-indigo-50 border-indigo-200 text-indigo-700">
-              {recentNotes.length} recent notes
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          {!recentNotes || recentNotes.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No multidisciplinary notes recorded</p>
-              <p className="text-gray-400 text-sm mt-1">
-                Click the Create Note button to add the first note
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {recentNotes.map((note) => (
-                <div
-                  key={note._id}
-                  className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
-                >
-                  <div className="flex items-start space-x-3 flex-1">
-                    <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
-                      <User className="w-4 h-4 text-gray-600" />
+            ) : (
+              <div className="space-y-6">
+                {groupedNotes.map(([date, notes]) => (
+                  <div key={date} className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-px flex-1 bg-gray-100"></div>
+                      <Badge variant="outline" className="bg-gray-50 text-gray-500 font-medium">
+                        {format(new Date(date), "EEEE, MMMM d, yyyy")}
+                      </Badge>
+                      <div className="h-px flex-1 bg-gray-100"></div>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h4 className="font-semibold text-gray-900">
-                          Visit by {note.teamMemberName}
-                        </h4>
-                        <Badge className="text-xs bg-blue-100 text-blue-800 border-0">
-                          Team Visit
-                        </Badge>
-                      </div>
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-3 h-3" />
-                          <span>{note.noteDate}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{note.noteTime}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <UserCheck className="w-3 h-3" />
-                          <span>{note.signature}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            note.relativeInformed === 'yes'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            Relative {note.relativeInformed === 'yes' ? 'Informed' : 'Not Informed'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 mt-3 md:mt-0 md:ml-4 justify-end md:justify-start flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => {
-                        setSelectedNote(note);
-                        setIsViewDialogOpen(true);
-                      }}
-                      title="View Details"
+                    <div
+                      className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border bg-white hover:bg-gray-50 transition-colors"
                     >
-                      <Eye className="w-4 h-4" />
-                    </Button>
+                      <div className="flex items-start space-x-3 flex-1">
+                        <div className="p-2 bg-indigo-50 rounded-lg flex-shrink-0">
+                          <ClipboardList className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className="font-semibold text-gray-900">
+                              {notes.length} Multidisciplinary Note{notes.length > 1 ? 's' : ''}
+                            </h4>
+                            <Badge className="text-[10px] h-4 bg-indigo-100 text-indigo-800 border-0 uppercase tracking-wider">
+                              Daily Summary
+                            </Badge>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                            <div className="flex items-center space-x-1">
+                              <Users className="w-3 h-3" />
+                              <span>{notes.map(n => n.teamMemberName).join(", ")}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 mt-4 md:mt-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDay(date, notes)}
+                          className="h-8 text-xs"
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1.5" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadDailyPDF(date, notes)}
+                          disabled={isDownloading}
+                          className="h-8 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                        >
+                          <Download className="w-3.5 h-3.5 mr-1.5" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
 
-      {/* Create Multidisciplinary Note Dialog */}
-      <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create Multidisciplinary Note for {fullName}</DialogTitle>
-            <DialogDescription>
-              Document comprehensive care observations and interdisciplinary collaboration.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        {/* Create Multidisciplinary Note Dialog */}
+        < Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen} >
+          <DialogContent className="max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create Multidisciplinary Note for {fullName}</DialogTitle>
+              <DialogDescription>
+                Document comprehensive care observations and interdisciplinary collaboration.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
 
 
-              {/* Step 1: Basic Visit Information */}
-              {currentStep === 1 && (
-                <div className="space-y-4">
-                  {/* Date and Time */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="noteDate"
-                      render={({ field }) => (
+                {/* Step 1: Basic Visit Information */}
+                {currentStep === 1 && (
+                  <div className="space-y-4">
+                    {/* Date and Time */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="noteDate"
+                        render={({ field }) => (
                           <FormItem className="flex flex-col">
                             <FormLabel>Note Date *</FormLabel>
                             <Popover modal>
@@ -722,17 +806,251 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
                             </Popover>
                             <FormMessage />
                           </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="noteTime"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                            <FormLabel>Note Time *</FormLabel>
+                            <FormControl>
+                              <TimePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Team Member Selection */}
+                    <FormField
+                      control={form.control}
+                      name="teamMemberId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Team Member *</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select team member..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {/* GP from resident data */}
+                              {resident?.gpName && (
+                                <SelectItem value={`gp-${resident.gpName.replace(/\s+/g, '-').toLowerCase()}`}>
+                                  {resident.gpName} - General Practitioner
+                                </SelectItem>
+                              )}
+
+                              {/* Care Manager from resident data */}
+                              {resident?.careManagerName && (
+                                <SelectItem value={`care-manager-${resident.careManagerName.replace(/\s+/g, '-').toLowerCase()}`}>
+                                  {resident.careManagerName} - Care Manager
+                                </SelectItem>
+                              )}
+
+                              {/* Database team members */}
+                              {careTeamMembers?.map((member) => (
+                                <SelectItem key={member.id} value={member.id}>
+                                  {member.name} - {member.designation}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
                       )}
                     />
 
                     <FormField
                       control={form.control}
-                      name="noteTime"
+                      name="reasonForVisit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Note Time *</FormLabel>
+                          <FormLabel>Reason for Visit *</FormLabel>
                           <FormControl>
-                            <Input type="time" {...field} />
+                            <Textarea
+                              placeholder="Describe the reason for this visit..."
+                              className="min-h-[120px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="outcome"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Outcome *</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Describe the outcome of the visit..."
+                              className="min-h-[120px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Step 2: Relative Information & Signature */}
+                {currentStep === 2 && (
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="relativeInformed"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Relative Informed *</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Was a relative informed?" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="relativeInformedDetails"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Details (if relative was informed)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Who was informed and how (phone, in person, etc.)..."
+                              className="min-h-[80px]"
+                              {...field}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="signature"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Signature *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Digital signature or full name..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex justify-between pt-4 border-t">
+                  <div className="flex space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={resetForm}
+                      className="bg-gray-50 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </Button>
+                    {currentStep > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={prevStep}
+                        className="bg-gray-50 hover:bg-gray-100"
+                      >
+                        Previous
+                      </Button>
+                    )}
+                  </div>
+
+                  <div>
+                    {currentStep < totalSteps ? (
+                      <Button
+                        type="button"
+                        onClick={nextStep}
+                        className="bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      >
+                        Next Step
+                      </Button>
+                    ) : (
+                      <Button
+                        type="submit"
+                        className="bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      >
+                        Create Note
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog >
+
+        {/* Add Team Member Dialog */}
+        < Dialog open={isTeamMemberDialogOpen} onOpenChange={setIsTeamMemberDialogOpen} >
+          <DialogContent className="max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add Team Member for {fullName}</DialogTitle>
+              <DialogDescription>
+                Add a new multidisciplinary care team member for this resident.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Form {...teamMemberForm}>
+              <form onSubmit={teamMemberForm.handleSubmit(handleTeamMemberSubmit)} className="space-y-6">
+
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-blue-900">Basic Information</h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={teamMemberForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter full name..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={teamMemberForm.control}
+                      name="designation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Job Title/Role *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., Registered Nurse, Physiotherapist..." {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -740,451 +1058,290 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
                     />
                   </div>
 
-                  {/* Team Member Selection */}
                   <FormField
-                    control={form.control}
-                    name="teamMemberId"
+                    control={teamMemberForm.control}
+                    name="specialty"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Team Member *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select team member..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {/* GP from resident data */}
-                            {resident?.gpName && (
-                              <SelectItem value={`gp-${resident.gpName.replace(/\s+/g, '-').toLowerCase()}`}>
-                                {resident.gpName} - General Practitioner
-                              </SelectItem>
-                            )}
-
-                            {/* Care Manager from resident data */}
-                            {resident?.careManagerName && (
-                              <SelectItem value={`care-manager-${resident.careManagerName.replace(/\s+/g, '-').toLowerCase()}`}>
-                                {resident.careManagerName} - Care Manager
-                              </SelectItem>
-                            )}
-
-                            {/* Database team members */}
-                            {careTeamMembers?.map((member) => (
-                              <SelectItem key={member._id} value={member._id}>
-                                {member.name} - {member.designation}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="reasonForVisit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Reason for Visit *</FormLabel>
+                        <FormLabel>Speciality/Department *</FormLabel>
                         <FormControl>
-                          <Textarea
-                            placeholder="Describe the reason for this visit..."
-                            className="min-h-[120px]"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="outcome"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Outcome *</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Describe the outcome of the visit..."
-                            className="min-h-[120px]"
-                            {...field}
-                          />
+                          <Input placeholder="e.g., Nursing, Medical, Physiotherapy..." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-              )}
 
-              {/* Step 2: Relative Information & Signature */}
-              {currentStep === 2 && (
+                {/* Contact Information */}
                 <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="relativeInformed"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Relative Informed *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <h4 className="font-medium text-green-900">Contact Information</h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={teamMemberForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone Number</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Was a relative informed?" />
-                            </SelectTrigger>
+                            <Input placeholder="Phone number..." {...field} />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={teamMemberForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email Address</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="email@example.com..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <FormField
-                    control={form.control}
-                    name="relativeInformedDetails"
+                    control={teamMemberForm.control}
+                    name="address"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Details (if relative was informed)</FormLabel>
+                        <FormLabel>Address</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Who was informed and how (phone, in person, etc.)..."
-                            className="min-h-[80px]"
+                            placeholder="Full address..."
+                            className="min-h-[60px]"
                             {...field}
                           />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="signature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Signature *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Digital signature or full name..." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-              )}
 
-              {/* Navigation Buttons */}
-              <div className="flex justify-between pt-4 border-t">
-                <div className="flex space-x-2">
+                {/* Organization Information */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-purple-900">Organization</h4>
+
+                  <FormField
+                    control={teamMemberForm.control}
+                    name="organisation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organisation/Trust</FormLabel>
+                        <FormControl>
+                          <Input placeholder="NHS Trust, Private Practice, etc..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Form Actions */}
+                <div className="flex justify-end space-x-2 pt-4 border-t">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={resetForm}
+                    onClick={() => {
+                      setIsTeamMemberDialogOpen(false);
+                      teamMemberForm.reset();
+                    }}
                     className="bg-gray-50 hover:bg-gray-100"
                   >
                     Cancel
                   </Button>
-                  {currentStep > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={prevStep}
-                      className="bg-gray-50 hover:bg-gray-100"
-                    >
-                      Previous
-                    </Button>
-                  )}
+                  <Button type="submit" className="bg-gray-50 hover:bg-gray-100 text-gray-700">
+                    Add Team Member
+                  </Button>
                 </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog >
 
-                <div>
-                  {currentStep < totalSteps ? (
-                    <Button
-                      type="button"
-                      onClick={nextStep}
-                      className="bg-gray-50 hover:bg-gray-100 text-gray-700"
-                    >
-                      Next Step
-                    </Button>
-                  ) : (
-                    <Button
-                      type="submit"
-                      className="bg-gray-50 hover:bg-gray-100 text-gray-700"
-                    >
-                      Create Note
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Team Member Dialog */}
-      <Dialog open={isTeamMemberDialogOpen} onOpenChange={setIsTeamMemberDialogOpen}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Team Member for {fullName}</DialogTitle>
-            <DialogDescription>
-              Add a new multidisciplinary care team member for this resident.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...teamMemberForm}>
-            <form onSubmit={teamMemberForm.handleSubmit(handleTeamMemberSubmit)} className="space-y-6">
-
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-blue-900">Basic Information</h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={teamMemberForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter full name..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={teamMemberForm.control}
-                    name="designation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Job Title/Role *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Registered Nurse, Physiotherapist..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={teamMemberForm.control}
-                  name="specialty"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Speciality/Department *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Nursing, Medical, Physiotherapy..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Contact Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-green-900">Contact Information</h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={teamMemberForm.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Phone number..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={teamMemberForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email Address</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="email@example.com..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={teamMemberForm.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Full address..."
-                          className="min-h-[60px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Organization Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-purple-900">Organization</h4>
-
-                <FormField
-                  control={teamMemberForm.control}
-                  name="organisation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Organisation/Trust</FormLabel>
-                      <FormControl>
-                        <Input placeholder="NHS Trust, Private Practice, etc..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsTeamMemberDialogOpen(false);
-                    teamMemberForm.reset();
-                  }}
-                  className="bg-gray-50 hover:bg-gray-100"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-gray-50 hover:bg-gray-100 text-gray-700">
-                  Add Team Member
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Note Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Multidisciplinary Note Details</DialogTitle>
-            <DialogDescription>
-              Complete multidisciplinary note details for {fullName}
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
-            {selectedNote && (
-              <div className="space-y-6">
-                {/* Note Overview */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Visit Overview</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Date</p>
-                      <p className="font-medium">{format(new Date(selectedNote.noteDate), "PPP")}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Time</p>
-                      <p className="font-medium">{selectedNote.noteTime}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Team Member</p>
-                      <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedNote.teamMemberName}</p>
+        {/* View Note Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Multidisciplinary Note Details</DialogTitle>
+              <DialogDescription>
+                Complete multidisciplinary note details for {fullName}
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+              {selectedNote && (
+                <div className="space-y-6">
+                  {/* Note Overview */}
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Visit Overview</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Date</p>
+                        <p className="font-medium">{format(new Date(selectedNote.noteDate), "PPP")}</p>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Relative Informed</p>
-                      <Badge className={`${
-                        selectedNote.relativeInformed === 'yes'
+                      <div>
+                        <p className="text-sm text-gray-500">Time</p>
+                        <p className="font-medium">{selectedNote.noteTime}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Team Member</p>
+                        <div className="flex items-center space-x-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{selectedNote.teamMemberName}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Relative Informed</p>
+                        <Badge className={`${selectedNote.relativeInformed
                           ? 'bg-green-100 text-green-800'
                           : 'bg-gray-100 text-gray-800'
-                      } border-0`}>
-                        {selectedNote.relativeInformed === 'yes' ? 'Yes' : 'No'}
-                      </Badge>
+                          } border-0`}>
+                          {selectedNote.relativeInformed ? 'Yes' : 'No'}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Visit Details */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Visit Details</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-500 mb-2">Reason for Visit</p>
-                      <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                        {selectedNote.reasonForVisit}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-2">Outcome</p>
-                      <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                        {selectedNote.outcome}
-                      </p>
-                    </div>
-                    {selectedNote.relativeInformedDetails && (
+                  {/* Visit Details */}
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Visit Details</h3>
+                    <div className="space-y-4">
                       <div>
-                        <p className="text-sm text-gray-500 mb-2">Relative Contact Details</p>
+                        <p className="text-sm text-gray-500 mb-2">Reason for Visit</p>
                         <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                          {selectedNote.relativeInformedDetails}
+                          {selectedNote.reasonForVisit}
                         </p>
                       </div>
-                    )}
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">Outcome</p>
+                        <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                          {selectedNote.outcome}
+                        </p>
+                      </div>
+                      {selectedNote.relativeInformedDetails && (
+                        <div>
+                          <p className="text-sm text-gray-500 mb-2">Relative Contact Details</p>
+                          <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                            {selectedNote.relativeInformedDetails}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Record Information */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Signed By</p>
-                      <div className="flex items-center space-x-2">
-                        <UserCheck className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedNote.signature}</p>
+                  {/* Record Information */}
+                  <div>
+                    <h3 className="font-semibold text-lg mb-3">Record Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Signed By</p>
+                        <div className="flex items-center space-x-2">
+                          <UserCheck className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{selectedNote.signature}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Date Created</p>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedNote.createdAt || selectedNote.noteDate), "PPP")}</p>
+                      <div>
+                        <p className="text-sm text-gray-500">Date Created</p>
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{format(new Date(selectedNote.createdAt || selectedNote.noteDate), "PPP")}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              )}
+            </ScrollArea>
+            <div className="flex justify-end space-x-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setIsViewDialogOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Daily View Dialog */}
+        <Dialog open={isDailyViewDialogOpen} onOpenChange={setIsDailyViewDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>MDT Visits - {selectedDay ? format(new Date(selectedDay), "EEEE, MMMM d, yyyy") : ''}</DialogTitle>
+              <DialogDescription>
+                Summary of all multidisciplinary team visits for this day.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="h-[70vh] pr-4">
+              <div className="space-y-4 py-4">
+                {selectedDayNotes.map((note, index) => (
+                  <Card key={note.id} className="border shadow-sm overflow-hidden">
+                    <div className="bg-indigo-50/50 px-4 py-2 border-b flex justify-between items-center">
+                      <div className="flex items-center space-x-2 text-indigo-700 font-semibold">
+                        <Users className="w-4 h-4" />
+                        <span>Visit {index + 1}: {note.teamMemberName}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{note.noteTime}</span>
+                      </div>
+                    </div>
+                    <CardContent className="p-4 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-700">Reason for Visit</h4>
+                          <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600 whitespace-pre-wrap min-h-[60px]">
+                            {note.reasonForVisit}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-700">Outcome & Recommendations</h4>
+                          <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600 whitespace-pre-wrap min-h-[60px]">
+                            {note.outcome}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t text-xs text-gray-500">
+                        <div className="flex items-center space-x-4">
+                          <span className="flex items-center space-x-1">
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Signed: {note.signature}</span>
+                          </span>
+                        </div>
+                        < Badge variant="outline" className={`${note.relativeInformed ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                          Relative {note.relativeInformed ? 'Informed' : 'Not Informed'}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            )}
-          </ScrollArea>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
-            >
-              Close
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      </div>
-    </div>
+            </ScrollArea>
+            <div className="flex justify-end space-x-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => handleDownloadDailyPDF(selectedDay, selectedDayNotes)}
+                disabled={isDownloading}
+                className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+              <Button variant="outline" onClick={() => setIsDailyViewDialogOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div >
+    </div >
   );
 }

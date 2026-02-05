@@ -3,15 +3,21 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -175,9 +181,8 @@ function generateAdmissionHTML(data: any): string {
       <div class="section">
         <h2>Professional Contacts</h2>
         
-        ${
-          data.careManagerName
-            ? `
+        ${data.careManagerName
+      ? `
         <div class="subsection">
           <h3>Care Manager</h3>
           <div class="grid grid-cols-2">
@@ -194,12 +199,11 @@ function generateAdmissionHTML(data: any): string {
           ${data.careManagerAddress ? `<p><strong>Address:</strong> ${data.careManagerAddress}</p>` : ""}
         </div>
         `
-            : ""
-        }
+      : ""
+    }
 
-        ${
-          data.GPName
-            ? `
+        ${data.GPName
+      ? `
         <div class="subsection">
           <h3>General Practitioner</h3>
           <div class="grid grid-cols-2">
@@ -209,64 +213,59 @@ function generateAdmissionHTML(data: any): string {
           ${data.GPAddress ? `<p><strong>Address:</strong> ${data.GPAddress}</p>` : ""}
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Medical Information -->
       <div class="section">
         <h2>Medical Information</h2>
         <div class="space-y-4">
-          ${
-            data.allergies
-              ? `
+          ${data.allergies
+      ? `
           <div>
             <h3>Known Allergies</h3>
             <div class="info-box">${data.allergies}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.medicalHistory
-              ? `
+      : ""
+    }
+          ${data.medicalHistory
+      ? `
           <div>
             <h3>Medical History</h3>
             <div class="info-box">${data.medicalHistory}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.prescribedMedications
-              ? `
+      : ""
+    }
+          ${data.prescribedMedications
+      ? `
           <div>
             <h3>Prescribed Medications</h3>
             <div class="info-box">${data.prescribedMedications}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.consentCapacityRights
-              ? `
+      : ""
+    }
+          ${data.consentCapacityRights
+      ? `
           <div>
             <h3>Consent, Capacity & Rights</h3>
             <div class="info-box">${data.consentCapacityRights}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.medication
-              ? `
+      : ""
+    }
+          ${data.medication
+      ? `
           <div>
             <h3>Additional Medication Information</h3>
             <div class="info-box">${data.medication}</div>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -274,60 +273,55 @@ function generateAdmissionHTML(data: any): string {
       <div class="section">
         <h2>Care Assessments</h2>
         <div class="space-y-4">
-          ${
-            data.skinIntegrityEquipment
-              ? `
+          ${data.skinIntegrityEquipment
+      ? `
           <div>
             <h3>Skin Integrity Equipment</h3>
             <div class="info-box">${data.skinIntegrityEquipment}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.skinIntegrityWounds
-              ? `
+      : ""
+    }
+          ${data.skinIntegrityWounds
+      ? `
           <div>
             <h3>Existing Wounds</h3>
             <div class="info-box">${data.skinIntegrityWounds}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.bedtimeRoutine
-              ? `
+      : ""
+    }
+          ${data.bedtimeRoutine
+      ? `
           <div>
             <h3>Bedtime Routine</h3>
             <div class="info-box">${data.bedtimeRoutine}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.currentInfection
-              ? `
+      : ""
+    }
+          ${data.currentInfection
+      ? `
           <div>
             <h3>Current Infection</h3>
             <div class="info-box">${data.currentInfection}</div>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
           <div>
             <h3>Antibiotics Prescribed</h3>
             <p><span class="checkbox">${data.antibioticsPrescribed ? "✓" : "✗"}</span> ${data.antibioticsPrescribed ? "Yes" : "No"}</p>
           </div>
-          ${
-            data.prescribedBreathing
-              ? `
+          ${data.prescribedBreathing
+      ? `
           <div>
             <h3>Prescribed Breathing Equipment</h3>
             <div class="info-box">${data.prescribedBreathing}</div>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -339,26 +333,24 @@ function generateAdmissionHTML(data: any): string {
             <h3>Mobility Independence</h3>
             <p><span class="checkbox">${data.mobilityIndependent ? "✓" : "✗"}</span> ${data.mobilityIndependent ? "Independent" : "Requires assistance"}</p>
           </div>
-          ${
-            data.assistanceRequired
-              ? `
+          ${data.assistanceRequired
+      ? `
           <div>
             <h3>Assistance Required</h3>
             <div class="info-box">${data.assistanceRequired}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.equipmentRequired
-              ? `
+      : ""
+    }
+          ${data.equipmentRequired
+      ? `
           <div>
             <h3>Equipment Required</h3>
             <div class="info-box">${data.equipmentRequired}</div>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -378,36 +370,33 @@ function generateAdmissionHTML(data: any): string {
           </div>
         </div>
         <div class="space-y-4 subsection">
-          ${
-            data.nutritionalSupplements
-              ? `
+          ${data.nutritionalSupplements
+      ? `
           <div>
             <h3>Nutritional Supplements</h3>
             <div class="info-box">${data.nutritionalSupplements}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.nutritionalAssistanceRequired
-              ? `
+      : ""
+    }
+          ${data.nutritionalAssistanceRequired
+      ? `
           <div>
             <h3>Nutritional Assistance Required</h3>
             <div class="info-box">${data.nutritionalAssistanceRequired}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.additionalComments
-              ? `
+      : ""
+    }
+          ${data.additionalComments
+      ? `
           <div>
             <h3>Additional Nutrition Comments</h3>
             <div class="info-box">${data.additionalComments}</div>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -415,26 +404,24 @@ function generateAdmissionHTML(data: any): string {
       <div class="section">
         <h2>Personal Care</h2>
         <div class="space-y-4">
-          ${
-            data.continence
-              ? `
+          ${data.continence
+      ? `
           <div>
             <h3>Continence</h3>
             <div class="info-box">${data.continence}</div>
           </div>
           `
-              : ""
-          }
-          ${
-            data.hygiene
-              ? `
+      : ""
+    }
+          ${data.hygiene
+      ? `
           <div>
             <h3>Hygiene</h3>
             <div class="info-box">${data.hygiene}</div>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -461,7 +448,7 @@ export async function POST(request: NextRequest) {
         expectedToken: expectedToken ? "***SET***" : "NOT_SET",
         authHeader: authHeader ? "PROVIDED" : "MISSING",
         environment: process.env.NODE_ENV
-      }); 
+      });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -487,8 +474,28 @@ export async function POST(request: NextRequest) {
       assessmentId: admissionData._id
     });
 
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...admissionData,
+      ...(admissionData.assessment_data || {}),
+      // Ensure resident details and common fields are at the top level
+      firstName: admissionData.firstName || admissionData.assessment_data?.firstName || "Resident",
+      lastName: admissionData.lastName || admissionData.assessment_data?.lastName || "",
+      NHSNumber: admissionData.NHSNumber || admissionData.nhsNumber || admissionData.assessment_data?.NHSNumber || admissionData.assessment_data?.nhsNumber || "Not Available",
+      dateOfBirth: admissionData.dateOfBirth || admissionData.assessment_data?.dateOfBirth,
+      bedroomNumber: admissionData.bedroomNumber || admissionData.assessment_data?.bedroomNumber,
+      submittedAt: admissionData.assessment_data?.submittedAt || admissionData.created_at,
+      _creationTime: admissionData.created_at ? new Date(admissionData.created_at).getTime() : Date.now(),
+    };
+
+    console.log("Admission Assessment PDF API flattening data:", {
+      firstName: flattenedData.firstName,
+      lastName: flattenedData.lastName,
+      formId: flattenedData._id || flattenedData.id
+    });
+
     // Generate HTML content
-    const htmlContent = generateAdmissionHTML(admissionData);
+    const htmlContent = generateAdmissionHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -525,7 +532,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="admission-assessment-${admissionData.firstName}-${admissionData.lastName}.pdf"`,
+          "Content-Disposition": `attachment; filename="admission-assessment-${flattenedData.firstName}-${flattenedData.lastName}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

@@ -4,9 +4,7 @@ import React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { lifestyleService } from "@/lib/lifestyle-service";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -62,7 +60,6 @@ export function PersonalInterestsDialog({
 }: PersonalInterestsDialogProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
-  const createOrUpdateMutation = useMutation(api.personalInterests.createOrUpdatePersonalInterests);
 
   const form = useForm<PersonalInterestsFormData>({
     resolver: zodResolver(PersonalInterestsSchema),
@@ -108,8 +105,8 @@ export function PersonalInterestsDialog({
       const socialPreferences = values.socialPreferences?.map(s => s.value).filter(v => v.trim() !== "") || [];
       const favoriteActivities = values.favoriteActivities?.map(a => a.value).filter(v => v.trim() !== "") || [];
 
-      await createOrUpdateMutation({
-        residentId: residentId as Id<"residents">,
+      await lifestyleService.upsertPersonalInterests({
+        residentId: residentId,
         mainInterests: mainInterests.length > 0 ? mainInterests : undefined,
         hobbies: hobbies.length > 0 ? hobbies : undefined,
         socialPreferences: socialPreferences.length > 0 ? socialPreferences : undefined,

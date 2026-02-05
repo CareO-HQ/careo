@@ -39,9 +39,9 @@ import { useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface PeepDialogProps {
   teamId: string;
@@ -72,76 +72,74 @@ export default function PeepDialog({
   const [completionDatePopoverOpen, setCompletionDatePopoverOpen] =
     useState(false);
 
-  // Using type-safe mutations for PEEP functionality
-  const submitPeep = useMutation("careFiles/peep:submitPeep" as any);
-  const updatePeep = useMutation("careFiles/peep:updatePeep" as any);
+  const { supabase } = useSupabase();
 
   const form = useForm<z.infer<typeof peepSchema>>({
     resolver: zodResolver(peepSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-          // Use existing data for editing
-          residentName:
-            initialData.residentName ??
-            `${resident.firstName} ${resident.lastName}`,
-          residentDateOfBirth:
-            typeof initialData.residentDateOfBirth === "number"
-              ? initialData.residentDateOfBirth
-              : typeof resident.dateOfBirth === "number"
-                ? resident.dateOfBirth
-                : resident.dateOfBirth
-                  ? new Date(resident.dateOfBirth).getTime()
-                  : Date.now(),
-          bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-          understands: initialData.understands ?? false,
-          staffNeeded: initialData.staffNeeded ?? 1,
-          equipmentNeeded: initialData.equipmentNeeded ?? "",
-          communicationNeeds: initialData.communicationNeeds ?? "",
-          steps: initialData.steps ?? [],
-          oxigenInUse: initialData.oxigenInUse ?? false,
-          oxigenComments: initialData.oxigenComments ?? "",
-          residentSmokes: initialData.residentSmokes ?? false,
-          residentSmokesComments: initialData.residentSmokesComments ?? "",
-          furnitureFireRetardant: initialData.furnitureFireRetardant ?? false,
-          furnitureFireRetardantComments:
-            initialData.furnitureFireRetardantComments ?? "",
-          completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
-          completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
-          date:
-            typeof initialData.date === "number"
-              ? initialData.date
-              : initialData.date
-                ? new Date(initialData.date).getTime()
+        // Use existing data for editing
+        residentName:
+          initialData.residentName ??
+          `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+        residentDateOfBirth:
+          typeof initialData.residentDateOfBirth === "number"
+            ? initialData.residentDateOfBirth
+            : typeof resident.date_of_birth === "number"
+              ? resident.date_of_birth
+              : resident.date_of_birth
+                ? new Date(resident.date_of_birth).getTime()
                 : Date.now(),
-          status: initialData.status ?? "draft"
-        }
+        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        understands: initialData.understands ?? false,
+        staffNeeded: initialData.staffNeeded ?? 1,
+        equipmentNeeded: initialData.equipmentNeeded ?? "",
+        communicationNeeds: initialData.communicationNeeds ?? "",
+        steps: initialData.steps ?? [],
+        oxigenInUse: initialData.oxigenInUse ?? false,
+        oxigenComments: initialData.oxigenComments ?? "",
+        residentSmokes: initialData.residentSmokes ?? false,
+        residentSmokesComments: initialData.residentSmokesComments ?? "",
+        furnitureFireRetardant: initialData.furnitureFireRetardant ?? false,
+        furnitureFireRetardantComments:
+          initialData.furnitureFireRetardantComments ?? "",
+        completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
+        completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
+        assessmentDate:
+          typeof (initialData.assessment_date || initialData.completion_date || initialData.date) === "number"
+            ? (initialData.assessment_date || initialData.completion_date || initialData.date)
+            : (initialData.assessment_date || initialData.completion_date || initialData.date)
+              ? new Date(initialData.assessment_date || initialData.completion_date || initialData.date).getTime()
+              : Date.now(),
+        status: initialData.status ?? "draft"
+      }
       : {
-          // Default values for new forms
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          residentDateOfBirth:
-            typeof resident.dateOfBirth === "number"
-              ? resident.dateOfBirth
-              : resident.dateOfBirth
-                ? new Date(resident.dateOfBirth).getTime()
-                : Date.now(),
-          bedroomNumber: resident.roomNumber ?? "",
-          understands: false,
-          staffNeeded: 0,
-          equipmentNeeded: "",
-          communicationNeeds: "",
-          steps: [],
-          oxigenInUse: false,
-          oxigenComments: "",
-          residentSmokes: false,
-          residentSmokesComments: "",
-          furnitureFireRetardant: false,
-          furnitureFireRetardantComments: "",
-          completedBy: userName,
-          completedBySignature: userName,
-          date: Date.now(),
-          status: "draft"
-        }
+        // Default values for new forms
+        residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+        residentDateOfBirth:
+          typeof resident.date_of_birth === "number"
+            ? resident.date_of_birth
+            : resident.date_of_birth
+              ? new Date(resident.date_of_birth).getTime()
+              : Date.now(),
+        bedroomNumber: resident.room_number ?? "",
+        understands: false,
+        staffNeeded: 0,
+        equipmentNeeded: "",
+        communicationNeeds: "",
+        steps: [],
+        oxigenInUse: false,
+        oxigenComments: "",
+        residentSmokes: false,
+        residentSmokesComments: "",
+        furnitureFireRetardant: false,
+        furnitureFireRetardantComments: "",
+        completedBy: userName,
+        completedBySignature: userName,
+        assessmentDate: Date.now(),
+        status: "draft"
+      }
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -186,7 +184,7 @@ export default function PeepDialog({
       const fieldsToValidate = [
         "completedBy",
         "completedBySignature",
-        "date"
+        "assessmentDate"
       ] as const;
       isValid = await form.trigger(fieldsToValidate);
     }
@@ -214,29 +212,37 @@ export default function PeepDialog({
     startTransition(async () => {
       try {
         const formData = form.getValues();
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          assistance_needed: {
+            understands: formData.understands,
+            staffNeeded: formData.staffNeeded,
+            equipmentNeeded: formData.equipmentNeeded,
+            communicationNeeds: formData.communicationNeeds
+          },
+          evacuation_steps: formData.steps,
+          hazard_info: {
+            oxigenInUse: formData.oxigenInUse,
+            oxigenComments: formData.oxigenComments,
+            residentSmokes: formData.residentSmokes,
+            residentSmokesComments: formData.residentSmokesComments,
+            furnitureFireRetardant: formData.furnitureFireRetardant,
+            furnitureFireRetardantComments: formData.furnitureFireRetardantComments
+          },
+          completed_by: formData.completedBy,
+          assessment_date: format(new Date(formData.assessmentDate), "yyyy-MM-dd"),
+          created_by: userId
+        };
 
-        if (isEditMode && initialData) {
-          await updatePeep({
-            peepId: initialData._id,
-            ...formData,
-            residentId: residentId as Id<"residents">,
-            teamId,
-            organizationId,
-            userId,
-            savedAsDraft: false
-          });
-          toast.success("PEEP updated successfully");
-        } else {
-          await submitPeep({
-            ...formData,
-            residentId: residentId as Id<"residents">,
-            teamId,
-            organizationId,
-            userId,
-            savedAsDraft: false
-          } as any);
-          toast.success("PEEP saved successfully");
-        }
+        await submitAssessmentWithVersioning(
+          'peeps',
+          payload,
+          initialData,
+          isEditMode
+        );
+
+        toast.success(isEditMode ? "PEEP updated successfully" : "PEEP saved successfully");
 
         onClose?.();
       } catch (error) {
@@ -668,7 +674,7 @@ export default function PeepDialog({
 
             <FormField
               control={form.control}
-              name="date"
+              name="assessmentDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>Completion Date</FormLabel>

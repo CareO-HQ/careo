@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+import { jsPDF } from "jspdf";
 import {
   Card,
   CardContent,
@@ -37,6 +38,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Search,
@@ -57,40 +60,108 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
 
 type HealthMonitoringDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+const UK_TIMEZONE = "Europe/London";
+
 export default function HealthMonitoringDocumentsPage({ params }: HealthMonitoringDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const { profile } = useProfile();
+
+  // State for data
+  const [resident, setResident] = useState<any>(null);
+  const [allVitals, setAllVitals] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [selectedYear, setSelectedYear] = useState("all");
   const [selectedVitalType, setSelectedVitalType] = useState("all");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc"); // Note: Sort is primarily day-based now
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 10; // Items per page refers to *aggregated days* or *individual records*? Usually records. 
+  // But since we aggregate, let's paginate the *records* and then re-aggregate the visible page? 
+  // Or aggregate first then paginate? Aggregating first is better for view consistency.
 
   // Dialog state
   const [selectedVital, setSelectedVital] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Day View Dialog State
+  const [selectedDayVitals, setSelectedDayVitals] = useState<{ date: string; vitals: any[] } | null>(null);
+  const [isDayDialogOpen, setIsDayDialogOpen] = useState(false);
 
-  // Fetch all vitals
-  const allVitals = useQuery(api.healthMonitoring.getRecentVitals, {
-    residentId: id as Id<"residents">,
-    limit: 1000 // Get all records for documents page
-  });
+  // Fetch data with Supabase
+  const fetchData = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    try {
+      // Fetch Resident
+      const { data: residentData, error: residentError } = await supabase
+        .from('residents')
+        .select('first_name, last_name, id')
+        .eq('id', id)
+        .single();
+
+      if (residentError) throw residentError;
+
+      // Map resident data
+      setResident({
+        firstName: residentData.first_name,
+        lastName: residentData.last_name,
+        _id: residentData.id
+      });
+
+      // Fetch Vitals
+      // We also want to fetch the name of the person who recorded it if possible.
+      // Usually stored in 'recorded_by'. We might need to join or just display the ID if joining is complex/slow.
+      // For now, let's fetch raw and assume recorded_by contains a name or ID we can't easily resolve without a join
+      // If 'recorded_by' is a UUID linked to profiles, we could join.
+      const { data: vitalsData, error: vitalsError } = await supabase
+        .from('vitals')
+        .select('*') // If we need profile name: select('*, profiles:recorded_by(name, email)') but depends on relation setup
+        .eq('resident_id', id)
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false });
+
+      if (vitalsError) throw vitalsError;
+
+      // Transform snake_case to camelCase and normalize
+      const transformedVitals = vitalsData?.map(v => ({
+        _id: v.id,
+        _creationTime: v.created_at, // timestamp
+        vitalType: v.vital_type,
+        value: v.value,
+        value2: v.value2,
+        unit: v.unit,
+        notes: v.notes,
+        recordedBy: v.recorded_by, // This might be a UUID. Ideally we'd resolve this.
+        recordDate: v.record_date, // YYYY-MM-DD
+        recordTime: v.record_time, // HH:MM
+        residentId: v.resident_id
+      })) || [];
+
+      setAllVitals(transformedVitals);
+
+    } catch (error) {
+      console.error("Error fetching health monitoring data:", error);
+      toast.error("Failed to load health records");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -157,11 +228,11 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
 
     const unitDisplay = vital.unit ?
       (vital.unit === "celsius" ? "°C" :
-       vital.unit === "fahrenheit" ? "°F" :
-       vital.unit === "percent" ? "%" :
-       vital.unit === "bpm" ? " bpm" :
-       vital.unit === "breaths/min" ? "/min" :
-       vital.unit) : "";
+        vital.unit === "fahrenheit" ? "°F" :
+          vital.unit === "percent" ? "%" :
+            vital.unit === "bpm" ? " bpm" :
+              vital.unit === "breaths/min" ? "/min" :
+                vital.unit) : "";
 
     return `${vital.value}${unitDisplay}`;
   };
@@ -184,10 +255,9 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(vital =>
-        vital.recordedBy?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vital.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vital.value?.toString().toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label.toLowerCase().includes(searchQuery.toLowerCase())
+        (vital.notes?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (vital.value?.toString().toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
 
@@ -214,19 +284,59 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
 
     // Sort by date and time
     filtered.sort((a, b) => {
-      const dateA = new Date(`${a.recordDate} ${a.recordTime}`).getTime();
-      const dateB = new Date(`${b.recordDate} ${b.recordTime}`).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      // Use explicit string comparison for date/time strings to avoid timezone shift issues during parsing if just using Date() constructor on date-only
+      // But here we want standard sort.
+      const dateA = new Date(`${a.recordDate}T${a.recordTime}`);
+      const dateB = new Date(`${b.recordDate}T${b.recordTime}`);
+      return sortOrder === "desc" ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime();
     });
 
     return filtered;
   }, [allVitals, searchQuery, selectedMonth, selectedYear, selectedVitalType, sortOrder]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredVitals.length / itemsPerPage);
+  // Aggregation by Day (UK Time)
+  const aggregatedVitals = useMemo(() => {
+    const groups: Map<string, any[]> = new Map();
+
+    filteredVitals.forEach(vital => {
+      // Create a date object from the record. Assuming recordDate is YYYY-MM-DD.
+      // We want to group by what the *user sees* as the date.
+      // Since recordDate is stored as a date string, it likely represents the date they entered.
+      // If we just use that string, it's simplest.
+      const dateKey = vital.recordDate;
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, []);
+      }
+      groups.get(dateKey)?.push(vital);
+    });
+
+    return groups;
+  }, [filteredVitals]);
+
+  // Pagination logic needs to handle aggregated groups now.
+  // It's cleaner to paginate the KEYS (days) or the ITEMS?
+  // Let's paginate the ITEMS (filteredVitals) and then aggregate the visible slice?
+  // Or paginate the GROUPS?
+  // Standard table pagination usually paginates rows.
+  // Given "aggregated by day", maybe we just show a list of days?
+  // But if a day has 100 entries...
+  // Let's stick to paginating the flat list slightly, OR paginate by "Day".
+  // "Aggregated by Day" usually implies headers.
+  // Let's paginate the *original flat list* and then group the RESULT.
+  // This might split a day across pages, which is slightly ugly but predictable.
+  // BETTER: Paginate the groups. Show top 5 days per page?
+  // Let's paginate groups (keys).
+
+  const aggregatedKeys = Array.from(aggregatedVitals.keys());
+  // Sort keys based on sortOrder
+  aggregatedKeys.sort((a, b) => {
+    return sortOrder === "desc" ? b.localeCompare(a) : a.localeCompare(b);
+  });
+
+  const totalPages = Math.ceil(aggregatedKeys.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedVitals = filteredVitals.slice(startIndex, endIndex);
+  const visibleKeys = aggregatedKeys.slice(startIndex, endIndex);
 
   // Handlers
   const handleViewVital = (vital: any) => {
@@ -234,12 +344,65 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     setIsViewDialogOpen(true);
   };
 
+  const handleViewDay = (dateKey: string, dayVitals: any[]) => {
+    setSelectedDayVitals({ date: dateKey, vitals: dayVitals });
+    setIsDayDialogOpen(true);
+  };
+
+  const generatePDF = (dateKey: string, vitals: any[]) => {
+    const doc = new jsPDF();
+    const dateLabel = formatInTimeZone(new Date(dateKey), UK_TIMEZONE, "PPP");
+
+    doc.setFontSize(18);
+    doc.text(`Health Monitoring: ${dateLabel}`, 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Resident: ${fullName}`, 14, 30);
+
+    let y = 40;
+
+    vitals.forEach((vital, index) => {
+      // Simple pagination check
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+
+      const timeDisplay = vital.recordTime.slice(0, 5);
+      const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
+      const typeLabel = vitalConfig?.label || vital.vitalType;
+      const valueDisplay = formatVitalValue(vital);
+      const recordedBy = vital.recordedBy ? `(Recorded by: ${vital.recordedBy.slice(0, 8)}...)` : "";
+
+      doc.setFont("helvetica", "bold");
+      doc.text(`${timeDisplay} - ${typeLabel}: ${valueDisplay}`, 14, y);
+
+      if (vital.notes) {
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(`Note: ${vital.notes}`, 20, y);
+        doc.setFontSize(12);
+      }
+
+      y += 10;
+    });
+
+    doc.save(`health-monitoring-${fullName.replace(/\s+/g, "-")}-${dateKey}.pdf`);
+  };
+
+  const handleDailyPdfExport = (dateKey: string, dayVitals: any[]) => {
+    generatePDF(dateKey, dayVitals);
+  };
+
   const handleExport = () => {
     if (!filteredVitals || filteredVitals.length === 0) return;
 
-    // Create CSV content
+    // Quick CSV gen just for this function since I removed the helper
+    const vitals = filteredVitals;
+    const filename = `health-monitoring-${fullName.replace(/\s+/g, "-")}-${formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy-MM-dd")}.csv`;
+
     const headers = ["Date", "Time", "Vital Type", "Value", "Unit", "Notes", "Recorded By"];
-    const rows = filteredVitals.map(vital => [
+    const rows = vitals.map(vital => [
       vital.recordDate,
       vital.recordTime,
       vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label || vital.vitalType,
@@ -254,20 +417,21 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
     ].join("\n");
 
-    // Download CSV
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `health-monitoring-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
+
+
   // Loading state
-  if (!resident || !allVitals) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -426,7 +590,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Search by vital type, staff, notes, or value..."
+                  placeholder="Search by notes, value or type..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -467,18 +631,11 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Months</SelectItem>
-                <SelectItem value="1">January</SelectItem>
-                <SelectItem value="2">February</SelectItem>
-                <SelectItem value="3">March</SelectItem>
-                <SelectItem value="4">April</SelectItem>
-                <SelectItem value="5">May</SelectItem>
-                <SelectItem value="6">June</SelectItem>
-                <SelectItem value="7">July</SelectItem>
-                <SelectItem value="8">August</SelectItem>
-                <SelectItem value="9">September</SelectItem>
-                <SelectItem value="10">October</SelectItem>
-                <SelectItem value="11">November</SelectItem>
-                <SelectItem value="12">December</SelectItem>
+                {Array.from({ length: 12 }, (_, i) => (
+                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                    {format(new Date(2000, i, 1), 'MMMM')}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select
@@ -514,7 +671,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
         </CardContent>
       </Card>
 
-      {/* Vitals Table */}
+      {/* Vitals Table with Aggregation */}
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
@@ -531,71 +688,58 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               </p>
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Vital Type</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead>Recorded By</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedVitals.map((vital) => {
-                      const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
-                      const Icon = vitalConfig?.icon || Activity;
+            <div className="space-y-6">
+              {visibleKeys.map(dateKey => {
+                const dayVitals = aggregatedVitals.get(dateKey) || [];
+                // Sort vitals within the day as well
+                dayVitals.sort((a, b) => { // Sort time desc
+                  return a.recordTime < b.recordTime ? 1 : -1;
+                });
 
-                      return (
-                        <TableRow key={vital._id}>
-                          <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                              <span>{format(new Date(vital.recordDate), "dd MMM yyyy")}</span>
-                              <span className="text-xs text-gray-500">{vital.recordTime}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Icon className="w-4 h-4 text-gray-600" />
-                              <span>{vitalConfig?.label || vital.vitalType}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            {formatVitalValue(vital)}
-                          </TableCell>
-                          <TableCell className="max-w-[200px]">
-                            <p className="truncate">{vital.notes || "—"}</p>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <User className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm">{vital.recordedBy}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewVital(vital)}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                // Format the date header
+                const dateObj = new Date(dateKey);
+                const dateLabel = formatInTimeZone(dateObj, UK_TIMEZONE, "EEEE, d MMMM yyyy");
+
+                return (
+                  <div key={dateKey} className="border rounded-md overflow-hidden hover:shadow-sm transition-shadow">
+                    <div className="bg-gray-50 px-4 py-3 border-b font-medium text-gray-700 flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                          {dateLabel}
+                        </div>
+                        <Badge variant="outline" className="bg-white text-gray-600 font-normal">
+                          {dayVitals.length} Records
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewDay(dateKey, dayVitals)}
+                          className="h-8 px-3 text-gray-600 hover:text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          <Eye className="w-4 h-4 mr-2" /> View
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDailyPdfExport(dateKey, dayVitals)}
+                          className="h-8 px-3 text-gray-600 hover:text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          <FileText className="w-4 h-4 mr-2" /> PDF
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredVitals.length)} of {filteredVitals.length} records
+                    Showing {startIndex + 1}-{Math.min(endIndex, aggregatedKeys.length)} of {aggregatedKeys.length} days
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -644,95 +788,119 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* View Vital Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Vital Record Details</DialogTitle>
             <DialogDescription>
-              Complete vital sign record for {fullName}
+              Recorded on {selectedVital && formatInTimeZone(new Date(selectedVital.recordDate), UK_TIMEZONE, "PPP")}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-4">
+          <div className="py-4">
             {selectedVital && (
-              <div className="space-y-6">
-                {/* Vital Overview */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Vital Overview</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Date & Time</p>
-                      <p className="font-medium">
-                        {format(new Date(selectedVital.recordDate), "PPP")} at {selectedVital.recordTime}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Vital Type</p>
-                      <div className="flex items-center space-x-2">
-                        {React.createElement(vitalTypeOptions[selectedVital.vitalType as keyof typeof vitalTypeOptions]?.icon || Activity, {
-                          className: "w-4 h-4 text-gray-400"
-                        })}
-                        <p className="font-medium">
-                          {vitalTypeOptions[selectedVital.vitalType as keyof typeof vitalTypeOptions]?.label || selectedVital.vitalType}
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Value</p>
-                      <p className="font-medium text-lg">{formatVitalValue(selectedVital)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Recorded By</p>
-                      <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedVital.recordedBy}</p>
-                      </div>
-                    </div>
-                  </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-gray-500">Vital Type</span>
+                  <span className="font-medium flex items-center gap-2">
+                    {vitalTypeOptions[selectedVital.vitalType as keyof typeof vitalTypeOptions]?.label}
+                  </span>
                 </div>
-
-                {/* Additional Information */}
-                {selectedVital.notes && (
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold text-lg mb-3">Notes</h3>
-                    <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                      {selectedVital.notes}
-                    </p>
-                  </div>
-                )}
-
-                {/* Record Information */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Record Type</p>
-                      <p className="font-medium">Health Monitoring - Vitals</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Created</p>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedVital._creationTime), "PPP")}</p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-gray-500">Value</span>
+                  <span className="font-bold text-lg">{formatVitalValue(selectedVital)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-gray-500">Time</span>
+                  <span className="font-medium">{selectedVital.recordTime}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-gray-500 block">Notes</span>
+                  <p className="p-3 bg-gray-50 rounded-md text-sm text-gray-700 min-h-[60px]">
+                    {selectedVital.notes || "No notes"}
+                  </p>
+                </div>
+                <div className="text-xs text-gray-400 mt-4 text-right">
+                  Recorded by ID: {selectedVital.recordedBy}
                 </div>
               </div>
             )}
-          </ScrollArea>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
-            >
-              Close
-            </Button>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Day View Dialog (Overlay) */}
+      <Dialog open={isDayDialogOpen} onOpenChange={setIsDayDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <Calendar className="w-5 h-5 mr-2 text-primary" />
+              {selectedDayVitals && formatInTimeZone(new Date(selectedDayVitals.date), UK_TIMEZONE, "EEEE, d MMMM yyyy")}
+            </DialogTitle>
+            <DialogDescription>
+              Full list of vitals recorded on this day.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto py-4">
+            {selectedDayVitals && (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[100px]">Time</TableHead>
+                    <TableHead>Vital Type</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Recorded By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedDayVitals.vitals.sort((a, b) => a.recordTime < b.recordTime ? 1 : -1).map((vital) => {
+                    const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
+                    const Icon = vitalConfig?.icon || Activity;
+                    const timeDisplay = vital.recordTime.slice(0, 5);
+
+                    return (
+                      <TableRow key={vital._id}>
+                        <TableCell className="font-medium font-mono text-gray-600">
+                          {timeDisplay}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Icon className={`w-4 h-4 text-${vitalConfig?.color}-500`} />
+                            <span>{vitalConfig?.label || vital.vitalType}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {formatVitalValue(vital)}
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <p className="truncate text-sm text-gray-500">{vital.notes || "—"}</p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <User className="w-3 h-3 text-gray-400" />
+                            <span className="text-sm text-gray-500">{vital.recordedBy?.substring(0, 8)}...</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t">
+            <Button variant="outline" onClick={() => setIsDayDialogOpen(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Card,
   CardContent,
@@ -15,13 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -36,196 +28,299 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   ArrowLeft,
   Search,
   Calendar,
-  User,
   FileText,
-  Filter,
   Download,
   Eye,
   Stethoscope,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  User,
+  Filter
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { clinicalService } from "@/lib/clinical-service";
+import { hospitalTransferService } from "@/lib/hospital-transfer-service";
+import { toast } from "sonner";
 
 type ClinicalDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+// Define interface for grouped notes
+interface GroupedNotes {
+  date: string;
+  notes: any[];
+}
+
 export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
 
-  // State for filters and search
+  // State
+  const [resident, setResident] = useState<any | null>(undefined);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedYear, setSelectedYear] = useState("all");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [selectedDay, setSelectedDay] = useState<string>("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [selectedYear, setSelectedYear] = useState<string>("all");
 
   // Dialog state
-  const [selectedNote, setSelectedNote] = useState<any>(null);
+  const [viewDialogDate, setViewDialogDate] = useState<string | null>(null);
+  const [viewDialogNotes, setViewDialogNotes] = useState<any[]>([]);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Fetch data
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      // Fetch Resident
+      const residentData = await hospitalTransferService.getResidentById(id);
+      setResident(residentData || null);
 
-  // Fetch clinical notes
-  const clinicalNotes = useQuery(api.clinicalNotes.getClinicalNotesByResident, { residentId });
+      // Fetch Clinical Notes (fetching a larger limit for history)
+      const fetchedNotes = await clinicalService.getClinicalNotes(id, 200);
+      setNotes(fetchedNotes || []);
 
-  // Calculate resident details
-  const fullName = useMemo(() => {
-    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
-    return `${resident.firstName} ${resident.lastName}`;
-  }, [resident]);
-
-  // Get unique years from notes for filter
-  const availableYears = useMemo(() => {
-    if (!clinicalNotes || clinicalNotes.length === 0) return [];
-    const years = [...new Set(clinicalNotes.map(note =>
-      new Date(note.noteDate).getFullYear()
-    ))];
-    return years.sort((a, b) => b - a);
-  }, [clinicalNotes]);
-
-  // Filter and sort notes
-  const filteredNotes = useMemo(() => {
-    if (!clinicalNotes) return [];
-
-    let filtered = [...clinicalNotes];
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(note =>
-        note.noteContent.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.staffName.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+    } catch (error) {
+      console.error("Error loading clinical documents:", error);
+      toast.error("Failed to load clinical documents");
+    } finally {
+      setIsLoading(false);
     }
+  }, [id]);
 
-    // Apply month filter
-    if (selectedMonth !== "all") {
-      filtered = filtered.filter(note => {
-        const noteMonth = new Date(note.noteDate).getMonth() + 1;
-        return noteMonth === parseInt(selectedMonth);
-      });
-    }
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-    // Apply year filter
-    if (selectedYear !== "all") {
-      filtered = filtered.filter(note => {
-        const noteYear = new Date(note.noteDate).getFullYear();
-        return noteYear === parseInt(selectedYear);
-      });
-    }
 
-    // Sort by date
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.noteDate).getTime();
-      const dateB = new Date(b.noteDate).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+  // Group notes by date
+  const groupedNotes = useMemo(() => {
+    if (!notes) return [];
+
+    // Filter by search, day, month, and year
+    const filtered = notes.filter(note => {
+      const matchesSearch = note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (note.signature && note.signature.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const noteDateObj = new Date(note.noteDate);
+      const matchesDay = selectedDay === "all" || noteDateObj.getDate().toString() === selectedDay;
+      const matchesMonth = selectedMonth === "all" || (noteDateObj.getMonth() + 1).toString() === selectedMonth;
+      const matchesYear = selectedYear === "all" || noteDateObj.getFullYear().toString() === selectedYear;
+
+      return matchesSearch && matchesDay && matchesMonth && matchesYear;
     });
 
-    return filtered;
-  }, [clinicalNotes, searchQuery, selectedMonth, selectedYear, sortOrder]);
+    // Group by date
+    const groups: Record<string, any[]> = {};
 
-  // Pagination
-  const totalPages = Math.ceil(filteredNotes.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedNotes = filteredNotes.slice(startIndex, endIndex);
+    filtered.forEach(note => {
+      const date = note.noteDate; // YYYY-MM-DD
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(note);
+    });
 
-  // Handlers
-  const handleViewNote = (note: any) => {
-    setSelectedNote(note);
+    // Convert to array and sort by date descending
+    return Object.entries(groups)
+      .map(([date, notes]) => ({ date, notes }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [notes, searchQuery, selectedDay, selectedMonth, selectedYear]);
+
+  // Generate filter options
+  const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
+  const months = [
+    { value: "1", label: "January" },
+    { value: "2", label: "February" },
+    { value: "3", label: "March" },
+    { value: "4", label: "April" },
+    { value: "5", label: "May" },
+    { value: "6", label: "June" },
+    { value: "7", label: "July" },
+    { value: "8", label: "August" },
+    { value: "9", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" },
+  ];
+
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const startYear = 2020;
+    const yearList: string[] = [];
+    for (let y = currentYear; y >= startYear; y--) {
+      yearList.push(y.toString());
+    }
+    return yearList;
+  }, []);
+
+  // Handle PDF Download
+  const handleDownloadPDF = (date: string, dayNotes: any[]) => {
+    if (!resident || !dayNotes.length) return;
+
+    // Initialize PDF
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 14;
+
+    // Helper for right aligned text
+    const rightText = (text: string, y: number) => {
+      const textWidth = doc.getTextWidth(text);
+      doc.text(text, pageWidth - margin - textWidth, y);
+    };
+
+    // --- Header ---
+    doc.setFillColor(37, 99, 235); // CareO Blue (approx)
+    doc.rect(0, 0, pageWidth, 20, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("CareO", margin, 13);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    rightText("Clinical Daily Record", 13);
+
+    // --- Resident Details Block ---
+    const formattedDate = format(new Date(date), "EEEE, do MMMM yyyy");
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+
+    // Left Column
+    let yPos = 35;
+    const lineHeight = 6;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("RESIDENT DETAILS", margin, yPos);
+    yPos += lineHeight + 2;
+
+    doc.setFont("helvetica", "normal");
+    doc.text(`Name: ${resident.firstName} ${resident.lastName}`, margin, yPos);
+    yPos += lineHeight;
+
+    if (resident.dateOfBirth) {
+      doc.text(`DOB: ${format(new Date(resident.dateOfBirth), "dd/MM/yyyy")}`, margin, yPos);
+      yPos += lineHeight;
+    }
+
+    if (resident.nhsHealthNumber) {
+      doc.text(`NHS Number: ${resident.nhsHealthNumber}`, margin, yPos);
+      yPos += lineHeight;
+    }
+
+    // Right Column (Date Info)
+    yPos = 35;
+    doc.setFont("helvetica", "bold");
+    rightText("RECORD DETAILS", yPos);
+    yPos += lineHeight + 2;
+
+    doc.setFont("helvetica", "normal");
+    rightText(`Date: ${formattedDate}`, yPos);
+    yPos += lineHeight;
+
+    rightText(`Generated: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, yPos);
+
+    // Line separator
+    yPos += 10;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    // --- Table Data ---
+    const tableData = dayNotes.map(note => [
+      note.noteTime || "N/A",
+      note.signature || "Unknown Staff",
+      note.content
+    ]);
+
+    // --- AutoTable ---
+    autoTable(doc, {
+      startY: yPos + 10,
+      head: [['Time', 'Staff Member', 'Clinical Entry']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [243, 244, 246], // Light gray header
+        textColor: [17, 24, 39], // Dark gray text
+        fontStyle: 'bold',
+        lineColor: [229, 231, 235],
+        lineWidth: 0.1
+      },
+      styles: {
+        fontSize: 10,
+        textColor: [55, 65, 81],
+        cellPadding: 4,
+        lineColor: [229, 231, 235],
+        lineWidth: 0.1
+      },
+      columnStyles: {
+        0: { cellWidth: 25, fontStyle: 'bold' }, // Time
+        1: { cellWidth: 45 }, // Staff
+        2: { cellWidth: 'auto' } // Note
+      },
+      alternateRowStyles: {
+        fillColor: [255, 255, 255]
+      },
+      didDrawPage: (data) => {
+        // Footer
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        doc.setFontSize(8);
+        doc.setTextColor(156, 163, 175);
+        doc.text(
+          `CONFIDENTIAL RECORD - Page ${data.pageNumber}`,
+          pageWidth / 2,
+          doc.internal.pageSize.height - 10,
+          { align: 'center' }
+        );
+      }
+    });
+
+    // Save
+    doc.save(`Clinical_Record_${resident.firstName}_${resident.lastName}_${date}.pdf`);
+    toast.success(`PDF downloaded for ${formattedDate}`);
+  };
+
+  const handleViewDay = (date: string, dayNotes: any[]) => {
+    setViewDialogDate(date);
+    setViewDialogNotes(dayNotes);
     setIsViewDialogOpen(true);
   };
 
-  const handleExport = () => {
-    if (!filteredNotes || filteredNotes.length === 0) return;
 
-    // Create CSV content
-    const headers = ["Date", "Time", "Author", "Note Content"];
-    const rows = filteredNotes.map(note => [
-      note.noteDate,
-      note.noteTime || "",
-      note.staffName,
-      note.noteContent.replace(/\n/g, " ")
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
-
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `clinical-notes-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
-
-  // Loading state
-  if (!resident || !clinicalNotes) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading clinical notes...</p>
+          <p className="mt-2 text-muted-foreground">Loading clinical records...</p>
         </div>
       </div>
     );
   }
 
-  // Calculate stats
-  const noteStats = {
-    total: clinicalNotes.length,
-    thisMonth: clinicalNotes.filter(n => {
-      const noteDate = new Date(n.noteDate);
-      const now = new Date();
-      return noteDate.getMonth() === now.getMonth() && noteDate.getFullYear() === now.getFullYear();
-    }).length,
-    thisYear: clinicalNotes.filter(n => {
-      const noteDate = new Date(n.noteDate);
-      const now = new Date();
-      return noteDate.getFullYear() === now.getFullYear();
-    }).length,
-  };
+  if (resident === null) {
+    return <div>Resident not found</div>;
+  }
+
+  const fullName = `${resident.firstName} ${resident.lastName}`;
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          {fullName}
-        </Button>
-        <span>/</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}/clinical`)}
-          className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
-        >
-          Clinical
-        </Button>
-        <span>/</span>
-        <span className="text-foreground">All Records</span>
-      </div>
-
       {/* Header */}
       <div className="flex items-center space-x-4 mb-6">
         <Button
@@ -248,322 +343,212 @@ export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageP
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-700">Total Notes</p>
-                <p className="text-2xl font-bold text-blue-900">{noteStats.total}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <FileText className="w-5 h-5 text-blue-600" />
-              </div>
+      {/* Search and Filters */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="relative md:col-span-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-green-700">This Month</p>
-                <p className="text-2xl font-bold text-green-900">{noteStats.thisMonth}</p>
+            <div className="flex flex-wrap items-center gap-3 md:col-span-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500">Day:</span>
+                <Select value={selectedDay} onValueChange={setSelectedDay}>
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue placeholder="Day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {days.map(d => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="p-2 bg-white rounded-lg">
-                <Calendar className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-700">This Year</p>
-                <p className="text-2xl font-bold text-purple-900">{noteStats.thisYear}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500">Month:</span>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Months</SelectItem>
+                    {months.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="p-2 bg-white rounded-lg">
-                <Stethoscope className="w-5 h-5 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Filters and Search */}
-      <Card className="border-0">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Filter className="w-5 h-5" />
-              <span>Filter Clinical Notes</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={filteredNotes.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search by note content or author..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="pl-10"
-                />
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500">Year:</span>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {years.map(y => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-500 hover:text-gray-700"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedDay("all");
+                  setSelectedMonth("all");
+                  setSelectedYear("all");
+                }}
+              >
+                Reset Filters
+              </Button>
             </div>
-            <Select
-              value={selectedMonth}
-              onValueChange={(value) => {
-                setSelectedMonth(value);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Months</SelectItem>
-                <SelectItem value="1">January</SelectItem>
-                <SelectItem value="2">February</SelectItem>
-                <SelectItem value="3">March</SelectItem>
-                <SelectItem value="4">April</SelectItem>
-                <SelectItem value="5">May</SelectItem>
-                <SelectItem value="6">June</SelectItem>
-                <SelectItem value="7">July</SelectItem>
-                <SelectItem value="8">August</SelectItem>
-                <SelectItem value="9">September</SelectItem>
-                <SelectItem value="10">October</SelectItem>
-                <SelectItem value="11">November</SelectItem>
-                <SelectItem value="12">December</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={selectedYear}
-              onValueChange={(value) => {
-                setSelectedYear(value);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Year" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Years</SelectItem>
-                {availableYears.map(year => (
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={sortOrder}
-              onValueChange={(value: "asc" | "desc") => setSortOrder(value)}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="desc">Newest First</SelectItem>
-                <SelectItem value="asc">Oldest First</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
 
       {/* Clinical Notes Table */}
-      <Card className="border-0">
-        <CardHeader>
-          <CardTitle>
-            Clinical Notes ({filteredNotes.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredNotes.length === 0 ? (
-            <div className="text-center py-12">
-              <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No clinical notes found</p>
-              <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No clinical notes recorded yet"}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Author</TableHead>
-                      <TableHead>Note Preview</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedNotes.map((note) => (
-                      <TableRow key={note._id}>
-                        <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{format(new Date(note.noteDate), "dd MMM yyyy")}</span>
-                            <span className="text-xs text-gray-500">{note.noteTime || "N/A"}</span>
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-0">
+          {groupedNotes.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border border-gray-100">
+              <Table>
+                <TableHeader className="bg-gray-50/50">
+                  <TableRow>
+                    <TableHead className="w-[250px]">Date</TableHead>
+                    <TableHead>Summary</TableHead>
+                    <TableHead className="w-[150px] text-center">Records</TableHead>
+                    <TableHead className="w-[200px] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupedNotes.map(({ date, notes }) => (
+                    <TableRow key={date} className="group hover:bg-gray-50/50">
+                      <TableCell className="py-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-blue-50 rounded-md">
+                            <Calendar className="w-4 h-4 text-blue-600" />
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <span>{note.staffName}</span>
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {format(new Date(date), "EEEE, d MMM yyyy")}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Clinical Daily Record
+                            </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="max-w-[300px]">
-                          <p className="truncate">{note.noteContent}</p>
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <p className="text-gray-600 text-sm line-clamp-1 max-w-[400px]">
+                          {notes[0]?.content || "No entries"}
+                        </p>
+                      </TableCell>
+                      <TableCell className="py-4 text-center">
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-none">
+                          {notes.length} record{notes.length !== 1 ? 's' : ''}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs border-gray-200"
+                            onClick={() => handleViewDay(date, notes)}
+                          >
+                            <Eye className="w-3.5 h-3.5 mr-1.5" />
+                            View Records
+                          </Button>
                           <Button
                             variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewNote(note)}
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleDownloadPDF(date, notes)}
+                            title="Download PDF"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Download className="w-4 h-4" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} of {filteredNotes.length} notes
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="h-8 w-8 p-0"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="flex items-center space-x-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="h-8 w-8 p-0"
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="h-8 w-8 p-0"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-900 font-medium">No clinical records found</p>
+              <p className="text-gray-500 text-sm mt-1">
+                {searchQuery ? "Try adjusting your search criteria" : "No records available for this resident"}
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* View Note Dialog */}
+      {/* View Day Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Clinical Note - {selectedNote && format(new Date(selectedNote.noteDate), "PPP")}</DialogTitle>
+            <DialogTitle>
+              Clinical Records - {viewDialogDate && format(new Date(viewDialogDate), "PPPP")}
+            </DialogTitle>
             <DialogDescription>
-              Detailed view of this clinical note entry
+              Daily clinical summary
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {selectedNote ? (
-              <div className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold text-sm">Clinical Note</h4>
-                      <Badge variant="outline" className="text-xs border-0 bg-blue-100 text-blue-800">
-                        Clinical Record
-                      </Badge>
-                    </div>
+
+          <div className="space-y-6 py-4">
+            {viewDialogNotes.map((note) => (
+              <div key={note._id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <Badge className="bg-blue-600 hover:bg-blue-700">
+                      {note.noteTime || "N/A"}
+                    </Badge>
+                    <span className="font-semibold text-gray-900">
+                      {note.signature}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {selectedNote.noteTime || "N/A"}
-                  </span>
+                  <div className="text-xs text-gray-500">
+                    Logged at {format(new Date(note.createdAt), "HH:mm")}
+                  </div>
                 </div>
-
-                <div className="mb-3 p-3 bg-gray-50 rounded-md">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNote.noteContent}</p>
-                </div>
-
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>
-                    <span className="font-medium">Date:</span> {format(new Date(selectedNote.noteDate), "MMM d, yyyy")}
-                  </span>
-                  <span>
-                    <span className="font-medium">Time:</span> {selectedNote.noteTime || "N/A"}
-                  </span>
-                  <span>
-                    <span className="font-medium">Author:</span> {selectedNote.staffName}
-                  </span>
-                </div>
-
-                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                  Recorded by: {selectedNote.staffName} on {format(new Date(selectedNote.createdAt), "PPP")}
+                <div className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                  {note.content}
                 </div>
               </div>
-            ) : (
-              <p className="text-gray-500 py-8 text-center">No note selected</p>
-            )}
+            ))}
           </div>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
+
+          <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsViewDialogOpen(false)}
+              onClick={() => handleDownloadPDF(viewDialogDate!, viewDialogNotes)}
             >
+              <Download className="w-4 h-4 mr-2" />
+              Download Daily Record
+            </Button>
+            <Button onClick={() => setIsViewDialogOpen(false)}>
               Close
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -7,9 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/convex/_generated/api";
 import { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "convex/react";
 import { EllipsisIcon, UserMinusIcon } from "lucide-react";
 import { formatRoleName } from "@/lib/utils";
 
@@ -18,20 +16,16 @@ interface Member {
   userId: string;
   email: string;
   name: string;
-  image: string;
+  image: string | null;
   role: string;
   organizationId: string;
 }
 
-const MemberAvatar = ({ email, name }: { email: string; name: string }) => {
-  const userImage = useQuery(api.files.image.getUserLogoByEmail, {
-    email: email
-  });
-
-  if (userImage?.url) {
+const MemberAvatar = ({ image, name }: { image: string | null; name: string }) => {
+  if (image) {
     return (
       <img
-        src={userImage.url}
+        src={image}
         alt={`${name}'s avatar`}
         width={32}
         height={32}
@@ -63,7 +57,7 @@ export const columns: ColumnDef<Member>[] = [
       const member = row.original;
       return (
         <div className="flex flex-row justify-start items-center gap-2">
-          <MemberAvatar email={member.email} name={member.name} />
+          <MemberAvatar image={member.image} name={member.name} />
           <div className="flex flex-col justify-start items-start">
             <div className="text-left font-medium text-sm">{member.name}</div>
             <div className="text-left font-medium text-xs text-muted-foreground">

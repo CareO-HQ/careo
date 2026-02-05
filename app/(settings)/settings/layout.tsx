@@ -1,6 +1,8 @@
 import { SettingsSidebar } from "@/components/navigation/SettingsSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
+export const dynamic = "force-dynamic";
+
 export default function SettingsLayout({
   children
 }: {

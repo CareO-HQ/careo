@@ -26,18 +26,19 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { config } from "@/config";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { cn } from "@/lib/utils";
 import { CreateMedicationSchema } from "@/schemas/medication/CreateMedicationSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
+import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useProfile } from "@/hooks/use-profile";
+
 
 export default function CreateMedicationForm({
   residentId,
@@ -45,16 +46,17 @@ export default function CreateMedicationForm({
   organizationId,
   onSuccess
 }: {
-  residentId: Id<"residents">;
+  residentId: string;
   teamId?: string;
   organizationId?: string;
   onSuccess: () => void;
 }) {
-  const createMedication = useMutation(api.medication.createMedication);
+  const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
+
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
     resolver: zodResolver(CreateMedicationSchema),
     mode: "onChange",
@@ -71,7 +73,7 @@ export default function CreateMedicationForm({
       timeQuantities: {},
       instructions: undefined,
       prescriberName: "",
-      startDate: new Date(),
+      startDate: toZonedTime(new Date(), "Europe/London"),
       endDate: undefined,
       status: "active",
       isControlledDrug: false,
@@ -96,52 +98,93 @@ export default function CreateMedicationForm({
 
     startTransition(async () => {
       try {
-        console.log("Creating medication with:", {
-          residentId,
-          teamId,
-          organizationId,
-          medication: values
-        });
+        const { data: newMedication, error } = await supabase
+          .from("medications")
+          .insert({
+            resident_id: residentId,
+            team_id: teamId,
+            organization_id: organizationId,
+            created_by: profile?.id,
+            name: values.name,
+            strength: values.strength,
+            strength_unit: values.strengthUnit,
+            total_count: values.totalCount,
+            dosage_form: values.dosageForm,
+            route: values.route,
+            frequency: values.frequency,
+            schedule_type: values.scheduleType,
+            times: values.times,
+            time_quantities: values.timeQuantities,
+            instructions: values.instructions,
+            prescriber_name: values.prescriberName,
+            start_date: values.startDate.toISOString(),
+            end_date: values.endDate?.toISOString(),
+            status: values.status,
+            is_controlled_drug: values.isControlledDrug,
+            controlled_drug_schedule: values.controlledDrugSchedule,
+            min_interval_hours: values.minIntervalHours,
+            max_daily_dose: values.maxDailyDose,
+            max_daily_dose_unit: values.maxDailyDoseUnit
+          })
+          .select()
+          .single();
 
-        const medicationId = await createMedication({
-          residentId,
-          teamId,
-          organizationId,
-          medication: {
-            ...values,
-            prescriberName: values.prescriberName,
-            startDate: new Date(
-              values.startDate.getFullYear(),
-              values.startDate.getMonth(),
-              values.startDate.getDate(),
-              12,
-              0,
-              0,
-              0
-            ).getTime(),
-            endDate: values.endDate
-              ? new Date(
-                  values.endDate.getFullYear(),
-                  values.endDate.getMonth(),
-                  values.endDate.getDate(),
-                  12,
-                  0,
-                  0,
-                  0
-                ).getTime()
-              : undefined
+        if (error) throw error;
+
+        // Generate intakes for today if applicable
+        if (newMedication && values.scheduleType !== "PRN (As Needed)" && values.times && values.times.length > 0) {
+          const UK_TIMEZONE = "Europe/London";
+          // Get current time in UK
+          const now = new Date();
+          const ukNow = toZonedTime(now, UK_TIMEZONE);
+          const ukTodayStr = format(ukNow, "yyyy-MM-dd");
+
+          // Get start date string (treat the selected date as that day in UK time)
+          const startDateStr = format(values.startDate, "yyyy-MM-dd");
+
+          // Check if medication is active today based on dates
+          // We compare standard date strings to avoid time/timezone confusion
+          const isStarted = startDateStr <= ukTodayStr;
+
+          let isEnded = false;
+          if (values.endDate) {
+            const endDateStr = format(values.endDate, "yyyy-MM-dd");
+            if (endDateStr < ukTodayStr) isEnded = true;
           }
-        });
 
-        console.log("Medication created successfully with ID:", medicationId);
+          if (isStarted && !isEnded && values.status === 'active') {
+            const intakes = values.times.map((time) => {
+              // Construct the datetime string for the UK time
+              // e.g. "2024-01-29T08:00:00"
+              const dateTimeStr = `${ukTodayStr}T${time}:00`;
 
-        if (medicationId) {
-          toast.success("Medication created successfully");
-          onSuccess();
+              // Convert this UK time to a UTC Date object for storage
+              const scheduledTimeUTC = fromZonedTime(dateTimeStr, UK_TIMEZONE);
+
+              return {
+                medication_id: newMedication.id,
+                resident_id: residentId,
+                scheduled_time: scheduledTimeUTC.toISOString(),
+                status: 'scheduled',
+                organization_id: organizationId,
+                care_home_id: profile?.active_care_home_id
+              };
+            });
+
+            const { error: intakeError } = await supabase.from("medication_intakes").insert(intakes);
+
+            if (intakeError) {
+              console.error("Error creating initial intakes:", intakeError);
+              // We don't throw here to avoid failing the whole creation, just log it
+              toast.error("Medication created but failed to generate today's schedule");
+            }
+          }
         }
+
+        toast.success("Medication created successfully");
+        onSuccess();
       } catch (error) {
         console.error("Error creating medication:", error);
-        console.error("Error details:", JSON.stringify(error, null, 2));
         toast.error(`Failed to create medication: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });

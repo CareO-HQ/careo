@@ -10,11 +10,9 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
 import { SignupFormSchema } from "@/schemas/auth/SignupFormSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useConvex } from "convex/react";
 import {
   EyeIcon,
   EyeOffIcon,
@@ -35,7 +33,6 @@ export default function SignupForm() {
   const [isLoading, startTransition] = useTransition();
   const [token] = useQueryState("token");
   const [invitationEmail] = useQueryState("email");
-  const convex = useConvex();
   const router = useRouter();
 
   const form = useForm<z.infer<typeof SignupFormSchema>>({
@@ -49,32 +46,41 @@ export default function SignupForm() {
 
   function onSubmit(values: z.infer<typeof SignupFormSchema>) {
     startTransition(async () => {
-      await authClient.signUp.email(
-        {
-          name: values.name,
+      try {
+        const { data, error } = await supabase.auth.signUp({
           email: values.email,
-          password: values.password
-        },
-        {
-          onError: (ctx) => {
-            toast.error("Error trying to signup");
-            posthog.captureException(ctx.error, {
+          password: values.password,
+          options: {
+            data: {
               name: values.name,
-              email: values.email,
-              custom_message: "Error signing up"
-            });
+              // Note: role and app_metadata should be handled server-side 
+              // for security. Standard signUp data goes to user_metadata.
+            },
           },
-          onSuccess: async () => {
-            if (token) {
-              router.push(`/accept-invitation?token=${token}&email=${values.email}`);
-              return;
-            } else {
-              router.push("/onboarding");
-              return;
-            }
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+          toast.success("Account created successfully!");
+
+          if (token) {
+            router.push(`/accept-invitation?token=${token}&email=${values.email}`);
+          } else {
+            // Re-fetch user to ensure metadata from trigger is available
+            router.refresh();
+            router.push("/onboarding");
           }
         }
-      );
+      } catch (err: any) {
+        console.error("Signup failed:", err);
+        toast.error(err.message || "Error trying to signup");
+        posthog.captureException(err, {
+          name: values.name,
+          email: values.email,
+          custom_message: "Error signing up with Supabase"
+        });
+      }
     });
   }
 

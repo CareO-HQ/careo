@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { getAppointmentsByResident } from "@/lib/appointments";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -63,7 +62,7 @@ type AppointmentsDocumentsPageProps = {
 export default function AppointmentsDocumentsPage({ params }: AppointmentsDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const { supabase } = useSupabase();
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,13 +76,69 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Fetch resident data from Supabase
+  const [resident, setResident] = useState<{ firstName?: string; lastName?: string;[key: string]: any } | null>(null);
+  const [residentLoading, setResidentLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchResident() {
+      if (!id || !supabase) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching resident:", error);
+          setResident(null);
+        } else {
+          // Transform Supabase data to match expected format
+          setResident({
+            firstName: data.first_name,
+            lastName: data.last_name,
+            ...data,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      } finally {
+        setResidentLoading(false);
+      }
+    }
+
+    fetchResident();
+  }, [id, supabase]);
 
   // Get all appointments for this resident (archived appointments)
-  const allAppointments = useQuery(api.appointments.getAppointmentsByResident, {
-    residentId: id as Id<"residents">,
-  });
+  const [allAppointments, setAllAppointments] = useState<any[] | undefined>(undefined);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAppointments() {
+      try {
+        setAppointmentsLoading(true);
+        const result = await getAppointmentsByResident(id, { includeAll: true });
+        // Transform appointments to include startTime for compatibility
+        const transformedAppointments = result.appointments?.map((apt: any) => ({
+          ...apt,
+          startTime: apt.start_time,
+          endTime: apt.end_time,
+          staffId: apt.staff_id,
+        })) || [];
+        setAllAppointments(transformedAppointments);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        setAllAppointments([]);
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    }
+    fetchAppointments();
+  }, [id]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -155,6 +210,21 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   const endIndex = startIndex + itemsPerPage;
   const paginatedAppointments = filteredAppointments.slice(startIndex, endIndex);
 
+  // Group appointments by date
+  const groupedAppointments = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+
+    paginatedAppointments.forEach(appointment => {
+      const dateKey = format(new Date(appointment.startTime), "EEEE, d MMMM yyyy");
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(appointment);
+    });
+
+    return groups;
+  }, [paginatedAppointments]);
+
   // Handlers
   const handleViewAppointment = (appointment: any) => {
     setSelectedAppointment(appointment);
@@ -194,7 +264,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   };
 
   // Loading state
-  if (!resident || !allAppointments) {
+  if (!resident || residentLoading || appointmentsLoading || allAppointments === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -453,70 +523,86 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedAppointments.map((appointment) => (
-                      <TableRow key={appointment._id}>
-                        <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{format(new Date(appointment.startTime), "dd MMM yyyy")}</span>
-                            <span className="text-xs text-gray-500">
-                              {format(new Date(appointment.startTime), "HH:mm")} - {format(new Date(appointment.endTime), "HH:mm")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{appointment.title}</p>
-                            {appointment.description && (
-                              <p className="text-sm text-gray-500 truncate max-w-[200px]">{appointment.description}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {appointment.location ? (
+                    {Object.entries(groupedAppointments).map(([date, appointments]) => (
+                      <React.Fragment key={date}>
+                        <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
+                          <TableCell colSpan={6} className="py-2 px-4 border-y border-gray-100">
                             <div className="flex items-center space-x-2">
-                              <MapPin className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm">{appointment.location}</span>
+                              <Calendar className="w-3 h-3 text-gray-400" />
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{date}</span>
                             </div>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {appointment.staffId ? (
-                            <div className="flex items-center space-x-2">
-                              <User className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm">{appointment.staffId}</span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {appointment.status === "completed" ? (
-                            <Badge className="bg-green-100 text-green-800 border-0">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Completed
-                            </Badge>
-                          ) : appointment.status === "cancelled" ? (
-                            <Badge className="bg-red-100 text-red-800 border-0">
-                              Cancelled
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-blue-100 text-blue-800 border-0">
-                              Scheduled
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewAppointment(appointment)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+                        </TableRow>
+                        {appointments.map((appointment) => (
+                          <TableRow key={appointment._id} className="hover:bg-blue-50/30 transition-colors">
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col">
+                                <span className="text-gray-900">{format(new Date(appointment.startTime), "dd MMM yyyy")}</span>
+                                <div className="flex items-center space-x-1 text-xs text-gray-500">
+                                  <Clock className="w-3 h-3 text-blue-400" />
+                                  <span>{format(new Date(appointment.startTime), "HH:mm")} - {format(new Date(appointment.endTime), "HH:mm")}</span>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-semibold text-gray-800">{appointment.title}</p>
+                                {appointment.description && (
+                                  <p className="text-xs text-gray-500 truncate max-w-[250px]">{appointment.description}</p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {appointment.location ? (
+                                <div className="flex items-center space-x-2 bg-gray-50 w-fit px-2 py-1 rounded-md">
+                                  <MapPin className="w-3.5 h-3.5 text-orange-400" />
+                                  <span className="text-xs font-medium text-gray-600 uppercase tracking-tighter">{appointment.location}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {appointment.staffId ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <User className="w-3 h-3 text-blue-600" />
+                                  </div>
+                                  <span className="text-xs text-gray-700 font-medium">{appointment.staffId}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {appointment.status === "completed" ? (
+                                <Badge className="bg-green-50 text-green-700 border-green-100 font-bold text-[10px] uppercase tracking-tight">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Completed
+                                </Badge>
+                              ) : appointment.status === "cancelled" ? (
+                                <Badge className="bg-red-50 text-red-700 border-red-100 font-bold text-[10px] uppercase tracking-tight">
+                                  Cancelled
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-100 font-bold text-[10px] uppercase tracking-tight">
+                                  Scheduled
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewAppointment(appointment)}
+                                className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>

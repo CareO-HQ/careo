@@ -32,10 +32,9 @@ import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface PainAssessmentDialogProps {
   teamId: string;
@@ -51,68 +50,37 @@ interface PainAssessmentDialogProps {
 }
 
 export default function PainAssessmentDialog({
-  teamId,
-  residentId,
-  organizationId,
-  userId,
-  userName,
-  resident,
-  careHomeName = "",
-  onClose,
-  initialData,
-  isEditMode = false
+  teamId, residentId, organizationId, userId, userName, resident,
+  careHomeName = "", onClose, initialData, isEditMode = false
 }: PainAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
-  const [assessmentDatePopoverOpen, setAssessmentDatePopoverOpen] = useState(false);
-  const [dateOfBirthPopoverOpen, setDateOfBirthPopoverOpen] = useState(false);
-
-  const submitAssessment = useMutation(
-    api.careFiles.painAssessment.submitPainAssessment
-  );
-  const submitReviewedFormMutation = useMutation(
-    api.managerAudits.submitReviewedForm
-  );
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
   const form = useForm<z.infer<typeof painAssessmentSchema>>({
     resolver: zodResolver(painAssessmentSchema),
     mode: "onChange",
-    defaultValues: initialData
-      ? {
-          residentId,
-          teamId,
-          organizationId,
-          userId,
-          residentName: initialData.residentName || `${resident.firstName} ${resident.lastName}`,
-          dateOfBirth: initialData.dateOfBirth || format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
-          roomNumber: initialData.roomNumber || resident.roomNumber || "",
-          nameOfHome: initialData.nameOfHome || careHomeName || "",
-          assessmentDate: initialData.assessmentDate || Date.now(),
-          assessmentEntries: initialData.assessmentEntries || []
-        }
-      : {
-          residentId,
-          teamId,
-          organizationId,
-          userId,
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          dateOfBirth: format(new Date(resident.dateOfBirth), "dd/MM/yyyy"),
-          roomNumber: resident.roomNumber || "",
-          nameOfHome: careHomeName || "",
-          assessmentDate: Date.now(),
-          assessmentEntries: [
-            {
-              dateTime: format(new Date(), "dd/MM/yyyy HH:mm"),
-              painLocation: "",
-              descriptionOfPain: "",
-              residentBehaviour: "",
-              interventionType: "",
-              interventionTime: "",
-              painAfterIntervention: "",
-              comments: "",
-              signature: userName
-            }
-          ]
-        }
+    defaultValues: initialData ? {
+      residentId, teamId, organizationId, userId,
+      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
+      roomNumber: initialData.roomNumber || resident.room_number || "",
+      nameOfHome: initialData.nameOfHome || careHomeName || "",
+      assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
+      assessmentEntries: initialData.assessment_entries || []
+    } : {
+      residentId, teamId, organizationId, userId,
+      residentName: `${resident.first_name} ${resident.last_name}`,
+      dateOfBirth: resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "",
+      roomNumber: resident.room_number || "",
+      nameOfHome: careHomeName || "",
+      assessmentDate: Date.now(),
+      assessmentEntries: [{
+        dateTime: format(new Date(), "dd/MM/yyyy HH:mm"),
+        painLocation: "", descriptionOfPain: "", residentBehaviour: "",
+        interventionType: "", interventionTime: "", painAfterIntervention: "",
+        comments: "", signature: userName
+      }]
+    }
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -121,379 +89,97 @@ export default function PainAssessmentDialog({
   });
 
   function onSubmit(values: z.infer<typeof painAssessmentSchema>) {
-    console.log("Form submission triggered - values:", values);
     startTransition(async () => {
       try {
-        if (isEditMode) {
-          const data = await submitReviewedFormMutation({
-            formType: "painAssessment",
-            formData: {
-              ...values,
-              residentId: residentId as Id<"residents">,
-              savedAsDraft: false
-            },
-            originalFormData: initialData,
-            originalFormId: initialData?._id,
-            residentId: residentId as Id<"residents">,
-            auditedBy: userName,
-            auditNotes: "Form reviewed and updated",
-            teamId,
-            organizationId
-          } as any);
-          if (data.hasChanges) {
-            toast.success("Form reviewed and updated successfully!");
-          } else {
-            toast.success("Form reviewed and approved without changes!");
-          }
+        const currentUserId = userId;
+        if (!currentUserId) throw new Error("User not authenticated");
+
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_entries: values.assessmentEntries,
+          created_by: currentUserId
+        };
+
+        await submitAssessmentWithVersioning(
+          'pain_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
+        if (isEditMode && initialData?.id) {
+          await supabase.from('manager_audits').insert({
+            form_type: 'pain_assessments', form_id: initialData.id, resident_id: residentId,
+            audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
+          });
+          toast.success("Pain assessment updated!");
         } else {
-          await submitAssessment({
-            ...values,
-            residentId: residentId as Id<"residents">,
-            savedAsDraft: false
-          } as any);
-          toast.success("Pain assessment submitted successfully");
+          toast.success("Pain assessment submitted");
         }
-        setTimeout(() => {
-          onClose?.();
-        }, 500);
+        setTimeout(() => onClose?.(), 500);
       } catch (error) {
-        console.error("Error submitting assessment:", error);
-        toast.error("Failed to submit assessment. Please try again.");
+        console.error("Error submitting:", error);
+        toast.error("Failed to submit assessment.");
       }
     });
   }
 
-  const addAssessmentEntry = () => {
+  const addEntry = () => {
     append({
       dateTime: format(new Date(), "dd/MM/yyyy HH:mm"),
-      painLocation: "",
-      descriptionOfPain: "",
-      residentBehaviour: "",
-      interventionType: "",
-      interventionTime: "",
-      painAfterIntervention: "",
-      comments: "",
-      signature: userName
+      painLocation: "", descriptionOfPain: "", residentBehaviour: "",
+      interventionType: "", interventionTime: "", painAfterIntervention: "",
+      comments: "", signature: userName
     });
   };
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>Pain Assessment and Evaluation</DialogTitle>
-        <DialogDescription>
-          Record pain assessments and interventions for the resident
-        </DialogDescription>
-      </DialogHeader>
+      <DialogHeader><DialogTitle>Pain Assessment</DialogTitle><DialogDescription>Record pain assessments and interventions</DialogDescription></DialogHeader>
       <div className="max-h-[70vh] overflow-y-auto">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Header Information */}
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-              <h3 className="text-sm font-semibold">Header Information</h3>
+          <form className="space-y-4">
+            <div className="p-4 bg-muted/30 rounded-lg space-y-4">
+              <h3 className="font-semibold">Header Info</h3>
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="nameOfHome"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Name of Home</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Care Home Name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="residentName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Resident&apos;s Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={form.control} name="nameOfHome" render={({ field }) => <FormItem><FormLabel>Home Name</FormLabel><Input {...field} /></FormItem>} />
+                <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><Input {...field} /></FormItem>} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="dateOfBirth"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Date of Birth</FormLabel>
-                      <FormControl>
-                        <Input placeholder="DD/MM/YYYY" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="roomNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Room Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Room 101" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>DOB</FormLabel><Input {...field} /></FormItem>} />
+                <FormField control={form.control} name="roomNumber" render={({ field }) => <FormItem><FormLabel>Room</FormLabel><Input {...field} /></FormItem>} />
               </div>
-              <FormField
-                control={form.control}
-                name="assessmentDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Assessment Date</FormLabel>
-                    <Popover modal open={assessmentDatePopoverOpen} onOpenChange={setAssessmentDatePopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-auto p-0"
-                        align="start"
-                        onInteractOutside={(e) => e.preventDefault()}
-                      >
-                        <Calendar
-                          mode="single"
-                          captionLayout="dropdown"
-                          selected={
-                            field.value ? new Date(field.value) : undefined
-                          }
-                          onSelect={(date) => {
-                            field.onChange(date?.getTime());
-                            setAssessmentDatePopoverOpen(false);
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className={cn("w-full text-left", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : "Pick date"}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>
+              )} />
             </div>
 
-            {/* Assessment Entries Table */}
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-semibold">Pain Assessment Entries</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addAssessmentEntry}
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Entry
-                </Button>
+                <h3 className="font-semibold">Pain Entries</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addEntry}><Plus className="h-4 w-4 mr-1" />Add Entry</Button>
               </div>
-
               {fields.map((field, index) => (
-                <div
-                  key={field.id}
-                  className="p-4 border rounded-lg space-y-4 bg-background"
-                >
+                <div key={field.id} className="p-4 border rounded-lg space-y-4 bg-background">
                   <div className="flex justify-between items-center">
                     <h4 className="text-sm font-medium">Entry {index + 1}</h4>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                    {fields.length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                   </div>
-
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`assessmentEntries.${index}.dateTime`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Date and Time</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="datetime-local"
-                              {...field}
-                              value={field.value ? (() => {
-                                // Convert DD/MM/YYYY HH:MM to YYYY-MM-DDTHH:MM format for datetime-local
-                                const parts = field.value.match(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/);
-                                if (parts) {
-                                  return `${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}`;
-                                }
-                                return '';
-                              })() : ''}
-                              onChange={(e) => {
-                                // Convert YYYY-MM-DDTHH:MM to DD/MM/YYYY HH:MM format
-                                const value = e.target.value;
-                                if (value) {
-                                  const date = new Date(value);
-                                  const formatted = format(date, "dd/MM/yyyy HH:mm");
-                                  field.onChange(formatted);
-                                } else {
-                                  field.onChange('');
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`assessmentEntries.${index}.painLocation`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Pain Location (A, B, etc)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., A - Lower back, B - Right knee" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormField control={form.control} name={`assessmentEntries.${index}.dateTime`} render={({ field: f }) => <FormItem><FormLabel>Date/Time</FormLabel><Input type="datetime-local" value={f.value ? (() => { const m = f.value.match(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/); return m ? `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}` : ''; })() : ''} onChange={e => f.onChange(e.target.value ? format(new Date(e.target.value), "dd/MM/yyyy HH:mm") : '')} /></FormItem>} />
+                    <FormField control={form.control} name={`assessmentEntries.${index}.painLocation`} render={({ field: f }) => <FormItem><FormLabel>Pain Location</FormLabel><Input placeholder="e.g., A - Lower back" {...f} /></FormItem>} />
                   </div>
-
-                  <FormField
-                    control={form.control}
-                    name={`assessmentEntries.${index}.descriptionOfPain`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Description of Pain</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Describe the pain (e.g., sharp, dull, throbbing)"
-                            {...field}
-                            rows={2}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`assessmentEntries.${index}.residentBehaviour`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Resident Behaviour</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., restless, calm, sleepy" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
+                  <FormField control={form.control} name={`assessmentEntries.${index}.descriptionOfPain`} render={({ field: f }) => <FormItem><FormLabel>Description</FormLabel><Textarea placeholder="Describe the pain..." {...f} rows={2} /></FormItem>} />
+                  <FormField control={form.control} name={`assessmentEntries.${index}.residentBehaviour`} render={({ field: f }) => <FormItem><FormLabel>Behaviour</FormLabel><Input placeholder="e.g., restless, calm" {...f} /></FormItem>} />
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`assessmentEntries.${index}.interventionType`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Type of Intervention</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., medication, repositioning" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`assessmentEntries.${index}.interventionTime`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Time</FormLabel>
-                          <FormControl>
-                            <Input type="time" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormField control={form.control} name={`assessmentEntries.${index}.interventionType`} render={({ field: f }) => <FormItem><FormLabel>Intervention</FormLabel><Input placeholder="e.g., medication" {...f} /></FormItem>} />
+                    <FormField control={form.control} name={`assessmentEntries.${index}.interventionTime`} render={({ field: f }) => <FormItem><FormLabel>Time</FormLabel><Input type="time" {...f} /></FormItem>} />
                   </div>
-
-                  <FormField
-                    control={form.control}
-                    name={`assessmentEntries.${index}.painAfterIntervention`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Pain Description After Intervention</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Describe pain level/status after intervention"
-                            {...field}
-                            rows={2}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`assessmentEntries.${index}.comments`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Comments</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="e.g., 'give painkillers at 1400hrs, after 20 mins, Mrs Smith appeared settled/stated she felt better'"
-                            {...field}
-                            rows={3}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`assessmentEntries.${index}.signature`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Signature</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Staff signature" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name={`assessmentEntries.${index}.painAfterIntervention`} render={({ field: f }) => <FormItem><FormLabel>Pain after intervention</FormLabel><Textarea placeholder="Describe pain status..." {...f} rows={2} /></FormItem>} />
+                  <FormField control={form.control} name={`assessmentEntries.${index}.comments`} render={({ field: f }) => <FormItem><FormLabel>Comments</FormLabel><Textarea {...f} rows={2} /></FormItem>} />
+                  <FormField control={form.control} name={`assessmentEntries.${index}.signature`} render={({ field: f }) => <FormItem><FormLabel>Signature</FormLabel><Input {...f} /></FormItem>} />
                 </div>
               ))}
             </div>
@@ -501,16 +187,8 @@ export default function PainAssessmentDialog({
         </Form>
       </div>
       <DialogFooter>
-        <Button onClick={onClose} variant="outline" disabled={isLoading}>
-          Cancel
-        </Button>
-        <Button
-          onClick={form.handleSubmit(onSubmit)}
-          disabled={isLoading}
-          type="submit"
-        >
-          {isLoading ? "Saving..." : "Save Assessment"}
-        </Button>
+        <Button onClick={onClose} variant="outline" disabled={isLoading}>Cancel</Button>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
       </DialogFooter>
     </>
   );

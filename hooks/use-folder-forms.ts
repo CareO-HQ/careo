@@ -1,11 +1,9 @@
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
-import { useMemo } from "react";
 
 interface UseFolderFormsProps {
-  residentId: Id<"residents"> | undefined;
+  residentId: string | undefined; // Changed from Id<"residents"> to string for Supabase
   folderFormKeys: CareFileFormKey[];
   organizationId?: string;
   folderKey?: string;
@@ -19,197 +17,630 @@ export function useFolderForms({
   folderKey,
   includeCarePlans = false
 }: UseFolderFormsProps) {
-  // Conditionally query forms based on folderFormKeys
-  const allPreAdmissionForms = useQuery(
-    api.careFiles.preadmission.getPreAdmissionFormsByResident,
-    folderFormKeys.includes("preAdmission-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+  // State for all form types
+  const [allPreAdmissionForms, setAllPreAdmissionForms] = useState<any[] | undefined>(undefined);
+  const [allInfectionPreventionForms, setAllInfectionPreventionForms] = useState<any[] | undefined>(undefined);
+  const [allBladderBowelForms, setAllBladderBowelForms] = useState<any[] | undefined>(undefined);
+  const [allMovingHandlingForms, setAllMovingHandlingForms] = useState<any[] | undefined>(undefined);
+  const [allBedrailConsentForms, setAllBedrailConsentForms] = useState<any[] | undefined>(undefined);
+  const [allBedRailsRiskAssessmentForms, setAllBedRailsRiskAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allLongTermFallsForms, setAllLongTermFallsForms] = useState<any | undefined>(undefined); // Single object often
+  const [allAdmissionForms, setAllAdmissionForms] = useState<any[] | undefined>(undefined);
+  const [allPhotographyConsentForms, setAllPhotographyConsentForms] = useState<any[] | undefined>(undefined);
+  const [allDnacprForms, setAllDnacprForms] = useState<any[] | undefined>(undefined);
+  const [allPeepForms, setAllPeepForms] = useState<any[] | undefined>(undefined);
+  const [allDependencyAssessmentForms, setAllDependencyAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allTimlAssessmentForms, setAllTimlAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allSkinIntegrityForms, setAllSkinIntegrityForms] = useState<any[] | undefined>(undefined);
+  const [allResidentValuablesForms, setAllResidentValuablesForms] = useState<any[] | undefined>(undefined);
+  const [allHandlingProfileForms, setAllHandlingProfileForms] = useState<any[] | undefined>(undefined);
+  const [allPainAssessmentForms, setAllPainAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allNutritionalAssessmentForms, setAllNutritionalAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allOralAssessmentForms, setAllOralAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allDietNotificationForms, setAllDietNotificationForms] = useState<any[] | undefined>(undefined);
+  const [allChokingRiskAssessmentForms, setAllChokingRiskAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allCornellDepressionScaleForms, setAllCornellDepressionScaleForms] = useState<any[] | undefined>(undefined);
+  const [allBestInterestDecisionForms, setAllBestInterestDecisionForms] = useState<any[] | undefined>(undefined);
 
-  const allInfectionPreventionForms = useQuery(
-    api.careFiles.infectionPrevention
-      .getInfectionPreventionAssessmentsByResident,
-    folderFormKeys.includes("infection-prevention") && residentId
-      ? { residentId }
-      : "skip"
-  );
+  const [latestCarePlanForm, setLatestCarePlanForm] = useState<any | undefined>(undefined);
+  const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
 
-  const allBladderBowelForms = useQuery(
-    api.careFiles.bladderBowel.getBladderBowelAssessmentsByResident,
-    folderFormKeys.includes("blader-bowel-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+  const [isLoading, setIsLoading] = useState(false);
 
-  const allMovingHandlingForms = useQuery(
-    api.careFiles.movingHandling.getMovingHandlingAssessmentsByResident,
-    folderFormKeys.includes("moving-handling-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+  // Fetch all care plans once (not dependent on folderKey)
+  const fetchAllCarePlans = useCallback(async () => {
+    if (!residentId || !includeCarePlans) return;
+    setIsLoading(true);
 
-  const allBedrailConsentForms = useQuery(
-    api.careFiles.bedrailConsent.getBedrailConsentsByResident,
-    folderFormKeys.includes("bedrail-consent-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+    try {
+      // Fetch latest active care plans
+      const { data: activePlans } = await supabase
+        .from('care_plan_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
-  const allBedRailsRiskAssessmentForms = useQuery(
-    api.careFiles.bedRailsRiskAssessment.getBedRailsRiskAssessmentsByResident,
-    folderFormKeys.includes("bed-rails-risk-assessment-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+      setLatestCarePlanForm(activePlans?.[0] || null);
 
-  const allLongTermFallsForms = useQuery(
-    api.careFiles.longTermFalls.getLatestAssessmentByResident,
-    folderFormKeys.includes("long-term-fall-risk-form") &&
-      residentId &&
-      organizationId
-      ? {
-          residentId,
-          organizationId
-        }
-      : "skip"
-  );
+      // Fetch archived care plans
+      const { data: archivedPlans } = await supabase
+        .from('care_plan_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .eq('status', 'archived')
+        .order('created_at', { ascending: false });
 
-  const allAdmissionForms = useQuery(
-    api.careFiles.admission.getAdmissionAssessmentsByResident,
-    folderFormKeys.includes("admission-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+      setArchivedCarePlans(archivedPlans || []);
+    } catch (error) {
+      console.error("Error fetching care plans:", error);
+      setLatestCarePlanForm(null);
+      setArchivedCarePlans([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [residentId, includeCarePlans]);
 
-  const allPhotographyConsentForms = useQuery(
-    api.careFiles.photographyConsent.getPhotographyConsentsByResident,
-    folderFormKeys.includes("photography-consent") && residentId
-      ? { residentId }
-      : "skip"
-  );
+  // Helper to fetch forms - no longer needed as it's handled inline in useEffect
+  // Keeping fetchForms available for manual refetch if needed in future
+  const fetchForms = useCallback(async () => {
+    if (!residentId) return;
+    setIsLoading(true);
+    const promises: PromiseLike<any>[] = [];
 
-  const allDnacprForms = useQuery(
-    api.careFiles.dnacpr.getDnacprsByResident,
-    folderFormKeys.includes("dnacpr") && residentId ? { residentId } : "skip"
-  );
+    // Pre-Admission
+    if (folderFormKeys?.includes("preAdmission-form")) {
+      promises.push(supabase
+        .from('pre_admission_care_files')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPreAdmissionForms(data || [])));
+    }
 
-  const allPeepForms = useQuery(
-    api.careFiles.peep.getPeepsByResident,
-    folderFormKeys.includes("peep") && residentId ? { residentId } : "skip"
-  );
+    // Infection Prevention
+    if (folderFormKeys?.includes("infection-prevention")) {
+      promises.push(supabase
+        .from('infection_prevention_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllInfectionPreventionForms(data || [])));
+    }
 
-  const allDependencyAssessmentForms = useQuery(
-    api.careFiles.dependency.getDependencyAssessmentsByResident,
-    folderFormKeys.includes("dependency-assessment") && residentId
-      ? { residentId }
-      : "skip"
-  );
+    // Bladder & Bowel
+    if (folderFormKeys?.includes("blader-bowel-form")) {
+      promises.push(supabase
+        .from('bladder_bowel_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBladderBowelForms(data || [])));
+    }
 
-  const allTimlAssessmentForms = useQuery(
-    api.careFiles.timl.getTimlAssessmentsByResident,
-    folderFormKeys.includes("timl") && residentId ? { residentId } : "skip"
-  );
+    // Moving & Handling
+    if (folderFormKeys?.includes("moving-handling-form")) {
+      promises.push(supabase
+        .from('moving_handling_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllMovingHandlingForms(data || [])));
+    }
 
-  const allSkinIntegrityForms = useQuery(
-    api.careFiles.skinIntegrity.getSkinIntegrityAssessmentsByResident,
-    folderFormKeys.includes("skin-integrity-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // Bedrail Consent
+    if (folderFormKeys?.includes("bedrail-consent-form")) {
+      promises.push(supabase
+        .from('bedrail_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBedrailConsentForms(data || [])));
+    }
 
-  const allResidentValuablesForms = useQuery(
-    api.careFiles.residentValuables.getResidentValuablesByResidentId,
-    folderFormKeys.includes("resident-valuables-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+    // Bed Rails Risk Assessment
+    if (folderFormKeys?.includes("bed-rails-risk-assessment-form")) {
+      promises.push(supabase
+        .from('bedrails_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBedRailsRiskAssessmentForms(data || [])));
+    }
 
-  const allHandlingProfileForms = useQuery(
-    api.careFiles.handlingProfile.getHandlingProfilesByResident,
-    folderFormKeys.includes("resident-handling-profile-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+    // Long Term Falls
+    if (folderFormKeys?.includes("long-term-fall-risk-form")) {
+      promises.push(supabase
+        .from('long_term_falls_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllLongTermFallsForms(data || [])));
+    }
 
-  const allPainAssessmentForms = useQuery(
-    api.careFiles.painAssessment.getPainAssessmentsByResident,
-    folderFormKeys.includes("pain-assessment-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // Admission
+    if (folderFormKeys?.includes("admission-form")) {
+      promises.push(supabase
+        .from('admission_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllAdmissionForms(data || [])));
+    }
 
-  const allNutritionalAssessmentForms = useQuery(
-    api.careFiles.nutritionalAssessment.getNutritionalAssessmentsByResident,
-    folderFormKeys.includes("nutritional-assessment-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // Photography Consent
+    if (folderFormKeys?.includes("photography-consent")) {
+      promises.push(supabase
+        .from('photography_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPhotographyConsentForms(data || [])));
+    }
 
-  const allOralAssessmentForms = useQuery(
-    api.careFiles.oralAssessment.getOralAssessmentsByResident,
-    folderFormKeys.includes("oral-assessment-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // DNACPR
+    if (folderFormKeys?.includes("dnacpr")) {
+      promises.push(supabase
+        .from('dnacprs')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllDnacprForms(data || [])));
+    }
 
-  const allDietNotificationForms = useQuery(
-    api.careFiles.dietNotification.getDietNotificationsByResident,
-    folderFormKeys.includes("diet-notification-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // PEEP
+    if (folderFormKeys?.includes("peep")) {
+      promises.push(supabase
+        .from('peeps')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPeepForms(data || [])));
+    }
 
-  const allChokingRiskAssessmentForms = useQuery(
-    api.careFiles.chokingRiskAssessment.getChokingRiskAssessmentsByResident,
-    folderFormKeys.includes("choking-risk-assessment-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // Dependency Assessment
+    if (folderFormKeys?.includes("dependency-assessment")) {
+      promises.push(supabase
+        .from('dependency_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllDependencyAssessmentForms(data || [])));
+    }
 
-  const allCornellDepressionScaleForms = useQuery(
-    api.careFiles.cornellDepressionScale.getCornellDepressionScalesByResident,
-    folderFormKeys.includes("cornell-depression-scale-form") &&
-      residentId &&
-      organizationId
-      ? { residentId, organizationId }
-      : "skip"
-  );
+    // TIML Assessment
+    if (folderFormKeys?.includes("timl")) {
+      promises.push(supabase
+        .from('timl_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllTimlAssessmentForms(data || [])));
+    }
 
-  const allBestInterestDecisionForms = useQuery(
-    api.careFiles.bestInterestDecision.getBestInterestDecisionsByResident,
-    folderFormKeys.includes("best-interest-decision-form") && residentId
-      ? { residentId }
-      : "skip"
-  );
+    // Skin Integrity
+    if (folderFormKeys?.includes("skin-integrity-form")) {
+      promises.push(supabase
+        .from('skin_integrity_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSkinIntegrityForms(data || [])));
+    }
 
-  const latestCarePlanForm = useQuery(
-    api.careFiles.carePlan.getLatestCarePlanByResidentAndFolder,
-    includeCarePlans && residentId && folderKey
-      ? { residentId, folderKey }
-      : "skip"
-  );
+    // Resident Valuables
+    if (folderFormKeys?.includes("resident-valuables-form")) {
+      promises.push(supabase
+        .from('resident_valuables_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllResidentValuablesForms(data || [])));
+    }
 
-  const archivedCarePlans = useQuery(
-    api.careFiles.carePlan.getArchivedCarePlansByResidentAndFolder,
-    includeCarePlans && residentId && folderKey
-      ? { residentId, folderKey }
-      : "skip"
-  );
+    // Handling Profiles
+    if (folderFormKeys?.includes("resident-handling-profile-form")) {
+      promises.push(supabase
+        .from('handling_profiles')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllHandlingProfileForms(data || [])));
+    }
 
-  // Helper function to get all PDFs from all form submissions for this folder
+    // Pain Assessment
+    if (folderFormKeys?.includes("pain-assessment-form")) {
+      promises.push(supabase
+        .from('pain_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPainAssessmentForms(data || [])));
+    }
+
+    // Nutritional Assessment
+    if (folderFormKeys?.includes("nutritional-assessment-form")) {
+      promises.push(supabase
+        .from('nutritional_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllNutritionalAssessmentForms(data || [])));
+    }
+
+    // Oral Assessment
+    if (folderFormKeys?.includes("oral-assessment-form")) {
+      promises.push(supabase
+        .from('oral_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllOralAssessmentForms(data || [])));
+    }
+
+    // Diet Notification
+    if (folderFormKeys?.includes("diet-notification-form")) {
+      promises.push(supabase
+        .from('diet_notifications')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllDietNotificationForms(data || [])));
+    }
+
+    // Choking Risk
+    if (folderFormKeys?.includes("choking-risk-assessment-form")) {
+      promises.push(supabase
+        .from('choking_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllChokingRiskAssessmentForms(data || [])));
+    }
+
+    // Cornell Depression
+    if (folderFormKeys?.includes("cornell-depression-scale-form")) {
+      promises.push(supabase
+        .from('cornell_depression_scales')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllCornellDepressionScaleForms(data || [])));
+    }
+
+    // Best Interest
+    if (folderFormKeys?.includes("best-interest-decision-form")) {
+      promises.push(supabase
+        .from('best_interest_decisions')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBestInterestDecisionForms(data || [])));
+    }
+
+    // Care Plans
+    if (includeCarePlans && folderKey) {
+      // Fetch is handled in separate fetchAllCarePlans effect
+    }
+
+    await Promise.all(promises);
+    setIsLoading(false);
+  }, [residentId]);
+
+  // Initial fetch - call directly instead of using fetchForms as dependency
+  useEffect(() => {
+    if (!residentId) return;
+
+    setIsLoading(true);
+    const promises: PromiseLike<any>[] = [];
+
+    // Pre-Admission
+    if (folderFormKeys?.includes("preAdmission-form")) {
+      promises.push(supabase
+        .from('pre_admission_care_files')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPreAdmissionForms(data || [])));
+    }
+
+    // Infection Prevention
+    if (folderFormKeys?.includes("infection-prevention")) {
+      promises.push(supabase
+        .from('infection_prevention_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllInfectionPreventionForms(data || [])));
+    }
+
+    // Bladder & Bowel
+    if (folderFormKeys?.includes("blader-bowel-form")) {
+      promises.push(supabase
+        .from('bladder_bowel_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBladderBowelForms(data || [])));
+    }
+
+    // Moving & Handling
+    if (folderFormKeys?.includes("moving-handling-form")) {
+      promises.push(supabase
+        .from('moving_handling_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllMovingHandlingForms(data || [])));
+    }
+
+    // Bedrail Consent
+    if (folderFormKeys?.includes("bedrail-consent-form")) {
+      promises.push(supabase
+        .from('bedrail_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBedrailConsentForms(data || [])));
+    }
+
+    // Bed Rails Risk Assessment
+    if (folderFormKeys?.includes("bed-rails-risk-assessment-form")) {
+      promises.push(supabase
+        .from('bedrails_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBedRailsRiskAssessmentForms(data || [])));
+    }
+
+    // Long Term Falls
+    if (folderFormKeys?.includes("long-term-fall-risk-form")) {
+      promises.push(supabase
+        .from('long_term_falls_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllLongTermFallsForms(data || [])));
+    }
+
+    // Admission
+    if (folderFormKeys?.includes("admission-form")) {
+      promises.push(supabase
+        .from('admission_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllAdmissionForms(data || [])));
+    }
+
+    // Photography Consent
+    if (folderFormKeys?.includes("photography-consent")) {
+      promises.push(supabase
+        .from('photography_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPhotographyConsentForms(data || [])));
+    }
+
+    // DNACPR
+    if (folderFormKeys?.includes("dnacpr")) {
+      promises.push(supabase
+        .from('dnacprs')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllDnacprForms(data || [])));
+    }
+
+    // PEEP
+    if (folderFormKeys?.includes("peep")) {
+      promises.push(supabase
+        .from('peeps')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPeepForms(data || [])));
+    }
+
+    // Dependency Assessment
+    if (folderFormKeys?.includes("dependency-assessment")) {
+      promises.push(supabase
+        .from('dependency_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllDependencyAssessmentForms(data || [])));
+    }
+
+    // TIML Assessment
+    if (folderFormKeys?.includes("timl")) {
+      promises.push(supabase
+        .from('timl_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllTimlAssessmentForms(data || [])));
+    }
+
+    // Skin Integrity
+    if (folderFormKeys?.includes("skin-integrity-form")) {
+      promises.push(supabase
+        .from('skin_integrity_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSkinIntegrityForms(data || [])));
+    }
+
+    // Resident Valuables
+    if (folderFormKeys?.includes("resident-valuables-form")) {
+      promises.push(supabase
+        .from('resident_valuables_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllResidentValuablesForms(data || [])));
+    }
+
+    // Handling Profiles
+    if (folderFormKeys?.includes("resident-handling-profile-form")) {
+      promises.push(supabase
+        .from('handling_profiles')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllHandlingProfileForms(data || [])));
+    }
+
+    // Pain Assessment
+    if (folderFormKeys?.includes("pain-assessment-form")) {
+      promises.push(supabase
+        .from('pain_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPainAssessmentForms(data || [])));
+    }
+
+    // Nutritional Assessment
+    if (folderFormKeys?.includes("nutritional-assessment-form")) {
+      promises.push(supabase
+        .from('nutritional_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllNutritionalAssessmentForms(data || [])));
+    }
+
+    // Oral Assessment
+    if (folderFormKeys?.includes("oral-assessment-form")) {
+      promises.push(supabase
+        .from('oral_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllOralAssessmentForms(data || [])));
+    }
+
+    // Diet Notification
+    if (folderFormKeys?.includes("diet-notification-form")) {
+      promises.push(supabase
+        .from('diet_notifications')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllDietNotificationForms(data || [])));
+    }
+
+    // Choking Risk
+    if (folderFormKeys?.includes("choking-risk-assessment-form")) {
+      promises.push(supabase
+        .from('choking_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllChokingRiskAssessmentForms(data || [])));
+    }
+
+    // Cornell Depression
+    if (folderFormKeys?.includes("cornell-depression-scale-form")) {
+      promises.push(supabase
+        .from('cornell_depression_scales')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllCornellDepressionScaleForms(data || [])));
+    }
+
+    // Best Interest
+    if (folderFormKeys?.includes("best-interest-decision-form")) {
+      promises.push(supabase
+        .from('best_interest_decisions')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBestInterestDecisionForms(data || [])));
+    }
+
+    Promise.all(promises).finally(() => setIsLoading(false));
+  }, [residentId]);
+
+  // Fetch care plans separately without folderKey dependency to avoid infinite loops
+  useEffect(() => {
+    fetchAllCarePlans();
+  }, [fetchAllCarePlans]);
+
+  // Conform to existing return signature but with Supabase data structure
+  // The existing Consumers expect _creationTime, _id. Supabase gives created_at, id.
+  // We might need to map these or update consumers.
+  // Update: I will map them here to preserve compatibility where possible, or update consumers to use unified props.
+  // Actually, easiest is to ensure consumers handle 'created_at' or map it here.
+  // Let's map created_at -> completedAt (or _creationTime) for the `getAllPdfFiles` logic which is also in this hook.
+
+  const mapToConvexLike = (data: any[] | any | undefined | null) => {
+    if (!data) return undefined;
+    if (Array.isArray(data)) {
+      return data.map(item => ({
+        ...item,
+        _id: item.id,
+        _creationTime: new Date(item.created_at).getTime()
+      }));
+    }
+    // Ensure data is an object before spreading
+    if (typeof data === 'object' && data !== null) {
+      return { ...data, _id: data.id, _creationTime: new Date(data.created_at).getTime() };
+    }
+    return undefined;
+  };
+
+  const allPreAdmissionFormsMapped = useMemo(() => mapToConvexLike(allPreAdmissionForms), [allPreAdmissionForms]);
+  const allInfectionPreventionFormsMapped = useMemo(() => mapToConvexLike(allInfectionPreventionForms), [allInfectionPreventionForms]);
+  const allBladderBowelFormsMapped = useMemo(() => mapToConvexLike(allBladderBowelForms), [allBladderBowelForms]);
+  const allMovingHandlingFormsMapped = useMemo(() => mapToConvexLike(allMovingHandlingForms), [allMovingHandlingForms]);
+  const allBedrailConsentFormsMapped = useMemo(() => mapToConvexLike(allBedrailConsentForms), [allBedrailConsentForms]);
+  const allBedRailsRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allBedRailsRiskAssessmentForms), [allBedRailsRiskAssessmentForms]);
+  const allLongTermFallsFormsMapped = useMemo(() => mapToConvexLike(allLongTermFallsForms), [allLongTermFallsForms]);
+  const allAdmissionFormsMapped = useMemo(() => mapToConvexLike(allAdmissionForms), [allAdmissionForms]);
+  const allPhotographyConsentFormsMapped = useMemo(() => mapToConvexLike(allPhotographyConsentForms), [allPhotographyConsentForms]);
+  const allDnacprFormsMapped = useMemo(() => mapToConvexLike(allDnacprForms), [allDnacprForms]);
+  const allPeepFormsMapped = useMemo(() => mapToConvexLike(allPeepForms), [allPeepForms]);
+  const allDependencyAssessmentFormsMapped = useMemo(() => mapToConvexLike(allDependencyAssessmentForms), [allDependencyAssessmentForms]);
+  const allTimlAssessmentFormsMapped = useMemo(() => mapToConvexLike(allTimlAssessmentForms), [allTimlAssessmentForms]);
+  const allSkinIntegrityFormsMapped = useMemo(() => mapToConvexLike(allSkinIntegrityForms), [allSkinIntegrityForms]);
+  const allResidentValuablesFormsMapped = useMemo(() => mapToConvexLike(allResidentValuablesForms), [allResidentValuablesForms]);
+  const allHandlingProfileFormsMapped = useMemo(() => mapToConvexLike(allHandlingProfileForms), [allHandlingProfileForms]);
+  const allPainAssessmentFormsMapped = useMemo(() => mapToConvexLike(allPainAssessmentForms), [allPainAssessmentForms]);
+  const allNutritionalAssessmentFormsMapped = useMemo(() => mapToConvexLike(allNutritionalAssessmentForms), [allNutritionalAssessmentForms]);
+  const allOralAssessmentFormsMapped = useMemo(() => mapToConvexLike(allOralAssessmentForms), [allOralAssessmentForms]);
+  const allDietNotificationFormsMapped = useMemo(() => mapToConvexLike(allDietNotificationForms), [allDietNotificationForms]);
+  const allChokingRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allChokingRiskAssessmentForms), [allChokingRiskAssessmentForms]);
+  const allCornellDepressionScaleFormsMapped = useMemo(() => mapToConvexLike(allCornellDepressionScaleForms), [allCornellDepressionScaleForms]);
+  const allBestInterestDecisionFormsMapped = useMemo(() => mapToConvexLike(allBestInterestDecisionForms), [allBestInterestDecisionForms]);
+
+  const latestCarePlanFormMapped = useMemo(() => mapToConvexLike(latestCarePlanForm), [latestCarePlanForm]);
+  const archivedCarePlansMapped = useMemo(() => mapToConvexLike(archivedCarePlans), [archivedCarePlans]);
+
+  // Filter care plans by folderKey in useMemo to avoid infinite loops
+  const filteredLatestCarePlan = useMemo(() => {
+    if (!latestCarePlanForm || !folderKey) return null;
+    const savedFolderKey = latestCarePlanForm.goals?.folderKey || latestCarePlanForm.folder_key;
+    return savedFolderKey === folderKey ? latestCarePlanForm : null;
+  }, [latestCarePlanForm, folderKey]);
+
+  const filteredArchivedCarePlans = useMemo(() => {
+    if (!archivedCarePlans || !folderKey) return [];
+    return archivedCarePlans.filter((cp: any) => {
+      const savedFolderKey = cp.goals?.folderKey || cp.folder_key;
+      return savedFolderKey === folderKey;
+    });
+  }, [archivedCarePlans, folderKey]);
+
+  const filteredLatestCarePlanMapped = useMemo(() => mapToConvexLike(filteredLatestCarePlan), [filteredLatestCarePlan]);
+  const filteredArchivedCarePlansMapped = useMemo(() => mapToConvexLike(filteredArchivedCarePlans), [filteredArchivedCarePlans]);
+
+  // Unified File List
   const getAllPdfFiles = useMemo(() => {
     const pdfFiles: Array<{
       formKey: string;
@@ -218,488 +649,133 @@ export function useFolderForms({
       url?: string;
       completedAt: number;
       isLatest: boolean;
+      data?: any; // Include full data reference if needed
     }> = [];
 
-    // Process Pre-admission forms (only show latest)
-    if (allPreAdmissionForms && folderFormKeys.includes("preAdmission-form")) {
-      const sortedForms = [...allPreAdmissionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "preAdmission-form",
-          formId: sortedForms[0]._id,
-          name: "Pre-Admission Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
+    const processForms = (forms: any[] | undefined, key: string, name: string, forceInclude = false) => {
+      if (forms && (folderFormKeys.includes(key as CareFileFormKey) || forceInclude)) {
+        const sorted = [...forms].sort((a, b) => b._creationTime - a._creationTime);
+        sorted.forEach((form, index) => {
+          // Use care_plan_type or nameOfCarePlan if available for care plans, otherwise use the provided name
+          const displayName = (key === "care-plan-form")
+            ? (form.care_plan_type || form.nameOfCarePlan || name)
+            : name;
+
+          pdfFiles.push({
+            formKey: key,
+            formId: form._id,
+            name: `${displayName}${index > 0 ? ` (Version ${sorted.length - index})` : ''}`,
+            completedAt: form._creationTime,
+            isLatest: index === 0,
+            data: form
+          });
         });
+      }
+    };
+
+    processForms(allPreAdmissionFormsMapped, "preAdmission-form", "Pre-Admission Assessment");
+    processForms(allInfectionPreventionFormsMapped, "infection-prevention", "Infection Prevention Assessment");
+    processForms(allBladderBowelFormsMapped, "blader-bowel-form", "Bladder & Bowel Assessment");
+    processForms(allMovingHandlingFormsMapped, "moving-handling-form", "Moving & Handling Assessment");
+    processForms(allBedrailConsentFormsMapped, "bedrail-consent-form", "Bedrails Consent / Agreement");
+    processForms(allBedRailsRiskAssessmentFormsMapped, "bed-rails-risk-assessment-form", "Risk Assessment for Use of Bed Rails");
+    processForms(allLongTermFallsFormsMapped, "long-term-fall-risk-form", "Long Term Falls Risk Assessment");
+    processForms(allAdmissionFormsMapped, "admission-form", "Admission Assessment");
+    processForms(allPhotographyConsentFormsMapped, "photography-consent", "Photography Consent Form");
+    processForms(allDnacprFormsMapped, "dnacpr", "DNACPR Form");
+    processForms(allPeepFormsMapped, "peep", "Personal Emergency Evacuation Plan");
+    processForms(allDependencyAssessmentFormsMapped, "dependency-assessment", "Dependency Assessment");
+    processForms(allTimlAssessmentFormsMapped, "timl", "This Is My Life Assessment");
+    processForms(allSkinIntegrityFormsMapped, "skin-integrity-form", "Skin Integrity Assessment");
+    processForms(allResidentValuablesFormsMapped, "resident-valuables-form", "Resident Valuables Assessment");
+    processForms(allHandlingProfileFormsMapped, "resident-handling-profile-form", "Resident Handling Profile");
+    processForms(allPainAssessmentFormsMapped, "pain-assessment-form", "Pain Assessment and Evaluation");
+    processForms(allNutritionalAssessmentFormsMapped, "nutritional-assessment-form", "Nutritional Assessment");
+    processForms(allOralAssessmentFormsMapped, "oral-assessment-form", "Oral Assessment");
+    processForms(allDietNotificationFormsMapped, "diet-notification-form", "Diet Notification");
+    processForms(allChokingRiskAssessmentFormsMapped, "choking-risk-assessment-form", "Choking Risk Assessment");
+    processForms(allCornellDepressionScaleFormsMapped, "cornell-depression-scale-form", "Cornell Scale for Depression in Dementia");
+    processForms(allBestInterestDecisionFormsMapped, "best-interest-decision-form", "Best Interest Decision");
+
+    // Process Care Plans
+    if (includeCarePlans) {
+      const allCarePlans: any[] = [];
+      if (filteredLatestCarePlanMapped) {
+        allCarePlans.push(filteredLatestCarePlanMapped);
+      }
+      if (filteredArchivedCarePlansMapped && filteredArchivedCarePlansMapped.length > 0) {
+        allCarePlans.push(...filteredArchivedCarePlansMapped);
+      }
+      // If we have any care plans, process them
+      if (allCarePlans.length > 0) {
+        processForms(allCarePlans, "care-plan-form", "Care Plan", true);
       }
     }
 
-    // Process Infection Prevention forms (only show latest)
-    if (
-      allInfectionPreventionForms &&
-      folderFormKeys.includes("infection-prevention")
-    ) {
-      const sortedForms = [...allInfectionPreventionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "infection-prevention",
-          formId: sortedForms[0]._id,
-          name: "Infection Prevention Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
+    return pdfFiles.sort((a, b) => b.completedAt - a.completedAt);
 
-    // Process Bladder/Bowel forms (only show latest)
-    if (allBladderBowelForms && folderFormKeys.includes("blader-bowel-form")) {
-      const sortedForms = [...allBladderBowelForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "blader-bowel-form",
-          formId: sortedForms[0]._id,
-          name: "Bladder & Bowel Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Moving & Handling forms (only show latest)
-    if (
-      allMovingHandlingForms &&
-      folderFormKeys.includes("moving-handling-form")
-    ) {
-      const sortedForms = [...allMovingHandlingForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      // Only add the latest form to Files section, older ones go to Archive
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "moving-handling-form",
-          formId: sortedForms[0]._id,
-          name: "Moving & Handling Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Bedrail Consent forms (only show latest)
-    if (
-      allBedrailConsentForms &&
-      folderFormKeys.includes("bedrail-consent-form")
-    ) {
-      const sortedForms = [...allBedrailConsentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      // Only add the latest form to Files section, older ones go to Archive
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "bedrail-consent-form",
-          formId: sortedForms[0]._id,
-          name: "Bedrails Consent / Agreement",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Bed Rails Risk Assessment forms (only show latest)
-    if (
-      allBedRailsRiskAssessmentForms &&
-      folderFormKeys.includes("bed-rails-risk-assessment-form")
-    ) {
-      const sortedForms = [...allBedRailsRiskAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      // Only add the latest form to Files section, older ones go to Archive
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "bed-rails-risk-assessment-form",
-          formId: sortedForms[0]._id,
-          name: "Risk Assessment for Use of Bed Rails",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Long Term Falls forms
-    if (
-      allLongTermFallsForms &&
-      folderFormKeys.includes("long-term-fall-risk-form")
-    ) {
-      pdfFiles.push({
-        formKey: "long-term-fall-risk-form",
-        formId: allLongTermFallsForms._id,
-        name: "Long Term Falls Risk Assessment",
-        completedAt: allLongTermFallsForms._creationTime,
-        isLatest: true // Since we only get the latest one
-      });
-    }
-
-    // Process Admission forms (only show latest)
-    if (allAdmissionForms && folderFormKeys.includes("admission-form")) {
-      const sortedForms = [...allAdmissionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      // Only add the latest form to Files section, older ones go to Archive
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "admission-form",
-          formId: sortedForms[0]._id,
-          name: "Admission Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Photography Consent forms (only show latest)
-    if (
-      allPhotographyConsentForms &&
-      folderFormKeys.includes("photography-consent")
-    ) {
-      const sortedForms = [...allPhotographyConsentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "photography-consent",
-          formId: sortedForms[0]._id,
-          name: "Photography Consent Form",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process DNACPR forms (only show latest)
-    if (allDnacprForms && folderFormKeys.includes("dnacpr")) {
-      const sortedForms = [...allDnacprForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "dnacpr",
-          formId: sortedForms[0]._id,
-          name: "DNACPR Form",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process PEEP forms (only show latest)
-    if (allPeepForms && folderFormKeys.includes("peep")) {
-      const sortedForms = [...allPeepForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "peep",
-          formId: sortedForms[0]._id,
-          name: "Personal Emergency Evacuation Plan",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Dependency Assessment forms (only show latest)
-    if (
-      allDependencyAssessmentForms &&
-      folderFormKeys.includes("dependency-assessment")
-    ) {
-      const sortedForms = [...allDependencyAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "dependency-assessment",
-          formId: sortedForms[0]._id,
-          name: "Dependency Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process TIML Assessment forms (only show latest)
-    if (allTimlAssessmentForms && folderFormKeys.includes("timl")) {
-      const sortedForms = [...allTimlAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "timl",
-          formId: sortedForms[0]._id,
-          name: "This Is My Life Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Skin Integrity Assessment forms (only show latest)
-    if (
-      allSkinIntegrityForms &&
-      folderFormKeys.includes("skin-integrity-form")
-    ) {
-      const sortedForms = [...allSkinIntegrityForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "skin-integrity-form",
-          formId: sortedForms[0]._id,
-          name: "Skin Integrity Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Resident Valuables forms (only show latest)
-    if (
-      allResidentValuablesForms &&
-      folderFormKeys.includes("resident-valuables-form")
-    ) {
-      const sortedForms = [...allResidentValuablesForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "resident-valuables-form",
-          formId: sortedForms[0]._id,
-          name: "Resident Valuables Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Resident Handling Profile forms (only show latest)
-    if (
-      allHandlingProfileForms &&
-      folderFormKeys.includes("resident-handling-profile-form")
-    ) {
-      const sortedForms = [...allHandlingProfileForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "resident-handling-profile-form",
-          formId: sortedForms[0]._id,
-          name: "Resident Handling Profile",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Pain Assessment forms (only show latest)
-    if (
-      allPainAssessmentForms &&
-      folderFormKeys.includes("pain-assessment-form")
-    ) {
-      const sortedForms = [...allPainAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      // Only add the latest form to Files section, older ones go to Archive
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "pain-assessment-form",
-          formId: sortedForms[0]._id,
-          name: "Pain Assessment and Evaluation",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Nutritional Assessment forms (only show latest)
-    if (
-      allNutritionalAssessmentForms &&
-      folderFormKeys.includes("nutritional-assessment-form")
-    ) {
-      const sortedForms = [...allNutritionalAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      // Only add the latest form to Files section, older ones go to Archive
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "nutritional-assessment-form",
-          formId: sortedForms[0]._id,
-          name: "Nutritional Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Oral Assessment forms (only show latest)
-    if (
-      allOralAssessmentForms &&
-      folderFormKeys.includes("oral-assessment-form")
-    ) {
-      const sortedForms = [...allOralAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "oral-assessment-form",
-          formId: sortedForms[0]._id,
-          name: "Oral Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Diet Notification forms (only show latest)
-    if (
-      allDietNotificationForms &&
-      folderFormKeys.includes("diet-notification-form")
-    ) {
-      const sortedForms = [...allDietNotificationForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "diet-notification-form",
-          formId: sortedForms[0]._id,
-          name: "Diet Notification",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Choking Risk Assessment forms (only show latest)
-    if (
-      allChokingRiskAssessmentForms &&
-      folderFormKeys.includes("choking-risk-assessment-form")
-    ) {
-      const sortedForms = [...allChokingRiskAssessmentForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "choking-risk-assessment-form",
-          formId: sortedForms[0]._id,
-          name: "Choking Risk Assessment",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Cornell Depression Scale forms (only show latest)
-    if (
-      allCornellDepressionScaleForms &&
-      folderFormKeys.includes("cornell-depression-scale-form")
-    ) {
-      const sortedForms = [...allCornellDepressionScaleForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "cornell-depression-scale-form",
-          formId: sortedForms[0]._id,
-          name: "Cornell Scale for Depression in Dementia",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Process Best Interest Decision forms (only show latest)
-    if (
-      allBestInterestDecisionForms &&
-      folderFormKeys.includes("best-interest-decision-form")
-    ) {
-      const sortedForms = [...allBestInterestDecisionForms].sort(
-        (a, b) => b._creationTime - a._creationTime
-      );
-      if (sortedForms.length > 0) {
-        pdfFiles.push({
-          formKey: "best-interest-decision-form",
-          formId: sortedForms[0]._id,
-          name: "Best Interest Decision",
-          completedAt: sortedForms[0]._creationTime,
-          isLatest: true
-        });
-      }
-    }
-
-    // Sort all PDFs by completion date (newest first)
-    const sortedPdfFiles = pdfFiles.sort(
-      (a, b) => b.completedAt - a.completedAt
-    );
-
-    return sortedPdfFiles;
   }, [
-    allPreAdmissionForms,
-    allInfectionPreventionForms,
-    allBladderBowelForms,
-    allMovingHandlingForms,
-    allBedrailConsentForms,
-    allBedRailsRiskAssessmentForms,
-    allLongTermFallsForms,
-    allAdmissionForms,
-    allPhotographyConsentForms,
-    allDnacprForms,
-    allPeepForms,
-    allDependencyAssessmentForms,
-    allTimlAssessmentForms,
-    allSkinIntegrityForms,
-    allResidentValuablesForms,
-    allHandlingProfileForms,
-    allPainAssessmentForms,
-    allNutritionalAssessmentForms,
-    allOralAssessmentForms,
-    allDietNotificationForms,
-    allChokingRiskAssessmentForms,
-    allCornellDepressionScaleForms,
-    allBestInterestDecisionForms,
+    allPreAdmissionFormsMapped,
+    allInfectionPreventionFormsMapped,
+    allBladderBowelFormsMapped,
+    allMovingHandlingFormsMapped,
+    allBedrailConsentFormsMapped,
+    allBedRailsRiskAssessmentFormsMapped,
+    allLongTermFallsFormsMapped,
+    allAdmissionFormsMapped,
+    allPhotographyConsentFormsMapped,
+    allDnacprFormsMapped,
+    allPeepFormsMapped,
+    allDependencyAssessmentFormsMapped,
+    allTimlAssessmentFormsMapped,
+    allSkinIntegrityFormsMapped,
+    allResidentValuablesFormsMapped,
+    allHandlingProfileFormsMapped,
+    allPainAssessmentFormsMapped,
+    allNutritionalAssessmentFormsMapped,
+    allOralAssessmentFormsMapped,
+    allDietNotificationFormsMapped,
+    allChokingRiskAssessmentFormsMapped,
+    allCornellDepressionScaleFormsMapped,
+    allBestInterestDecisionFormsMapped,
+    filteredLatestCarePlanMapped,
+    filteredArchivedCarePlansMapped,
     folderFormKeys
   ]);
 
+  const handleRefetch = useCallback(async () => {
+    await Promise.all([
+      fetchForms(),
+      fetchAllCarePlans()
+    ]);
+  }, [fetchForms, fetchAllCarePlans]);
+
   return {
-    // All form arrays
-    allPreAdmissionForms,
-    allInfectionPreventionForms,
-    allBladderBowelForms,
-    allMovingHandlingForms,
-    allBedrailConsentForms,
-    allLongTermFallsForms,
-    allAdmissionForms,
-    allPhotographyConsentForms,
-    allDnacprForms,
-    allPeepForms,
-    allDependencyAssessmentForms,
-    allTimlAssessmentForms,
-    allSkinIntegrityForms,
-    allResidentValuablesForms,
-    allHandlingProfileForms,
-    allPainAssessmentForms,
-    allNutritionalAssessmentForms,
-    allOralAssessmentForms,
-    allDietNotificationForms,
-    allChokingRiskAssessmentForms,
-    allCornellDepressionScaleForms,
-    allBestInterestDecisionForms,
-    latestCarePlanForm,
-    archivedCarePlans,
-    // Computed data
-    getAllPdfFiles
+    allPreAdmissionForms: allPreAdmissionFormsMapped,
+    allInfectionPreventionForms: allInfectionPreventionFormsMapped,
+    allBladderBowelForms: allBladderBowelFormsMapped,
+    allMovingHandlingForms: allMovingHandlingFormsMapped,
+    allBedrailConsentForms: allBedrailConsentFormsMapped,
+    allLongTermFallsForms: allLongTermFallsFormsMapped,
+    allAdmissionForms: allAdmissionFormsMapped,
+    allPhotographyConsentForms: allPhotographyConsentFormsMapped,
+    allDnacprForms: allDnacprFormsMapped,
+    allPeepForms: allPeepFormsMapped,
+    allDependencyAssessmentForms: allDependencyAssessmentFormsMapped,
+    allTimlAssessmentForms: allTimlAssessmentFormsMapped,
+    allSkinIntegrityForms: allSkinIntegrityFormsMapped,
+    allResidentValuablesForms: allResidentValuablesFormsMapped,
+    allHandlingProfileForms: allHandlingProfileFormsMapped,
+    allPainAssessmentForms: allPainAssessmentFormsMapped,
+    allNutritionalAssessmentForms: allNutritionalAssessmentFormsMapped,
+    allOralAssessmentForms: allOralAssessmentFormsMapped,
+    allDietNotificationForms: allDietNotificationFormsMapped,
+    allChokingRiskAssessmentForms: allChokingRiskAssessmentFormsMapped,
+    allCornellDepressionScaleForms: allCornellDepressionScaleFormsMapped,
+    allBestInterestDecisionForms: allBestInterestDecisionFormsMapped,
+    latestCarePlanForm: filteredLatestCarePlanMapped,
+    archivedCarePlans: filteredArchivedCarePlansMapped,
+    getAllPdfFiles,
+    refetch: handleRefetch // Expose combined refetch method
   };
 }

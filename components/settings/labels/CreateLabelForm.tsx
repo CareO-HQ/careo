@@ -16,9 +16,8 @@ import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
-import { useMutation } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 
 export default function CreateLabelForm({
@@ -27,7 +26,7 @@ export default function CreateLabelForm({
   onSuccess: () => void;
 }) {
   const [isLoading, startTransition] = useTransition();
-  const createLabel = useMutation(api.labels.createLabel);
+  const { supabase } = useSupabase();
   const { data: member } = authClient.useActiveMember();
 
   const form = useForm<z.infer<typeof createLabelSchema>>({
@@ -39,15 +38,40 @@ export default function CreateLabelForm({
   });
 
   function onSubmit(values: z.infer<typeof createLabelSchema>) {
+    if (!member?.organizationId || !supabase) {
+      toast.error("Missing organization information");
+      return;
+    }
+
     startTransition(async () => {
-      const labelId = await createLabel({
-        ...values,
-        organizationId: member?.organizationId as string
-      });
-      if (labelId) {
-        toast.success("Label created successfully");
-        onSuccess();
-      } else {
+      try {
+        const { data, error } = await supabase
+          .from("labels")
+          .insert({
+            name: values.name,
+            color: values.color,
+            organization_id: member.organizationId
+          })
+          .select()
+          .single();
+
+        if (error) {
+          if (error.code === "23505") {
+            // Unique constraint violation
+            toast.error(`Label with name "${values.name}" already exists`);
+          } else {
+            toast.error("Failed to create label");
+          }
+          return;
+        }
+
+        if (data) {
+          toast.success("Label created successfully");
+          form.reset();
+          onSuccess();
+        }
+      } catch (error) {
+        console.error("Error creating label:", error);
         toast.error("Failed to create label");
       }
     });

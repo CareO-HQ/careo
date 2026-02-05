@@ -16,11 +16,8 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { api, components } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
 import { InviteUsersOnboardingForm } from "@/schemas/InviteUsersOnboardingForm";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "convex/react";
 import { PlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -28,21 +25,18 @@ import { useForm } from "react-hook-form";
 import z from "zod";
 import { getAllowedRolesToInvite, UserRole } from "@/lib/permissions";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
+import { nanoid } from "nanoid";
+import { sendInvitationEmail } from "@/app/actions/invitations";
 
 export default function InviteForm() {
   const [isLoading, startTransition] = useTransition();
-  const { data: session } = authClient.useSession();
-  const { data: member } = authClient.useActiveMember();
-  console.log("SESSION", session);
+  const { profile, refresh: refreshProfile } = useProfile();
   const router = useRouter();
-  const setIsOnboardingCompleted = useMutation(
-    api.user.setIsOnboardingCompleted
-  );
-  const createInvitation = useMutation(api.customInvite.createInvitationForManager);
-  const activeCareHome = useQuery(api.rbac.careHomes.getActiveCareHome, {});
 
   // Get the first allowed role as default
-  const inviterRole = (member?.role as UserRole) || "owner";
+  const inviterRole = (profile?.role as UserRole) || "owner";
   const allowedRoles = getAllowedRolesToInvite(inviterRole);
   const defaultRole = allowedRoles[0] || "manager";
 
@@ -64,38 +58,64 @@ export default function InviteForm() {
 
   function onSubmit(values: z.infer<typeof InviteUsersOnboardingForm>) {
     startTransition(async () => {
-      // Filter out users with empty emails
+      if (!profile || !profile.active_organization_id) {
+        toast.error("Missing organization context");
+        return;
+      }
+
       const usersWithEmails = values.users.filter(
         (user) => user?.email && user.email.trim() !== ""
       );
 
-      const finalData = {
-        ...values,
-        users: usersWithEmails
-      };
-
       let successCount = 0;
       let errorCount = 0;
 
-      for (const user of finalData.users) {
-        if (!user?.email) continue;
+      // 1. Fetch organization name for the email
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', profile.active_organization_id)
+        .single();
 
+      const organizationName = orgData?.name || "your organization";
+
+      for (const user of usersWithEmails) {
+        if (!user?.email) continue;
+        const email = user.email;
         try {
-          const result = await createInvitation({
-            email: user.email,
-            role: user.role as any,
-            careHomeId: user.role === "manager" ? activeCareHome?._id : undefined
-          });
-          
-          if (result.success) {
-            console.log("Invitation sent:", result.invitationId);
+          const token = nanoid(32);
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+          const { error } = await supabase
+            .from("invitations")
+            .insert({
+              organization_id: profile.active_organization_id,
+              care_home_id: user.role === "manager" ? profile.active_care_home_id : undefined,
+              email,
+              role: user.role,
+              invited_by: profile.id,
+              token: token,
+              expires_at: expiresAt.toISOString(),
+              status: "pending"
+            });
+
+          if (!error) {
             successCount++;
+
+            // 2. Send Invitation Email
+            await sendInvitationEmail({
+              email,
+              organizationId: profile.active_organization_id,
+              organizationName: organizationName,
+              inviterName: profile.name || "A team member",
+              token: token,
+              role: user.role
+            });
           } else {
-            console.error("Error sending invitation:", result.error);
+            console.error("Error sending invitation:", error);
             errorCount++;
-            if (result.error && !result.error.includes("already invited")) {
-              toast.error(`Failed to invite ${user.email}: ${result.error}`);
-            }
+            toast.error(`Failed to invite ${user.email}: ${error.message}`);
           }
         } catch (error) {
           console.error("Error sending invitation:", error);
@@ -106,20 +126,26 @@ export default function InviteForm() {
       if (successCount > 0) {
         toast.success(`Successfully sent ${successCount} invitation(s)`);
       }
-      if (errorCount > 0 && successCount === 0) {
-        toast.error(`Failed to send ${errorCount} invitation(s)`);
-      }
 
-      // Mark onboarding as complete BEFORE redirecting to ensure it's saved
+      // Mark onboarding as complete
       try {
-        await setIsOnboardingCompleted();
-      } catch (error) {
+        const { error: completionError } = await supabase
+          .from("users")
+          .update({
+            is_onboarding_complete: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", profile.id);
+
+        if (completionError) throw completionError;
+
+        await refreshProfile();
+        toast.success("Onboarding complete!");
+        router.push("/dashboard");
+      } catch (error: any) {
         console.error("Error marking onboarding as complete:", error);
         toast.error("Failed to complete onboarding. Please try again.");
-        return;
       }
-      
-      router.push("/dashboard");
     });
   }
 
@@ -199,7 +225,7 @@ export default function InviteForm() {
                   control={form.control}
                   name={`users.${index}.role`}
                   render={({ field }) => {
-                    const inviterRole = (member?.role as UserRole) || "owner";
+                    const inviterRole = (profile?.role as UserRole) || "owner";
                     const allowedRoles = getAllowedRolesToInvite(inviterRole);
 
                     return (

@@ -32,11 +32,9 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { Dialog } from "@radix-ui/react-dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useProfile } from "@/hooks/use-profile";
 import { canCreateResident } from "@/lib/permissions";
 
 interface DataTableProps<TData, TValue> {
@@ -50,14 +48,9 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
-  const { data: activeMember } = authClient.useActiveMember();
-  const currentUser = useQuery(api.auth.getCurrentUser);
-  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
-  const userRole = currentUser === undefined
-    ? undefined
-    : isSaasAdmin
-      ? "saas_admin"
-      : (activeMember?.role as string | undefined) || (currentUser as any)?.role || undefined;
+  const { profile } = useProfile();
+  const isSaasAdmin = profile?.is_saas_admin === true;
+  const userRole = isSaasAdmin ? "saas_admin" : profile?.role;
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -69,7 +62,7 @@ export function DataTable<TData, TValue>({
     }
   ]);
   const [searchValue, setSearchValue] = React.useState<string>("");
-
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
 
   const table = useReactTable({
     data,
@@ -96,15 +89,6 @@ export function DataTable<TData, TValue>({
     return () => clearTimeout(timeoutId);
   }, [searchValue, table]);
 
-  // Unit filter removed - column doesn't exist in current table definition
-  // React.useEffect(() => {
-  //   if (unitFilter === "all") {
-  //     table.getColumn("unit")?.setFilterValue("");
-  //   } else {
-  //     table.getColumn("unit")?.setFilterValue(unitFilter);
-  //   }
-  // }, [unitFilter, table]);
-
   return (
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
@@ -128,8 +112,6 @@ export function DataTable<TData, TValue>({
               </Button>
             )}
           </div>
-
-    
         </div>
 
         {/* Results count */}
@@ -139,7 +121,7 @@ export function DataTable<TData, TValue>({
             {table.getCoreRowModel().rows.length} resident(s)
           </div>
           {canCreateResident(userRole) && (
-            <Dialog>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">Add Resident</Button>
               </DialogTrigger>
@@ -147,11 +129,11 @@ export function DataTable<TData, TValue>({
                 <DialogHeader>
                   <DialogTitle>Create New Resident Profile</DialogTitle>
                   <DialogDescription>
-                    Enter the resident’s personal information and relevant care
+                    Enter the resident&apos;s personal information and relevant care
                     details to create their profile.
                   </DialogDescription>
                 </DialogHeader>
-                <CreateResidentForm />
+                <CreateResidentForm onSuccess={() => setIsDialogOpen(false)} />
               </DialogContent>
             </Dialog>
           )}
@@ -169,9 +151,9 @@ export function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   );
                 })}
@@ -181,13 +163,13 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
-                const resident = row.original as { _id: string };
+                const resident = row.original as { id: string };
                 return (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/dashboard/residents/${resident._id}`)}
+                    onClick={() => router.push(`/dashboard/residents/${resident.id}`)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

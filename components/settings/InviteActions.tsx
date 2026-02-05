@@ -6,49 +6,44 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { authClient } from "@/lib/auth-client";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 import { canInviteMembers, type UserRole } from "@/lib/permissions";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { sendInvitationEmail } from "@/app/actions/invitations";
 
 export default function InviteActions({
   invitationId
 }: {
   invitationId: string;
 }) {
-  const { data: member } = authClient.useActiveMember();
-  const { data: activeOrganization, refetch: refetchOrganization } = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
-  const revokeInvitation = useMutation(api.customInvite.revokeInvitationForManager);
+  const { profile } = useProfile();
+  const { supabase } = useSupabase();
 
-  // Fallback: Get role from organization members if activeMember is not available
-  const orgMemberRole = activeOrganization?.members?.find(
-    (m) => m.user?.email === user?.user?.email || m.userId === user?.user?.id
-  )?.role;
-
-  // Use activeMember role first, fallback to org member role
-  const userRole = (member?.role || orgMemberRole) as UserRole | undefined;
+  const userRole = profile?.role as UserRole | undefined;
 
   // Only owners and managers can manage invitations
   const canManageInvitations = userRole ? canInviteMembers(userRole) : false;
 
   const handleRevoke = async () => {
-    if (!canManageInvitations) {
+    if (!canManageInvitations || !supabase) {
       toast.error("You don't have permission to revoke invitations");
       return;
     }
 
     try {
-      const result = await revokeInvitation({ invitationId });
-      if (result.success) {
-        toast.success("Invitation revoked");
-        // Refetch organization data to update the invitations list
-        await refetchOrganization();
-      } else {
-        toast.error(result.error || "Failed to revoke invitation");
+      const { error } = await supabase
+        .from('invitations')
+        .update({ status: 'revoked' })
+        .eq('id', invitationId);
+
+      if (error) {
+        throw error;
       }
+
+      toast.success("Invitation revoked");
+      window.location.reload();
     } catch (error) {
       console.error("Error revoking invitation:", error);
       toast.error("Failed to revoke invitation");
@@ -60,7 +55,51 @@ export default function InviteActions({
       toast.error("You don't have permission to resend invitations");
       return;
     }
-    toast.success("Invitation resent");
+
+    try {
+      if (!supabase) return;
+
+      // 1. Fetch invitation details
+      const { data: invite, error: inviteError } = await supabase
+        .from('invitations')
+        .select(`
+          email,
+          role,
+          token,
+          organizations (
+            id,
+            name
+          )
+        `)
+        .eq('id', invitationId)
+        .single();
+
+      if (inviteError || !invite) {
+        throw new Error("Invitation not found");
+      }
+
+      const organizationName = (invite.organizations as any)?.name || "your organization";
+      const organizationId = (invite.organizations as any)?.id || "";
+
+      // 2. Call the email action
+      const result = await sendInvitationEmail({
+        email: invite.email,
+        organizationId: organizationId,
+        organizationName: organizationName,
+        inviterName: profile?.name || "A team member",
+        token: invite.token,
+        role: invite.role as string
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      toast.success("Invitation email resent successfully");
+    } catch (error: any) {
+      console.error("Error resending invitation:", error);
+      toast.error(error.message || "Failed to resend invitation");
+    }
   };
 
   // Don't show actions if user doesn't have permission
@@ -76,7 +115,7 @@ export default function InviteActions({
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleResend} disabled>Resend</DropdownMenuItem>
+        <DropdownMenuItem onClick={handleResend}>Resend</DropdownMenuItem>
         <DropdownMenuItem className="text-destructive" onClick={handleRevoke}>
           Revoke
         </DropdownMenuItem>

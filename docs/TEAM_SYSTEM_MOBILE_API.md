@@ -27,9 +27,9 @@ The team system consists of three main layers:
    - Stores core authentication and organization data
    - Provides session management with `activeOrganizationId`
 
-2. **Convex Database Layer** (Application Data)
-   - Stores user preferences (`activeTeamId`)
-   - Tracks team memberships (`teamMembers` table)
+2. **Supabase Database Layer** (Application Data)
+   - Stores user preferences (`active_team_id` in `users` table)
+   - Tracks team memberships (`team_members` table)
    - Manages invitation metadata
 
 3. **Frontend/Mobile Layer**
@@ -84,46 +84,47 @@ The team system consists of three main layers:
   - `activeOrganizationId` (string): Currently active organization
   - `expiresAt` (number): Session expiration timestamp
 
-### 2. Convex Database Tables
+### 2. Supabase Database Tables
 
 #### `users` Table
 - **Purpose**: Application-specific user data and preferences
 - **Key Fields**:
-  - `_id` (Id<"users">): Convex document ID
-  - `email` (string): User email (indexed: `byEmail`)
+  - `id` (UUID): PostgreSQL primary key (references `auth.users.id`)
+  - `email` (string): User email (indexed)
   - `name` (string, optional): User name
-  - `activeTeamId` (string, optional): **Currently selected team ID** (indexed: `byActiveTeamId`)
-  - `isOnboardingComplete` (boolean): Whether user completed onboarding
+  - `active_team_id` (UUID, optional): **Currently selected team ID** (indexed)
+  - `active_organization_id` (UUID, optional): Currently active organization ID
+  - `is_onboarding_complete` (boolean): Whether user completed onboarding
   - `image` (string, optional): Profile image URL
   - `phone` (string, optional): Phone number
 
-**Critical Field**: `activeTeamId` determines which team is currently selected/active for the user in the UI.
+**Critical Field**: `active_team_id` determines which team is currently selected/active for the user in the UI.
 
-#### `teamMembers` Table
+#### `team_members` Table
 - **Purpose**: Tracks which users belong to which teams
 - **Key Fields**:
-  - `_id` (Id<"teamMembers">): Convex document ID
-  - `userId` (string): Better Auth user ID (indexed: `byUserId`)
-  - `teamId` (string): Team ID (indexed: `byTeamId`)
-  - `organizationId` (string): Organization ID (indexed: `byOrganization`)
+  - `id` (UUID): PostgreSQL primary key
+  - `user_id` (UUID): User ID (references `users.id`, indexed)
+  - `team_id` (UUID): Team ID (references `teams.id`, indexed)
+  - `organization_id` (UUID): Organization ID (indexed)
   - `role` (string, optional): User role in this team
   - `email` (string, optional): User email for fallback lookup
-  - `createdAt` (number): When membership was created
-  - `createdBy` (string): User ID who created the membership
+  - `created_at` (timestamp): When membership was created
+  - `created_by` (UUID): User ID who created the membership
 
 **Indexes**:
-- `byUserId`: Find all teams for a user
-- `byTeamId`: Find all members of a team
-- `byUserAndTeam`: Check if user is in specific team (composite index)
-- `byOrganization`: Find all team memberships in an organization
+- `idx_team_members_user_id`: Find all teams for a user
+- `idx_team_members_team_id`: Find all members of a team
+- `idx_team_members_user_team`: Check if user is in specific team (composite index)
+- `idx_team_members_organization`: Find all team memberships in an organization
 
-#### `invitationMetadata` Table
+#### `invitation_metadata` Table
 - **Purpose**: Stores team assignment information from invitations
 - **Key Fields**:
-  - `_id` (Id<"invitationMetadata">): Convex document ID
-  - `invitationId` (string): Better Auth invitation ID (indexed: `byInvitationId`)
-  - `teamId` (string, optional): Team ID user was invited to
-  - `organizationId` (string): Organization ID (indexed: `byOrganization`)
+  - `id` (UUID): PostgreSQL primary key
+  - `invitation_id` (UUID): Invitation ID (indexed)
+  - `team_id` (UUID, optional): Team ID user was invited to
+  - `organization_id` (UUID): Organization ID (indexed)
 
 ---
 
@@ -133,37 +134,37 @@ The team system consists of three main layers:
 
 #### 1. Getting Available Teams
 
-**Query**: `api.auth.getTeamsForCurrentUser`
+**Query**: Server action or API route to get teams for current user
 
 **Logic**:
 ```typescript
 // Pseudo-code
-1. Get current session (Better Auth)
-2. Get activeOrganizationId from session
+1. Get current user from Supabase Auth session
+2. Get active_organization_id from users table
 3. Get current user's member record (to verify organization membership)
-4. Query all teams in the active organization
+4. Query all teams in the active organization from Supabase
 5. Filter out teams with same name as organization (default teams)
-6. Return list of teams with: { id, name, organizationId, createdAt }
+6. Return list of teams with: { id, name, organization_id, created_at }
 ```
 
 **Important**: All roles (managers, owners, nurses, care assistants) can see **all teams** in their active organization. There's no filtering by team membership for display purposes.
 
 #### 2. Getting Currently Active Team
 
-**Query**: `api.auth.getCurrentUser`
+**Query**: Server action or API route to get current user
 
 **Logic**:
 ```typescript
 // Pseudo-code
-1. Get Better Auth user metadata
-2. Get Convex user record by email
-3. If user.activeTeamId exists:
-   - Query Better Auth team table for team details
-   - Return: { id, name, organizationId }
-4. Return activeTeamId and activeTeam object
+1. Get Supabase Auth user metadata
+2. Get user record from Supabase users table
+3. If user.active_team_id exists:
+   - Query Supabase teams table for team details
+   - Return: { id, name, organization_id }
+4. Return active_team_id and activeTeam object
 ```
 
-**Key Point**: The `activeTeamId` from the `users` table determines which team is currently selected.
+**Key Point**: The `active_team_id` from the `users` table determines which team is currently selected.
 
 #### 3. Display in UI
 
@@ -176,7 +177,7 @@ The team system consists of three main layers:
 
 **Team List**:
 - Shows all teams in the active organization
-- Highlights the currently active team (where `activeTeamId === team.id`)
+- Highlights the currently active team (where `active_team_id === team.id`)
 - Shows "Active" label next to selected team
 
 ---
@@ -187,9 +188,9 @@ The team system consists of three main layers:
 
 When a care assistant switches teams, the system:
 1. Validates the team exists and belongs to the active organization
-2. Updates `activeTeamId` in the `users` table
-3. Ensures the user is in the `teamMembers` table for that team
-4. All subsequent queries filter by the new `activeTeamId`
+2. Updates `active_team_id` in the `users` table via Supabase
+3. Ensures the user is in the `team_members` table for that team
+4. All subsequent queries filter by the new `active_team_id`
 
 ### Detailed Flow
 
@@ -206,47 +207,48 @@ const handleTeamClick = async (teamId: string) => {
 
 #### Step 2: Validation (Backend)
 
-**Mutation**: `api.auth.updateActiveTeam`
+**Server Action**: `updateActiveTeam`
 
 **Validation Steps**:
-1. Get user identity from session
-2. Get current session to find `activeOrganizationId`
-3. Verify team exists in Better Auth `team` table
+1. Get user identity from Supabase Auth session
+2. Get current user record to find `active_organization_id`
+3. Verify team exists in Supabase `teams` table
 4. Verify team belongs to active organization
-5. Find Convex user record by email
+5. Find user record from Supabase users table
 
 #### Step 3: Update Active Team ID
 
-**Action**: Update `users.activeTeamId`
+**Action**: Update `users.active_team_id`
 
 ```typescript
-await ctx.db.patch(convexUser._id, {
-  activeTeamId: teamId
-});
+await supabase
+  .from("users")
+  .update({ active_team_id: teamId })
+  .eq("id", userId);
 ```
 
 **Result**: This is the **critical update** that changes which team is active.
 
 #### Step 4: Ensure Team Membership
 
-**Action**: Check/add entry to `teamMembers` table
+**Action**: Check/add entry to `team_members` table
 
 **Logic**:
 ```typescript
 // Check if user is already in team
-const existingTeamMember = await ctx.db
-  .query("teamMembers")
-  .withIndex("byUserAndTeam", (q) =>
-    q.eq("userId", userId).eq("teamId", teamId)
-  )
-  .first();
+const { data: existingTeamMember } = await supabase
+  .from("team_members")
+  .select("*")
+  .eq("user_id", userId)
+  .eq("team_id", teamId)
+  .single();
 
 if (!existingTeamMember) {
-  // Add user to teamMembers table
-  await ctx.db.insert("teamMembers", {
-    userId: userId,
-    teamId: teamId,
-    organizationId: organizationId,
+  // Add user to team_members table
+  await supabase.from("team_members").insert({
+    user_id: userId,
+    team_id: teamId,
+    organization_id: organizationId,
     role: member.role,
     email: userEmail,
     createdAt: Date.now(),
@@ -381,12 +383,12 @@ Array<{
 - `"No active organization found"`: No organization in session
 - `"Team not found"`: Team doesn't exist
 - `"Team does not belong to the active organization"`: Team is in different org
-- `"User not found in Convex database"`: User record missing
+- `"User not found in database"`: User record missing
 
 **Side Effects**:
-- Updates `users.activeTeamId`
-- Creates/updates `teamMembers` entry
-- All subsequent queries filter by new `activeTeamId`
+- Updates `users.active_team_id`
+- Creates/updates `team_members` entry
+- All subsequent queries filter by new `active_team_id`
 
 #### 2. Set Active Organization
 
@@ -409,13 +411,13 @@ Array<{
 ```
 
 **Side Effects**:
-- Clears `users.activeTeamId` (sets to `undefined`)
-- Updates session `activeOrganizationId`
+- Clears `users.active_team_id` (sets to `NULL`)
+- Updates `users.active_organization_id`
 - User must select a team after switching organizations
 
 #### 3. Clear Active Team
 
-**Endpoint**: `api.auth.clearActiveTeam`
+**Endpoint**: Server action or API route to clear active team
 
 **Args**: `{}`
 
@@ -427,7 +429,7 @@ Array<{
 ```
 
 **Side Effects**:
-- Sets `users.activeTeamId` to `undefined`
+- Sets `users.active_team_id` to `NULL`
 
 ---
 
@@ -443,26 +445,26 @@ Array<{
          │ 1. Query: getCurrentUser
          ▼
 ┌─────────────────────────┐
-│  api.auth.getCurrentUser │
+│  Get Current User API   │
 └────────┬─────────────────┘
          │
-         ├─► Get Better Auth user
-         ├─► Get Convex users table (byEmail)
-         │   └─► Read activeTeamId
+         ├─► Get Supabase Auth user
+         ├─► Get Supabase users table
+         │   └─► Read active_team_id
          │
-         └─► If activeTeamId exists:
-             └─► Query Better Auth team table
+         └─► If active_team_id exists:
+             └─► Query Supabase teams table
                  └─► Return team details
          
          │ 2. Query: getTeamsForCurrentUser
          ▼
 ┌──────────────────────────────┐
-│ api.auth.getTeamsForCurrentUser│
+│ Get Teams For Current User API│
 └────────┬─────────────────────┘
          │
-         ├─► Get session.activeOrganizationId
-         └─► Query Better Auth team table
-             └─► Filter by organizationId
+         ├─► Get users.active_organization_id
+         └─► Query Supabase teams table
+             └─► Filter by organization_id
                  └─► Return all teams
 ```
 
@@ -485,12 +487,12 @@ Array<{
          ├─► 2. Verify team exists
          ├─► 3. Verify team in org
          │
-         ├─► 4. Update users.activeTeamId
-         │   └─► ctx.db.patch(users._id, { activeTeamId })
+         ├─► 4. Update users.active_team_id
+         │   └─► UPDATE users SET active_team_id = teamId
          │
-         └─► 5. Ensure teamMembers entry
-             ├─► Check if exists (byUserAndTeam index)
-             └─► If not: insert teamMembers record
+         └─► 5. Ensure team_members entry
+             ├─► Check if exists (user_id + team_id)
+             └─► If not: INSERT INTO team_members
          
          │ Return success
          ▼
@@ -512,16 +514,16 @@ Array<{
          │ Query with teamId parameter
          ▼
 ┌─────────────────────────┐
-│  Convex Query Function  │
+│  Supabase Query/RLS     │
 └────────┬────────────────┘
          │
-         ├─► Get currentUser.activeTeamId
+         ├─► Get currentUser.active_team_id
          │   └─► From users table
          │
-         └─► Filter data by activeTeamId
-             ├─► Residents (by teamId)
-             ├─► Notifications (by teamId)
-             ├─► Appointments (by teamId)
+         └─► Filter data by active_team_id (via RLS or query)
+             ├─► Residents (by team_id)
+             ├─► Notifications (by team_id)
+             ├─► Appointments (by team_id)
              └─► Other team-specific data
 ```
 
@@ -545,10 +547,17 @@ Array<{
 
 ```typescript
 // 1. Get current user with active team
-const currentUser = await convex.query(api.auth.getCurrentUser, {});
+const supabase = createClient();
+const { data: currentUser } = await supabase
+  .from("users")
+  .select("*, active_team:teams!active_team_id(*)")
+  .single();
 
 // 2. Get available teams
-const teams = await convex.query(api.auth.getTeamsForCurrentUser, {});
+const { data: teams } = await supabase
+  .from("teams")
+  .select("*")
+  .eq("organization_id", currentUser.active_organization_id);
 
 // 3. Display in UI
 // - Show organization name
@@ -568,7 +577,9 @@ const teams = await convex.query(api.auth.getTeamsForCurrentUser, {});
 ```typescript
 // Get current state
 const { activeTeamId, activeTeam } = useActiveTeam();
-const teams = useQuery(api.auth.getTeamsForCurrentUser, {});
+const { data: teams } = useSupabaseQuery(
+  supabase.from("teams").select("*")
+);
 
 // Display
 <TeamSwitcher>
@@ -578,7 +589,7 @@ const teams = useQuery(api.auth.getTeamsForCurrentUser, {});
   </ActiveTeamName>
   
   <TeamList>
-    {teams.map(team => (
+    {teams?.map(team => (
       <TeamItem
         key={team.id}
         selected={activeTeamId === team.id}
@@ -598,14 +609,12 @@ const teams = useQuery(api.auth.getTeamsForCurrentUser, {});
 ```typescript
 const switchTeam = async (teamId: string) => {
   try {
-    // Call mutation
-    const result = await convex.mutation(api.auth.updateActiveTeam, {
-      teamId: teamId
-    });
+    // Call server action or API route
+    const result = await updateActiveTeam({ teamId });
     
     if (result.success) {
       // Refresh data
-      // All queries will now filter by new activeTeamId
+      // All queries will now filter by new active_team_id
       refreshData();
       
       // Show success message
@@ -625,18 +634,24 @@ const switchTeam = async (teamId: string) => {
 **Pattern**:
 ```typescript
 // Get active team first
-const currentUser = await convex.query(api.auth.getCurrentUser, {});
-const activeTeamId = currentUser?.activeTeamId;
+const supabase = createClient();
+const { data: currentUser } = await supabase
+  .from("users")
+  .select("active_team_id")
+  .single();
+const activeTeamId = currentUser?.active_team_id;
 
 // Query data with team filter
 if (activeTeamId) {
-  const residents = await convex.query(api.residents.getByTeam, {
-    teamId: activeTeamId
-  });
+  const { data: residents } = await supabase
+    .from("residents")
+    .select("*")
+    .eq("team_id", activeTeamId);
   
-  const notifications = await convex.query(api.notifications.getByTeam, {
-    teamId: activeTeamId
-  });
+  const { data: notifications } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("team_id", activeTeamId);
 }
 ```
 
@@ -683,16 +698,23 @@ useEffect(() => {
 }, []);
 
 const loadUserData = async () => {
-  const user = await convex.query(api.auth.getCurrentUser, {});
-  const teamsList = await convex.query(api.auth.getTeamsForCurrentUser, {});
+  const supabase = createClient();
+  const { data: user } = await supabase
+    .from("users")
+    .select("*, active_team:teams!active_team_id(*)")
+    .single();
+  const { data: teamsList } = await supabase
+    .from("teams")
+    .select("*")
+    .eq("organization_id", user.active_organization_id);
   
-  setActiveTeam(user.activeTeam);
+  setActiveTeam(user.active_team);
   setTeams(teamsList);
 };
 
 // On team switch
 const handleTeamSwitch = async (teamId: string) => {
-  await convex.mutation(api.auth.updateActiveTeam, { teamId });
+  await updateActiveTeam({ teamId });
   
   // Reload user data to get updated activeTeam
   await loadUserData();
@@ -705,28 +727,28 @@ const handleTeamSwitch = async (teamId: string) => {
 ### 8. Offline Support
 
 **Considerations**:
-- Cache `activeTeamId` locally
+- Cache `active_team_id` locally
 - Cache team list
-- On reconnect, verify `activeTeamId` is still valid
+- On reconnect, verify `active_team_id` is still valid
 - Sync team switch when back online
 
 ---
 
 ## Key Takeaways for Mobile Developers
 
-1. **`activeTeamId` is the source of truth**: The `users.activeTeamId` field determines which team is currently selected.
+1. **`active_team_id` is the source of truth**: The `users.active_team_id` field determines which team is currently selected.
 
-2. **Team membership is separate**: The `teamMembers` table tracks which teams a user belongs to, but doesn't determine which team is active.
+2. **Team membership is separate**: The `team_members` table tracks which teams a user belongs to, but doesn't determine which team is active.
 
 3. **All teams are visible**: Care assistants can see all teams in their organization, not just teams they're members of.
 
-4. **Switching is immediate**: When `activeTeamId` is updated, all subsequent queries should filter by the new team.
+4. **Switching is immediate**: When `active_team_id` is updated, all subsequent queries should filter by the new team.
 
-5. **Organization switching clears team**: When switching organizations, `activeTeamId` is cleared and must be set again.
+5. **Organization switching clears team**: When switching organizations, `active_team_id` is cleared and must be set again.
 
-6. **Automatic membership**: Switching to a team automatically adds the user to `teamMembers` if not already present.
+6. **Automatic membership**: Switching to a team automatically adds the user to `team_members` if not already present.
 
-7. **Session-based organization**: The active organization comes from the Better Auth session, not from the Convex database.
+7. **Session-based organization**: The active organization comes from the Supabase Auth session and `users.active_organization_id` field.
 
 ---
 
@@ -734,10 +756,10 @@ const handleTeamSwitch = async (teamId: string) => {
 
 - [ ] User can see all teams in their organization
 - [ ] Currently active team is highlighted
-- [ ] Switching teams updates `activeTeamId`
+- [ ] Switching teams updates `active_team_id`
 - [ ] Data filters correctly after team switch
-- [ ] Switching organizations clears `activeTeamId`
-- [ ] User is added to `teamMembers` when switching
+- [ ] Switching organizations clears `active_team_id`
+- [ ] User is added to `team_members` when switching
 - [ ] Handles case where user has no active team
 - [ ] Handles case where team no longer exists
 - [ ] Handles offline/online transitions
@@ -746,9 +768,10 @@ const handleTeamSwitch = async (teamId: string) => {
 
 ## Additional Resources
 
-- **Convex Queries**: All queries are reactive and update automatically when data changes
-- **Better Auth**: Session management and organization/team CRUD operations
-- **Error Handling**: All mutations return success/error objects
+- **Supabase Realtime**: All queries can use real-time subscriptions to update automatically when data changes
+- **Supabase Auth**: Session management and user authentication
+- **RLS Policies**: Row Level Security enforces data access at the database level
+- **Error Handling**: All server actions return success/error objects
 - **Logging**: Backend includes extensive logging for debugging
 
 ---

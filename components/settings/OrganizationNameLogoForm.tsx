@@ -11,12 +11,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { organizationNameSchema } from "@/schemas/settings/organizationNameSchema";
-import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 
 interface OrganizationNameLogoFormProps {
   name: string;
@@ -29,6 +30,8 @@ export default function OrganizationNameLogoForm({
   isPending,
   onSuccess
 }: OrganizationNameLogoFormProps) {
+  const { supabase } = useSupabase();
+  const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof organizationNameSchema>>({
@@ -49,19 +52,22 @@ export default function OrganizationNameLogoForm({
 
   const onSubmit = (values: z.infer<typeof organizationNameSchema>) => {
     startTransition(async () => {
-      await authClient.organization.update(
-        {
-          data: {
-            name: values.name
-          }
-        },
-        {
-          onSuccess: () => {
-            toast.success("Organization name updated");
-            onSuccess?.();
-          }
-        }
-      );
+      if (!supabase || !profile?.active_organization_id) return;
+
+      const { data, error } = await supabase
+        .from('organizations')
+        .update({
+          name: values.name
+        })
+        .eq('id', profile.active_organization_id);
+
+      if (error) {
+        toast.error("Failed to update organization name");
+        console.error("Error updating organization:", error);
+      } else {
+        toast.success("Organization name updated");
+        onSuccess?.();
+      }
     });
   };
 

@@ -1,21 +1,19 @@
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useProfile } from "./use-profile";
 
 export function useActiveTeam() {
-  const currentUser = useQuery(api.auth.getCurrentUser);
+  const { profile, isLoading } = useProfile();
 
-  // Get organizationId from activeOrganizationId OR from activeTeam.organizationId
-  const organizationId =
-    currentUser?.activeOrganizationId ||
-    currentUser?.activeTeam?.organizationId ||
-    null;
+  // Get organizationId from active_organization_id
+  const organizationId = profile?.active_organization_id || null;
 
   return {
-    activeTeamId: currentUser?.activeTeamId || null,
-    activeTeam: currentUser?.activeTeam || null,
+    activeTeamId: profile?.active_team_id || null,
+    activeTeam: profile?.active_team_name ? { name: profile.active_team_name } : null,
+    activeCareHomeId: profile?.active_care_home_id || null,
+    activeCareHome: profile?.care_home_name ? { name: profile.care_home_name } : null,
     activeOrganizationId: organizationId,
-    activeOrganization: currentUser?.activeOrganization || null,
-    role: currentUser?.role || null,
-    isLoading: currentUser === undefined
+    activeOrganization: profile?.organization_name ? { name: profile.organization_name } : null,
+    role: profile?.role || null,
+    isLoading
   };
 }

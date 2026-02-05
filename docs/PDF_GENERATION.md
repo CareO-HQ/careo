@@ -7,15 +7,14 @@ The iCare application uses **Playwright** to generate PDF documents for risk ass
 ## How It Works
 
 1. **User submits a form** (e.g., Infection Prevention Assessment)
-2. **Convex stores the data** in the database
-3. **Convex triggers an internal action** to generate the PDF
-4. **Internal action calls Next.js API route** (`/api/pdf/[assessment-type]`)
-5. **API route uses Playwright** to:
+2. **Next.js server action stores the data** in Supabase PostgreSQL database
+3. **Server action triggers PDF generation** via Next.js API route (`/api/pdf/[assessment-type]`)
+4. **API route uses Playwright** to:
    - Launch a headless Chromium browser
    - Render HTML content with the assessment data
    - Generate a PDF from the rendered HTML
-   - Store the PDF in Convex file storage
-6. **PDF URL is returned** to the user for viewing/downloading
+   - Store the PDF in Supabase Storage
+5. **PDF URL is returned** to the user for viewing/downloading
 
 ## Setup Requirements
 
@@ -32,8 +31,9 @@ npx playwright install chromium
 
 Required in `.env.local`:
 ```bash
-# Convex URL (required)
-NEXT_PUBLIC_CONVEX_URL=https://your-convex-deployment.convex.cloud
+# Supabase Configuration (required)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 # PDF API Token (optional for development)
 PDF_API_TOKEN=your-secret-token-here
@@ -128,20 +128,24 @@ To add a new PDF template:
 
 1. **Create API route**: `app/api/pdf/[new-assessment]/route.ts`
 2. **Generate HTML template**: Function to create HTML from assessment data
-3. **Add Convex action**: Trigger PDF generation after form submission
+3. **Add server action or API call**: Trigger PDF generation after form submission
 4. **Update documentation**: Add to supported assessments list
 
 Example structure:
 ```typescript
 import { chromium } from "playwright";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   const { assessmentId } = await request.json();
 
-  // Fetch data from Convex
-  const data = await convexClient.query(api.careFiles.getAssessment, {
-    id: assessmentId
-  });
+  // Fetch data from Supabase
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("care_file_assessments")
+    .select("*")
+    .eq("id", assessmentId)
+    .single();
 
   // Generate HTML
   const html = generateHTML(data);
@@ -153,7 +157,7 @@ export async function POST(request: NextRequest) {
   const pdfBuffer = await page.pdf({ format: "A4" });
   await browser.close();
 
-  // Store in Convex
+  // Store in Supabase Storage
   // ...
 }
 ```
@@ -168,7 +172,7 @@ export async function POST(request: NextRequest) {
 ## Security
 
 - API routes are protected with `PDF_API_TOKEN` bearer auth
-- PDFs are stored securely in Convex with access control
+- PDFs are stored securely in Supabase Storage with RLS policies for access control
 - No sensitive data is logged to console
 - Temporary files are cleaned up automatically
 
@@ -177,11 +181,11 @@ export async function POST(request: NextRequest) {
 For issues or questions about PDF generation:
 1. Run `npm run check-pdf` to verify setup
 2. Check browser console for error messages
-3. Review Convex logs for API call failures
+3. Review Next.js server logs for API call failures
 4. Ensure Playwright browsers are installed
 
 ## References
 
 - [Playwright Documentation](https://playwright.dev/)
-- [Convex File Storage](https://docs.convex.dev/file-storage)
+- [Supabase Storage](https://supabase.com/docs/guides/storage)
 - [Next.js API Routes](https://nextjs.org/docs/api-routes/introduction)

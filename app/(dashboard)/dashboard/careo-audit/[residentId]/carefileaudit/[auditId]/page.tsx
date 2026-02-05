@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,14 +31,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { ArrowLeft, Plus, X, Trash2, MoreHorizontal, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
+import { auditService, AuditTemplate, AuditCompletion } from "@/lib/audit-service";
+import { supabase } from "@/lib/supabase";
 
 interface Item {
   id: string;
@@ -65,304 +63,356 @@ interface ActionPlan {
   assignedToEmail: string;
   dueDate: Date | undefined;
   priority: string;
-  status?: "pending" | "in_progress" | "completed" | "overdue";
+  status?: string;
   latestComment?: string;
+  residentId?: string;
+  residentName?: string;
 }
 
 function CareFileAuditEditorPageContent() {
   const params = useParams();
   const router = useRouter();
-  const residentId = params.residentId as Id<"residents">;
-  const auditId = params.auditId as Id<"careFileAuditTemplates">;
+  const residentId = params.residentId as string;
+  const auditId = params.auditId as string;
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  const [resident, setResident] = useState<any>(undefined);
+  const [template, setTemplate] = useState<AuditTemplate | null>(null);
+  const [responseId, setResponseId] = useState<string | null>(null);
 
-  // Fetch template data
-  const template = useQuery(api.careFileAuditTemplates.getTemplateById, { templateId: auditId });
-
-  // State (defined early so it can be used in queries)
+  // States
   const [items, setItems] = useState<Item[]>([]);
   const [itemResponses, setItemResponses] = useState<Map<string, ItemResponse>>(new Map());
   const [overallNotes, setOverallNotes] = useState("");
-  const [responseId, setResponseId] = useState<Id<"careFileAuditCompletions"> | null>(null);
-
-  // Fetch existing drafts for this resident and template
-  const existingDrafts = useQuery(
-    api.careFileAuditResponses.getDraftResponsesByTemplateAndResident,
-    { templateId: auditId, residentId }
-  );
-
-  // Load organization members for action plan assignment
-  const organizationMembers = useQuery(
-    api.teams.getOrganizationMembers,
-    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
-  );
-
-  // Query action plans from database for this audit (if response exists)
-  const dbActionPlans = useQuery(
-    api.careFileAuditActionPlans.getActionPlansByAudit,
-    responseId ? { auditResponseId: responseId } : "skip"
-  );
-
-  // Mutations
-  const updateTemplate = useMutation(api.careFileAuditTemplates.updateTemplate);
-  const createResponse = useMutation(api.careFileAuditResponses.createResponse);
-  const updateResponseMutation = useMutation(api.careFileAuditResponses.updateResponse);
-  const completeResponseMutation = useMutation(api.careFileAuditResponses.completeResponse);
-  const createActionPlanMutation = useMutation(api.careFileAuditActionPlans.createActionPlan);
-  const deleteActionPlanMutation = useMutation(api.careFileAuditActionPlans.deleteActionPlan);
-
-  // Refs to prevent duplicate operations and track state
-  const isCreatingDraft = useRef(false);
-  const hasLoadedDraft = useRef(false);
-
-  // Additional state
-  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
-  const [newItemForm, setNewItemForm] = useState({
-    name: "",
-    type: "compliance" as "compliance" | "checkbox" | "notes",
-  });
-
-  // Action plan state
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
+
+  // Dialogs
+  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
+  const [newItemForm, setNewItemForm] = useState({ name: "", type: "compliance" as any });
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string>("");
-  const [assignedToEmail, setAssignedToEmail] = useState<string>("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [assignedToEmail, setAssignedToEmail] = useState("");
   const [dueDate, setDueDate] = useState<Date>();
-  const [priority, setPriority] = useState<string>("");
-  const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
+  const [priority, setPriority] = useState("");
+  const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
-  const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
 
-  // Load template items
-  useEffect(() => {
-    if (template) {
-      setItems(template.items);
-    }
-  }, [template]);
-
-  // Load existing draft if available (only once to prevent resets)
-  useEffect(() => {
-    console.log("🔍 Checking for existing care file drafts:", {
-      existingDrafts: existingDrafts?.length,
-      responseId,
-      hasLoadedDraft: hasLoadedDraft.current
-    });
-
-    // Only load once to prevent resetting user's work
-    if (existingDrafts && existingDrafts.length > 0 && !responseId && !hasLoadedDraft.current) {
-      const latestDraft = existingDrafts[0];
-      console.log("📄 Loading existing draft:", latestDraft._id);
-      setResponseId(latestDraft._id);
-
-      // Load item responses
-      const responsesMap = new Map<string, ItemResponse>();
-      latestDraft.items.forEach((item) => {
-        responsesMap.set(item.itemId, item);
-      });
-      setItemResponses(responsesMap);
-      setOverallNotes(latestDraft.overallNotes || "");
-
-      hasLoadedDraft.current = true; // Mark as loaded to prevent resets
-      console.log("✅ Draft loaded successfully");
-    }
-  }, [existingDrafts, responseId]);
-
-  // Load action plans from database
-  useEffect(() => {
-    if (dbActionPlans && dbActionPlans.length > 0) {
-      const transformedPlans: ActionPlan[] = dbActionPlans.map((plan: any) => ({
-        id: plan._id,
-        auditId: plan.auditResponseId,
-        text: plan.description,
-        assignedTo: plan.assignedToName || plan.assignedTo,
-        assignedToEmail: plan.assignedTo,
-        dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
-        priority: plan.priority,
-        status: plan.status,
-        latestComment: plan.latestComment,
-      }));
-      setActionPlans(transformedPlans);
-    }
-  }, [dbActionPlans]);
-
-  // Track if data has actually changed to avoid unnecessary saves
-  const lastSavedData = useRef<string>("");
+  // Refs
+  const isCreatingDraft = useRef(false);
+  const hasLoadedDraft = useRef(false);
+  const lastSavedData = useRef("");
   const isSaving = useRef(false);
 
-  // Auto-save functionality (debounced and optimized)
+  // Load Initial Data
   useEffect(() => {
-    if (!responseId) {
-      console.log("⏸️ Auto-save skipped: No response ID");
-      return;
-    }
+    const load = async () => {
+      if (residentId) {
+        const { data } = await supabase.from('residents').select('*').eq('id', residentId).single();
+        if (data) setResident(data);
+      }
 
-    // Only save if we have actual data
-    if (itemResponses.size === 0 && !overallNotes) {
-      console.log("⏸️ Auto-save skipped: No data to save");
-      return;
+      // Try loading as template first
+      const tmpl = await auditService.getCareFileTemplateById(auditId);
+      if (tmpl) {
+        setTemplate(tmpl);
+        if (tmpl.items) setItems(tmpl.items);
+      } else {
+        // Try loading as response
+        const resp = await auditService.getCareFileResponseById(auditId);
+        if (resp) {
+          setResponseId(resp.id);
+          // Also get template info from response if possible or set dummy
+          if (resp.template_id) {
+            const t = await auditService.getCareFileTemplateById(resp.template_id);
+            if (t) {
+              setTemplate(t);
+              if (t.items) setItems(t.items);
+            }
+          } else {
+            // Fallback if template details are embedded or missing
+            if (resp.items) {
+              setItems(resp.items.map((i: any) => ({
+                id: i.itemId,
+                name: i.itemName,
+                type: i.status === 'checked' || i.status === 'unchecked' ? 'checkbox' : 'compliance'
+              })));
+            }
+            setTemplate({ name: resp.template_name || "Audit", id: "unknown" } as any);
+          }
+
+          // Load response content
+          if (resp.items) {
+            const map = new Map();
+            resp.items.forEach((i: any) => map.set(i.itemId, i));
+            setItemResponses(map);
+          }
+          if (resp.overall_notes) setOverallNotes(resp.overall_notes);
+
+          // Load action plans
+          const plans = await auditService.getCareFileActionPlans(resp.id);
+          if (plans) {
+            setActionPlans(plans.map((p: any) => ({
+              id: p.id,
+              auditId: p.audit_response_id,
+              text: p.description,
+              assignedTo: p.assigned_to_name,
+              assignedToEmail: p.assigned_to,
+              dueDate: p.due_date ? new Date(p.due_date) : undefined,
+              priority: p.priority,
+              status: p.status,
+              latestComment: p.latest_comment,
+              residentId: p.resident_id,
+              residentName: p.resident_name
+            })));
+          }
+        }
+      }
+
+      // Load org members
+      if (activeOrganizationId) {
+        const members = await auditService.getOrganizationMembers(activeOrganizationId);
+        setOrgMembers(members || []);
+      }
     }
+    load();
+  }, [residentId, auditId, activeOrganizationId]);
+
+
+  // Check for drafts if we have a template but no response ID yet
+  useEffect(() => {
+    if (!template || responseId || hasLoadedDraft.current || !residentId) return;
+
+    const checkDraft = async () => {
+      const drafts = await auditService.getDraftCareFileResponses(template.id, residentId);
+      if (drafts && drafts.length > 0) {
+        const draft = drafts[0];
+        setResponseId(draft.id);
+        if (draft.items) {
+          const map = new Map();
+          draft.items.forEach((i: any) => map.set(i.itemId, i));
+          setItemResponses(map);
+        }
+        if (draft.overall_notes) setOverallNotes(draft.overall_notes);
+
+        const plans = await auditService.getCareFileActionPlans(draft.id);
+        if (plans) {
+          setActionPlans(plans.map((p: any) => ({
+            id: p.id,
+            auditId: p.audit_response_id,
+            text: p.description,
+            assignedTo: p.assigned_to_name,
+            assignedToEmail: p.assigned_to,
+            dueDate: p.due_date ? new Date(p.due_date) : undefined,
+            priority: p.priority,
+            status: p.status
+          })));
+        }
+        hasLoadedDraft.current = true;
+      } else if (!isCreatingDraft.current && activeOrganizationId && activeTeamId) {
+        // Create new draft
+        isCreatingDraft.current = true;
+        try {
+          const newDraft = await auditService.createCareFileResponse({
+            template_id: template.id,
+            template_name: template.name,
+            resident_id: residentId,
+            organization_id: activeOrganizationId,
+            team_id: activeTeamId,
+            audited_by: profile?.name || profile?.email || "Unknown",
+            frequency: template.frequency,
+            items: template.items ? template.items.map((i: any) => ({
+              itemId: i.id,
+              itemName: i.name,
+              status: ""
+            })) : [],
+            status: 'draft'
+          });
+          setResponseId(newDraft.id);
+          hasLoadedDraft.current = true;
+        } catch (e) { console.error(e); }
+        finally { isCreatingDraft.current = false; }
+      }
+    };
+
+    checkDraft();
+  }, [template, responseId, residentId, activeOrganizationId, activeTeamId, profile]);
+
+  // Auto-Save
+  useEffect(() => {
+    if (!responseId) return;
 
     const timer = setTimeout(async () => {
-      // Prevent concurrent saves
-      if (isSaving.current) {
-        console.log("⏸️ Auto-save skipped: Already saving");
-        return;
-      }
+      if (isSaving.current) return;
 
+      const itemsArr = Array.from(itemResponses.values());
+      const hash = JSON.stringify({ items: itemsArr, overallNotes });
+
+      if (hash === lastSavedData.current) return;
+
+      isSaving.current = true;
       try {
-        // Prepare items array
-        const items = Array.from(itemResponses.values());
-
-        // Check if data actually changed
-        const currentDataHash = JSON.stringify({ items, overallNotes });
-        if (currentDataHash === lastSavedData.current) {
-          console.log("⏸️ Auto-save skipped: No changes detected");
-          return;
-        }
-
-        isSaving.current = true;
-        console.log("💾 Auto-saving care file audit data...", {
-          responseId,
-          itemCount: items.length,
-          hasOverallNotes: !!overallNotes,
+        await auditService.updateCareFileResponse(responseId, {
+          items: itemsArr,
+          overall_notes: overallNotes,
+          status: 'in-progress'
         });
-
-        await updateResponseMutation({
-          responseId,
-          items,
-          overallNotes,
-          status: "in-progress",
-        });
-
-        lastSavedData.current = currentDataHash;
-        console.log("✅ Auto-save successful");
-      } catch (error) {
-        console.error("❌ Auto-save failed:", error);
-      } finally {
-        isSaving.current = false;
-      }
-    }, 5000); // Save every 5 seconds after changes stop
+        lastSavedData.current = hash;
+      } catch (e) { console.error("Auto-save failed", e); }
+      finally { isSaving.current = false; }
+    }, 5000);
 
     return () => clearTimeout(timer);
-  }, [itemResponses, overallNotes, responseId, updateResponseMutation]);
+  }, [itemResponses, overallNotes, responseId]);
 
-  // Automatically create draft response if none exists
-  useEffect(() => {
-    if (!template || !resident || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
-      return;
-    }
-
-    // If response already exists, no need to create
-    if (responseId) return;
-
-    // If drafts exist, we'll use one of them (handled by another useEffect)
-    if (existingDrafts && existingDrafts.length > 0) return;
-
-    // DUPLICATE PREVENTION: Check if already creating
-    if (isCreatingDraft.current) {
-      console.log("⏳ Care file draft creation already in progress, skipping...");
-      return;
-    }
-
-    console.log("📝 No existing care file draft found, creating new draft response...");
-
-    const createDraft = async () => {
-      // Set flag to prevent duplicate calls
-      isCreatingDraft.current = true;
-
-      try {
-        const auditorName = session.user.name || session.user.email;
-        const draftId = await createResponse({
-          templateId: auditId,
-          templateName: template.name,
-          residentId,
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          roomNumber: resident.roomNumber,
-          teamId: activeTeamId,
-          organizationId: activeOrganizationId,
-          auditedBy: auditorName,
-          frequency: template.frequency,
-        });
-        console.log("✅ Care file draft response created:", draftId);
-        setResponseId(draftId);
-      } catch (error) {
-        console.error("Failed to create care file draft:", error);
-      } finally {
-        // Reset flag after creation completes or fails
-        setTimeout(() => {
-          isCreatingDraft.current = false;
-        }, 2000); // Wait 2 seconds before allowing another attempt
-      }
-    };
-
-    createDraft();
-  }, [template, resident, responseId, activeTeamId, activeOrganizationId, session, existingDrafts, createResponse, auditId, residentId]);
-
+  // Handlers
   const handleAddItem = async () => {
-    if (!newItemForm.name) {
-      toast.error("Please enter an item name");
-      return;
-    }
-
-    const newItem: Item = {
-      id: `item_${Date.now()}`,
-      name: newItemForm.name,
-      type: newItemForm.type,
-    };
-
+    if (!newItemForm.name || !template) return;
+    const newItem: Item = { id: `item_${Date.now()}`, name: newItemForm.name, type: newItemForm.type };
     const updatedItems = [...items, newItem];
     setItems(updatedItems);
 
+    // Update template in DB
     try {
-      await updateTemplate({
-        templateId: auditId,
-        items: updatedItems,
-      });
-
-      toast.success("Item added successfully");
+      await auditService.updateCareFileTemplate(template.id, { items: updatedItems });
+      toast.success("Item added");
       setIsAddItemDialogOpen(false);
       setNewItemForm({ name: "", type: "compliance" });
-    } catch (error) {
-      console.error("Error adding item:", error);
-      toast.error("Failed to add item");
-    }
-  };
-
-  const handleRemoveItem = async (itemId: string) => {
-    const updatedItems = items.filter((item) => item.id !== itemId);
-    setItems(updatedItems);
-
-    try {
-      await updateTemplate({
-        templateId: auditId,
-        items: updatedItems,
-      });
-
-      // Also remove from responses
-      const newResponses = new Map(itemResponses);
-      newResponses.delete(itemId);
-      setItemResponses(newResponses);
-
-      toast.success("Item removed successfully");
-    } catch (error) {
-      console.error("Error removing item:", error);
-      toast.error("Failed to remove item");
-    }
+    } catch (e) { toast.error("Failed to add item to template"); }
   };
 
   const handleItemResponseChange = (itemId: string, itemName: string, field: string, value: any) => {
-    const newResponses = new Map(itemResponses);
-    const existing = newResponses.get(itemId) || { itemId, itemName };
-    newResponses.set(itemId, { ...existing, [field]: value });
-    setItemResponses(newResponses);
+    const newMap = new Map(itemResponses);
+    const existing = newMap.get(itemId) || { itemId, itemName };
+    newMap.set(itemId, { ...existing, [field]: value });
+    setItemResponses(newMap);
   };
 
-  // Helper function to get status badge color (for audit items)
+  const handleRemoveItem = async (itemId: string) => {
+    if (!template) return;
+    const updatedItems = items.filter(i => i.id !== itemId);
+    setItems(updatedItems);
+    try {
+      await auditService.updateCareFileTemplate(template.id, { items: updatedItems });
+      const newMap = new Map(itemResponses);
+      newMap.delete(itemId);
+      setItemResponses(newMap);
+      toast.success("Item removed");
+    } catch (e) { toast.error("Failed to remove item"); }
+  };
+
+
+  const handleAddActionPlan = async () => {
+    if (!actionPlanText || !assignedTo || !assignedToEmail || !priority || !dueDate) {
+      toast.error("Please fill all action plan fields");
+      return;
+    }
+
+    try {
+      let savedPlan;
+      if (responseId) {
+        savedPlan = await auditService.createCareFileActionPlan({
+          audit_response_id: responseId,
+          resident_id: residentId,
+          resident_name: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown",
+          description: actionPlanText,
+          assigned_to: assignedToEmail,
+          assigned_to_name: assignedTo,
+          priority: priority,
+          due_date: dueDate.toISOString(),
+          organization_id: activeOrganizationId,
+          created_by: profile?.email,
+          created_by_name: profile?.name || profile?.email,
+          creatorId: profile?.id,
+          status: 'pending'
+        });
+      }
+
+      const newPlan: ActionPlan = {
+        id: savedPlan?.id || `temp-${Date.now()}`,
+        auditId: responseId || 'new',
+        text: actionPlanText,
+        assignedTo: assignedTo,
+        assignedToEmail: assignedToEmail,
+        dueDate: dueDate,
+        priority: priority,
+        status: 'pending',
+        residentId: residentId,
+        residentName: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown"
+      };
+
+      setActionPlans([...actionPlans, newPlan]);
+      setIsActionPlanDialogOpen(false);
+      toast.success("Action plan added to audit");
+    } catch (e) {
+      console.error("Error adding action plan:", e);
+      toast.error("Failed to add action plan to database");
+    }
+  };
+
+  const handleRemoveActionPlan = (planId: string) => {
+    setActionPlanToDelete(planId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteActionPlan = async () => {
+    if (!actionPlanToDelete) return;
+
+    const plan = actionPlans.find(p => p.id === actionPlanToDelete);
+    if (plan && plan.id && !plan.id.startsWith('temp-')) {
+      try {
+        await auditService.deleteCareFileActionPlan(plan.id);
+      } catch (e) {
+        console.error("Error deleting persistent action plan:", e);
+      }
+    }
+
+    setActionPlans(actionPlans.filter(p => p.id !== actionPlanToDelete));
+    setDeleteDialogOpen(false);
+    setActionPlanToDelete(null);
+    toast.success("Action plan removed");
+  };
+
+  const handleCompleteAudit = async () => {
+    if (!responseId) return;
+
+    const itemsArr = Array.from(itemResponses.values());
+    try {
+      await auditService.completeCareFileResponse(responseId, {
+        items: itemsArr,
+        overall_notes: overallNotes,
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      });
+
+      // Save action plans (only those that are newly added and not yet in DB)
+      for (const plan of actionPlans.filter(p => !p.id || p.id.startsWith('temp-'))) {
+        await auditService.createCareFileActionPlan({
+          audit_response_id: responseId,
+          description: plan.text,
+          assigned_to: plan.assignedToEmail,
+          assigned_to_name: plan.assignedTo,
+          priority: plan.priority,
+          due_date: plan.dueDate?.toISOString(),
+          organization_id: activeOrganizationId,
+          resident_id: residentId,
+          resident_name: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown",
+          created_by: profile?.email,
+          created_by_name: profile?.name || profile?.email,
+          creatorId: profile?.id,
+          status: 'pending'
+        });
+      }
+
+      toast.success("Audit completed!");
+      router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`);
+    } catch (e) { console.error(e); toast.error("Failed to complete audit"); }
+  };
+
   const getItemStatusColor = (status: string) => {
     switch (status) {
       case "compliant":
@@ -378,705 +428,242 @@ function CareFileAuditEditorPageContent() {
     }
   };
 
-  // Helper function to get action plan status badge color
-  const getActionPlanStatusColor = (status?: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-      case "in_progress":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
-      case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "overdue":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
-    }
-  };
-
-  // Helper function to get action plan status label
-  const getActionPlanStatusLabel = (status?: string) => {
-    switch (status) {
-      case "pending":
-        return "Pending";
-      case "in_progress":
-        return "In Progress";
-      case "completed":
-        return "Completed";
-      case "overdue":
-        return "Overdue";
-      default:
-        return status || "Pending";
-    }
-  };
-
-  const handleCompleteAudit = async () => {
-    if (!resident || !template || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
-      toast.error("Missing required information");
-      return;
-    }
-
-    try {
-      let currentResponseId = responseId;
-
-      // Create response if it doesn't exist
-      if (!currentResponseId) {
-        currentResponseId = await createResponse({
-          templateId: auditId,
-          templateName: template.name,
-          residentId,
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          roomNumber: resident.roomNumber,
-          teamId: activeTeamId,
-          organizationId: activeOrganizationId,
-          auditedBy: session.user.name || session.user.email,
-          frequency: template.frequency,
-        });
-        setResponseId(currentResponseId);
-      }
-
-      // Note: Action plans are already saved when created, no need to save them again here
-
-      // Complete the response
-      await completeResponseMutation({
-        responseId: currentResponseId,
-        items: Array.from(itemResponses.values()),
-        overallNotes,
-      });
-
-      toast.success("Audit completed successfully! Starting new audit...");
-
-      // Reset form to start a new audit
-      setItemResponses(new Map());
-      setOverallNotes("");
-      setActionPlans([]);
-      setResponseId(null);
-
-      // Reset flags to allow new draft and data loading
-      isCreatingDraft.current = false;
-      hasLoadedDraft.current = false;
-
-      console.log("🔄 Audit completed and reset - ready for new audit");
-
-      // The page will stay on the same template, ready for a new audit
-    } catch (error) {
-      console.error("Error completing audit:", error);
-      toast.error("Failed to complete audit");
-    }
-  };
-
-  if (!resident || !template) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
+  if (!resident) return <div className="p-10">Loading...</div>;
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-      {/* Header */}
+    <div className="flex flex-col h-full w-full bg-background">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`)}
-          >
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
-              <AvatarFallback>
-                {resident.firstName.charAt(0)}{resident.lastName.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h1 className="text-xl font-semibold">
-                {template.name}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {resident.firstName} {resident.lastName} - Room {resident.roomNumber || "N/A"}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-xl font-semibold">{template?.name || "Care File Audit"}</h1>
+            <p className="text-sm text-muted-foreground">{resident.first_name || resident.firstName} {resident.last_name || resident.lastName}</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
-      {/* Actions Bar */}
       <div className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex items-center gap-2">
-          {/* Placeholder for filters */}
-        </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2"></div>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsActionPlanDialogOpen(true)} variant="outline" size="sm" className="h-8">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Action Plan
+          </Button>
           <Button onClick={() => setIsAddItemDialogOpen(true)} size="sm" className="h-8">
             <Plus className="h-4 w-4 mr-2" />
             Add Question
           </Button>
+          <Button onClick={handleCompleteAudit} size="sm" className="h-8">
+            Complete Audit
+          </Button>
         </div>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-auto">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="w-12 border-r last:border-r-0">
-                <input type="checkbox" className="rounded border-gray-300" />
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Question
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Status
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Date
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Comment
-              </TableHead>
-              <TableHead className="w-12 border-r last:border-r-0"></TableHead>
+            <TableRow>
+              <TableHead>Question</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Comment</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length > 0 ? (
-              items.map((item) => {
-                const response = itemResponses.get(item.id);
-                return (
-                  <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="border-r last:border-r-0">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                    </TableCell>
-                    <TableCell className="border-r last:border-r-0">
-                      <span className="font-medium">{item.name}</span>
-                    </TableCell>
-                    <TableCell className="border-r last:border-r-0">
-                      {item.type === "compliance" ? (
-                        <Select
-                          value={response?.status || ""}
-                          onValueChange={(value) =>
-                            handleItemResponseChange(item.id, item.name, "status", value)
-                          }
-                        >
-                          <SelectTrigger className="h-6 border-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 bg-transparent hover:bg-transparent shadow-none">
-                            {response?.status ? (
-                              <Badge variant="secondary" className={`text-xs h-6 ${getItemStatusColor(response.status)}`}>
-                                {response.status === "compliant" ? "Compliant" : response.status === "non-compliant" ? "Non-Compliant" : "N/A"}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="compliant">Compliant</SelectItem>
-                            <SelectItem value="non-compliant">Non-Compliant</SelectItem>
-                            <SelectItem value="not-applicable">N/A</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : item.type === "checkbox" ? (
-                        <Select
-                          value={response?.status || ""}
-                          onValueChange={(value) =>
-                            handleItemResponseChange(item.id, item.name, "status", value)
-                          }
-                        >
-                          <SelectTrigger className="h-6 border-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 bg-transparent hover:bg-transparent shadow-none">
-                            {response?.status ? (
-                              <Badge variant="secondary" className={`text-xs h-6 ${getItemStatusColor(response.status)}`}>
-                                {response.status === "checked" ? "Checked" : "Unchecked"}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="checked">Checked</SelectItem>
-                            <SelectItem value="unchecked">Unchecked</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="border-r last:border-r-0">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="h-8 w-full justify-start text-left font-normal border-0 shadow-none px-2 hover:bg-transparent"
-                          >
-                            {response?.date ? format(new Date(response.date), "MMM dd, yyyy") : "Select date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={response?.date ? new Date(response.date) : undefined}
-                            onSelect={(date) => {
-                              if (date) {
-                                handleItemResponseChange(item.id, item.name, "date", format(date, "yyyy-MM-dd"));
-                              }
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </TableCell>
-                    <TableCell className="border-r last:border-r-0">
-                      <Input
-                        type="text"
-                        placeholder="Add comment..."
-                        value={response?.notes || ""}
-                        onChange={(e) =>
-                          handleItemResponseChange(item.id, item.name, "notes", e.target.value)
-                        }
-                        className="h-8 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-                      />
-                    </TableCell>
-                    <TableCell className="border-r last:border-r-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-red-600"
-                        onClick={() => handleRemoveItem(item.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-muted-foreground">No items added yet</p>
-                    <Button variant="outline" size="sm" onClick={() => setIsAddItemDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add First Question
+            {items.map(item => {
+              const resp = itemResponses.get(item.id);
+              return (
+                <TableRow key={item.id}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>
+                    <Select value={resp?.status || ""} onValueChange={(val) => handleItemResponseChange(item.id, item.name, 'status', val)}>
+                      <SelectTrigger className={`h-6 w-[140px] ${getItemStatusColor(resp?.status || "")}`}>
+                        <SelectValue placeholder="-" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compliant">Compliant</SelectItem>
+                        <SelectItem value="non-compliant">Non-Compliant</SelectItem>
+                        <SelectItem value="not-applicable">N/A</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" className="h-7 justify-start text-xs">
+                          {resp?.date ? format(new Date(resp.date), "MMM dd") : "Pick date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={resp?.date ? new Date(resp.date) : undefined} onSelect={(date) => { if (date) handleItemResponseChange(item.id, item.name, 'date', date.toISOString()) }} />
+                      </PopoverContent>
+                    </Popover>
+                  </TableCell>
+                  <TableCell>
+                    <Input value={resp?.notes || ""} onChange={(e) => handleItemResponseChange(item.id, item.name, 'notes', e.target.value)} className="h-8" />
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}>
+                      <X className="h-4 w-4" />
                     </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
-
-        {/* Bottom border */}
-        <div className="border-t"></div>
-
-        {/* Action Plans Section */}
-        <div className="py-4 space-y-4">
-          <div className="px-2 pb-4 border-b border-dashed flex justify-between items-center">
-            <Button variant="outline" size="sm" onClick={() => setIsActionPlanDialogOpen(true)}>
-              Action Plan
-            </Button>
-            <Button size="sm" onClick={handleCompleteAudit}>
-              Complete Audit
-            </Button>
-          </div>
-          <div className="px-2">
-            {/* Action Plan Cards */}
-            {actionPlans.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {actionPlans.map((plan, index) => (
-                  <div
-                    key={index}
-                    className="border rounded-lg p-4 space-y-3 bg-card relative group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm flex-1">{plan.text}</p>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        onClick={async () => {
-                          // Check if this is a database plan (has Convex ID format)
-                          const isDbPlan = /^[a-z]/.test(plan.id);
-
-                          if (isDbPlan) {
-                            try {
-                              await deleteActionPlanMutation({
-                                actionPlanId: plan.id as Id<"careFileAuditActionPlans">
-                              });
-                              toast.success("Action plan deleted successfully");
-                            } catch (error) {
-                              console.error("Error deleting action plan:", error);
-                              toast.error("Failed to delete action plan");
-                              return;
-                            }
-                          }
-
-                          // Remove from local state
-                          const updatedPlans = actionPlans.filter((_, i) => i !== index);
-                          setActionPlans(updatedPlans);
-
-                          if (!isDbPlan) {
-                            toast.success("Action plan removed");
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {/* Status Badge */}
-                      {plan.status && (
-                        <Badge className={`${getActionPlanStatusColor(plan.status)} text-xs`}>
-                          {getActionPlanStatusLabel(plan.status)}
-                        </Badge>
-                      )}
-                      {plan.assignedTo && (
-                        <Badge variant="secondary" className="text-xs">
-                          {plan.assignedTo}
-                        </Badge>
-                      )}
-                      {plan.dueDate && (
-                        <Badge variant="secondary" className="text-xs">
-                          {format(plan.dueDate, "MMM dd, yyyy")}
-                        </Badge>
-                      )}
-                      {plan.priority && (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs flex items-center gap-1"
-                        >
-                          <div className={`w-2 h-2 rounded-full ${
-                            plan.priority === "High" ? "bg-red-500" :
-                            plan.priority === "Medium" ? "bg-yellow-500" :
-                            "bg-green-500"
-                          }`}></div>
-                          {plan.priority}
-                        </Badge>
-                      )}
-                    </div>
-                    {/* Latest Comment */}
-                    {plan.latestComment && (
-                      <div className="text-xs text-muted-foreground italic border-l-2 pl-2 mt-2">
-                        &quot;{plan.latestComment}&quot;
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
-      {/* Action Plan Dialog */}
-      <Dialog open={isActionPlanDialogOpen} onOpenChange={setIsActionPlanDialogOpen} modal={false}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Create Action Plan</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <textarea
-              placeholder="Enter action plan details..."
-              value={actionPlanText}
-              onChange={(e) => setActionPlanText(e.target.value)}
-              className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md focus:outline-none resize-none"
-              autoFocus
-            />
-          </div>
-          <DialogFooter className="flex items-center justify-between sm:justify-between">
-            <div className="flex items-center gap-2">
-              {/* Assign to */}
-              <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                    {assignedTo || "Assign to"}
-                  </Badge>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
-                  <div className="space-y-1 max-h-60 overflow-y-auto">
-                    {organizationMembers && organizationMembers.length > 0 ? (
-                      organizationMembers.map((member: any) => (
-                        <div
-                          key={member.id}
-                          className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer flex items-center gap-2"
-                          onClick={() => {
-                            setAssignedTo(member.name || member.email);
-                            setAssignedToEmail(member.email);
-                            setAssignPopoverOpen(false);
-                          }}
-                        >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            {member.image && (
-                              <img
-                                src={member.image}
-                                alt={member.name || member.email}
-                                className="w-6 h-6 rounded-full"
-                              />
-                            )}
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-medium truncate">{member.name || member.email}</span>
-                              {member.name && (
-                                <span className="text-xs text-muted-foreground truncate">{member.email}</span>
-                              )}
-                            </div>
-                          </div>
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            {member.role}
-                          </Badge>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-2 py-4 text-sm text-center text-muted-foreground">
-                        No staff members found
-                      </div>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              {/* Due Date */}
-              <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                    {dueDate ? format(dueDate, "MMM dd") : "Due"}
-                  </Badge>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={(date) => {
-                      setDueDate(date);
-                      setDueDatePopoverOpen(false);
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
-
-              {/* Priority */}
-              <Popover open={priorityPopoverOpen} onOpenChange={setPriorityPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Badge variant="outline" className="cursor-pointer hover:bg-accent flex items-center gap-1">
-                    {priority && (
-                      <div className={`w-2 h-2 rounded-full ${
-                        priority === "High" ? "bg-red-500" :
-                        priority === "Medium" ? "bg-yellow-500" :
-                        "bg-green-500"
-                      }`}></div>
-                    )}
-                    {priority || "Priority"}
-                  </Badge>
-                </PopoverTrigger>
-                <PopoverContent className="w-40 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
-                  <div className="space-y-1">
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer flex items-center gap-2"
-                      onClick={() => {
-                        setPriority("High");
-                        setPriorityPopoverOpen(false);
-                      }}
-                    >
-                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                      High
-                    </div>
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer flex items-center gap-2"
-                      onClick={() => {
-                        setPriority("Medium");
-                        setPriorityPopoverOpen(false);
-                      }}
-                    >
-                      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                      Medium
-                    </div>
-                    <div
-                      className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer flex items-center gap-2"
-                      onClick={() => {
-                        setPriority("Low");
-                        setPriorityPopoverOpen(false);
-                      }}
-                    >
-                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      Low
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsActionPlanDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                onClick={async () => {
-                  if (!actionPlanText.trim()) {
-                    toast.error("Please enter action plan details");
-                    return;
-                  }
-
-                  if (!assignedToEmail) {
-                    toast.error("Please select an assignee");
-                    return;
-                  }
-
-                  if (!priority) {
-                    toast.error("Please select a priority");
-                    return;
-                  }
-
-                  // Ensure we have a response ID (create one if needed)
-                  let currentResponseId = responseId;
-
-                  if (!currentResponseId) {
-                    if (!resident || !template || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
-                      toast.error("Missing required information");
-                      return;
-                    }
-
-                    try {
-                      currentResponseId = await createResponse({
-                        templateId: auditId,
-                        templateName: template.name,
-                        residentId,
-                        residentName: `${resident.firstName} ${resident.lastName}`,
-                        roomNumber: resident.roomNumber,
-                        teamId: activeTeamId,
-                        organizationId: activeOrganizationId,
-                        auditedBy: session.user.name || session.user.email,
-                        frequency: template.frequency,
-                      });
-                      setResponseId(currentResponseId);
-                    } catch (error) {
-                      console.error("Error creating response:", error);
-                      toast.error("Failed to create audit response");
-                      return;
-                    }
-                  }
-
-                  // Save action plan to database immediately
-                  try {
-                    const actionPlanId = await createActionPlanMutation({
-                      auditResponseId: currentResponseId,
-                      templateId: auditId,
-                      residentId,
-                      description: actionPlanText,
-                      assignedTo: assignedToEmail,
-                      assignedToName: assignedTo,
-                      priority: priority as "Low" | "Medium" | "High",
-                      dueDate: dueDate?.getTime(),
-                      teamId: activeTeamId!,
-                      organizationId: activeOrganizationId!,
-                      createdBy: session!.user!.email!,
-                      createdByName: session!.user!.name || session!.user!.email!,
-                    });
-
-                    const newActionPlan: ActionPlan = {
-                      id: actionPlanId,
-                      auditId: auditId,
-                      text: actionPlanText,
-                      assignedTo: assignedTo,
-                      assignedToEmail: assignedToEmail,
-                      dueDate: dueDate,
-                      priority: priority,
-                      status: "pending",
-                    };
-
-                    setActionPlans([...actionPlans, newActionPlan]);
-                    setActionPlanText("");
-                    setAssignedTo("");
-                    setAssignedToEmail("");
-                    setDueDate(undefined);
-                    setPriority("");
-                    setIsActionPlanDialogOpen(false);
-                    toast.success("Action plan added and saved");
-                  } catch (error) {
-                    console.error("Error creating action plan:", error);
-                    toast.error("Failed to create action plan");
-                  }
-                }}
-              >
-                Create
-              </Button>
-            </div>
-          </DialogFooter>
+      <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Question</DialogTitle></DialogHeader>
+          <div className="py-4"><Input placeholder="Item name" value={newItemForm.name} onChange={(e) => setNewItemForm({ ...newItemForm, name: e.target.value })} /></div>
+          <DialogFooter><Button onClick={handleAddItem}>Add</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Item Dialog */}
-      <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      <Dialog open={isActionPlanDialogOpen} onOpenChange={setIsActionPlanDialogOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Question</DialogTitle>
-            <DialogDescription>
-              Add a new question/item to this audit template.
-            </DialogDescription>
+            <DialogTitle>Add Action Plan</DialogTitle>
+            <DialogDescription>Assign a task to address a concern identified during the audit.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="itemName">Question</Label>
-              <Input
-                id="itemName"
-                placeholder="e.g., Has the resident been informed of their rights?"
-                value={newItemForm.name}
-                onChange={(e) =>
-                  setNewItemForm({ ...newItemForm, name: e.target.value })
-                }
-              />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Action</Label>
+              <Input value={actionPlanText} onChange={(e) => setActionPlanText(e.target.value)} className="col-span-3" placeholder="What needs to be done?" />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="itemType">Type</Label>
-              <Select
-                value={newItemForm.type}
-                onValueChange={(value: "compliance" | "checkbox" | "notes") =>
-                  setNewItemForm({ ...newItemForm, type: value })
-                }
-              >
-                <SelectTrigger id="itemType">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Assign To</Label>
+              <Select value={assignedToEmail} onValueChange={(val) => {
+                setAssignedToEmail(val);
+                const member = orgMembers.find(m => m.email === val);
+                if (member) setAssignedTo(member.name || member.email);
+              }}>
+                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select member" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="compliance">Compliance (Compliant/Non-Compliant/N/A)</SelectItem>
-                  <SelectItem value="checkbox">Checkbox (Checked/Unchecked)</SelectItem>
-                  <SelectItem value="notes">Notes Only</SelectItem>
+                  {orgMembers.map(member => (
+                    <SelectItem key={member.email} value={member.email}>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage src={member.image_url || ""} />
+                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                            {(member.name?.[0] || member.email[0]).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{member.name || member.email}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Priority</Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select priority" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Due Date</Label>
+              <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen} modal={true}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="col-span-3 justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dueDate ? format(dueDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dueDate} onSelect={(date) => { if (date) { setDueDate(date); setDueDatePopoverOpen(false); } }} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAddItemDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" onClick={handleAddItem}>
-              Add Question
-            </Button>
+            <Button variant="outline" onClick={() => setIsActionPlanDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddActionPlan}>Add Action Plan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Action Plan</DialogTitle>
+            <DialogDescription>Are you sure you want to remove this action plan from the audit? This cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteActionPlan}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Action Plans Summary */}
+      {actionPlans.length > 0 && (
+        <div className="p-6 border-t bg-muted/30">
+          <h3 className="text-lg font-semibold mb-4 text-primary">Audit Action Plans</h3>
+          <div className="rounded-md border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action Required</TableHead>
+                  <TableHead>Assigned To</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Latest Comment</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {actionPlans.map((plan) => (
+                  <TableRow key={plan.id}>
+                    <TableCell className="font-medium">{plan.text}</TableCell>
+                    <TableCell>{plan.assignedTo}</TableCell>
+                    <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
+                    <TableCell>
+                      <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>
+                        {plan.priority}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={
+                        plan.status === 'completed' ? 'bg-green-500 hover:bg-green-600' :
+                          plan.status === 'in_progress' ? 'bg-blue-500 hover:bg-blue-600' :
+                            'bg-yellow-500 hover:bg-yellow-600'
+                      }>
+                        {(plan.status || 'pending').replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate">
+                      {plan.latestComment || '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveActionPlan(plan.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
-
 export default function CareFileAuditEditorPage() {
-  return (
-    <ErrorBoundary 
-      fallback={
-        // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
-        <AuditErrorFallback context="editor" />
-      }
-    >
-      <CareFileAuditEditorPageContent />
-    </ErrorBoundary>
-  );
+  return <ErrorBoundary fallback={<AuditErrorFallback />}><CareFileAuditEditorPageContent /></ErrorBoundary>;
 }

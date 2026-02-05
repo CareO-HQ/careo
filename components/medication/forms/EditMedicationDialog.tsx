@@ -33,11 +33,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { config } from "@/config";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
+import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
@@ -97,22 +95,22 @@ const UpdateMedicationSchema = z.object({
 });
 
 interface Medication {
-  _id: string;
-  _creationTime: number;
+  id: string;
+  created_at: string;
   name: string;
   strength: string;
-  strengthUnit: string;
-  dosageForm: string;
+  strength_unit: string;
+  dosage_form: string;
   route: string;
   frequency: string;
-  scheduleType: string;
+  schedule_type: string;
   times: string[];
   instructions?: string;
-  prescriberName: string;
-  startDate: number;
-  endDate?: number;
+  prescriber_name: string;
+  start_date: string;
+  end_date?: string;
   status: string;
-  totalCount: number;
+  total_count: number;
 }
 
 interface EditMedicationDialogProps {
@@ -126,8 +124,7 @@ export default function EditMedicationDialog({
   open,
   onOpenChange
 }: EditMedicationDialogProps) {
-  const updateMedication = useMutation(api.medication.updateMedication);
-  const [isLoading, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
 
@@ -137,69 +134,59 @@ export default function EditMedicationDialog({
     defaultValues: {
       name: medication.name,
       strength: medication.strength,
-      strengthUnit: medication.strengthUnit as "mg" | "g",
-      totalCount: medication.totalCount,
-      dosageForm: medication.dosageForm as any,
+      strengthUnit: medication.strength_unit as "mg" | "g",
+      totalCount: medication.total_count,
+      dosageForm: medication.dosage_form as any,
       route: medication.route as any,
       frequency: medication.frequency as any,
-      scheduleType: medication.scheduleType as any,
-      times: medication.times,
+      scheduleType: medication.schedule_type as any,
+      times: medication.times || [],
       instructions: medication.instructions || undefined,
-      prescriberName: medication.prescriberName,
-      startDate: new Date(medication.startDate),
-      endDate: medication.endDate ? new Date(medication.endDate) : undefined,
+      prescriberName: medication.prescriber_name,
+      startDate: new Date(medication.start_date),
+      endDate: medication.end_date ? new Date(medication.end_date) : undefined,
       status: medication.status as "active" | "completed" | "cancelled"
     }
   });
 
   async function onSubmit(values: z.infer<typeof UpdateMedicationSchema>) {
-    startTransition(async () => {
-      try {
-        const updates: Record<string, any> = {};
+    setIsLoading(true);
+    try {
+      const updates: Record<string, any> = {};
 
-        // Only include changed fields
-        Object.entries(values).forEach(([key, value]) => {
-          if (value !== undefined) {
-            if (key === "startDate" && value instanceof Date) {
-              updates[key] = new Date(
-                value.getFullYear(),
-                value.getMonth(),
-                value.getDate(),
-                12,
-                0,
-                0,
-                0
-              ).getTime();
-            } else if (key === "endDate" && value instanceof Date) {
-              updates[key] = new Date(
-                value.getFullYear(),
-                value.getMonth(),
-                value.getDate(),
-                12,
-                0,
-                0,
-                0
-              ).getTime();
-            } else {
-              updates[key] = value;
-            }
-          }
-        });
+      // Only include changed fields and map to snake_case
+      if (values.name !== undefined) updates.name = values.name;
+      if (values.strength !== undefined) updates.strength = values.strength;
+      if (values.strengthUnit !== undefined) updates.strength_unit = values.strengthUnit;
+      if (values.totalCount !== undefined) updates.total_count = values.totalCount;
+      if (values.dosageForm !== undefined) updates.dosage_form = values.dosageForm;
+      if (values.route !== undefined) updates.route = values.route;
+      if (values.frequency !== undefined) updates.frequency = values.frequency;
+      if (values.scheduleType !== undefined) updates.schedule_type = values.scheduleType;
+      if (values.times !== undefined) updates.times = values.times;
+      if (values.instructions !== undefined) updates.instructions = values.instructions;
+      if (values.prescriberName !== undefined) updates.prescriber_name = values.prescriberName;
+      if (values.startDate !== undefined) updates.start_date = values.startDate.toISOString();
+      if (values.endDate !== undefined) updates.end_date = values.endDate?.toISOString();
+      if (values.status !== undefined) updates.status = values.status;
 
-        await updateMedication({
-          medicationId: medication._id as Id<"medication">,
-          updates
-        });
+      const { error } = await supabase
+        .from("medications")
+        .update(updates)
+        .eq("id", medication.id);
 
-        toast.success("Medication updated successfully");
-        onOpenChange(false);
-      } catch (error) {
-        console.error("Error updating medication:", error);
-        toast.error(
-          `Failed to update medication: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
-      }
-    });
+      if (error) throw error;
+
+      toast.success("Medication updated successfully");
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error updating medication:", error);
+      toast.error(
+        `Failed to update medication: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -490,10 +477,10 @@ export default function EditMedicationDialog({
                                           return checked
                                             ? field.onChange([...(field.value || []), time])
                                             : field.onChange(
-                                                field.value?.filter(
-                                                  (value) => value !== time
-                                                ) || []
-                                              );
+                                              field.value?.filter(
+                                                (value) => value !== time
+                                              ) || []
+                                            );
                                         }}
                                         className={cn(
                                           "w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors",

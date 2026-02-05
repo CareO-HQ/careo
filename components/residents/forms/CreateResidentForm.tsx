@@ -1,11 +1,10 @@
 "use client";
 
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
 import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
-import {  ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -53,20 +52,15 @@ export function CreateResidentForm({
 }: CreateResidentFormProps) {
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [admissionDatePopoverOpen, setAdmissionDatePopoverOpen] = useState(false);
-  const [isLoading, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const { data: activeOrganization } = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
+  const { profile, isLoading: isProfileLoading } = useProfile();
+  const { supabase, user, isLoading: isSupabaseLoading } = useSupabase();
 
-  const createResidentMutation = useMutation(api.residents.create);
-  const updateResidentMutation = useMutation(api.residents.update);
-  const createEmergencyContactMutation = useMutation(api.residents.createEmergencyContact);
-  const updateEmergencyContactMutation = useMutation(api.residents.updateEmergencyContact);
-  const generateUploadUrlMutation = useMutation(api.files.image.generateUploadUrl);
-  const sendImageMutation = useMutation(api.files.image.sendImage);
+  const isLoading = isSubmitting || isProfileLoading || isSupabaseLoading;
 
   type FormType = z.infer<typeof CreateResidentSchema>;
 
@@ -74,16 +68,16 @@ export function CreateResidentForm({
   const getDefaultValues = useCallback(() => {
     if (editMode && residentData) {
       return {
-        firstName: residentData.firstName || "",
-        lastName: residentData.lastName || "",
-        dateOfBirth: residentData.dateOfBirth || "",
-        phoneNumber: residentData.phoneNumber || "",
-        roomNumber: residentData.roomNumber || "",
-        admissionDate: residentData.admissionDate || "",
-        teamId: residentData.teamId || "",
-        nhsHealthNumber: residentData.nhsHealthNumber || "",
-        healthConditions: Array.isArray(residentData.healthConditions)
-          ? residentData.healthConditions.map((hc: any) => ({ condition: typeof hc === 'string' ? hc : hc.condition }))
+        firstName: residentData.first_name || "",
+        lastName: residentData.last_name || "",
+        dateOfBirth: residentData.date_of_birth || "",
+        phoneNumber: residentData.phone_number || "",
+        roomNumber: residentData.room_number || "",
+        admissionDate: residentData.admission_date || "",
+        teamId: residentData.team_id || "",
+        nhsHealthNumber: residentData.nhs_health_number || "",
+        healthConditions: Array.isArray(residentData.health_conditions)
+          ? residentData.health_conditions.map((hc: any) => ({ condition: typeof hc === 'string' ? hc : hc.condition }))
           : [],
         risks: Array.isArray(residentData.risks)
           ? residentData.risks.map((r: any) => typeof r === 'string' ? { risk: r, level: "low" } : r)
@@ -94,18 +88,24 @@ export function CreateResidentForm({
           dressing: undefined,
           toileting: undefined,
         },
-        emergencyContacts: residentData.emergencyContacts?.length > 0
-          ? residentData.emergencyContacts
+        emergencyContacts: residentData.emergency_contacts?.length > 0
+          ? residentData.emergency_contacts.map((ec: any) => ({
+            name: ec.name || "",
+            phoneNumber: ec.phone_number || "",
+            relationship: ec.relationship || "",
+            address: ec.address || "",
+            isPrimary: ec.is_primary ?? false
+          }))
           : [{ name: "", phoneNumber: "", relationship: "", address: "", isPrimary: true }],
         gpDetails: {
-          name: residentData.gpName || "",
-          address: residentData.gpAddress || "",
-          phoneNumber: residentData.gpPhone || "",
+          name: residentData.gp_name || "",
+          address: residentData.gp_address || "",
+          phoneNumber: residentData.gp_phone || "",
         },
         careManagerDetails: {
-          name: residentData.careManagerName || "",
-          address: residentData.careManagerAddress || "",
-          phoneNumber: residentData.careManagerPhone || "",
+          name: residentData.care_manager_name || "",
+          address: residentData.care_manager_address || "",
+          phoneNumber: residentData.care_manager_phone || "",
         },
       };
     }
@@ -174,26 +174,21 @@ export function CreateResidentForm({
     name: "risks",
   });
 
-  const getTeams = useCallback(() => {
-    if (!activeOrganization?.id) return;
+  const getTeams = useCallback(async () => {
+    if (!profile?.active_organization_id || !supabase) return;
 
-    startTransition(async () => {
-      await authClient.organization.listTeams(
-        {},
-        {
-          onSuccess: ({ data }) => {
-            const filteredTeams =
-              data?.filter((team: { id: string; name: string }) => team.name !== activeOrganization?.name) || [];
-            setTeams(filteredTeams);
-          },
-          onError: (error) => {
-            console.error("Error fetching teams:", error);
-            toast.error("Failed to load teams");
-          },
-        }
-      );
-    });
-  }, [activeOrganization?.id, activeOrganization?.name]);
+    try {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("organization_id", profile.active_organization_id);
+
+      if (error) throw error;
+      setTeams(data || []);
+    } catch (error) {
+      console.error("Error fetching teams:", error);
+    }
+  }, [profile?.active_organization_id, supabase]);
 
   const MAX_CONDITIONS = 10;
   const MAX_RISKS = 10;
@@ -209,160 +204,149 @@ export function CreateResidentForm({
       const defaultValues = getDefaultValues();
       form.reset(defaultValues);
       // Set the team ID separately if we're in edit mode
-      if (residentData.teamId) {
-        form.setValue("teamId", residentData.teamId);
+      if (residentData.team_id) {
+        form.setValue("teamId", residentData.team_id);
       }
     }
   }, [editMode, residentData, form, getDefaultValues]);
 
   async function onSubmit(values: FormType) {
-    startTransition(async () => {
-      try {
-        if (!activeOrganization?.id || !user?.user?.id) {
-          toast.error("Missing organization or user information");
-          return;
-        }
-
-        if (editMode && residentData?._id) {
-          // Update existing resident
-          await updateResidentMutation({
-            residentId: residentData._id,
-            firstName: values.firstName,
-            lastName: values.lastName,
-            dateOfBirth: values.dateOfBirth,
-            phoneNumber: values.phoneNumber,
-            roomNumber: values.roomNumber,
-            admissionDate: values.admissionDate,
-            nhsHealthNumber: values.nhsHealthNumber,
-            // GP Details
-            gpName: values.gpDetails?.name,
-            gpAddress: values.gpDetails?.address,
-            gpPhone: values.gpDetails?.phoneNumber,
-            // Care Manager Details
-            careManagerName: values.careManagerDetails?.name,
-            careManagerAddress: values.careManagerDetails?.address,
-            careManagerPhone: values.careManagerDetails?.phoneNumber,
-            // Health, risks and dependencies
-            healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
-            risks: values.risks || [],
-            dependencies: values.dependencies,
-          });
-
-          // Update emergency contacts
-          if (values.emergencyContacts && residentData.emergencyContacts) {
-            for (let i = 0; i < values.emergencyContacts.length; i++) {
-              const formContact = values.emergencyContacts[i];
-              const existingContact = residentData.emergencyContacts[i];
-
-              if (existingContact?._id) {
-                // Update existing contact
-                await updateEmergencyContactMutation({
-                  contactId: existingContact._id,
-                  name: formContact.name,
-                  phoneNumber: formContact.phoneNumber,
-                  relationship: formContact.relationship,
-                  address: formContact.address,
-                  isPrimary: formContact.isPrimary,
-                });
-              } else {
-                // Create new contact if form has more contacts than existing
-                await createEmergencyContactMutation({
-                  residentId: residentData._id,
-                  name: formContact.name,
-                  phoneNumber: formContact.phoneNumber,
-                  relationship: formContact.relationship,
-                  address: formContact.address || "",
-                  isPrimary: formContact.isPrimary || false,
-                  organizationId: activeOrganization.id,
-                });
-              }
-            }
-          }
-
-          if (selectedFile) {
-            const uploadUrl = await generateUploadUrlMutation();
-            const result = await fetch(uploadUrl, {
-              method: "POST",
-              headers: { "Content-Type": selectedFile!.type },
-              body: selectedFile,
-            });
-            const { storageId } = await result.json();
-            await sendImageMutation({
-              storageId,
-              type: "resident",
-              residentId: residentData._id,
-            });
-          }
-
-          toast.success("Resident updated successfully");
-        } else {
-          // Create new resident
-          const residentId = await createResidentMutation({
-            firstName: values.firstName,
-            lastName: values.lastName,
-            dateOfBirth: values.dateOfBirth,
-            phoneNumber: values.phoneNumber,
-            roomNumber: values.roomNumber,
-            admissionDate: values.admissionDate,
-            teamId: values.teamId,
-            nhsHealthNumber: values.nhsHealthNumber,
-            // GP Details
-            gpName: values.gpDetails?.name,
-            gpAddress: values.gpDetails?.address,
-            gpPhone: values.gpDetails?.phoneNumber,
-            // Care Manager Details
-            careManagerName: values.careManagerDetails?.name,
-            careManagerAddress: values.careManagerDetails?.address,
-            careManagerPhone: values.careManagerDetails?.phoneNumber,
-            healthConditions: values.healthConditions?.map((hc) => hc.condition) || [],
-            risks: values.risks || [],
-            dependencies: values.dependencies,
-            organizationId: activeOrganization.id,
-            createdBy: user.user.id,
-          });
-
-          if (residentId && values.emergencyContacts) {
-            for (const contact of values.emergencyContacts) {
-              await createEmergencyContactMutation({
-                residentId,
-                name: contact.name,
-                phoneNumber: contact.phoneNumber,
-                relationship: contact.relationship,
-                address: contact.address || "",
-                isPrimary: contact.isPrimary || false,
-                organizationId: activeOrganization.id,
-              });
-            }
-          }
-
-          if (selectedFile) {
-            const uploadUrl = await generateUploadUrlMutation();
-            const result = await fetch(uploadUrl, {
-              method: "POST",
-              headers: { "Content-Type": selectedFile!.type },
-              body: selectedFile,
-            });
-            const { storageId } = await result.json();
-            await sendImageMutation({
-              storageId,
-              type: "resident",
-              residentId,
-            });
-          }
-
-          toast.success("Resident created successfully");
-        }
-
-        form.reset();
-        setStep(1);
-
-        if (onSuccess) onSuccess();
-        if (onSubmitProp) onSubmitProp(values);
-      } catch (error) {
-        toast.error(editMode ? "Error updating resident" : "Error creating resident");
-        console.error(editMode ? "Error updating resident:" : "Error creating resident:", error);
+    setIsSubmitting(true);
+    try {
+      if (!profile?.active_organization_id || !profile?.active_care_home_id || !user?.id) {
+        toast.error("Missing organization, care home or user information");
+        return;
       }
-    });
+
+      let imageUrl = residentData?.image_url;
+
+      // Handle Image Upload
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `residents/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('images')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('images')
+          .getPublicUrl(filePath);
+
+        imageUrl = publicUrl;
+      }
+
+      const residentPayload = {
+        first_name: values.firstName,
+        last_name: values.lastName,
+        date_of_birth: values.dateOfBirth,
+        phone_number: values.phoneNumber,
+        room_number: values.roomNumber,
+        admission_date: values.admissionDate,
+        team_id: values.teamId,
+        nhs_health_number: values.nhsHealthNumber,
+        image_url: imageUrl,
+        // GP Details
+        gp_name: values.gpDetails?.name,
+        gp_address: values.gpDetails?.address,
+        gp_phone: values.gpDetails?.phoneNumber,
+        // Care Manager Details
+        care_manager_name: values.careManagerDetails?.name,
+        care_manager_address: values.careManagerDetails?.address,
+        care_manager_phone: values.careManagerDetails?.phoneNumber,
+        // Health, risks and dependencies
+        health_conditions: values.healthConditions?.map((hc) => hc.condition) || [],
+        risks: values.risks || [],
+        dependencies: values.dependencies,
+        organization_id: profile.active_organization_id,
+        care_home_id: profile.active_care_home_id,
+        created_by: user.id,
+      };
+
+      let residentId = residentData?.id;
+
+      if (editMode && residentId) {
+        // Update existing resident
+        const { error: updateError } = await supabase
+          .from("residents")
+          .update(residentPayload)
+          .eq("id", residentId);
+
+        if (updateError) throw updateError;
+
+        // Update emergency contacts (simple approach: delete and re-insert or update by index)
+        // For simplicity and to match Convex behavior which might have had more complex logic:
+        // Delete old contacts and insert new ones
+        await supabase
+          .from("emergency_contacts")
+          .delete()
+          .eq("resident_id", residentId);
+
+        if (values.emergencyContacts) {
+          const contactsPayload = values.emergencyContacts.map(contact => ({
+            resident_id: residentId,
+            name: contact.name,
+            phone_number: contact.phoneNumber,
+            relationship: contact.relationship,
+            address: contact.address || "",
+            is_primary: contact.isPrimary || false,
+            organization_id: profile.active_organization_id,
+          }));
+
+          const { error: contactsError } = await supabase
+            .from("emergency_contacts")
+            .insert(contactsPayload);
+
+          if (contactsError) throw contactsError;
+        }
+
+        toast.success("Resident updated successfully");
+      } else {
+        // Create new resident
+        const { data: newResident, error: createError } = await supabase
+          .from("residents")
+          .insert(residentPayload)
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        residentId = newResident.id;
+
+        if (residentId && values.emergencyContacts) {
+          const contactsPayload = values.emergencyContacts.map(contact => ({
+            resident_id: residentId,
+            name: contact.name,
+            phone_number: contact.phoneNumber,
+            relationship: contact.relationship,
+            address: contact.address || "",
+            is_primary: contact.isPrimary || false,
+            organization_id: profile.active_organization_id,
+          }));
+
+          const { error: contactsError } = await supabase
+            .from("emergency_contacts")
+            .insert(contactsPayload);
+
+          if (contactsError) throw contactsError;
+        }
+
+        toast.success("Resident created successfully");
+      }
+
+      form.reset();
+      setStep(1);
+
+      if (onSuccess) onSuccess();
+      if (onSubmitProp) onSubmitProp(values);
+    } catch (error: any) {
+      toast.error(editMode ? "Error updating resident" : "Error creating resident");
+      console.error(editMode ? "Error updating resident:" : "Error creating resident:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const handleContinue = async () => {

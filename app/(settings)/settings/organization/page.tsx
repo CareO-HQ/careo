@@ -4,15 +4,27 @@ import OrganizationDetailsForm from "@/components/settings/OrganizationDetailsFo
 import OrganizationNameLogoForm from "@/components/settings/OrganizationNameLogoForm";
 import OrganizationSocialMediaForm from "@/components/settings/OrganizationSocialMediaForm";
 import { Separator } from "@/components/ui/separator";
-import { authClient } from "@/lib/auth-client";
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 
 export default function OrganizationPage() {
-  const {
-    data: activeOrganization,
-    isPending,
-    refetch
-  } = authClient.useActiveOrganization();
+  const { activeOrganizationId } = useActiveTeam();
+  const { supabase } = useSupabase();
+  const [activeOrganization, setActiveOrganization] = useState<any>(null);
+  const [isPending, setIsPending] = useState(true);
+
+  const refetch = useCallback(async () => {
+    if (!activeOrganizationId) return;
+    setIsPending(true);
+    const { data } = await supabase.from('organizations').select('*').eq('id', activeOrganizationId).single();
+    setActiveOrganization(data);
+    setIsPending(false);
+  }, [activeOrganizationId, supabase]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   // Parse metadata if it exists to get additional organization details
   const organizationMetadata = activeOrganization?.metadata

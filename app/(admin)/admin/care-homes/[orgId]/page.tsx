@@ -1,63 +1,126 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, UsersRound, Trash2, Ban } from "lucide-react";
+import { Building2, Users, UsersRound, Trash2, Ban, Loader2 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DeleteOrganizationDialog from "@/components/admin/DeleteOrganizationDialog";
 import DeactivateOrganizationDialog from "@/components/admin/DeactivateOrganizationDialog";
+import { toast } from "sonner";
+
+interface OrgDetails {
+  id: string;
+  name: string;
+  createdAt: string;
+  status: "active" | "suspended" | "deactivated";
+  memberCount: number;
+  teamCount: number;
+}
+
+interface CareHome {
+  id: string;
+  name: string;
+  createdAt: string;
+}
 
 export default function CareHomeDetailsPage() {
-  const { data: session } = authClient.useSession();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const router = useRouter();
   const params = useParams();
   const orgId = params.orgId as string;
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  const orgDetails = useQuery(api.saasAdmin.getOrganizationDetails, { organizationId: orgId });
-  const organizations = useQuery(api.saasAdmin.getAllOrganizations);
-  const careHomes = useQuery(api.rbac.careHomes.getCareHomes, { organizationId: orgId });
+
+  const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
+  const [careHomes, setCareHomes] = useState<CareHome[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
 
-  // Get organization status
-  const orgStatus = organizations?.find((org) => org.id === orgId);
-  const isDeactivated = orgStatus?.status === "deactivated";
-
   // Redirect if not SaaS Admin
   useEffect(() => {
-    if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
+    if (!isProfileLoading && profile && !profile.is_saas_admin) {
       router.push("/dashboard");
     }
-  }, [saasAdminStatus, router]);
+  }, [profile, isProfileLoading, router]);
 
-  if (!session) {
+  const fetchDetails = useCallback(async () => {
+    if (!profile?.is_saas_admin || !orgId) return;
+
+    try {
+      setIsLoading(true);
+
+      // 1. Fetch organization details & status
+      const { data: orgData, error: orgError } = await supabase
+        .from("organizations")
+        .select(`
+          id, name, created_at,
+          organization_status (status),
+          members:users (count),
+          teams (count)
+        `)
+        .eq("id", orgId)
+        .single();
+
+      if (orgError) throw orgError;
+
+      // 2. Fetch care homes
+      const { data: chData, error: chError } = await supabase
+        .from("care_homes")
+        .select("id, name, created_at")
+        .eq("organization_id", orgId);
+
+      if (chError) throw chError;
+
+      setOrgDetails({
+        id: orgData.id,
+        name: orgData.name,
+        createdAt: orgData.created_at,
+        status: orgData.organization_status?.[0]?.status || "active",
+        memberCount: orgData.members?.[0]?.count || 0,
+        teamCount: orgData.teams?.[0]?.count || 0,
+      });
+
+      setCareHomes((chData || []).map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        createdAt: ch.created_at
+      })));
+
+    } catch (error) {
+      console.error("Error fetching org details:", error);
+      toast.error("Failed to load organization details");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profile, orgId]);
+
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  const isDeactivated = orgDetails?.status === "deactivated";
+
+  if (isProfileLoading || (isLoading && !orgDetails)) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
       </div>
     );
   }
 
-  if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-lg font-semibold mb-2">Access Denied</p>
-        <p className="text-muted-foreground">You don&apos;t have permission to access this page.</p>
-      </div>
-    );
+  if (!profile?.is_saas_admin) {
+    return null;
   }
 
   if (!orgDetails) {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-muted-foreground">Loading care home details...</p>
+        <p className="text-muted-foreground">Organization not found.</p>
       </div>
     );
   }
@@ -70,27 +133,27 @@ export default function CareHomeDetailsPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-medium">{orgDetails.name}</h1>
-              {orgStatus && (
+              {orgDetails && (
                 <Badge
                   variant={
-                    orgStatus.status === "active"
+                    orgDetails.status === "active"
                       ? "default"
-                      : orgStatus.status === "deactivated"
-                      ? "destructive"
-                      : "secondary"
+                      : orgDetails.status === "deactivated"
+                        ? "destructive"
+                        : "secondary"
                   }
                 >
-                  {orgStatus.status === "active"
+                  {orgDetails.status === "active"
                     ? "Active"
-                    : orgStatus.status === "deactivated"
-                    ? "Deactivated"
-                    : "Suspended"}
+                    : orgDetails.status === "deactivated"
+                      ? "Deactivated"
+                      : "Suspended"}
                 </Badge>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
               Created {new Date(orgDetails.createdAt).toLocaleDateString()}
-              {careHomes !== undefined && (
+              {careHomes !== null && (
                 <span className="ml-2">
                   • {careHomes.length} {careHomes.length === 1 ? "care home" : "care homes"}
                 </span>
@@ -142,7 +205,7 @@ export default function CareHomeDetailsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{orgDetails.members.length}</div>
+            <div className="text-2xl font-bold">{orgDetails.memberCount}</div>
           </CardContent>
         </Card>
 
@@ -152,7 +215,7 @@ export default function CareHomeDetailsPage() {
             <UsersRound className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{orgDetails.teams.length}</div>
+            <div className="text-2xl font-bold">{orgDetails.teamCount}</div>
           </CardContent>
         </Card>
 
@@ -177,7 +240,7 @@ export default function CareHomeDetailsPage() {
           {careHomes && careHomes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {careHomes.map((careHome) => (
-                <Link key={careHome._id} href={`/admin/care-homes/${orgId}/${careHome._id}`}>
+                <Link key={careHome.id} href={`/admin/care-homes/${orgId}/${careHome.id}`}>
                   <Card className="border hover:bg-accent transition-colors cursor-pointer">
                     <CardHeader>
                       <div className="flex items-center justify-between">
@@ -188,7 +251,7 @@ export default function CareHomeDetailsPage() {
                       </div>
                       <CardTitle className="mt-2 text-base">{careHome.name}</CardTitle>
                       <CardDescription className="text-xs">
-                        Care Home ID: {careHome._id}
+                        Care Home ID: {careHome.id}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -200,7 +263,7 @@ export default function CareHomeDetailsPage() {
                 </Link>
               ))}
             </div>
-          ) : careHomes === undefined ? (
+          ) : careHomes === null ? (
             <p className="text-muted-foreground">Loading care homes...</p>
           ) : (
             <div className="flex flex-col items-center justify-center py-8">

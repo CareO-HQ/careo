@@ -3,15 +3,21 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -210,9 +216,8 @@ function generatePhotographyConsentHTML(data: any): string {
       <div class="section">
         <h2>Signatures and Consent</h2>
         
-        ${
-          data.residentSignature
-            ? `
+        ${data.residentSignature
+      ? `
         <div class="signature-section">
           <h3>Resident Signature</h3>
           <p style="margin-bottom: 12px; color: #6b7280;">
@@ -226,12 +231,11 @@ function generatePhotographyConsentHTML(data: any): string {
           </p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
 
-        ${
-          data.representativeName || data.representativeSignature
-            ? `
+        ${data.representativeName || data.representativeSignature
+      ? `
         <div class="signature-section">
           <h3>Representative Consent</h3>
           <p style="margin-bottom: 12px; color: #6b7280;">
@@ -254,8 +258,8 @@ function generatePhotographyConsentHTML(data: any): string {
           </div>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Staff Verification -->
@@ -328,23 +332,34 @@ export async function POST(request: NextRequest) {
     });
 
     // Parse the request body
-    const consentData = await request.json();
+    const assessmentData = await request.json();
 
-    if (!consentData) {
+    if (!assessmentData) {
       return NextResponse.json(
         { error: "Photography consent data is required" },
         { status: 400 }
       );
     }
 
-    console.log("Photography Consent PDF API called with data:", {
-      residentName: consentData.residentName,
-      bedroomNumber: consentData.bedroomNumber,
-      consentId: consentData._id
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure resident details and common fields are at the top level
+      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      // Consent fields are likely already at top level after spread
+    };
+
+    console.log("Photography Consent PDF API flattening data:", {
+      residentName: flattenedData.residentName,
+      formId: flattenedData._id || flattenedData.id
     });
 
     // Generate HTML content
-    const htmlContent = generatePhotographyConsentHTML(consentData);
+    const htmlContent = generatePhotographyConsentHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -381,7 +396,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="photography-consent-${consentData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,
+          "Content-Disposition": `attachment; filename="photography-consent-${flattenedData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

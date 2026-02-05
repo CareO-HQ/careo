@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { Resident } from "@/types";
 import {
   Table,
   TableBody,
@@ -29,10 +28,35 @@ interface AuditDetail {
 export default function CareFileAuditViewPage() {
   const params = useParams();
   const router = useRouter();
-  const residentId = params.residentId as Id<"residents">;
+  const residentId = params.residentId as string;
+  const { supabase } = useSupabase();
+  const [resident, setResident] = useState<Resident | null | undefined>(undefined);
 
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId: residentId });
+  useEffect(() => {
+    if (!supabase || !residentId) {
+      setResident(null);
+      return;
+    }
+
+    const fetchResident = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
+
+        if (error) throw error;
+        setResident(data as Resident);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      }
+    };
+
+    fetchResident();
+  }, [supabase, residentId]);
 
   // Dummy audit data
   const auditInfo = {
@@ -149,9 +173,9 @@ export default function CareFileAuditViewPage() {
           </Button>
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
+              <AvatarImage src={resident.image_url || undefined} alt={`${resident.first_name} ${resident.last_name}`} />
               <AvatarFallback>
-                {resident.firstName.charAt(0)}{resident.lastName.charAt(0)}
+                {resident.first_name?.charAt(0)}{resident.last_name?.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -159,7 +183,7 @@ export default function CareFileAuditViewPage() {
                 {auditInfo.name}
               </h1>
               <p className="text-sm text-muted-foreground">
-                {resident.firstName} {resident.lastName} - Room {resident.roomNumber || "N/A"}
+                {resident.first_name} {resident.last_name} - Room {resident.room_number || "N/A"}
               </p>
             </div>
           </div>

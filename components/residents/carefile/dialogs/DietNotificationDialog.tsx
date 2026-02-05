@@ -14,15 +14,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useMutation } from "convex/react";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 
 interface DietNotificationDialogProps {
   teamId: string;
-  residentId: Id<"residents">;
+  residentId: string;
   organizationId: string;
   userId: string;
   resident: any;
@@ -32,28 +30,56 @@ interface DietNotificationDialogProps {
 }
 
 export default function DietNotificationDialog({
-  teamId,
-  residentId,
-  organizationId,
-  userId,
-  resident,
-  isEditMode = false,
-  initialData,
-  onClose
+  teamId, residentId, organizationId, userId, resident,
+  isEditMode = false, initialData, onClose
 }: DietNotificationDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: session } = authClient.useSession();
-  const submitDietNotification = useMutation(api.careFiles.dietNotification.submitDietNotification);
+  const { profile } = useProfile();
 
   const form = useForm<z.infer<typeof dietNotificationSchema>>({
     resolver: zodResolver(dietNotificationSchema),
-    defaultValues: initialData || {
-      residentName: resident?.firstName + " " + resident?.lastName || "",
-      roomNumber: resident?.roomNumber || "",
-      completedBy: session?.user?.name || "",
-      printName: session?.user?.name || "",
-      jobRole: "",
-      signature: "",
+    defaultValues: initialData ? {
+      residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      roomNumber: initialData.roomNumber || resident.room_number || "",
+      completedBy: initialData.completed_by || profile?.name || "",
+      printName: initialData.printName || profile?.name || "",
+      jobRole: initialData.jobRole || "",
+      signature: initialData.signature || "",
+      dateCompleted: initialData.dateCompleted || Date.now(),
+      reviewDate: initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
+      chokingRiskAssessment: initialData.choking_risk || "Low Risk",
+      preferredMealSize: initialData.preferred_meal_size || "Standard",
+      // Flatten from JSONB
+      likesFavouriteFoods: initialData.dietary_preferences?.likesFavouriteFoods || "",
+      dislikes: initialData.dietary_preferences?.dislikes || "",
+      foodsToBeAvoided: initialData.dietary_preferences?.foodsToBeAvoided || "",
+      dietType: initialData.dietary_preferences?.dietType || "",
+      assistanceRequired: initialData.dietary_preferences?.assistanceRequired || "",
+      fluidRequirements: initialData.dietary_preferences?.fluidRequirements || "",
+      foodAllergyOrIntolerance: initialData.dietary_preferences?.foodAllergyOrIntolerance || "",
+      // Food consistency
+      foodConsistencyLevel7Regular: initialData.food_consistency?.level7Regular || false,
+      foodConsistencyLevel7EasyChew: initialData.food_consistency?.level7EasyChew || false,
+      foodConsistencyLevel6SoftBiteSized: initialData.food_consistency?.level6SoftBiteSized || false,
+      foodConsistencyLevel5MincedMoist: initialData.food_consistency?.level5MincedMoist || false,
+      foodConsistencyLevel4Pureed: initialData.food_consistency?.level4Pureed || false,
+      foodConsistencyLevel3Liquidised: initialData.food_consistency?.level3Liquidised || false,
+      // Fluid consistency
+      fluidConsistencyLevel4ExtremelyThick: initialData.fluid_consistency?.level4ExtremelyThick || false,
+      fluidConsistencyLevel3ModeratelyThick: initialData.fluid_consistency?.level3ModeratelyThick || false,
+      fluidConsistencyLevel2MildlyThick: initialData.fluid_consistency?.level2MildlyThick || false,
+      fluidConsistencyLevel1SlightlyThick: initialData.fluid_consistency?.level1SlightlyThick || false,
+      fluidConsistencyLevel0Thin: initialData.fluid_consistency?.level0Thin || false,
+      // Kitchen review
+      reviewedByCookChef: initialData.kitchen_review?.reviewedByCookChef || "",
+      reviewerPrintName: initialData.kitchen_review?.reviewerPrintName || "",
+      reviewerJobTitle: initialData.kitchen_review?.reviewerJobTitle || ""
+    } : {
+      residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      roomNumber: resident.room_number || "",
+      completedBy: profile?.name || "",
+      printName: profile?.name || "",
+      jobRole: "", signature: "",
       dateCompleted: Date.now(),
       reviewDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
       chokingRiskAssessment: "Low Risk",
@@ -64,18 +90,65 @@ export default function DietNotificationDialog({
   const onSubmit = async (data: z.infer<typeof dietNotificationSchema>) => {
     try {
       setIsSubmitting(true);
-      await submitDietNotification({
-        residentId,
-        teamId,
-        organizationId,
-        userId,
-        ...data,
-        savedAsDraft: false
-      } as any);
-      toast.success("Diet Notification submitted successfully");
+      const currentUserId = userId;
+      if (!currentUserId) throw new Error("User not authenticated");
+
+      const payload = {
+        resident_id: residentId,
+        organization_id: organizationId,
+        choking_risk: data.chokingRiskAssessment,
+        preferred_meal_size: data.preferredMealSize,
+        dietary_preferences: {
+          likesFavouriteFoods: data.likesFavouriteFoods,
+          dislikes: data.dislikes,
+          foodsToBeAvoided: data.foodsToBeAvoided,
+          dietType: data.dietType,
+          assistanceRequired: data.assistanceRequired,
+          fluidRequirements: data.fluidRequirements,
+          foodAllergyOrIntolerance: data.foodAllergyOrIntolerance
+        },
+        food_consistency: {
+          level7Regular: data.foodConsistencyLevel7Regular,
+          level7EasyChew: data.foodConsistencyLevel7EasyChew,
+          level6SoftBiteSized: data.foodConsistencyLevel6SoftBiteSized,
+          level5MincedMoist: data.foodConsistencyLevel5MincedMoist,
+          level4Pureed: data.foodConsistencyLevel4Pureed,
+          level3Liquidised: data.foodConsistencyLevel3Liquidised
+        },
+        fluid_consistency: {
+          level4ExtremelyThick: data.fluidConsistencyLevel4ExtremelyThick,
+          level3ModeratelyThick: data.fluidConsistencyLevel3ModeratelyThick,
+          level2MildlyThick: data.fluidConsistencyLevel2MildlyThick,
+          level1SlightlyThick: data.fluidConsistencyLevel1SlightlyThick,
+          level0Thin: data.fluidConsistencyLevel0Thin
+        },
+        kitchen_review: {
+          reviewedByCookChef: data.reviewedByCookChef,
+          reviewerPrintName: data.reviewerPrintName,
+          reviewerJobTitle: data.reviewerJobTitle
+        },
+        completed_by: data.completedBy,
+        print_name: data.printName,
+        job_role: data.jobRole,
+        created_by: currentUserId
+      };
+
+      if (isEditMode && initialData?.id) {
+        const { error } = await supabase.from('diet_notifications').update(payload).eq('id', initialData.id);
+        if (error) throw error;
+        await supabase.from('manager_audits').insert({
+          form_type: 'diet_notifications', form_id: initialData.id, resident_id: residentId,
+          audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
+        });
+        toast.success("Diet Notification updated");
+      } else {
+        const { error } = await supabase.from('diet_notifications').insert(payload);
+        if (error) throw error;
+        toast.success("Diet Notification submitted");
+      }
       onClose();
     } catch (error) {
-      console.error("Error submitting diet notification:", error);
+      console.error("Error submitting:", error);
       toast.error("Failed to submit diet notification");
     } finally {
       setIsSubmitting(false);
@@ -87,9 +160,7 @@ export default function DietNotificationDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Edit" : "New"} Diet Notification</DialogTitle>
-          <DialogDescription>
-            Complete dietary requirements and specifications for {resident?.firstName} {resident?.lastName}
-          </DialogDescription>
+          <DialogDescription>Complete dietary requirements for {resident?.firstName} {resident?.lastName}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -97,24 +168,12 @@ export default function DietNotificationDialog({
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Administrative Information</h3>
               <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName" render={({ field }) => (
-                  <FormItem><FormLabel>Resident Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="roomNumber" render={({ field }) => (
-                  <FormItem><FormLabel>Room Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="completedBy" render={({ field }) => (
-                  <FormItem><FormLabel>Completed By *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="printName" render={({ field }) => (
-                  <FormItem><FormLabel>Print Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="jobRole" render={({ field }) => (
-                  <FormItem><FormLabel>Job Role *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="signature" render={({ field }) => (
-                  <FormItem><FormLabel>Signature *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
+                <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel>Resident Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="roomNumber" render={({ field }) => (<FormItem><FormLabel>Room Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel>Completed By *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="printName" render={({ field }) => (<FormItem><FormLabel>Print Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
               </div>
             </div>
 
@@ -122,36 +181,16 @@ export default function DietNotificationDialog({
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Dietary Preferences & Risks</h3>
-              <FormField control={form.control} name="likesFavouriteFoods" render={({ field }) => (
-                <FormItem><FormLabel>Likes / Favourite Foods</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="dislikes" render={({ field }) => (
-                <FormItem><FormLabel>Dislikes</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="foodsToBeAvoided" render={({ field }) => (
-                <FormItem><FormLabel>Foods to be Avoided</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-              )} />
+              <FormField control={form.control} name="likesFavouriteFoods" render={({ field }) => (<FormItem><FormLabel>Likes / Favourite Foods</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="dislikes" render={({ field }) => (<FormItem><FormLabel>Dislikes</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
               <FormField control={form.control} name="chokingRiskAssessment" render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Choking Risk Assessment *</FormLabel>
-                  <FormControl>
-                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Low Risk" id="low-risk" />
-                        <Label htmlFor="low-risk">Low Risk</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Medium Risk" id="medium-risk" />
-                        <Label htmlFor="medium-risk">Medium Risk</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="High Risk" id="high-risk" />
-                        <Label htmlFor="high-risk">High Risk</Label>
-                      </div>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem className="space-y-3"><FormLabel>Choking Risk *</FormLabel><FormControl>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                    {["Low Risk", "Medium Risk", "High Risk"].map(risk => (
+                      <div key={risk} className="flex items-center space-x-2"><RadioGroupItem value={risk} id={risk.toLowerCase().replace(' ', '-')} /><Label htmlFor={risk.toLowerCase().replace(' ', '-')}>{risk}</Label></div>
+                    ))}
+                  </RadioGroup>
+                </FormControl><FormMessage /></FormItem>
               )} />
             </div>
 
@@ -160,92 +199,16 @@ export default function DietNotificationDialog({
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Meal & Fluid Specifications</h3>
               <FormField control={form.control} name="preferredMealSize" render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Preferred Meal Size *</FormLabel>
-                  <FormControl>
-                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
-                      {["Small", "Standard", "Large"].map((size) => (
-                        <div key={size} className="flex items-center space-x-2">
-                          <RadioGroupItem value={size} id={size.toLowerCase()} />
-                          <Label htmlFor={size.toLowerCase()}>{size}</Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem className="space-y-3"><FormLabel>Preferred Meal Size *</FormLabel><FormControl>
+                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                    {["Small", "Standard", "Large"].map(size => (
+                      <div key={size} className="flex items-center space-x-2"><RadioGroupItem value={size} id={size.toLowerCase()} /><Label htmlFor={size.toLowerCase()}>{size}</Label></div>
+                    ))}
+                  </RadioGroup>
+                </FormControl><FormMessage /></FormItem>
               )} />
-              <FormField control={form.control} name="assistanceRequired" render={({ field }) => (
-                <FormItem><FormLabel>Assistance Required</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="dietType" render={({ field }) => (
-                <FormItem><FormLabel>Diet Type</FormLabel><FormControl><Input {...field} placeholder="e.g., Diabetic, Fortified, Coeliac" /></FormControl><FormMessage /></FormItem>
-              )} />
-
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Food Consistency (IDDSI Levels)</Label>
-                <div className="space-y-2 pl-4">
-                  {[
-                    { name: "foodConsistencyLevel7Regular", label: "Level 7 - Regular" },
-                    { name: "foodConsistencyLevel7EasyChew", label: "Level 7 - Easy Chew" },
-                    { name: "foodConsistencyLevel6SoftBiteSized", label: "Level 6 - Soft & Bite Sized" },
-                    { name: "foodConsistencyLevel5MincedMoist", label: "Level 5 - Minced & Moist" },
-                    { name: "foodConsistencyLevel4Pureed", label: "Level 4 - Pureed" },
-                    { name: "foodConsistencyLevel3Liquidised", label: "Level 3 - Liquidised" }
-                  ].map(({ name, label }) => (
-                    <FormField key={name} control={form.control} name={name as any} render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        <FormLabel className="font-normal cursor-pointer">{label}</FormLabel>
-                      </FormItem>
-                    )} />
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Fluid Consistency (IDDSI Levels)</Label>
-                <div className="space-y-2 pl-4">
-                  {[
-                    { name: "fluidConsistencyLevel4ExtremelyThick", label: "Level 4 - Extremely Thick" },
-                    { name: "fluidConsistencyLevel3ModeratelyThick", label: "Level 3 - Moderately Thick" },
-                    { name: "fluidConsistencyLevel2MildlyThick", label: "Level 2 - Mildly Thick" },
-                    { name: "fluidConsistencyLevel1SlightlyThick", label: "Level 1 - Slightly Thick" },
-                    { name: "fluidConsistencyLevel0Thin", label: "Level 0 - Thin" }
-                  ].map(({ name, label }) => (
-                    <FormField key={name} control={form.control} name={name as any} render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        <FormLabel className="font-normal cursor-pointer">{label}</FormLabel>
-                      </FormItem>
-                    )} />
-                  ))}
-                </div>
-              </div>
-
-              <FormField control={form.control} name="fluidRequirements" render={({ field }) => (
-                <FormItem><FormLabel>Fluid Requirements</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="foodAllergyOrIntolerance" render={({ field }) => (
-                <FormItem><FormLabel>Food Allergy or Intolerance</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-              )} />
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Kitchen Review</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="reviewedByCookChef" render={({ field }) => (
-                  <FormItem><FormLabel>Reviewed by Cook/Chef (Signature)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="reviewerPrintName" render={({ field }) => (
-                  <FormItem><FormLabel>Print Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="reviewerJobTitle" render={({ field }) => (
-                  <FormItem><FormLabel>Job Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
+              <FormField control={form.control} name="dietType" render={({ field }) => (<FormItem><FormLabel>Diet Type</FormLabel><FormControl><Input {...field} placeholder="e.g., Diabetic, Fortified" /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="foodAllergyOrIntolerance" render={({ field }) => (<FormItem><FormLabel>Food Allergy or Intolerance</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">

@@ -10,20 +10,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { ArrowLeft, Eye, FileText } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import CarePlanViewDialog from "@/components/residents/carefile/folders/CarePlanViewDialog";
+import { supabase } from "@/lib/supabase";
 
 export default function AllCarePlansPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[3] as Id<"residents">;
+  const residentId = pathname[3];
 
   const [viewingCarePlan, setViewingCarePlan] = useState<{
     formKey: string;
@@ -33,17 +31,52 @@ export default function AllCarePlansPage() {
     isLatest: boolean;
   } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [resident, setResident] = useState<any>(undefined);
+  const [allCarePlans, setAllCarePlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: residentId as Id<"residents">
-  });
+  useEffect(() => {
+    async function fetchData() {
+      if (!residentId) return;
 
-  // Fetch only the latest care plans from each folder
-  const allCarePlans = useQuery(api.careFiles.carePlan.getLatestCarePlansForResident, {
-    residentId: residentId as Id<"residents">
-  });
+      try {
+        // Fetch resident
+        const { data: residentData } = await supabase
+          .from('residents')
+          .select('*')
+          .eq('id', residentId)
+          .single();
+        setResident(residentData);
 
-  if (resident === undefined || allCarePlans === undefined) {
+        // Fetch all care plans for resident
+        const { data: carePlansData } = await supabase
+          .from('care_plan_assessments')
+          .select('*')
+          .eq('resident_id', residentId)
+          .order('created_at', { ascending: false });
+        
+        // Map to convex-like structure for compatibility
+        const mappedCarePlans = (carePlansData || []).map(cp => ({
+          ...cp,
+          _id: cp.id,
+          _creationTime: new Date(cp.created_at).getTime(),
+          firstName: cp.first_name,
+          lastName: cp.last_name,
+          imageUrl: cp.image_url
+        }));
+        
+        setAllCarePlans(mappedCarePlans);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [residentId]);
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -54,7 +87,7 @@ export default function AllCarePlansPage() {
     );
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -72,14 +105,14 @@ export default function AllCarePlansPage() {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const handleViewCarePlan = (carePlan: typeof allCarePlans[0]) => {
     setViewingCarePlan({
       formKey: "care-plan-form",
       formId: carePlan._id,
-      name: carePlan.nameOfCarePlan || "Care Plan",
+      name: carePlan.name_of_care_plan || "Care Plan",
       completedAt: carePlan._creationTime,
       isLatest: true
     });
@@ -138,17 +171,17 @@ export default function AllCarePlansPage() {
               {allCarePlans.map((carePlan) => (
                 <TableRow key={carePlan._id}>
                   <TableCell className="font-medium">
-                    {carePlan.nameOfCarePlan}
+                    {carePlan.name_of_care_plan}
                   </TableCell>
                   <TableCell>
                     <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
-                      {carePlan.folderKey || "General"}
+                      {carePlan.care_plan_type || "General"}
                     </span>
                   </TableCell>
-                  <TableCell>#{carePlan.carePlanNumber}</TableCell>
-                  <TableCell>{carePlan.writtenBy}</TableCell>
+                  <TableCell>#{carePlan.care_plan_number}</TableCell>
+                  <TableCell>{carePlan.written_by}</TableCell>
                   <TableCell>
-                    {format(new Date(carePlan.dateWritten), "dd MMM yyyy")}
+                    {format(new Date(carePlan.date_written), "dd MMM yyyy")}
                   </TableCell>
                   <TableCell>
                     {format(new Date(carePlan._creationTime), "dd MMM yyyy, HH:mm")}

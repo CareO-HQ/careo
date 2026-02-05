@@ -1,14 +1,12 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
-import { canEditOverview } from "@/lib/permissions";
-
-import { Id, Doc } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { Resident } from "@/types";
+import { canEditOverview } from "@/lib/permissions";
 import {
   Card,
   CardContent,
@@ -27,8 +25,20 @@ import {
   FileText,
   Users,
   Edit3,
+  Bell,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+import { toast } from "sonner";
 
 type OverviewPageProps = {
   params: Promise<{ id: string }>;
@@ -38,57 +48,97 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-  const { data: member } = authClient.useActiveMember();
-  const userRole = member?.role;
+  const [showAlertsDialog, setShowAlertsDialog] = React.useState(false);
+  const [resident, setResident] = React.useState<Resident | null | undefined>(undefined);
+  const [alerts, setAlerts] = React.useState<any[]>([]);
+  const { profile } = useProfile();
+  const { supabase } = useSupabase();
+  const userRole = profile?.role;
 
-  // Use optimized query that fetches all related data in one go
-  const residentData = useQuery(api.residents.getResidentOverview, {
-    residentId: id as Id<"residents">,
-    includeAuditLog: false, // Set to true if you want to show recent activity
-  });
+  const fetchResidentData = React.useCallback(async () => {
+    if (!supabase) return;
 
-  const resident = residentData;
+    // Fetch resident with emergency contacts
+    const { data, error } = await supabase
+      .from("residents")
+      .select("*, emergency_contacts(*)")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching resident overview:", error);
+      setResident(null);
+    } else {
+      setResident(data as Resident);
+    }
+
+    // Fetch alerts if user has a role
+    if (userRole && profile?.id) {
+      // Fetch active alerts for the resident
+      const { data: alertsData, error: alertsError } = await supabase
+        .from("alerts")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("is_resolved", false)
+        .order("created_at", { ascending: false });
+
+      if (alertsError) {
+        setAlerts([]);
+        return;
+      }
+
+      // Fetch dismissals for current user
+      const { data: dismissalsData } = await supabase
+        .from("alert_dismissals")
+        .select("alert_id")
+        .eq("user_id", profile.id);
+
+      // Create a set of dismissed alert IDs for quick lookup
+      const dismissedAlertIds = new Set(
+        (dismissalsData || []).map((d: any) => d.alert_id)
+      );
+
+      // Filter out alerts dismissed by current user
+      const filteredAlerts = (alertsData || []).filter(
+        (alert: any) => !dismissedAlertIds.has(alert.id)
+      );
+      
+      setAlerts(filteredAlerts);
+    }
+  }, [id, supabase, userRole, profile?.id]);
+
+  React.useEffect(() => {
+    fetchResidentData();
+  }, [fetchResidentData]);
 
   // Use backend-calculated values if available, with memoized fallback
   // IMPORTANT: These hooks must be called before any early returns to comply with Rules of Hooks
   const age = React.useMemo(() => {
-    if (!resident || resident.age === undefined) {
-      if (!resident?.dateOfBirth) return 0;
+    if (!resident) return 0;
 
-      // Fallback calculation
-      const today = new Date();
-      const birthDate = new Date(resident.dateOfBirth);
-      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        calculatedAge--;
-      }
-
-      return calculatedAge;
-    }
-
-    return resident.age;
-  }, [resident]);
-
-  const lengthOfStayDisplay = React.useMemo(() => {
-    if (!resident?.admissionDate) return "";
-
-    if (resident.lengthOfStay) {
-      const { days, months, years } = resident.lengthOfStay;
-
-      if (days < 30) {
-        return `${days} days`;
-      } else if (days < 365) {
-        return `${months} month${months > 1 ? 's' : ''}`;
-      } else {
-        return `${years} year${years > 1 ? 's' : ''} ${months > 0 ? `${months} month${months > 1 ? 's' : ''}` : ''}`;
-      }
-    }
+    const dob = resident.date_of_birth;
+    if (!dob) return 0;
 
     // Fallback calculation
     const today = new Date();
-    const admission = new Date(resident.admissionDate);
+    const birthDate = new Date(dob);
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--;
+    }
+
+    return calculatedAge;
+  }, [resident]);
+
+  const lengthOfStayDisplay = React.useMemo(() => {
+    const admissionDate = resident?.admission_date;
+    if (!admissionDate) return "";
+
+    // Fallback calculation
+    const today = new Date();
+    const admission = new Date(admissionDate);
     const diffTime = Math.abs(today.getTime() - admission.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -102,7 +152,39 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       const remainingMonths = Math.floor((diffDays % 365) / 30);
       return `${years} year${years > 1 ? 's' : ''} ${remainingMonths > 0 ? `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}` : ''}`;
     }
-  }, [resident?.lengthOfStay, resident?.admissionDate]);
+  }, [resident?.admission_date]);
+
+  // Derive alert count from alerts
+  const alertCount = React.useMemo(() => {
+    if (!alerts) return { total: 0, critical: 0, warning: 0, info: 0 };
+    return {
+      total: alerts.length,
+      critical: alerts.filter(a => a.severity === "critical").length,
+      warning: alerts.filter(a => a.severity === "warning").length,
+      info: alerts.filter(a => a.severity === "info").length,
+    };
+  }, [alerts]);
+
+  const handleDismissAlert = async (alertId: string) => {
+    if (!supabase || !profile?.id) return;
+    
+    try {
+      // Insert into alert_dismissals table for per-user dismissal tracking
+      const { error } = await supabase
+        .from("alert_dismissals")
+        .insert({
+          alert_id: alertId,
+          user_id: profile.id
+        });
+
+      if (error) throw error;
+      toast.success("Alert dismissed");
+      fetchResidentData();
+    } catch (error) {
+      console.error("Failed to dismiss alert:", error);
+      toast.error("Failed to dismiss alert");
+    }
+  };
 
   // Now safe to do early returns after all hooks have been called
   if (resident === undefined) {
@@ -137,9 +219,9 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
+  const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
-    `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+    `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   return (
     <>
@@ -149,7 +231,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <Avatar className="w-10 h-10">
-          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+          <AvatarImage src={resident.image_url} alt={fullName} className="border" />
           <AvatarFallback className="text-sm bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>
@@ -157,10 +239,24 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         <div className="flex-1">
           <h1 className="text-xl sm:text-2xl font-bold">Overview</h1>
           <p className="text-muted-foreground text-sm">
-            View basic information and summary for {resident.firstName} {resident.lastName}.
+            View basic information and summary for {resident.first_name} {resident.last_name}.
           </p>
         </div>
         <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="relative bg-gray-50 hover:bg-gray-100"
+            onClick={() => setShowAlertsDialog(true)}
+          >
+            <Bell className="h-5 w-5" />
+            {alertCount && alertCount.total > 0 && (
+              <span className={`absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-xs flex items-center justify-center font-semibold shadow-md ${alertCount.critical > 0 ? 'bg-red-600' : 'bg-orange-500'
+              }`}>
+                {alertCount.total}
+              </span>
+            )}
+          </Button>
           {canEditOverview(userRole) && (
             <Button
               variant="ghost"
@@ -204,18 +300,18 @@ export default function OverviewPage({ params }: OverviewPageProps) {
               </div>
               <p className="text-sm text-green-700">
                 {lengthOfStayDisplay.includes('day') ? 'Days' :
-                 lengthOfStayDisplay.includes('month') ? 'Months' : 'Years'} Here
+                  lengthOfStayDisplay.includes('month') ? 'Months' : 'Years'} Here
               </p>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
               <div className="text-2xl font-bold text-purple-600">
-                {resident.emergencyContacts?.length || 0}
+                {resident.emergency_contacts?.length || 0}
               </div>
               <p className="text-sm text-purple-700">Emergency Contacts</p>
             </div>
             <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
               <div className="text-2xl font-bold text-orange-600">
-                {resident.roomNumber ? 1 : 0}
+                {resident.room_number ? 1 : 0}
               </div>
               <p className="text-sm text-orange-700">Room Assigned</p>
             </div>
@@ -245,7 +341,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
               <Calendar className="w-4 h-4 text-gray-500" />
               <div className="flex-1">
                 <p className="text-xs text-gray-600">Date of Birth</p>
-                <p className="font-medium text-sm">{resident.dateOfBirth}</p>
+                <p className="font-medium text-sm">{resident.date_of_birth}</p>
               </div>
             </div>
 
@@ -253,7 +349,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
               <MapPin className="w-4 h-4 text-gray-500" />
               <div className="flex-1">
                 <p className="text-xs text-gray-600">Room Number</p>
-                <p className="font-medium text-sm">{resident.roomNumber || "Not assigned"}</p>
+                <p className="font-medium text-sm">{resident.room_number || "Not assigned"}</p>
               </div>
             </div>
 
@@ -261,26 +357,26 @@ export default function OverviewPage({ params }: OverviewPageProps) {
               <Clock className="w-4 h-4 text-gray-500" />
               <div className="flex-1">
                 <p className="text-xs text-gray-600">Admission Date</p>
-                <p className="font-medium text-sm">{resident.admissionDate}</p>
+                <p className="font-medium text-sm">{resident.admission_date}</p>
               </div>
             </div>
 
-            {resident.phoneNumber && (
+            {resident.phone_number && (
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                 <Phone className="w-4 h-4 text-gray-500" />
                 <div className="flex-1">
                   <p className="text-xs text-gray-600">Phone Number</p>
-                  <p className="font-medium text-sm">{resident.phoneNumber}</p>
+                  <p className="font-medium text-sm">{resident.phone_number}</p>
                 </div>
               </div>
             )}
 
-            {resident.nhsHealthNumber && (
+            {resident.nhs_health_number && (
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                 <FileText className="w-4 h-4 text-gray-500" />
                 <div className="flex-1">
                   <p className="text-xs text-gray-600">NHS Health Number</p>
-                  <p className="font-medium font-mono text-sm">{resident.nhsHealthNumber}</p>
+                  <p className="font-medium font-mono text-sm">{resident.nhs_health_number}</p>
                 </div>
               </div>
             )}
@@ -301,15 +397,15 @@ export default function OverviewPage({ params }: OverviewPageProps) {
               <div>
                 <h4 className="font-medium text-sm text-gray-900 mb-3 flex items-center">
                   <Users className="w-4 h-4 text-red-600 mr-2" />
-                  Next of Kin 
+                  Next of Kin
                 </h4>
-                {resident.emergencyContacts && resident.emergencyContacts.length > 0 ? (
+                {resident.emergency_contacts && resident.emergency_contacts.length > 0 ? (
                   <div className="space-y-3">
-                    {resident.emergencyContacts.map((contact: Doc<"emergencyContacts">, index: number) => (
+                    {resident.emergency_contacts.map((contact: any, index: number) => (
                       <div key={index} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <h5 className="font-semibold text-sm text-gray-900">{contact.name}</h5>
-                          {contact.isPrimary && (
+                          {contact.is_primary && (
                             <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
                               Primary
                             </Badge>
@@ -320,7 +416,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                             <span className="font-medium">Relationship:</span> {contact.relationship}
                           </p>
                           <p className="text-xs text-gray-600">
-                            <span className="font-medium">Phone:</span> {contact.phoneNumber}
+                            <span className="font-medium">Phone:</span> {contact.phone_number}
                           </p>
                           {contact.address && (
                             <p className="text-xs text-gray-600">
@@ -345,22 +441,22 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                   <FileText className="w-4 h-4 text-blue-600 mr-2" />
                   GP Details
                 </h4>
-                {resident.gpName || resident.gpPhone || resident.gpAddress ? (
+                {resident.gp_name || resident.gp_phone || resident.gp_address ? (
                   <div className="p-3 border rounded-lg">
                     <div className="mb-2">
                       <h5 className="font-semibold text-sm text-gray-900">
-                        {resident.gpName || "General Practitioner"}
+                        {resident.gp_name || "General Practitioner"}
                       </h5>
                     </div>
                     <div className="space-y-1">
-                      {resident.gpPhone && (
+                      {resident.gp_phone && (
                         <p className="text-xs text-gray-600">
-                          <span className="font-medium">Phone:</span> {resident.gpPhone}
+                          <span className="font-medium">Phone:</span> {resident.gp_phone}
                         </p>
                       )}
-                      {resident.gpAddress && (
+                      {resident.gp_address && (
                         <p className="text-xs text-gray-600">
-                          <span className="font-medium">Address:</span> {resident.gpAddress}
+                          <span className="font-medium">Address:</span> {resident.gp_address}
                         </p>
                       )}
                     </div>
@@ -379,22 +475,22 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                   <User className="w-4 h-4 text-green-600 mr-2" />
                   Care Manager
                 </h4>
-                {resident.careManagerName || resident.careManagerPhone || resident.careManagerAddress ? (
+                {resident.care_manager_name || resident.care_manager_phone || resident.care_manager_address ? (
                   <div className="p-3 border rounded-lg">
                     <div className="mb-2">
                       <h5 className="font-semibold text-sm text-gray-900">
-                        {resident.careManagerName || "Care Manager"}
+                        {resident.care_manager_name || "Care Manager"}
                       </h5>
                     </div>
                     <div className="space-y-1">
-                      {resident.careManagerPhone && (
+                      {resident.care_manager_phone && (
                         <p className="text-xs text-gray-600">
-                          <span className="font-medium">Phone:</span> {resident.careManagerPhone}
+                          <span className="font-medium">Phone:</span> {resident.care_manager_phone}
                         </p>
                       )}
-                      {resident.careManagerAddress && (
+                      {resident.care_manager_address && (
                         <p className="text-xs text-gray-600">
-                          <span className="font-medium">Address:</span> {resident.careManagerAddress}
+                          <span className="font-medium">Address:</span> {resident.care_manager_address}
                         </p>
                       )}
                     </div>
@@ -410,6 +506,78 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Alerts Dialog */}
+      <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Alerts for {resident.first_name} {resident.last_name}</DialogTitle>
+            <DialogDescription>
+              {alerts && alerts.length > 0
+                ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} requiring attention`
+                : "No active alerts"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {alerts && alerts.length > 0 ? (
+              alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={cn(
+                    "p-4 rounded-lg border-2",
+                    alert.severity === "critical"
+                      ? "border-red-300 bg-red-50"
+                      : alert.severity === "warning"
+                        ? "border-orange-300 bg-orange-50"
+                        : "border-blue-300 bg-blue-50"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge
+                          variant="table"
+                          className={cn(
+                            alert.severity === "critical"
+                              ? "bg-red-100 text-red-800 border-red-400"
+                              : alert.severity === "warning"
+                                ? "bg-orange-100 text-orange-800 border-orange-400"
+                                : "bg-blue-100 text-blue-800 border-blue-400"
+                          )}
+                        >
+                          {alert.severity === "critical"
+                            ? "Critical"
+                            : alert.severity === "warning"
+                              ? "Warning"
+                              : "Info"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
+                      <p className="text-sm text-muted-foreground">{alert.message}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDismissAlert(alert.id)}
+                      className="flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No active alerts</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Resident Dialog */}
       <CreateResidentDialog

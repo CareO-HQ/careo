@@ -1,4 +1,4 @@
-import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
+import { SupabaseProvider } from "@/components/providers/SupabaseProvider";
 import { ThemeProvider } from "@/components/providers/NextThemeProvider";
 import { PostHogProvider } from "@/components/providers/PosthogProvider";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -36,7 +36,7 @@ export default function RootLayout({
       >
         <PostHogProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <ConvexClientProvider>
+            <SupabaseProvider>
               <NuqsAdapter>
                 <SidebarProvider>
                   <div className="flex flex-col justify-start h-dvh w-full">
@@ -44,7 +44,7 @@ export default function RootLayout({
                   </div>
                 </SidebarProvider>
               </NuqsAdapter>
-            </ConvexClientProvider>
+            </SupabaseProvider>
           </ThemeProvider>
         </PostHogProvider>
         <Toaster />

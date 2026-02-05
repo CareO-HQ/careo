@@ -39,10 +39,9 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface DnacprDialogProps {
   teamId: string;
@@ -74,22 +73,19 @@ export default function DnacprDialog({
   const [nokDatePopoverOpen, setNokDatePopoverOpen] = useState(false);
   const [gpDatePopoverOpen, setGpDatePopoverOpen] = useState(false);
 
-  const submitDnacpr = useMutation(api.careFiles.dnacpr.submitDnacpr);
-  const updateDnacpr = useMutation(api.careFiles.dnacpr.updateDnacpr);
+  const { supabase } = useSupabase();
 
   // Helper function to safely convert date to timestamp
   const getDateOfBirthTimestamp = (): number => {
-    if (typeof resident.dateOfBirth === "number") {
-      return resident.dateOfBirth;
+    if (typeof resident.date_of_birth === "number") {
+      return resident.date_of_birth;
     }
-    if (resident.dateOfBirth && typeof resident.dateOfBirth === "string") {
-      const timestamp = new Date(resident.dateOfBirth).getTime();
-      // Check if the conversion resulted in a valid timestamp
+    if (resident.date_of_birth && typeof resident.date_of_birth === "string") {
+      const timestamp = new Date(resident.date_of_birth).getTime();
       if (!isNaN(timestamp) && timestamp > 0) {
         return timestamp;
       }
     }
-    // Fallback: return current date minus 70 years as a reasonable default
     const defaultAge = 70;
     return Date.now() - (defaultAge * 365.25 * 24 * 60 * 60 * 1000);
   };
@@ -99,68 +95,68 @@ export default function DnacprDialog({
     mode: "onChange",
     defaultValues: initialData
       ? {
-          // Use existing data for editing
-          residentId: residentId,
-          teamId,
-          organizationId,
-          userId,
-          residentName:
-            initialData.residentName ??
-            `${resident.firstName} ${resident.lastName}`,
-          bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-          dateOfBirth:
-            typeof initialData.dateOfBirth === "number" && initialData.dateOfBirth > 0
-              ? initialData.dateOfBirth
-              : getDateOfBirthTimestamp(),
-          dnacpr: initialData.dnacpr ?? false,
-          dnacprComments: initialData.dnacprComments ?? "",
-          reason: initialData.reason ?? "TERMINAL-PROGRESSIVE",
-          date: initialData.date ?? Date.now(),
-          discussedResident: initialData.discussedResident ?? false,
-          discussedResidentComments:
-            initialData.discussedResidentComments ?? "",
-          discussedResidentDate: initialData.discussedResidentDate ?? undefined,
-          discussedRelatives: initialData.discussedRelatives ?? false,
-          discussedRelativesComments:
-            initialData.discussedRelativesComments ?? "",
-          discussedRelativeDate: initialData.discussedRelativeDate ?? undefined,
-          discussedNOKs: initialData.discussedNOKs ?? false,
-          discussedNOKsComments: initialData.discussedNOKsComments ?? "",
-          discussedNOKsDate: initialData.discussedNOKsDate ?? undefined,
-          comments: initialData.comments ?? "",
-          gpDate: initialData.gpDate ?? Date.now(),
-          gpSignature: initialData.gpSignature ?? "",
-          residentNokSignature: initialData.residentNokSignature ?? "",
-          registeredNurseSignature: initialData.registeredNurseSignature ?? ""
-        }
+        // Use existing data for editing
+        residentId: residentId,
+        teamId,
+        organizationId,
+        userId,
+        residentName:
+          initialData.residentName ??
+          `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        dateOfBirth:
+          typeof initialData.dateOfBirth === "number" && initialData.dateOfBirth > 0
+            ? initialData.dateOfBirth
+            : getDateOfBirthTimestamp(),
+        dnacpr: initialData.dnacpr ?? false,
+        dnacprComments: initialData.dnacprComments ?? "",
+        reason: initialData.reason ?? "TERMINAL-PROGRESSIVE",
+        date: initialData.date ?? Date.now(),
+        discussedResident: initialData.discussedResident ?? false,
+        discussedResidentComments:
+          initialData.discussedResidentComments ?? "",
+        discussedResidentDate: initialData.discussedResidentDate ?? undefined,
+        discussedRelatives: initialData.discussedRelatives ?? false,
+        discussedRelativesComments:
+          initialData.discussedRelativesComments ?? "",
+        discussedRelativeDate: initialData.discussedRelativeDate ?? undefined,
+        discussedNOKs: initialData.discussedNOKs ?? false,
+        discussedNOKsComments: initialData.discussedNOKsComments ?? "",
+        discussedNOKsDate: initialData.discussedNOKsDate ?? undefined,
+        comments: initialData.comments ?? "",
+        gpDate: initialData.gpDate ?? Date.now(),
+        gpSignature: initialData.gpSignature ?? "",
+        residentNokSignature: initialData.residentNokSignature ?? "",
+        registeredNurseSignature: initialData.registeredNurseSignature ?? ""
+      }
       : {
-          // Default values for new forms
-          residentId: residentId,
-          teamId,
-          organizationId,
-          userId,
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          bedroomNumber: resident.roomNumber ?? "",
-          dateOfBirth: getDateOfBirthTimestamp(),
-          dnacpr: false,
-          dnacprComments: "",
-          reason: "TERMINAL-PROGRESSIVE",
-          date: Date.now(),
-          discussedResident: false,
-          discussedResidentComments: "",
-          discussedResidentDate: undefined,
-          discussedRelatives: false,
-          discussedRelativesComments: "",
-          discussedRelativeDate: undefined,
-          discussedNOKs: false,
-          discussedNOKsComments: "",
-          discussedNOKsDate: undefined,
-          comments: "",
-          gpDate: Date.now(),
-          gpSignature: "",
-          residentNokSignature: "",
-          registeredNurseSignature: ""
-        }
+        // Default values for new forms
+        residentId: residentId,
+        teamId,
+        organizationId,
+        userId,
+        residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+        bedroomNumber: resident.room_number ?? "",
+        dateOfBirth: getDateOfBirthTimestamp(),
+        dnacpr: false,
+        dnacprComments: "",
+        reason: "TERMINAL-PROGRESSIVE",
+        date: Date.now(),
+        discussedResident: false,
+        discussedResidentComments: "",
+        discussedResidentDate: undefined,
+        discussedRelatives: false,
+        discussedRelativesComments: "",
+        discussedRelativeDate: undefined,
+        discussedNOKs: false,
+        discussedNOKsComments: "",
+        discussedNOKsDate: undefined,
+        comments: "",
+        gpDate: Date.now(),
+        gpSignature: "",
+        residentNokSignature: "",
+        registeredNurseSignature: ""
+      }
   });
 
   const totalSteps = 7;
@@ -253,20 +249,41 @@ export default function DnacprDialog({
           return;
         }
 
-        if (isEditMode && initialData) {
-          await updateDnacpr({
-            dnacprId: initialData._id,
-            ...formData,
-            residentId: residentId as Id<"residents">
-          });
-          toast.success("DNACPR form updated successfully");
-        } else {
-          await submitDnacpr({
-            ...formData,
-            residentId: residentId as Id<"residents">
-          } as any);
-          toast.success("DNACPR form saved successfully");
-        }
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          dnacpr_active: formData.dnacpr,
+          reason: formData.reason,
+          discussion_history: {
+            discussedResident: formData.discussedResident,
+            discussedResidentComments: formData.discussedResidentComments,
+            discussedResidentDate: formData.discussedResidentDate,
+            discussedRelatives: formData.discussedRelatives,
+            discussedRelativesComments: formData.discussedRelativesComments,
+            discussedRelativeDate: formData.discussedRelativeDate,
+            discussedNOKs: formData.discussedNOKs,
+            discussedNOKsComments: formData.discussedNOKsComments,
+            discussedNOKsDate: formData.discussedNOKsDate,
+            comments: formData.comments,
+            residentNokSignature: formData.residentNokSignature,
+            registeredNurseSignature: formData.registeredNurseSignature
+          },
+          gp_signature: formData.gpSignature,
+          gp_date: format(new Date(formData.gpDate), "yyyy-MM-dd"),
+          assessment_date: format(new Date(formData.date), "yyyy-MM-dd"),
+          completed_by: formData.registeredNurseSignature,
+          created_by: userId,
+          status: "completed"
+        };
+
+        await submitAssessmentWithVersioning(
+          'dnacprs',
+          payload,
+          initialData,
+          isEditMode
+        );
+
+        toast.success(isEditMode ? "DNACPR form updated successfully" : "DNACPR form saved successfully");
 
         onClose?.();
       } catch (error) {

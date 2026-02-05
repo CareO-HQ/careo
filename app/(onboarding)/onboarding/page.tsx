@@ -7,11 +7,11 @@ import CreateMultipleTeams from "@/components/onboarding/teams/CreateMultipleTea
 import SelectTheme from "@/components/onboarding/theme/SelectTheme";
 import Stepper from "@/components/stepper/Stepper";
 import ContentWrapper from "@/components/utils/ContentWrapper";
-import { authClient } from "@/lib/auth-client";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 import { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
@@ -20,41 +20,42 @@ export default function OnboardingPage() {
   const NURSE_TOTAL_STEPS = 2;
   const CARE_ASSISTANT_TOTAL_STEPS = 2;
 
-  const { data: session } = authClient.useSession();
-  console.log(session);
-
-  const { data: activeMember, isPending } = authClient.useActiveMember();
-  console.log("[onboarding] activeMember:", activeMember, "role:", activeMember?.role);
-
+  const { session, user, isLoading: isAuthLoading } = useSupabase();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const router = useRouter();
-  const currentUser = useQuery(api.auth.getCurrentUser);
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  
-  // Check if user is SaaS Admin
-  // SaaS Admin won't have an activeMember since they're not part of any organization
-  const isSaasAdmin = !activeMember && (saasAdminStatus?.isSaasAdmin === true || (currentUser as any)?.isSaasAdmin === true);
+
+  // Use profile data but fall back to auth metadata if profile hasn't synced yet
+  const isSaasAdmin = profile?.is_saas_admin === true || user?.app_metadata?.role === 'saas_admin' || user?.app_metadata?.is_saas_admin === true;
+  const userRole = profile?.role || (user?.app_metadata?.role as string);
+  const isOnboardingComplete = profile?.is_onboarding_complete === true;
+
+  console.log("[DEBUG onboarding] state:", {
+    isProfileLoading,
+    isAuthLoading,
+    isSaasAdmin,
+    userRole,
+    isOnboardingComplete,
+    profileId: profile?.id
+  });
 
   // Early return: Redirect SaaS Admin to admin dashboard if onboarding is already complete
   useEffect(() => {
-    if (isSaasAdmin && currentUser?.isOnboardingComplete) {
-      console.log("[DEBUG onboarding] SaaS Admin onboarding already complete, redirecting to /admin");
+    if (!isProfileLoading && isSaasAdmin && isOnboardingComplete) {
+      console.log("[DEBUG onboarding] REDIRECTING SaaS Admin to /admin");
       router.push("/admin");
     }
-  }, [isSaasAdmin, currentUser?.isOnboardingComplete, router]);
+  }, [isSaasAdmin, isOnboardingComplete, isProfileLoading, router]);
 
   // Redirect users with roles to dashboard if onboarding is already complete
-  // This ensures users who have completed onboarding don't see it again
   useEffect(() => {
-    if (!isSaasAdmin && activeMember?.role && currentUser?.isOnboardingComplete) {
-      console.log(`[DEBUG onboarding] User with role ${activeMember.role} has completed onboarding, redirecting to dashboard`);
+    if (!isProfileLoading && !isSaasAdmin && userRole && isOnboardingComplete) {
+      console.log(`[DEBUG onboarding] REDIRECTING User with role ${userRole} to dashboard`);
       router.push("/dashboard");
     }
-  }, [isSaasAdmin, activeMember?.role, currentUser?.isOnboardingComplete, router]);
+  }, [isSaasAdmin, userRole, isOnboardingComplete, isProfileLoading, router]);
 
   // Show loading while checking onboarding status
-  // Wait for queries to resolve, but don't wait indefinitely for activeMember if user doesn't have one yet
-  // New owners won't have activeMember until they create an organization during onboarding
-  if (isPending || (isSaasAdmin && currentUser === undefined) || (!isSaasAdmin && currentUser === undefined)) {
+  if (isAuthLoading || isProfileLoading) {
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-center items-center h-full">
@@ -82,8 +83,7 @@ export default function OnboardingPage() {
   }
 
   // SAAS ADMIN ONBOARDING (first user)
-  // Don't render onboarding if already complete (useEffect will redirect)
-  if (isSaasAdmin && !currentUser?.isOnboardingComplete) {
+  if (isSaasAdmin && !isOnboardingComplete) {
     const SAAS_ADMIN_TOTAL_STEPS = 2; // Reduced to 2 steps - theme selection is the last step
     return (
       <ContentWrapper className="max-w-xl w-full">
@@ -115,9 +115,9 @@ export default function OnboardingPage() {
       </ContentWrapper>
     );
   }
-  
-  // If SaaS Admin but onboarding is complete, show loading (useEffect will redirect)
-  if (isSaasAdmin && currentUser?.isOnboardingComplete) {
+
+  // If SaaS Admin but onboarding is complete, show loading
+  if (isSaasAdmin && isOnboardingComplete) {
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-center items-center h-full">
@@ -131,9 +131,9 @@ export default function OnboardingPage() {
   }
 
   // OWNER ONBOARDING
-  if (activeMember?.role === "owner") {
+  if (userRole === "owner") {
     // Redirect if onboarding already complete
-    if (currentUser?.isOnboardingComplete) {
+    if (isOnboardingComplete) {
       return (
         <ContentWrapper className="max-w-xl w-full">
           <div className="flex flex-col justify-center items-center h-full">
@@ -180,9 +180,9 @@ export default function OnboardingPage() {
   }
 
   // MANAGER ONBOARDING
-  if (activeMember?.role === "manager") {
+  if (userRole === "manager") {
     // Redirect if onboarding already complete
-    if (currentUser?.isOnboardingComplete) {
+    if (isOnboardingComplete) {
       return (
         <ContentWrapper className="max-w-xl w-full">
           <div className="flex flex-col justify-center items-center h-full">
@@ -225,9 +225,9 @@ export default function OnboardingPage() {
   }
 
   // NURSE ONBOARDING
-  if (activeMember?.role === "nurse") {
+  if (userRole === "nurse") {
     // Redirect if onboarding already complete
-    if (currentUser?.isOnboardingComplete) {
+    if (isOnboardingComplete) {
       return (
         <ContentWrapper className="max-w-xl w-full">
           <div className="flex flex-col justify-center items-center h-full">
@@ -272,9 +272,9 @@ export default function OnboardingPage() {
   }
 
   // CARE ASSISTANT ONBOARDING
-  if (activeMember?.role === "care_assistant") {
+  if (userRole === "care_assistant") {
     // Redirect if onboarding already complete
-    if (currentUser?.isOnboardingComplete) {
+    if (isOnboardingComplete) {
       return (
         <ContentWrapper className="max-w-xl w-full">
           <div className="flex flex-col justify-center items-center h-full">
@@ -322,7 +322,7 @@ export default function OnboardingPage() {
   // This handles cases where the user is newly registered and doesn't have a role yet
   // They need to create an organization to become an owner
   const NEW_USER_TOTAL_STEPS = 4;
-  
+
   return (
     <ContentWrapper className="max-w-xl w-full">
       <div className="flex flex-col justify-start items-start mt-4">

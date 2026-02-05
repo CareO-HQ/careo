@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
+import { Resident } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -53,30 +53,97 @@ interface ActionPlan {
 function CareFileAuditViewSinglePageContent() {
   const params = useParams();
   const router = useRouter();
-  const residentId = params.residentId as Id<"residents">;
+  const residentId = params.residentId as string;
   // auditId parameter actually contains the responseId for this page
-  const responseId = params.auditId as Id<"careFileAuditCompletions">;
+  const responseId = params.auditId as string;
+  const { supabase } = useSupabase();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [actionPlanToDelete, setActionPlanToDelete] = useState<Id<"careFileAuditActionPlans"> | null>(null);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
+  const [resident, setResident] = useState<Resident | null | undefined>(undefined);
+  const [dbResponse, setDbResponse] = useState<any | null>(null);
+  const [dbActionPlans, setDbActionPlans] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  useEffect(() => {
+    if (!supabase || !residentId) {
+      setResident(null);
+      return;
+    }
+
+    const fetchResident = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
+
+        if (error) throw error;
+        setResident(data as Resident);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      }
+    };
+
+    fetchResident();
+  }, [supabase, residentId]);
 
   // Load the completed response from database
-  const dbResponse = useQuery(
-    api.careFileAuditResponses.getResponseById,
-    { responseId }
-  );
+  useEffect(() => {
+    if (!responseId) return;
+
+    const fetchResponse = async () => {
+      try {
+        const response = await auditService.getCareFileResponseById(responseId);
+        setDbResponse(response);
+      } catch (error) {
+        console.error("Error fetching audit response:", error);
+        setDbResponse(null);
+      }
+    };
+
+    fetchResponse();
+  }, [responseId]);
 
   // Load action plans from database
-  const dbActionPlans = useQuery(
-    api.careFileAuditActionPlans.getActionPlansByAudit,
-    { auditResponseId: responseId }
-  );
+  useEffect(() => {
+    if (!responseId) return;
 
-  // Delete action plan mutation
-  const deleteActionPlan = useMutation(api.careFileAuditActionPlans.deleteActionPlan);
+    const fetchActionPlans = async () => {
+      try {
+        const plans = await auditService.getCareFileActionPlans(responseId);
+        setDbActionPlans(plans || []);
+      } catch (error) {
+        console.error("Error fetching action plans:", error);
+        setDbActionPlans([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchActionPlans();
+  }, [responseId]);
+
+  // Delete action plan handler
+  const handleDeleteActionPlan = async () => {
+    if (!actionPlanToDelete) return;
+
+    try {
+      await auditService.deleteCareFileActionPlan(actionPlanToDelete);
+      // Refresh action plans
+      const plans = await auditService.getCareFileActionPlans(responseId);
+      setDbActionPlans(plans || []);
+      setDeleteDialogOpen(false);
+      setActionPlanToDelete(null);
+      toast.success("Action plan deleted");
+    } catch (error) {
+      console.error("Error deleting action plan:", error);
+      toast.error("Failed to delete action plan");
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -155,22 +222,8 @@ function CareFileAuditViewSinglePageContent() {
     }, 500);
   };
 
-  const handleDeleteActionPlan = async () => {
-    if (!actionPlanToDelete) return;
-
-    try {
-      await deleteActionPlan({ actionPlanId: actionPlanToDelete });
-      toast.success("Action plan deleted successfully");
-      setDeleteDialogOpen(false);
-      setActionPlanToDelete(null);
-    } catch (error) {
-      console.error("Failed to delete action plan:", error);
-      toast.error("Failed to delete action plan. Please try again.");
-    }
-  };
-
   const openDeleteDialog = (planId: string) => {
-    setActionPlanToDelete(planId as Id<"careFileAuditActionPlans">);
+    setActionPlanToDelete(planId);
     setDeleteDialogOpen(true);
   };
 
@@ -219,14 +272,14 @@ function CareFileAuditViewSinglePageContent() {
   // Transform action plans from database format
   const actionPlans: ActionPlan[] = dbActionPlans
     ? dbActionPlans.map((plan: any) => ({
-        id: plan._id,
-        auditId: plan.auditResponseId,
+        id: plan.id,
+        auditId: plan.audit_response_id,
         text: plan.description,
-        assignedTo: plan.assignedToName || plan.assignedTo,
-        dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
+        assignedTo: plan.assigned_to_name || plan.assigned_to,
+        dueDate: plan.due_date ? new Date(plan.due_date) : undefined,
         priority: plan.priority,
         status: plan.status,
-        latestComment: plan.latestComment,
+        latestComment: plan.latest_comment,
       }))
     : [];
 
@@ -289,15 +342,15 @@ function CareFileAuditViewSinglePageContent() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <Avatar className="h-10 w-10">
-                        <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
+                        <AvatarImage src={resident.image_url || undefined} alt={`${resident.first_name} ${resident.last_name}`} />
                         <AvatarFallback>
-                          {resident.firstName.charAt(0)}{resident.lastName.charAt(0)}
+                          {resident.first_name?.charAt(0)}{resident.last_name?.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <h1 className="text-2xl font-bold">{dbResponse.templateName}</h1>
+                        <h1 className="text-2xl font-bold">{dbResponse.template_name}</h1>
                         <p className="text-sm text-muted-foreground">
-                          {resident.firstName} {resident.lastName} - Room {resident.roomNumber || "N/A"}
+                          {resident.first_name} {resident.last_name} - Room {resident.room_number || "N/A"}
                         </p>
                       </div>
                     </div>
@@ -308,10 +361,10 @@ function CareFileAuditViewSinglePageContent() {
                   <div className="text-right text-sm">
                     <p className="font-medium">Completed Date</p>
                     <p className="text-muted-foreground">
-                      {format(new Date(dbResponse.completedAt || dbResponse.createdAt), "PPP")}
+                      {format(new Date(dbResponse.completed_at || dbResponse.created_at), "PPP")}
                     </p>
                     <p className="text-muted-foreground">
-                      {format(new Date(dbResponse.completedAt || dbResponse.createdAt), "p")}
+                      {format(new Date(dbResponse.completed_at || dbResponse.created_at), "p")}
                     </p>
                   </div>
                 </div>
@@ -377,11 +430,11 @@ function CareFileAuditViewSinglePageContent() {
                 </div>
 
                 {/* Overall Notes */}
-                {dbResponse.overallNotes && (
+                {dbResponse.overall_notes && (
                   <div className="mt-6">
                     <h3 className="text-sm font-semibold mb-2">Overall Notes</h3>
                     <div className="border rounded-lg p-4 bg-muted/30">
-                      <p className="text-sm">{dbResponse.overallNotes}</p>
+                      <p className="text-sm">{dbResponse.overall_notes}</p>
                     </div>
                   </div>
                 )}

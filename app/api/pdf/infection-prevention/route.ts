@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 
 export const runtime = "nodejs";
 
-// Create a Convex client for server-side usage
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-function formatDate(dateString?: string): string {
-  if (!dateString) return "Not provided";
-  return new Date(dateString).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -173,16 +173,15 @@ function generateInfectionPreventionHTML(data: any): string {
             <p><strong>Influenza B Result:</strong> <span class="yes-no ${data.influenzaB ? "yes" : "no"}">${data.influenzaB ? "Positive" : "Negative"}</span></p>
           </div>
         </div>
-        ${
-          data.otherRespiratorySymptoms
-            ? `
+        ${data.otherRespiratorySymptoms
+      ? `
           <div class="subsection">
             <h3>Other Respiratory Symptoms</h3>
             <div class="info-box">${data.otherRespiratorySymptoms}</div>
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Exposure -->
@@ -198,16 +197,15 @@ function generateInfectionPreventionHTML(data: any): string {
             <p><strong>Further Treatment Required:</strong> <span class="yes-no ${data.furtherTreatmentRequired ? "yes" : "no"}">${data.furtherTreatmentRequired ? "Yes" : "No"}</span></p>
           </div>
         </div>
-        ${
-          data.isolationDetails
-            ? `
+        ${data.isolationDetails
+      ? `
           <div class="subsection">
             <h3>Isolation Details</h3>
             <div class="info-box">${data.isolationDetails}</div>
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Diarrhea and Vomiting -->
@@ -235,19 +233,17 @@ function generateInfectionPreventionHTML(data: any): string {
             <p><strong>Treatment Complete:</strong> <span class="yes-no ${data.clostridiumTreatmentComplete ? "yes" : "no"}">${data.clostridiumTreatmentComplete ? "Yes" : "No"}</span></p>
           </div>
         </div>
-        ${
-          data.clostridiumTreatmentReceived
-            ? `
+        ${data.clostridiumTreatmentReceived
+      ? `
           <div class="subsection">
             <h3>Treatment Received</h3>
             <div class="info-box">${data.clostridiumTreatmentReceived}</div>
           </div>
         `
-            : ""
-        }
-        ${
-          data.ongoingDetails
-            ? `
+      : ""
+    }
+        ${data.ongoingDetails
+      ? `
           <div class="subsection">
             <h3>Ongoing Details</h3>
             <div class="info-box">${data.ongoingDetails}</div>
@@ -258,8 +254,8 @@ function generateInfectionPreventionHTML(data: any): string {
             </div>
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- MRSA / MSSA -->
@@ -278,36 +274,33 @@ function generateInfectionPreventionHTML(data: any): string {
             <p><strong>Follow-up Required:</strong> ${data.mrsaMssaFollowUpRequired || "Not specified"}</p>
           </div>
         </div>
-        ${
-          data.mrsaMssaTreatmentReceived
-            ? `
+        ${data.mrsaMssaTreatmentReceived
+      ? `
           <div class="subsection">
             <h3>Treatment Received</h3>
             <div class="info-box">${data.mrsaMssaTreatmentReceived}</div>
           </div>
         `
-            : ""
-        }
-        ${
-          data.mrsaMssaTreatmentComplete
-            ? `
+      : ""
+    }
+        ${data.mrsaMssaTreatmentComplete
+      ? `
           <div class="subsection">
             <h3>Treatment Completed</h3>
             <div class="info-box">${data.mrsaMssaTreatmentComplete}</div>
           </div>
         `
-            : ""
-        }
-        ${
-          data.mrsaMssaDetails
-            ? `
+      : ""
+    }
+        ${data.mrsaMssaDetails
+      ? `
           <div class="subsection">
             <h3>Additional Details</h3>
             <div class="info-box">${data.mrsaMssaDetails}</div>
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Multi-drug Resistant Organisms -->
@@ -318,26 +311,24 @@ function generateInfectionPreventionHTML(data: any): string {
           <p><strong>VRE/GRE:</strong> <span class="yes-no ${data.vreGre ? "yes" : "no"}">${data.vreGre ? "Yes" : "No"}</span></p>
           <p><strong>CPE:</strong> <span class="yes-no ${data.cpe ? "yes" : "no"}">${data.cpe ? "Yes" : "No"}</span></p>
         </div>
-        ${
-          data.otherMultiDrugResistance
-            ? `
+        ${data.otherMultiDrugResistance
+      ? `
           <div class="subsection">
             <h3>Other Multi-drug Resistance</h3>
             <div class="info-box">${data.otherMultiDrugResistance}</div>
           </div>
         `
-            : ""
-        }
-        ${
-          data.relevantInformationMultiDrugResistance
-            ? `
+      : ""
+    }
+        ${data.relevantInformationMultiDrugResistance
+      ? `
           <div class="subsection">
             <h3>Relevant Information</h3>
             <div class="info-box">${data.relevantInformationMultiDrugResistance}</div>
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Other Information -->
@@ -384,35 +375,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { assessmentId } = await request.json();
+    // Parse the request body
+    const assessmentData = await request.json();
 
-    if (!assessmentId) {
+    if (!assessmentData) {
       return NextResponse.json(
-        { error: "Assessment ID is required" },
+        { error: "Assessment data is required" },
         { status: 400 }
       );
     }
 
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure specific fields are at the top level for the template
+      name: assessmentData.name || assessmentData.residentName || assessmentData.assessment_data?.name || assessmentData.assessment_data?.residentName || "Resident",
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      completionDate: assessmentData.completionDate || assessmentData.completion_date || assessmentData.assessment_date || assessmentData.created_at || Date.now()
+    };
+
     // Add some debugging
-    console.log("PDF API called with assessmentId:", assessmentId);
-
-    // Fetch the assessment data directly from Convex
-    const assessmentData = await convexClient.query(
-      api.careFiles.infectionPrevention.getInfectionPreventionAssessment,
-      {
-        id: assessmentId as Id<"infectionPreventionAssessments">
-      }
-    );
-
-    if (!assessmentData) {
-      return NextResponse.json(
-        { error: "Assessment not found" },
-        { status: 404 }
-      );
-    }
+    console.log("Infection Prevention PDF API flattening data:", {
+      name: flattenedData.name,
+      formId: flattenedData._id || flattenedData.id
+    });
 
     // Generate HTML content
-    const htmlContent = generateInfectionPreventionHTML(assessmentData);
+    const htmlContent = generateInfectionPreventionHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -446,10 +436,10 @@ export async function POST(request: NextRequest) {
       await browser.close();
 
       // Return the PDF as a response
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="infection-prevention-assessment-${assessmentId}.pdf"`,
+          "Content-Disposition": `attachment; filename="infection-prevention-assessment-${assessmentData.name?.replace(/\s+/g, "-") || "record"}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

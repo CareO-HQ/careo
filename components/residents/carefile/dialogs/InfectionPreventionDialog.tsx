@@ -1,5 +1,7 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogDescription,
   DialogFooter,
@@ -9,7 +11,6 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -21,16 +22,6 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover";
-import { InfectionPreventionAssessmentSchema } from "@/schemas/residents/care-file/infectionPrevention";
-import { Resident } from "@/types";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon } from "lucide-react";
-import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns-tz";
 import {
   Select,
   SelectContent,
@@ -38,19 +29,29 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { InfectionPreventionAssessmentSchema } from "@/schemas/residents/care-file/infectionPrevention";
+import { Resident } from "@/types";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+
 interface InfectionPreventionDialogProps {
   teamId: string;
   organizationId: string;
   resident: Resident;
   userName: string;
-  onClose?: (assessmentId?: Id<"infectionPreventionAssessments">) => void;
-  initialData?: any; // Data from existing assessment for editing
-  isEditMode?: boolean; // Whether this is an edit/review mode
+  userId: string;
+  onClose?: (assessmentId?: string) => void;
+  initialData?: any;
+  isEditMode?: boolean;
 }
 
 export default function InfectionPreventionDialog({
@@ -58,1920 +59,488 @@ export default function InfectionPreventionDialog({
   teamId,
   organizationId,
   userName,
+  userId,
   onClose,
   initialData,
   isEditMode = false
 }: InfectionPreventionDialogProps) {
   const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
-  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
-  const [dateOfAdmissionPopoverOpen, setDateOfAdmissionPopoverOpen] = useState(false);
-  const [clostridiumDatePopoverOpen, setClostridiumDatePopoverOpen] = useState(false);
-  const [ongoingDatePopoverOpen, setOngoingDatePopoverOpen] = useState(false);
-  const [mrsaSwabDatePopoverOpen, setMrsaSwabDatePopoverOpen] = useState(false);
-  const [mrsaDateCommencedPopoverOpen, setMrsaDateCommencedPopoverOpen] = useState(false);
-  const [fluVaccinationDatePopoverOpen, setFluVaccinationDatePopoverOpen] = useState(false);
-  const [completionDatePopoverOpen, setCompletionDatePopoverOpen] = useState(false);
-  const submitInfectionPreventionAssessmentMutation = useMutation(
-    api.careFiles.infectionPrevention.submitInfectionPreventionAssessment
-  );
-  const submitReviewedFormMutation = useMutation(
-    api.managerAudits.submitReviewedForm
-  );
+  const [datePopovers, setDatePopovers] = useState<Record<string, boolean>>({});
 
   const form = useForm<z.infer<typeof InfectionPreventionAssessmentSchema>>({
     resolver: zodResolver(InfectionPreventionAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-          // Use existing data for editing
-          // Metadata
-          residentId: resident._id,
-          organizationId: organizationId,
-          teamId: teamId,
+        residentId: resident.id,
+        organizationId: organizationId,
+        teamId: teamId,
+        name: initialData.symptoms?.details?.name || `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: initialData.symptoms?.details?.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
+        homeAddress: initialData.symptoms?.details?.homeAddress || "",
+        assessmentType: initialData.assessment_type || "Pre-admission",
+        informationProvidedBy: initialData.symptoms?.details?.informationProvidedBy || "",
+        admittedFrom: initialData.exposure_history?.admittedFrom || "",
+        consultantGP: initialData.symptoms?.details?.consultantGP || "",
+        reasonForAdmission: initialData.exposure_history?.reasonForAdmission || "",
+        dateOfAdmission: initialData.exposure_history?.dateOfAdmission || undefined,
 
-          // 1. Person's details
-          name:
-            initialData.name ?? resident.firstName + " " + resident.lastName,
-          dateOfBirth: initialData.dateOfBirth ?? resident.dateOfBirth,
-          homeAddress: initialData.homeAddress ?? "",
-          assessmentType: initialData.assessmentType ?? "Pre-admission",
-          informationProvidedBy: initialData.informationProvidedBy ?? "",
-          admittedFrom: initialData.admittedFrom ?? "",
-          consultantGP: initialData.consultantGP ?? "",
-          reasonForAdmission: initialData.reasonForAdmission ?? "",
-          dateOfAdmission: initialData.dateOfAdmission
-            ? (typeof initialData.dateOfAdmission === 'string'
-                ? new Date(initialData.dateOfAdmission).getTime()
-                : initialData.dateOfAdmission)
-            : undefined,
+        // Respiratory
+        newContinuousCough: initialData.symptoms?.respiratory?.newContinuousCough ?? false,
+        worseningCough: initialData.symptoms?.respiratory?.worseningCough ?? false,
+        temperatureHigh: initialData.symptoms?.respiratory?.temperatureHigh ?? false,
+        otherRespiratorySymptoms: initialData.symptoms?.respiratory?.otherRespiratorySymptoms || "",
+        testedForCovid19: initialData.symptoms?.respiratory?.testedForCovid19 ?? false,
+        testedForInfluenzaA: initialData.symptoms?.respiratory?.testedForInfluenzaA ?? false,
+        testedForInfluenzaB: initialData.symptoms?.respiratory?.testedForInfluenzaB ?? false,
+        testedForRespiratoryScreen: initialData.symptoms?.respiratory?.testedForRespiratoryScreen ?? false,
+        influenzaB: initialData.symptoms?.respiratory?.influenzaB ?? false,
+        respiratoryScreen: initialData.symptoms?.respiratory?.respiratoryScreen ?? false,
 
-          // 2. Acute Respiratory Illness (ARI)
-          newContinuousCough: initialData.newContinuousCough ?? undefined,
-          worseningCough: initialData.worseningCough ?? undefined,
-          temperatureHigh: initialData.temperatureHigh ?? undefined,
-          otherRespiratorySymptoms: initialData.otherRespiratorySymptoms ?? "",
-          testedForCovid19: initialData.testedForCovid19 ?? undefined,
-          testedForInfluenzaA: initialData.testedForInfluenzaA ?? undefined,
-          testedForInfluenzaB: initialData.testedForInfluenzaB ?? undefined,
-          testedForRespiratoryScreen:
-            initialData.testedForRespiratoryScreen ?? undefined,
-          influenzaB: initialData.influenzaB ?? false,
-          respiratoryScreen: initialData.respiratoryScreen ?? false,
+        // Exposure
+        exposureToPatientsCovid: initialData.exposure_history?.exposureToPatientsCovid ?? false,
+        exposureToStaffCovid: initialData.exposure_history?.exposureToStaffCovid ?? false,
+        isolationRequired: initialData.isolation_required ?? false,
+        isolationDetails: initialData.exposure_history?.isolationDetails || "",
+        furtherTreatmentRequired: initialData.exposure_history?.furtherTreatmentRequired ?? false,
 
-          // 3. Exposure
-          exposureToPatientsCovid:
-            initialData.exposureToPatientsCovid ?? undefined,
-          exposureToStaffCovid: initialData.exposureToStaffCovid ?? undefined,
-          isolationRequired: initialData.isolationRequired ?? undefined,
-          isolationDetails: initialData.isolationDetails ?? "",
-          furtherTreatmentRequired:
-            initialData.furtherTreatmentRequired ?? undefined,
+        // Diarrhea
+        diarrheaVomitingCurrentSymptoms: initialData.symptoms?.diarrheaVomiting?.currentSymptoms ?? false,
+        diarrheaVomitingContactWithOthers: initialData.symptoms?.diarrheaVomiting?.contactWithOthers ?? false,
+        diarrheaVomitingFamilyHistory72h: initialData.symptoms?.diarrheaVomiting?.familyHistory72h ?? false,
 
-          // 4. Diarrhea and Vomiting
-          diarrheaVomitingCurrentSymptoms:
-            initialData.diarrheaVomitingCurrentSymptoms ?? undefined,
-          diarrheaVomitingContactWithOthers:
-            initialData.diarrheaVomitingContactWithOthers ?? undefined,
-          diarrheaVomitingFamilyHistory72h:
-            initialData.diarrheaVomitingFamilyHistory72h ?? undefined,
+        // Clostridium
+        clostridiumActive: initialData.symptoms?.clostridium?.active ?? false,
+        clostridiumHistory: initialData.symptoms?.clostridium?.history ?? false,
+        clostridiumStoolCount72h: initialData.symptoms?.clostridium?.stoolCount72h || "",
+        clostridiumLastPositiveSpecimenDate: initialData.symptoms?.clostridium?.lastPositiveSpecimenDate || undefined,
+        clostridiumResult: initialData.symptoms?.clostridium?.result || "",
+        clostridiumTreatmentReceived: initialData.symptoms?.clostridium?.treatmentReceived || "",
+        clostridiumTreatmentComplete: initialData.symptoms?.clostridium?.treatmentComplete ?? false,
+        ongoingDetails: initialData.symptoms?.clostridium?.ongoingDetails || "",
+        ongoingDateCommenced: initialData.symptoms?.clostridium?.ongoingDateCommenced || undefined,
+        ongoingLengthOfCourse: initialData.symptoms?.clostridium?.ongoingLengthOfCourse || "",
+        ongoingFollowUpRequired: initialData.symptoms?.clostridium?.ongoingFollowUpRequired || undefined,
 
-          // 5. Clostridium Difficile
-          clostridiumActive: initialData.clostridiumActive ?? undefined,
-          clostridiumHistory: initialData.clostridiumHistory ?? undefined,
-          clostridiumStoolCount72h: initialData.clostridiumStoolCount72h ?? "",
-          clostridiumLastPositiveSpecimenDate: initialData.clostridiumLastPositiveSpecimenDate
-            ? (typeof initialData.clostridiumLastPositiveSpecimenDate === 'string'
-                ? new Date(initialData.clostridiumLastPositiveSpecimenDate).getTime()
-                : initialData.clostridiumLastPositiveSpecimenDate)
-            : undefined,
-          clostridiumResult: initialData.clostridiumResult ?? "",
-          clostridiumTreatmentReceived:
-            initialData.clostridiumTreatmentReceived ?? "",
-          clostridiumTreatmentComplete:
-            initialData.clostridiumTreatmentComplete ?? undefined,
-          ongoingDetails: initialData.ongoingDetails ?? "",
-          ongoingDateCommenced: initialData.ongoingDateCommenced
-            ? (typeof initialData.ongoingDateCommenced === 'string'
-                ? new Date(initialData.ongoingDateCommenced).getTime()
-                : initialData.ongoingDateCommenced)
-            : undefined,
-          ongoingLengthOfCourse: initialData.ongoingLengthOfCourse ?? "",
-          ongoingFollowUpRequired: initialData.ongoingFollowUpRequired ?? undefined,
+        // MRSA
+        mrsaMssaColonised: initialData.symptoms?.mrsa?.colonised ?? false,
+        mrsaMssaInfected: initialData.symptoms?.mrsa?.infected ?? false,
+        mrsaMssaLastPositiveSwabDate: initialData.symptoms?.mrsa?.lastPositiveSwabDate || undefined,
+        mrsaMssaSitesPositive: initialData.symptoms?.mrsa?.sitesPositive || "",
+        mrsaMssaTreatmentReceived: initialData.symptoms?.mrsa?.treatmentReceived || "",
+        mrsaMssaTreatmentComplete: initialData.symptoms?.mrsa?.treatmentComplete || "",
+        mrsaMssaDetails: initialData.symptoms?.mrsa?.mrsaMssaDetails || "",
+        mrsaMssaDateCommenced: initialData.symptoms?.mrsa?.mrsaMssaDateCommenced || undefined,
+        mrsaMssaLengthOfCourse: initialData.symptoms?.mrsa?.mrsaMssaLengthOfCourse || "",
+        mrsaMssaFollowUpRequired: initialData.symptoms?.mrsa?.mrsaMssaFollowUpRequired || "",
 
-          // 6. MRSA / MSSA
-          mrsaMssaColonised: initialData.mrsaMssaColonised ?? undefined,
-          mrsaMssaInfected: initialData.mrsaMssaInfected ?? undefined,
-          mrsaMssaLastPositiveSwabDate: initialData.mrsaMssaLastPositiveSwabDate
-            ? (typeof initialData.mrsaMssaLastPositiveSwabDate === 'string'
-                ? new Date(initialData.mrsaMssaLastPositiveSwabDate).getTime()
-                : initialData.mrsaMssaLastPositiveSwabDate)
-            : undefined,
-          mrsaMssaSitesPositive: initialData.mrsaMssaSitesPositive ?? "",
-          mrsaMssaTreatmentReceived:
-            initialData.mrsaMssaTreatmentReceived ?? "",
-          mrsaMssaTreatmentComplete:
-            initialData.mrsaMssaTreatmentComplete ?? undefined,
-          mrsaMssaDetails: initialData.mrsaMssaDetails ?? "",
-          mrsaMssaDateCommenced: initialData.mrsaMssaDateCommenced
-            ? (typeof initialData.mrsaMssaDateCommenced === 'string'
-                ? new Date(initialData.mrsaMssaDateCommenced).getTime()
-                : initialData.mrsaMssaDateCommenced)
-            : new Date().getTime(),
-          mrsaMssaLengthOfCourse: initialData.mrsaMssaLengthOfCourse ?? "",
-          mrsaMssaFollowUpRequired: initialData.mrsaMssaFollowUpRequired ?? "",
+        // MultiDrug
+        esbl: initialData.symptoms?.multiDrugResistance?.esbl ?? false,
+        vreGre: initialData.symptoms?.multiDrugResistance?.vreGre ?? false,
+        cpe: initialData.symptoms?.multiDrugResistance?.cpe ?? false,
+        otherMultiDrugResistance: initialData.symptoms?.multiDrugResistance?.other || "",
+        relevantInformationMultiDrugResistance: initialData.symptoms?.multiDrugResistance?.relevantInformation || "",
 
-          // 7. Multi-drug resistant organisms
-          esbl: initialData.esbl ?? undefined,
-          vreGre: initialData.vreGre ?? undefined,
-          cpe: initialData.cpe ?? undefined,
-          otherMultiDrugResistance: initialData.otherMultiDrugResistance ?? "",
-          relevantInformationMultiDrugResistance:
-            initialData.relevantInformationMultiDrugResistance ?? "",
+        // Other
+        awarenessOfInfection: initialData.exposure_history?.awarenessOfInfection ?? false,
+        lastFluVaccinationDate: initialData.exposure_history?.lastFluVaccinationDate || undefined,
 
-          // 8. Other Information
-          awarenessOfInfection: initialData.awarenessOfInfection ?? undefined,
-          lastFluVaccinationDate: initialData.lastFluVaccinationDate
-            ? (typeof initialData.lastFluVaccinationDate === 'string'
-                ? new Date(initialData.lastFluVaccinationDate).getTime()
-                : initialData.lastFluVaccinationDate)
-            : new Date().getTime(),
-
-          // 9. Assessment Completion
-          completedBy: isEditMode
-            ? userName
-            : (initialData.completedBy ?? userName),
-          jobRole: initialData.jobRole ?? "",
-          signature: isEditMode
-            ? userName
-            : (initialData.signature ?? userName),
-          completionDate: isEditMode
-            ? new Date().getTime()
-            : (initialData.completionDate
-                ? (typeof initialData.completionDate === 'string'
-                    ? new Date(initialData.completionDate).getTime()
-                    : initialData.completionDate)
-                : new Date().getTime())
-        }
+        // Completion
+        completedBy: initialData.completed_by || userName,
+        jobRole: initialData.jobRole || "",
+        signature: initialData.signature || userName,
+        assessmentDate: (initialData.assessment_date || initialData.completion_date) ? new Date(initialData.assessment_date || initialData.completion_date).getTime() : Date.now()
+      }
       : {
-          // Default values for new forms
-          // Metadata
-          residentId: resident._id,
-          organizationId: organizationId,
-          teamId: teamId,
-
-          // 1. Person's details
-          name: resident.firstName + " " + resident.lastName,
-          dateOfBirth: resident.dateOfBirth,
-          homeAddress: "",
-          assessmentType: "Pre-admission",
-          informationProvidedBy: "",
-          admittedFrom: "",
-          consultantGP: "",
-          reasonForAdmission: "",
-          dateOfAdmission: undefined,
-
-          // 2. Acute Respiratory Illness (ARI)
-          newContinuousCough: undefined,
-          worseningCough: undefined,
-          temperatureHigh: undefined,
-          otherRespiratorySymptoms: "",
-          testedForCovid19: undefined,
-          testedForInfluenzaA: undefined,
-          testedForInfluenzaB: undefined,
-          testedForRespiratoryScreen: undefined,
-          influenzaB: false,
-          respiratoryScreen: false,
-
-          // 3. Exposure
-          exposureToPatientsCovid: undefined,
-          exposureToStaffCovid: undefined,
-          isolationRequired: undefined,
-          isolationDetails: "",
-          furtherTreatmentRequired: undefined,
-
-          // 4. Diarrhea and Vomiting
-          diarrheaVomitingCurrentSymptoms: undefined,
-          diarrheaVomitingContactWithOthers: undefined,
-          diarrheaVomitingFamilyHistory72h: undefined,
-
-          // 5. Clostridium Difficile
-          clostridiumActive: undefined,
-          clostridiumHistory: undefined,
-          clostridiumStoolCount72h: "",
-          clostridiumLastPositiveSpecimenDate: undefined,
-          clostridiumResult: "",
-          clostridiumTreatmentReceived: "",
-          clostridiumTreatmentComplete: undefined,
-          ongoingDetails: "",
-          ongoingDateCommenced: undefined,
-          ongoingLengthOfCourse: "",
-          ongoingFollowUpRequired: undefined,
-
-          // 6. MRSA / MSSA
-          mrsaMssaColonised: undefined,
-          mrsaMssaInfected: undefined,
-          mrsaMssaLastPositiveSwabDate: undefined,
-          mrsaMssaSitesPositive: "",
-          mrsaMssaTreatmentReceived: "",
-          mrsaMssaTreatmentComplete: undefined,
-          mrsaMssaDetails: "",
-          mrsaMssaDateCommenced: new Date().getTime(),
-          mrsaMssaLengthOfCourse: "",
-          mrsaMssaFollowUpRequired: "",
-
-          // 7. Multi-drug resistant organisms
-          esbl: undefined,
-          vreGre: undefined,
-          cpe: undefined,
-          otherMultiDrugResistance: "",
-          relevantInformationMultiDrugResistance: "",
-
-          // 8. Other Information
-          awarenessOfInfection: undefined,
-          lastFluVaccinationDate: new Date().getTime(),
-
-          // 9. Assessment Completion
-          completedBy: userName,
-          jobRole: "",
-          signature: userName,
-          completionDate: new Date().getTime()
-        }
+        residentId: resident.id,
+        organizationId: organizationId,
+        teamId: teamId,
+        name: `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
+        homeAddress: "",
+        assessmentType: "Pre-admission",
+        informationProvidedBy: "",
+        admittedFrom: "",
+        consultantGP: "",
+        reasonForAdmission: "",
+        dateOfAdmission: undefined,
+        newContinuousCough: false,
+        worseningCough: false,
+        temperatureHigh: false,
+        otherRespiratorySymptoms: "",
+        testedForCovid19: false,
+        testedForInfluenzaA: false,
+        testedForInfluenzaB: false,
+        testedForRespiratoryScreen: false,
+        influenzaB: false,
+        respiratoryScreen: false,
+        exposureToPatientsCovid: false,
+        exposureToStaffCovid: false,
+        isolationRequired: false,
+        isolationDetails: "",
+        furtherTreatmentRequired: false,
+        diarrheaVomitingCurrentSymptoms: false,
+        diarrheaVomitingContactWithOthers: false,
+        diarrheaVomitingFamilyHistory72h: false,
+        clostridiumActive: false,
+        clostridiumHistory: false,
+        clostridiumStoolCount72h: "",
+        clostridiumLastPositiveSpecimenDate: undefined,
+        clostridiumResult: "",
+        clostridiumTreatmentReceived: "",
+        clostridiumTreatmentComplete: false,
+        ongoingDetails: "",
+        ongoingDateCommenced: undefined,
+        ongoingLengthOfCourse: "",
+        ongoingFollowUpRequired: undefined,
+        mrsaMssaColonised: false,
+        mrsaMssaInfected: false,
+        mrsaMssaLastPositiveSwabDate: undefined,
+        mrsaMssaSitesPositive: "",
+        mrsaMssaTreatmentReceived: "",
+        mrsaMssaTreatmentComplete: "",
+        mrsaMssaDetails: "",
+        mrsaMssaDateCommenced: undefined,
+        mrsaMssaLengthOfCourse: "",
+        mrsaMssaFollowUpRequired: "",
+        esbl: false,
+        vreGre: false,
+        cpe: false,
+        otherMultiDrugResistance: "",
+        relevantInformationMultiDrugResistance: "",
+        awarenessOfInfection: false,
+        lastFluVaccinationDate: undefined,
+        completedBy: userName,
+        jobRole: "",
+        signature: userName,
+        assessmentDate: Date.now()
+      }
   });
 
-  function onSubmit(
-    values: z.infer<typeof InfectionPreventionAssessmentSchema>
-  ) {
-    console.log("Form submission triggered - values:", values);
+  const onSubmit = async (values: z.infer<typeof InfectionPreventionAssessmentSchema>) => {
     startTransition(async () => {
       try {
-        console.log("Attempting to submit form...");
+        if (!userId) throw new Error("User not authenticated");
 
-        // Convert date fields from timestamps to strings for the database
-        const formattedValues = {
-          ...values,
-          residentId: resident._id as Id<"residents">,
-          teamId,
-          organizationId,
-          savedAsDraft: false,
-          dateOfAdmission: values.dateOfAdmission
-            ? new Date(values.dateOfAdmission).toISOString()
-            : undefined,
-          clostridiumLastPositiveSpecimenDate:
-            values.clostridiumLastPositiveSpecimenDate
-              ? new Date(
-                  values.clostridiumLastPositiveSpecimenDate
-                ).toISOString()
-              : undefined,
-          ongoingDateCommenced: values.ongoingDateCommenced
-            ? new Date(values.ongoingDateCommenced).toISOString()
-            : undefined,
-          mrsaMssaLastPositiveSwabDate: values.mrsaMssaLastPositiveSwabDate
-            ? new Date(values.mrsaMssaLastPositiveSwabDate).toISOString()
-            : undefined,
-          mrsaMssaDateCommenced: values.mrsaMssaDateCommenced
-            ? new Date(values.mrsaMssaDateCommenced).toISOString()
-            : undefined,
-          lastFluVaccinationDate: values.lastFluVaccinationDate
-            ? new Date(values.lastFluVaccinationDate).toISOString()
-            : undefined,
-          completionDate: new Date(values.completionDate).toISOString()
+        const symptomsPayload = {
+          details: {
+            name: values.name,
+            dateOfBirth: values.dateOfBirth,
+            homeAddress: values.homeAddress,
+            informationProvidedBy: values.informationProvidedBy,
+            consultantGP: values.consultantGP,
+          },
+          respiratory: {
+            newContinuousCough: values.newContinuousCough,
+            worseningCough: values.worseningCough,
+            temperatureHigh: values.temperatureHigh,
+            otherRespiratorySymptoms: values.otherRespiratorySymptoms,
+            testedForCovid19: values.testedForCovid19,
+            testedForInfluenzaA: values.testedForInfluenzaA,
+            testedForInfluenzaB: values.testedForInfluenzaB,
+            testedForRespiratoryScreen: values.testedForRespiratoryScreen,
+            influenzaB: values.influenzaB,
+            respiratoryScreen: values.respiratoryScreen,
+          },
+          diarrheaVomiting: {
+            currentSymptoms: values.diarrheaVomitingCurrentSymptoms,
+            contactWithOthers: values.diarrheaVomitingContactWithOthers,
+            familyHistory72h: values.diarrheaVomitingFamilyHistory72h,
+          },
+          clostridium: {
+            active: values.clostridiumActive,
+            history: values.clostridiumHistory,
+            stoolCount72h: values.clostridiumStoolCount72h,
+            lastPositiveSpecimenDate: values.clostridiumLastPositiveSpecimenDate,
+            result: values.clostridiumResult,
+            treatmentReceived: values.clostridiumTreatmentReceived,
+            treatmentComplete: values.clostridiumTreatmentComplete,
+            ongoingDetails: values.ongoingDetails,
+            ongoingDateCommenced: values.ongoingDateCommenced,
+            ongoingLengthOfCourse: values.ongoingLengthOfCourse,
+            ongoingFollowUpRequired: values.ongoingFollowUpRequired,
+          },
+          mrsa: {
+            colonised: values.mrsaMssaColonised,
+            infected: values.mrsaMssaInfected,
+            lastPositiveSwabDate: values.mrsaMssaLastPositiveSwabDate,
+            sitesPositive: values.mrsaMssaSitesPositive,
+            treatmentReceived: values.mrsaMssaTreatmentReceived,
+            treatmentComplete: values.mrsaMssaTreatmentComplete,
+            mrsaMssaDetails: values.mrsaMssaDetails,
+            mrsaMssaDateCommenced: values.mrsaMssaDateCommenced,
+            mrsaMssaLengthOfCourse: values.mrsaMssaLengthOfCourse,
+            mrsaMssaFollowUpRequired: values.mrsaMssaFollowUpRequired,
+          },
+          multiDrugResistance: {
+            esbl: values.esbl,
+            vreGre: values.vreGre,
+            cpe: values.cpe,
+            other: values.otherMultiDrugResistance,
+            relevantInformation: values.relevantInformationMultiDrugResistance,
+          }
         };
 
-        if (isEditMode) {
-          // In review mode, use the special submission that creates audit automatically
-          const data = await submitReviewedFormMutation({
-            formType: "infectionPreventionAssessment",
-            formData: formattedValues,
-            originalFormData: initialData,
-            originalFormId: initialData?._id,
-            residentId: resident._id as Id<"residents">,
-            auditedBy: userName,
-            auditNotes: "Form reviewed and updated",
-            teamId,
-            organizationId
-          } as any);
-          console.log("Review submitted successfully:", data);
-          if (data.hasChanges) {
-            toast.success("Form reviewed and updated successfully!");
-          } else {
-            toast.success("Form reviewed and approved without changes!");
-          }
-          // Close dialog without opening view (review mode)
-          onClose?.();
+        const exposurePayload = {
+          admittedFrom: values.admittedFrom,
+          reasonForAdmission: values.reasonForAdmission,
+          dateOfAdmission: values.dateOfAdmission,
+          exposureToPatientsCovid: values.exposureToPatientsCovid,
+          exposureToStaffCovid: values.exposureToStaffCovid,
+          isolationDetails: values.isolationDetails,
+          furtherTreatmentRequired: values.furtherTreatmentRequired,
+          awarenessOfInfection: values.awarenessOfInfection,
+          lastFluVaccinationDate: values.lastFluVaccinationDate,
+        };
+
+        const payload = {
+          resident_id: resident.id,
+          organization_id: organizationId,
+          assessment_type: values.assessmentType,
+          symptoms: symptomsPayload,
+          exposure_history: exposurePayload,
+          isolation_required: values.isolationRequired,
+          completed_by: values.completedBy,
+          assessment_date: new Date(values.assessmentDate).toISOString(),
+          created_by: userId,
+        };
+
+        const result = await submitAssessmentWithVersioning(
+          'infection_prevention_assessments',
+          payload,
+          initialData,
+          isEditMode
+        );
+
+        if (isEditMode && initialData?.id) {
+          await supabase.from('manager_audits').insert({
+            form_type: 'infection_prevention_assessments',
+            form_id: result.id, // Use new version ID
+            resident_id: resident.id,
+            audited_by: userId,
+            audit_notes: "Form updated (New Version)",
+            organization_id: organizationId
+          });
+          toast.success("Assessment updated");
         } else {
-          // Normal submission for new forms
-          const assessmentId =
-            await submitInfectionPreventionAssessmentMutation(formattedValues as any);
-          console.log("Assessment submitted successfully:", assessmentId);
-          toast.success(
-            "Infection Prevention Assessment submitted successfully!"
-          );
-          // Close dialog immediately and pass assessment ID to parent
-          onClose?.(assessmentId);
+          toast.success("Assessment submitted");
         }
+        onClose?.();
       } catch (error) {
-        console.error("Error submitting form:", error);
-        toast.error("Failed to submit assessment. Please try again.");
+        console.error("Error submitting:", error);
+        toast.error("Failed to submit assessment");
       }
     });
-  }
+  };
 
   const handleNext = async () => {
-    let isValid = false;
-    if (step === 1) {
-      const fieldsToValidate = [
-        "name",
-        "dateOfBirth",
-        "homeAddress",
-        "assessmentType",
-        "informationProvidedBy",
-        "admittedFrom",
-        "consultantGP",
-        "reasonForAdmission",
-        "dateOfAdmission"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 2) {
-      const fieldsToValidate = [
-        "newContinuousCough",
-        "worseningCough",
-        "temperatureHigh",
-        "testedForCovid19",
-        "testedForInfluenzaA",
-        "testedForInfluenzaB",
-        "testedForRespiratoryScreen"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 3) {
-      const fieldsToValidate = [
-        "exposureToPatientsCovid",
-        "exposureToStaffCovid",
-        "isolationRequired",
-        "isolationDetails",
-        "furtherTreatmentRequired"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 4) {
-      const fieldsToValidate = [
-        "diarrheaVomitingCurrentSymptoms",
-        "diarrheaVomitingContactWithOthers",
-        "diarrheaVomitingFamilyHistory72h"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 5) {
-      const fieldsToValidate = [
-        "clostridiumActive",
-        "clostridiumHistory",
-        "clostridiumStoolCount72h",
-        "clostridiumLastPositiveSpecimenDate",
-        "clostridiumResult",
-        "clostridiumTreatmentReceived",
-        "clostridiumTreatmentComplete",
-        "ongoingDetails",
-        "ongoingDateCommenced",
-        "ongoingLengthOfCourse",
-        "ongoingFollowUpRequired"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 6) {
-      const fieldsToValidate = [
-        "mrsaMssaColonised",
-        "mrsaMssaInfected",
-        "mrsaMssaLastPositiveSwabDate",
-        "mrsaMssaSitesPositive",
-        "mrsaMssaTreatmentReceived",
-        "mrsaMssaTreatmentComplete",
-        "mrsaMssaDetails",
-        "mrsaMssaDateCommenced",
-        "mrsaMssaLengthOfCourse",
-        "mrsaMssaFollowUpRequired"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 7) {
-      const fieldsToValidate = [
-        "esbl",
-        "vreGre",
-        "cpe",
-        "otherMultiDrugResistance",
-        "relevantInformationMultiDrugResistance"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 8) {
-      const fieldsToValidate = [
-        "awarenessOfInfection",
-        "lastFluVaccinationDate"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 9) {
-      const fieldsToValidate = [
-        "completedBy",
-        "jobRole",
-        "signature",
-        "completionDate"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    }
+    let fieldsToValidate: any[] = [];
+    if (step === 1) fieldsToValidate = ["name", "dateOfBirth", "homeAddress", "assessmentType"];
+    else if (step === 2) fieldsToValidate = ["newContinuousCough", "worseningCough", "temperatureHigh"];
+    else if (step === 9) fieldsToValidate = ["completedBy", "jobRole", "signature", "assessmentDate"];
 
-    if (isValid) {
-      if (step === 9) {
-        console.log(form.getValues());
-      } else {
-        setStep(step + 1);
-      }
-    } else {
-      toast.error("Please fill in all required fields correctly");
-    }
+    const isValid = await form.trigger(fieldsToValidate as any);
+    if (isValid) setStep(prev => prev + 1);
   };
 
-  const handleBack = () => {
-    if (step === 1) return;
-    setStep(step - 1);
-  };
+  const setPopover = (key: string, open: boolean) => setDatePopovers(prev => ({ ...prev, [key]: open }));
+
+  const BooleanField = ({ name, label }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string }) => (
+    <FormField control={form.control} name={name} render={({ field }) => (
+      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+        <div className="space-y-0.5"><FormLabel>{label}</FormLabel></div>
+        <FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} /></FormControl>
+      </FormItem>
+    )} />
+  );
+
+  const DateField = ({ name, label }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string }) => (
+    <FormField control={form.control} name={name} render={({ field }) => (
+      <FormItem className="flex flex-col">
+        <FormLabel>{label}</FormLabel>
+        <Popover open={datePopovers[name]} onOpenChange={o => setPopover(name, o)}>
+          <PopoverTrigger asChild>
+            <FormControl>
+              <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+              </Button>
+            </FormControl>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => d > new Date() || d < new Date("1900-01-01")} initialFocus />
+          </PopoverContent>
+        </Popover>
+        <FormMessage />
+      </FormItem>
+    )} />
+  );
 
   return (
-    <>
+    <div className="max-h-[80vh] flex flex-col">
       <DialogHeader>
-        <DialogTitle>
-          {step === 1 && "Resident&apos;s details"}
+        <DialogTitle>Infection Prevention Assessment (Step {step}/9)</DialogTitle>
+        <DialogDescription>
+          {step === 1 && "Resident details"}
           {step === 2 && "Acute Respiratory Illness (ARI)"}
-          {step === 3 && "Exposure"}
-          {step === 4 && "Diarrhea and Vomiting"}
+          {step === 3 && "Exposure History"}
+          {step === 4 && "Diarrhoea and Vomiting"}
           {step === 5 && "Clostridium Difficile"}
           {step === 6 && "MRSA / MSSA"}
-          {step === 7 && "Multi-drug resistant organisms"}
+          {step === 7 && "Multi-drug Resistance"}
           {step === 8 && "Other Information"}
-          {step === 9 && "Assessment Completion"}
-        </DialogTitle>
-        <DialogDescription>
-          {step === 1 && "Gather essential information about the resident"}
-          {step === 2 && "Check for ARI symptoms"}
-          {step === 3 && "Check for exposure to patients or staff"}
-          {step === 4 && "Check for diarrhea and vomiting"}
-          {step === 5 && "Check for Clostridium Difficile"}
-          {step === 6 && "Check for MRSA / MSSA"}
-          {step === 7 && "Check for multi-drug resistant organisms"}
-          {step === 8 && "Check for other information"}
-          {step === 9 && "Who completed the assessment?"}
+          {step === 9 && "Completion"}
         </DialogDescription>
       </DialogHeader>
-      <div>
+
+      <div className="flex-1 overflow-y-auto px-1 py-4">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form className="space-y-4 px-1">
             {step === 1 && (
-              <>
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="John Doe" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Date of Birth</FormLabel>
-                        <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              captionLayout="dropdown"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                field.onChange(date?.getTime());
-                                setDobPopoverOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="assessmentType" render={({ field }) => (
+                    <FormItem><FormLabel>Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Pre-admission">Pre-admission</SelectItem><SelectItem value="Admission">Admission</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                  )} />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="homeAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Home Address</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="123 Main St, Anytown, USA"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="homeAddress" render={({ field }) => <FormItem><FormLabel>Home Address</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="assessmentType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Assessment Type</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Pre-admission">
-                              Pre-admission
-                            </SelectItem>
-                            <SelectItem value="Admission">Admission</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="informationProvidedBy"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Information Provided By</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="John Doe (Family Member)"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="informationProvidedBy" render={({ field }) => <FormItem><FormLabel>Info Provided By</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <FormField control={form.control} name="consultantGP" render={({ field }) => <FormItem><FormLabel>Consultant / GP</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="admittedFrom"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Admitted From</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Hospital Name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="consultantGP"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Consultant GP</FormLabel>
-                        <FormControl>
-                          <Input placeholder="GP Name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="reasonForAdmission"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Reason for Admission</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Reason for Admission"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="dateOfAdmission"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Admission</FormLabel>
-                        <Popover modal open={dateOfAdmissionPopoverOpen} onOpenChange={setDateOfAdmissionPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              captionLayout="dropdown"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                field.onChange(date?.getTime());
-                                setDateOfAdmissionPopoverOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </>
+              </div>
             )}
+
             {step === 2 && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="newContinuousCough"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>New Continuous Cough</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="worseningCough"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Worsening Cough</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <BooleanField name="newContinuousCough" label="New Continuous Cough?" />
+                  <BooleanField name="worseningCough" label="Worsening Cough?" />
+                  <BooleanField name="temperatureHigh" label="Temperature High (>37.8°C)?" />
+                  <FormField control={form.control} name="otherRespiratorySymptoms" render={({ field }) => <FormItem><FormLabel>Other Respiratory Symptoms</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="temperatureHigh"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Is temperature high?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="testedForCovid19"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Tested for Covid-19?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <BooleanField name="testedForCovid19" label="Tested for COVID-19?" />
+                  <BooleanField name="testedForInfluenzaA" label="Tested for Influenza A?" />
+                  <BooleanField name="testedForInfluenzaB" label="Tested for Influenza B?" />
+                  <BooleanField name="testedForRespiratoryScreen" label="Tested for Resp Screen?" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="testedForInfluenzaA"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Tested for Influenza A?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="testedForInfluenzaB"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Tested for Influenza B?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />{" "}
-                </div>
-                <FormField
-                  control={form.control}
-                  name="testedForRespiratoryScreen"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Tested for Respiratory Screen?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="otherRespiratorySymptoms"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Other respiratory symptoms?</FormLabel>
-                      <Textarea
-                        placeholder="Other respiratory symptoms"
-                        {...field}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+              </div>
             )}
+
             {step === 3 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="exposureToPatientsCovid"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Exposure to Patients with Covid-19?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="exposureToStaffCovid"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Exposure to Staff with Covid-19?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="isolationRequired"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Isolation Required?</FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="isolationDetails"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Isolation Details</FormLabel>
-                      <Textarea placeholder="Isolation Details" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="furtherTreatmentRequired"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Further Treatment Required?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="admittedFrom" render={({ field }) => <FormItem><FormLabel>Admitted From</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <DateField name="dateOfAdmission" label="Date of Admission" />
+                </div>
+                <FormField control={form.control} name="reasonForAdmission" render={({ field }) => <FormItem><FormLabel>Reason for Admission</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <Separator />
+                <BooleanField name="exposureToPatientsCovid" label="Exposure to patients with COVID-19?" />
+                <BooleanField name="exposureToStaffCovid" label="Exposure to staff with COVID-19?" />
+                <BooleanField name="isolationRequired" label="Isolation Required?" />
+                <FormField control={form.control} name="isolationDetails" render={({ field }) => <FormItem><FormLabel>Isolation Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                <BooleanField name="furtherTreatmentRequired" label="Further treatment for ARI required?" />
+              </div>
             )}
+
             {step === 4 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="diarrheaVomitingCurrentSymptoms"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Current symptoms of diarrhea and vomiting?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="diarrheaVomitingContactWithOthers"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Contact with others?</FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="diarrheaVomitingFamilyHistory72h"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Family history of diarrhea and vomiting in the last 72
-                        hours?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+              <div className="space-y-4">
+                <BooleanField name="diarrheaVomitingCurrentSymptoms" label="Current symptoms of diarrhoea/vomiting?" />
+                <BooleanField name="diarrheaVomitingContactWithOthers" label="Contact with others with symptoms (48h)?" />
+                <BooleanField name="diarrheaVomitingFamilyHistory72h" label="Family/Home members with symptoms (72h)?" />
+              </div>
             )}
+
             {step === 5 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="clostridiumActive"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Has the person Active Clostridium Difficile?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="clostridiumHistory"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        Has the person a history of Clostridium Difficile?
-                      </FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="clostridiumStoolCount72h"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Number of type 6 or 7 stools in the past 72 hours?
-                      </FormLabel>
-                      <Input placeholder="Number of stools" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="clostridiumLastPositiveSpecimenDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Last Positive Specimen</FormLabel>
-                        <Popover modal open={clostridiumDatePopoverOpen} onOpenChange={setClostridiumDatePopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              captionLayout="dropdown"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                field.onChange(date?.getTime());
-                                setClostridiumDatePopoverOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="clostridiumResult"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Result of Clostridium Difficile?</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="positive">Positive</SelectItem>
-                            <SelectItem value="negative">Negative</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <BooleanField name="clostridiumActive" label="Active C.Diff?" />
+                  <BooleanField name="clostridiumHistory" label="History of C.Diff?" />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="clostridiumTreatmentReceived"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Treatment received?</FormLabel>
-                      <Textarea
-                        placeholder="If relevant, treatment received"
-                        {...field}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="clostridiumTreatmentComplete"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Treatment completed?</FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="ongoingDetails"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ongoing details</FormLabel>
-                      <Textarea placeholder="Ongoing details" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="ongoingDateCommenced"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date commenced</FormLabel>
-                        <Popover modal open={ongoingDatePopoverOpen} onOpenChange={setOngoingDatePopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              captionLayout="dropdown"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                field.onChange(date?.getTime());
-                                setOngoingDatePopoverOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="ongoingLengthOfCourse"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Length of course</FormLabel>
-                        <Input placeholder="Length of course" {...field} />
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="clostridiumStoolCount72h" render={({ field }) => <FormItem><FormLabel>Stool Count (72h)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <DateField name="clostridiumLastPositiveSpecimenDate" label="Last positive specimen date" />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="ongoingFollowUpRequired"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Follow up required</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="yes">Yes</SelectItem>
-                          <SelectItem value="no">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+                <FormField control={form.control} name="clostridiumResult" render={({ field }) => <FormItem><FormLabel>Result</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="clostridiumTreatmentReceived" render={({ field }) => <FormItem><FormLabel>Treatment Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <BooleanField name="clostridiumTreatmentComplete" label="Treatment Complete?" />
+                <Separator />
+                <h4 className="text-sm font-medium">Ongoing Treatment</h4>
+                <FormField control={form.control} name="ongoingDetails" render={({ field }) => <FormItem><FormLabel>Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                <div className="grid grid-cols-2 gap-4">
+                  <DateField name="ongoingDateCommenced" label="Date Commenced" />
+                  <FormField control={form.control} name="ongoingLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Length of Course</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                </div>
+              </div>
             )}
+
             {step === 6 && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="mrsaMssaColonised"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Is the person colonised?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mrsaMssaInfected"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Is the person infected?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mrsaMssaLastPositiveSwabDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Last Positive Swab</FormLabel>
-                        <Popover modal open={mrsaSwabDatePopoverOpen} onOpenChange={setMrsaSwabDatePopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              captionLayout="dropdown"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                field.onChange(date?.getTime());
-                                setMrsaSwabDatePopoverOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mrsaMssaSitesPositive"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sites positive</FormLabel>
-                        <Input placeholder="Sites positive" {...field} />
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <BooleanField name="mrsaMssaColonised" label="MRSA/MSSA Colonised?" />
+                  <BooleanField name="mrsaMssaInfected" label="MRSA/MSSA Infected?" />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="mrsaMssaTreatmentReceived"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Treatment received</FormLabel>
-                      <Textarea
-                        placeholder="Details of treatment received"
-                        {...field}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mrsaMssaTreatmentComplete"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Treatment completed</FormLabel>
-                      <Textarea placeholder="Treatment completed" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mrsaMssaDetails"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Details</FormLabel>
-                      <Textarea placeholder="Details" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="mrsaMssaDateCommenced"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date commenced</FormLabel>
-                        <Popover modal open={mrsaDateCommencedPopoverOpen} onOpenChange={setMrsaDateCommencedPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              captionLayout="dropdown"
-                              selected={
-                                field.value ? new Date(field.value) : undefined
-                              }
-                              onSelect={(date) => {
-                                field.onChange(date?.getTime());
-                                setMrsaDateCommencedPopoverOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mrsaMssaLengthOfCourse"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Length of course</FormLabel>
-                        <Input placeholder="Length of course" {...field} />
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <DateField name="mrsaMssaLastPositiveSwabDate" label="Last positive swab date" />
+                  <FormField control={form.control} name="mrsaMssaSitesPositive" render={({ field }) => <FormItem><FormLabel>Sites Positive</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="mrsaMssaFollowUpRequired"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Any follow up required?</FormLabel>
-                      <Textarea
-                        placeholder="Any details of follow up required?"
-                        {...field}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+                <FormField control={form.control} name="mrsaMssaTreatmentReceived" render={({ field }) => <FormItem><FormLabel>Treatment Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <Separator />
+                <h4 className="text-sm font-medium">Ongoing Treatment</h4>
+                <FormField control={form.control} name="mrsaMssaDetails" render={({ field }) => <FormItem><FormLabel>Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                <div className="grid grid-cols-2 gap-4">
+                  <DateField name="mrsaMssaDateCommenced" label="Date Commenced" />
+                  <FormField control={form.control} name="mrsaMssaLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Length of Course</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                </div>
+              </div>
             )}
+
             {step === 7 && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="esbl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>History of ESBLs?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="vreGre"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>History of VRE/GRE?</FormLabel>
-                        <Select
-                          onValueChange={(value) =>
-                            field.onChange(value === "true")
-                          }
-                          defaultValue={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an option" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <BooleanField name="esbl" label="ESBL?" />
+                  <BooleanField name="vreGre" label="VRE / GRE?" />
+                  <BooleanField name="cpe" label="CPE?" />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="cpe"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>History of CPE?</FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="otherMultiDrugResistance"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Other multi-drug resistance</FormLabel>
-                      <Textarea
-                        placeholder="Other multi-drug resistance"
-                        {...field}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="relevantInformationMultiDrugResistance"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Relevant information</FormLabel>
-                      <Textarea placeholder="Relevant information" {...field} />
-                      <FormDescription>
-                        Detail other relevant information including treatment,
-                        planned screening, recent anitbiotic therapy,...
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+                <FormField control={form.control} name="otherMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Other MDR Organisms</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="relevantInformationMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Relevant Information</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+              </div>
             )}
+
             {step === 8 && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="awarenessOfInfection"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Awareness of infection</FormLabel>
-                      <Select
-                        onValueChange={(value) =>
-                          field.onChange(value === "true")
-                        }
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select an option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastFluVaccinationDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date of last flu vaccination</FormLabel>
-                      <Popover modal open={fluVaccinationDatePopoverOpen} onOpenChange={setFluVaccinationDatePopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            captionLayout="dropdown"
-                            selected={
-                              field.value ? new Date(field.value) : undefined
-                            }
-                            onSelect={(date) => {
-                              field.onChange(date?.getTime());
-                              setFluVaccinationDatePopoverOpen(false);
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+              <div className="space-y-4">
+                <BooleanField name="awarenessOfInfection" label="Personal awareness of infection status?" />
+                <DateField name="lastFluVaccinationDate" label="Date of last Flu Vaccination" />
+              </div>
             )}
+
             {step === 9 && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="completedBy"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Completed by</FormLabel>
-                      <Input placeholder="Full name" {...field} readOnly disabled className="bg-muted" />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="jobRole"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Job role</FormLabel>
-                      <Input placeholder="Job role" {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="signature"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Signature</FormLabel>
-                      <Input placeholder="Signature" {...field} readOnly disabled className="bg-muted" />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="completionDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Completion date</FormLabel>
-                      <Popover modal open={completionDatePopoverOpen} onOpenChange={setCompletionDatePopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            captionLayout="dropdown"
-                            selected={
-                              field.value ? new Date(field.value) : undefined
-                            }
-                            onSelect={(date) => {
-                              field.onChange(date?.getTime());
-                              setCompletionDatePopoverOpen(false);
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="space-y-4">
+                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} placeholder="e.g. Registered Nurse" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                <DateField name="assessmentDate" label="Date Completed" />
               </div>
             )}
           </form>
         </Form>
       </div>
 
-      <DialogFooter>
-        <Button
-          onClick={handleBack}
-          variant="outline"
-          disabled={step === 1 || isLoading}
-        >
+      <DialogFooter className="border-t p-4 mt-auto">
+        <Button variant="outline" onClick={step === 1 ? () => onClose?.() : () => setStep(step - 1)} disabled={isLoading}>
           {step === 1 ? "Cancel" : "Back"}
         </Button>
-        <Button
-          onClick={
-            step === 9
-              ? () => {
-                  console.log(
-                    "Step 9 button clicked - attempting form submission"
-                  );
-                  console.log("Form errors:", form.formState.errors);
-                  console.log("Form is valid:", form.formState.isValid);
-                  console.log("Form values:", form.getValues());
-
-                  const submitHandler = form.handleSubmit(onSubmit);
-                  console.log("Submit handler created, calling it now...");
-                  submitHandler();
-                }
-              : handleNext
-          }
-          disabled={isLoading}
-          type={step === 9 ? "submit" : "button"}
-        >
-          {isLoading
-            ? "Saving..."
-            : step === 1
-              ? "Start Assessment"
-              : step === 9
-                ? "Save Assessment"
-                : "Next"}
+        <Button onClick={step === 9 ? form.handleSubmit(onSubmit) : handleNext} disabled={isLoading}>
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {step === 9 ? "Save Assessment" : "Next"}
         </Button>
       </DialogFooter>
-    </>
+    </div>
   );
 }
+
+const Separator = () => <div className="h-px bg-border my-6" />;

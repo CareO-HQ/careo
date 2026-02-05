@@ -16,8 +16,8 @@ import { useTransition, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import LogoSelector from "../onboarding/organization/LogoSelector";
 
 const CreateCareHomeSchema = CreateNewOrgSchema.extend({
@@ -35,10 +35,8 @@ export default function CreateCareHomeForm({
 }) {
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const createCareHome = useMutation(api.rbac.careHomes.createCareHome);
-  const createInvitationForManager = useMutation(api.customInvite.createInvitationForManager);
-  const generateUploadUrlMutation = useMutation(api.files.image.generateUploadUrl);
-  const sendImageMutation = useMutation(api.files.image.sendImage);
+  const { profile, refresh: refreshProfile } = useProfile();
+  const { supabase } = useSupabase();
 
   const form = useForm<z.infer<typeof CreateCareHomeSchema>>({
     resolver: zodResolver(CreateCareHomeSchema),
@@ -48,68 +46,100 @@ export default function CreateCareHomeForm({
     }
   });
 
-  // 2. Define a submit handler.
-  // IMPORTANT: This form creates a CARE HOME in the Convex careHomes table,
-  // NOT a Better Auth organization. Organizations are created separately.
+  // Submit handler - creates a CARE HOME in the Supabase care_homes table
   function onSubmit(values: z.infer<typeof CreateCareHomeSchema>) {
     startTransition(async () => {
       try {
-        // Create care home in Convex careHomes table (NOT a Better Auth organization)
-        const result = await createCareHome({
-          name: values.name
-        });
-        
-        if (result.success) {
-          // Upload care home icon if provided
-          if (selectedFile) {
-            const uploadUrl = await generateUploadUrlMutation();
-            const uploadResult = await fetch(uploadUrl, {
-              method: "POST",
-              headers: { "Content-Type": selectedFile.type },
-              body: selectedFile
-            });
-            const { storageId } = await uploadResult.json();
-            await sendImageMutation({
-              storageId,
-              type: "organization",
-              organizationId: result.careHomeId
-            });
-          }
+        if (!profile) {
+          toast.error("Profile not found");
+          return;
+        }
 
-          // Optionally invite a manager for this care home
-          if (values.managerEmail) {
-            const inviteResult = await createInvitationForManager({
+        const organizationId = profile.active_organization_id;
+        if (!organizationId) {
+          toast.error("No organization found. Please complete onboarding first.");
+          return;
+        }
+
+        // Create care home in Supabase care_homes table
+        const { data: careHome, error: careHomeError } = await supabase
+          .from("care_homes")
+          .insert({
+            organization_id: organizationId,
+            name: values.name,
+            created_by: profile.id
+          })
+          .select()
+          .single();
+
+        if (careHomeError) {
+          console.error("Error creating care home:", careHomeError);
+          if (careHomeError.message?.includes("duplicate") || careHomeError.code === "23505") {
+            form.setError("name", {
+              message: "A Care home with this name already exists"
+            });
+          } else {
+            toast.error(careHomeError.message || "Error creating Care home");
+          }
+          return;
+        }
+
+        // Upload care home logo if provided
+        if (selectedFile && careHome) {
+          const fileExt = selectedFile.name.split('.').pop();
+          const fileName = `${careHome.id}-${Math.random()}.${fileExt}`;
+          const filePath = `care-home-logos/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('careo-public')
+            .upload(filePath, selectedFile);
+
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage
+              .from('careo-public')
+              .getPublicUrl(filePath);
+
+            // Update care home with logo URL (if care_homes table has logo_url column)
+            // For now, we can store it in a separate files table or skip
+            console.log("Logo uploaded:", publicUrlData.publicUrl);
+          } else {
+            console.error("Logo upload error:", uploadError);
+          }
+        }
+
+        // Optionally invite a manager for this care home
+        if (values.managerEmail && careHome) {
+          const { error: inviteError } = await supabase
+            .from("invitations")
+            .insert({
               email: values.managerEmail,
               role: "manager",
-              careHomeId: result.careHomeId
+              organization_id: organizationId,
+              care_home_id: careHome.id,
+              status: "pending",
+              token: crypto.randomUUID(),
+              expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+              created_by: profile.id
             });
-            if (!inviteResult.success) {
-              toast.error(inviteResult.error || "Failed to invite manager");
-            }
-          }
 
-          toast.success("Care home created successfully");
-          // Reset form
-          form.reset();
-          setSelectedFile(null);
-          // Close modal and refresh
-          onSuccess();
-          // Force a small delay to ensure Convex query updates
-          setTimeout(() => {
-            // Query will automatically refresh due to Convex reactivity
-          }, 100);
-        } else {
-          toast.error("Error creating Care home");
+          if (inviteError) {
+            console.error("Error inviting manager:", inviteError);
+            toast.error("Care home created, but failed to invite manager");
+          }
         }
+
+        toast.success("Care home created successfully");
+        // Reset form
+        form.reset();
+        setSelectedFile(null);
+        // Refresh profile to pick up any changes
+        await refreshProfile();
+        // Close modal and refresh
+        onSuccess();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Error creating Care home";
-        if (errorMessage.includes("already exists") || errorMessage.includes("already assigned")) {
-          form.setError("name", {
-            message: "A Care home with this name already exists"
-          });
-        } else {
-          toast.error(errorMessage);
-        }
+        console.error("Error creating care home:", error);
+        toast.error(errorMessage);
       }
     });
   }

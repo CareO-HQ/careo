@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { useActiveTeam } from "@/hooks/use-active-team";
+import { useEffect, useState } from "react";
+import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -15,7 +15,6 @@ import {
   TrendingUp,
   LogOut,
 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
 import { format } from "date-fns";
 import {
   Table,
@@ -29,51 +28,86 @@ import { TodoList } from "@/components/dashboard/TodoList";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const {
-    activeTeamId,
-    activeOrganizationId,
-    isLoading: isTeamLoading,
-  } = useActiveTeam();
+  const { profile, isLoading: isProfileLoading } = useProfile();
+  const { supabase, isLoading: isSupabaseLoading } = useSupabase();
 
-  // Fetch current user context
-  const currentUser = useQuery(api.users.getCurrentUserContext);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  // Fetch dashboard data based on team or organization
-  const teamDashboardData = useQuery(
-    api.dashboard.getDashboardStatsByTeam,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
-  );
+  const activeOrganizationId = profile?.active_organization_id;
+  const activeTeamId = profile?.active_team_id;
 
-  const organizationDashboardData = useQuery(
-    api.dashboard.getDashboardStatsByOrganization,
-    !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
-  );
+  useEffect(() => {
+    if (!profile || isSupabaseLoading) return;
 
-  // Use team data if available, otherwise use organization data
-  const dashboardData = activeTeamId ? teamDashboardData : organizationDashboardData;
+    async function fetchDashboardData() {
+      setDataLoading(true);
+      try {
+        const organizationId = activeOrganizationId;
 
-  console.log("Dashboard Debug:", {
-    activeTeamId,
-    activeOrganizationId,
-    teamDashboardData,
-    organizationDashboardData,
-    dashboardData,
-    currentUser
-  });
+        // Fetch Stats
+        const [residentsRes, staffRes, teamsRes] = await Promise.all([
+          supabase.from("residents").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
+          supabase.from("users").select("id", { count: "exact", head: true }).eq("active_organization_id", organizationId),
+          supabase.from("teams").select("id", { count: "exact", head: true }).eq("organization_id", organizationId)
+        ]);
 
-  // Check if we have team/organization context first (before checking loading)
-  const hasTeamOrOrgContext = activeTeamId || activeOrganizationId;
+        // Fetch Latest Incidents
+        const { data: incidents } = await supabase
+          .from("incidents")
+          .select(`
+            id, incident_types, type_other_details, 
+            incident_level, date, time, resident_id,
+            resident:residents(first_name, last_name)
+          `)
+          .eq("organization_id", organizationId)
+          .order("date", { ascending: false })
+          .limit(5);
 
-  // Only consider data loading if we actually have a team/org to query
-  const isDataLoading = hasTeamOrOrgContext && dashboardData === undefined;
-  const isLoading = isTeamLoading || isDataLoading;
+        // Fetch Upcoming Appointments
+        const { data: appointments } = await supabase
+          .from("appointments")
+          .select(`
+            id, title, start_time, resident_id,
+            resident:residents(first_name, last_name)
+          `)
+          .eq("organization_id", organizationId)
+          .gte("start_time", new Date().toISOString())
+          .order("start_time", { ascending: true })
+          .limit(5);
 
-  // Format today's date
-  const today = format(new Date(), "EEEE, MMMM dd, yyyy");
+        // Fetch Recent Hospital Transfers
+        const { data: transfers } = await supabase
+          .from("hospital_transfer_logs")
+          .select(`
+            id, reason, transfer_date, destination_hospital, resident_id,
+            resident:residents(first_name, last_name)
+          `)
+          .eq("organization_id", organizationId)
+          .order("transfer_date", { ascending: false })
+          .limit(5);
+
+        setDashboardData({
+          totalResidents: residentsRes.count || 0,
+          totalStaff: staffRes.count || 0,
+          totalUnits: teamsRes.count || 0,
+          latestIncidents: incidents || [],
+          upcomingAppointments: appointments || [],
+          recentHospitalTransfers: transfers || []
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setDataLoading(false);
+      }
+    }
+
+    fetchDashboardData();
+  }, [profile, activeOrganizationId, isSupabaseLoading, supabase]);
 
   // Handle sign out
   const handleSignOut = async () => {
-    await authClient.signOut();
+    await supabase.auth.signOut();
     router.push("/login");
   };
 
@@ -101,11 +135,7 @@ export default function DashboardPage() {
     return <Badge variant="secondary">In Hospital</Badge>;
   };
 
-  // Loading state - only show if we're still loading team info OR if we have a team/org and data is loading
-  // But don't show loading forever - if we've been loading for too long, show the content anyway
-  if (isLoading && isTeamLoading) {
-    // Only show loading if we're actively loading team/org info
-    // If data is loading but we have org/team context, show the page anyway
+  if (isProfileLoading || isSupabaseLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading dashboard...</p>
@@ -113,9 +143,7 @@ export default function DashboardPage() {
     );
   }
 
-  // No active team or organization - but only show this if we're sure (not loading)
-  // If we're still loading, the loading state above will handle it
-  if (!isTeamLoading && !activeTeamId && !activeOrganizationId) {
+  if (!profile?.active_organization_id) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <Building2 className="h-16 w-16 text-muted-foreground" />
@@ -127,12 +155,14 @@ export default function DashboardPage() {
     );
   }
 
+  const today = format(new Date(), "EEEE, MMMM dd, yyyy");
+
   return (
     <div className="w-full p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-medium">Welcome, {currentUser?.user?.name || "User"}</h1>
+          <h1 className="text-2xl font-medium">Welcome, {profile?.name || "User"}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
         </div>
         <Button
@@ -218,26 +248,26 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dashboardData.latestIncidents.map((incident) => (
+                  {dashboardData.latestIncidents.map((incident: any) => (
                     <TableRow
-                      key={incident._id}
+                      key={incident.id}
                       className="cursor-pointer hover:bg-muted/30"
                       onClick={() =>
-                        incident.residentId &&
-                        router.push(`/dashboard/residents/${incident.residentId}/incidents`)
+                        incident.resident_id &&
+                        router.push(`/dashboard/residents/${incident.resident_id}/incidents`)
                       }
                     >
                       <TableCell className="font-normal text-sm">
-                        {incident.incidentTypes && incident.incidentTypes.length > 0
-                          ? incident.incidentTypes[0]
-                          : incident.type || "Unknown"}
+                        {incident.incident_types && incident.incident_types.length > 0
+                          ? incident.incident_types[0]
+                          : incident.type_other_details || "Unknown"}
                       </TableCell>
                       <TableCell className="text-sm">
                         {incident.resident
-                          ? `${incident.resident.firstName} ${incident.resident.lastName}`
+                          ? `${incident.resident.first_name} ${incident.resident.last_name}`
                           : "Unknown Resident"}
                       </TableCell>
-                      <TableCell>{getSeverityBadge(incident.incidentLevel || "")}</TableCell>
+                      <TableCell>{getSeverityBadge(incident.incident_level || "")}</TableCell>
                       <TableCell>
                         <div className="text-sm text-muted-foreground">
                           {incident.date && format(new Date(incident.date), "MMM dd, yyyy")}
@@ -259,7 +289,7 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        <TodoList teamId={activeTeamId} />
+        <TodoList teamId={activeTeamId || undefined} />
       </div>
 
       {/* Bottom Row - Appointments and Hospital Transfers */}
@@ -284,25 +314,25 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dashboardData.upcomingAppointments.map((appointment) => (
+                  {dashboardData.upcomingAppointments.map((appointment: any) => (
                     <TableRow
-                      key={appointment._id}
+                      key={appointment.id}
                       className="cursor-pointer hover:bg-muted/30"
                       onClick={() =>
-                        router.push(`/dashboard/residents/${appointment.residentId}/appointments`)
+                        router.push(`/dashboard/residents/${appointment.resident_id}/appointments`)
                       }
                     >
                       <TableCell className="font-normal text-sm">
                         {appointment.resident
-                          ? `${appointment.resident.firstName} ${appointment.resident.lastName}`
+                          ? `${appointment.resident.first_name} ${appointment.resident.last_name}`
                           : "Unknown"}
                       </TableCell>
                       <TableCell className="text-sm">{appointment.title || "Medical Checkup"}</TableCell>
                       <TableCell>
                         <div className="text-sm text-muted-foreground">
-                          {format(new Date(appointment.startTime), "MMM dd, yyyy")}
+                          {format(new Date(appointment.start_time), "MMM dd, yyyy")}
                           <div className="text-xs">
-                            {format(new Date(appointment.startTime), "h:mm a")}
+                            {format(new Date(appointment.start_time), "h:mm a")}
                           </div>
                         </div>
                       </TableCell>
@@ -340,21 +370,21 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dashboardData.recentHospitalTransfers.map((transfer) => (
+                  {dashboardData.recentHospitalTransfers.map((transfer: any) => (
                     <TableRow
-                      key={transfer._id}
+                      key={transfer.id}
                       className="cursor-pointer hover:bg-muted/30"
                       onClick={() =>
-                        router.push(`/dashboard/residents/${transfer.residentId}/hospital-transfer`)
+                        router.push(`/dashboard/residents/${transfer.resident_id}/hospital-transfer`)
                       }
                     >
                       <TableCell className="font-normal text-sm">
                         {transfer.resident
-                          ? `${transfer.resident.firstName} ${transfer.resident.lastName}`
+                          ? `${transfer.resident.first_name} ${transfer.resident.last_name}`
                           : "Unknown"}
                         {transfer.resident && (
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            {transfer.hospitalName || "City General"}
+                            {transfer.destination_hospital || "City General"}
                           </div>
                         )}
                       </TableCell>

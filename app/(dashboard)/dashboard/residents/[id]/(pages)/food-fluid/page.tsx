@@ -1,17 +1,18 @@
 "use client";
 
-import React from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/lib/auth-client";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { canAddDietMenu, canLogFoodFluidEntry } from "@/lib/permissions";
+import { canAddDietMenu, canLogFoodFluidEntry, canManageMenu } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
+import { Resident } from "@/types";
+import { getUKTodayDate, formatTimestampToUKTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
+import { formatInTimeZone } from "date-fns-tz";
 import {
   Card,
   CardContent,
@@ -44,6 +45,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
@@ -68,6 +70,16 @@ const DietFormSchema = z.object({
   foodConsistency: z.enum(["level7", "level6", "level5", "level4", "level3"]).optional(),
   fluidConsistency: z.enum(["level0", "level1", "level2", "level3", "level4"]).optional(),
   assistanceRequired: z.enum(["yes", "no"]).optional(),
+  chefNotified: z.enum(["yes", "no"]).optional(),
+  chefName: z.string().optional(),
+}).refine((data) => {
+  if (data.chefNotified === "yes" && (!data.chefName || data.chefName.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Chef name is required if chef is notified",
+  path: ["chefName"],
 });
 
 // Food/Fluid Log Form Schema
@@ -91,47 +103,130 @@ const FoodFluidLogSchema = z.object({
 export default function FoodFluidPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();
-  // Use optimized batched query (reduces 4 queries to 3!)
-  const today = new Date().toISOString().split('T')[0];
-  const batchedData = useQuery(api.foodFluidLogs.getResidentFoodFluidData, {
-    residentId: id as Id<"residents">,
-    date: today
-  });
 
-  // Extract resident, diet, and summary from batched response
-  const resident = batchedData?.resident ?? null;
-  const existingDiet = batchedData?.diet ?? null;
-  const logSummary = batchedData?.summary ?? null;
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [existingDiet, setExistingDiet] = useState<any>(null);
+  const [foodLogs, setFoodLogs] = useState<any[]>([]);
+  const [fluidLogs, setFluidLogs] = useState<any[]>([]);
+  const [logSummary, setLogSummary] = useState<any>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false);
+  const [isAddingDish, setIsAddingDish] = useState(false);
+  const [dishName, setDishName] = useState("");
 
-  // Fetch resident image separately
-  const residentImage = useQuery(
-    api.files.image.getResidentImageByResidentId,
-    resident?._id ? { residentId: resident._id } : "skip"
-  );
+  const { profile } = useProfile();
+  const userRole = profile?.role;
+  const canManageDietActions = canAddDietMenu(userRole);
+  const canManageMenuActions = canManageMenu(userRole);
+  const canLogEntries = canLogFoodFluidEntry(userRole);
 
-  // Use separate server-filtered queries for food/fluid logs (better than client filtering!)
-  const foodLogs = useQuery(api.foodFluidLogs.getTodayFoodLogs, {
-    residentId: id as Id<"residents">,
-    limit: 100
-  });
+  const fetchData = useCallback(async () => {
+    setIsInitialLoading(true);
+    try {
+      // Fetch resident
+      const { data: residentData } = await supabase
+        .from("residents")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-  const fluidLogs = useQuery(api.foodFluidLogs.getTodayFluidLogs, {
-    residentId: id as Id<"residents">,
-    limit: 100
-  });
+      if (residentData) setResident(residentData as Resident);
+
+      // Fetch diet
+      const { data: dietData } = await supabase
+        .from("diet_lifestyle")
+        .select("*")
+        .eq("resident_id", id)
+        .single();
+
+      if (dietData) {
+        setExistingDiet({
+          id: dietData.id,
+          residentId: dietData.resident_id,
+          organizationId: dietData.organization_id,
+          dietTypes: dietData.diet_types || [],
+          otherDietType: dietData.other_diet_type || "",
+          culturalRestrictions: dietData.cultural_restrictions || "",
+          allergies: dietData.allergies || [],
+          chokingRisk: dietData.choking_risk,
+          foodConsistency: dietData.food_consistency,
+          fluidConsistency: dietData.fluid_consistency,
+          assistanceRequired: dietData.assistance_required,
+          chefNotified: dietData.chef_notified,
+          chefName: dietData.chef_name,
+        });
+      }
+
+      // Use UK timezone for today's date
+      const today = getUKTodayDate();
+
+      // Fetch food logs for today
+      const { data: foodData } = await supabase
+        .from("food_fluid_logs")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("date", today)
+        .is("fluid_consumed_ml", null) // Corrected: Use is null check if possible, or filter in JS
+        .order("timestamp", { ascending: false });
+
+      // Filter out fluid entries safely
+      if (foodData) setFoodLogs(foodData.filter(log => log.fluid_consumed_ml === null));
+
+      // Fetch fluid logs for today
+      const { data: fluidData } = await supabase
+        .from("food_fluid_logs")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("date", today)
+        .not("fluid_consumed_ml", "is", null)
+        .order("timestamp", { ascending: false });
+
+      if (fluidData) setFluidLogs(fluidData);
+
+      if (foodData || fluidData) {
+        const totalFluid = (fluidData || []).reduce((acc: number, log: any) => acc + (log.fluid_consumed_ml || 0), 0);
+        setLogSummary({
+          foodEntries: foodData?.length || 0,
+          totalFluidIntakeMl: totalFluid,
+          lastRecorded: (foodData?.[0]?.timestamp || fluidData?.[0]?.timestamp)
+        });
+      }
+
+      // Fetch menu items only if organization ID is available
+      if (profile?.active_organization_id) {
+        const { data: menuData } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("organization_id", profile.active_organization_id)
+          .order("name", { ascending: true });
+
+        if (menuData) setMenuItems(menuData);
+      }
+
+    } catch (error) {
+      console.error("Error fetching food/fluid data:", error);
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [id, profile?.active_organization_id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
 
   // Auth data
-  const { data: activeOrganization } = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
-  const { data: member } = authClient.useActiveMember();
-  const userRole = member?.role;
-  const canManageDietActions = canAddDietMenu(userRole);
-  const canLogEntries = canLogFoodFluidEntry(userRole);
+  // const { data: activeOrganization } = authClient.useActiveOrganization(); // Removed Convex hook
+  // const { data: user } = authClient.useSession(); // Removed Convex hook
+  // const { data: member } = authClient.useActiveMember(); // Removed Convex hook
+  // const userRole = member?.role; // Replaced with useProfile
+  // const canManageDietActions = canAddDietMenu(userRole); // Replaced with useProfile
+  // const canLogEntries = canLogFoodFluidEntry(userRole); // Replaced with useProfile
 
-  // Mutations
-  const createOrUpdateDietMutation = useMutation(api.diet.createOrUpdateDiet);
-  const createFoodFluidLogMutation = useMutation(api.foodFluidLogs.createFoodFluidLog);
+  // Mutations (Removed Convex hooks)
+  // const createOrUpdateDietMutation = useMutation(api.diet.createOrOrUpdateDiet);
+  // const createFoodFluidLogMutation = useMutation(api.foodFluidLogs.createFoodFluidLog);
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -142,7 +237,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [isFoodFluidDialogOpen, setIsFoodFluidDialogOpen] = React.useState(false);
   const [isLogLoading, setIsLogLoading] = React.useState(false);
   const [entryType, setEntryType] = React.useState<"food" | "fluid">("food");
-  const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(user?.user?.name || "");
+  const [persistentStaffSignature, setPersistentStaffSignature] = React.useState(profile?.name || "");
   const [showLogAnotherActions, setShowLogAnotherActions] = React.useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = React.useState<string>("food");
 
@@ -160,6 +255,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
       foodConsistency: undefined,
       fluidConsistency: undefined,
       assistanceRequired: undefined,
+      chefNotified: undefined,
+      chefName: "",
     },
   });
 
@@ -177,12 +274,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   });
 
   // Update persistent signature when user changes
-  React.useEffect(() => {
-    if (user?.user?.name && !persistentStaffSignature) {
-      setPersistentStaffSignature(user.user.name);
-      logForm.setValue('signature', user.user.name);
+  useEffect(() => {
+    if (profile?.name && !persistentStaffSignature) {
+      setPersistentStaffSignature(profile.name);
+      logForm.setValue('signature', profile.name);
     }
-  }, [user, persistentStaffSignature, logForm]);
+  }, [profile, persistentStaffSignature, logForm]);
 
   // Watch the typeOfFoodDrink field to show/hide fluid input
 
@@ -199,6 +296,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         foodConsistency: existingDiet.foodConsistency,
         fluidConsistency: existingDiet.fluidConsistency,
         assistanceRequired: existingDiet.assistanceRequired,
+        chefNotified: existingDiet.chef_notified,
+        chefName: existingDiet.chef_name || "",
       });
     }
   }, [existingDiet, form]);
@@ -223,8 +322,19 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     );
   }
 
+  if (isInitialLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading resident...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Not found state
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="container mx-auto p-6 max-w-6xl">
         <div className="flex items-center justify-center h-64">
@@ -247,21 +357,18 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
+  const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
-    `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+    `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const getCurrentDate = () => {
-    return new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return formatDateForDisplay(getUKTodayDate());
   };
 
   const getCurrentSection = () => {
-    const hour = new Date().getHours();
+    // Get current hour in UK timezone
+    const ukNow = formatInTimeZone(new Date(), UK_TIMEZONE, "HH");
+    const hour = parseInt(ukNow);
     if (hour >= 0 && hour < 7) return "midnight-7am";
     if (hour >= 7 && hour < 12) return "7am-12pm";
     if (hour >= 12 && hour < 17) return "12pm-5pm";
@@ -269,11 +376,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   };
 
   const getCurrentTime = () => {
-    return new Date().toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    return formatTimestampToUKTime(new Date());
   };
 
   const getSectionDisplayName = (section: string) => {
@@ -297,28 +400,36 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
     setIsLoading(true);
     try {
-      if (!activeOrganization?.id || !user?.user?.id) {
+      if (!profile?.active_organization_id || !profile?.id) {
         toast.error("Missing organization or user information");
         return;
       }
 
-      await createOrUpdateDietMutation({
-        residentId: id as Id<"residents">,
-        dietTypes: values.dietTypes,
-        otherDietType: values.otherDietType,
-        culturalRestrictions: values.culturalRestrictions,
-        allergies: values.allergies,
-        chokingRisk: values.chokingRisk,
-        foodConsistency: values.foodConsistency,
-        fluidConsistency: values.fluidConsistency,
-        assistanceRequired: values.assistanceRequired,
-        organizationId: activeOrganization.id,
-        createdBy: user.user.id,
-      });
+      const { error } = await supabase
+        .from("diet_lifestyle")
+        .upsert({
+          resident_id: id,
+          organization_id: profile.active_organization_id,
+          diet_types: values.dietTypes,
+          other_diet_type: values.otherDietType,
+          cultural_restrictions: values.culturalRestrictions,
+          allergies: values.allergies,
+          choking_risk: values.chokingRisk,
+          food_consistency: values.foodConsistency,
+          fluid_consistency: values.fluidConsistency,
+          assistance_required: values.assistanceRequired,
+          chef_notified: values.chefNotified,
+          chef_name: values.chefName,
+          created_by: profile.id,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'resident_id' });
+
+      if (error) throw error;
 
       toast.success(existingDiet ? "Diet information updated successfully" : "Diet information saved successfully");
       setCurrentStep(1);
       setIsDialogOpen(false);
+      fetchData();
     } catch (error) {
       toast.error("Failed to save diet information");
       console.error("Error saving diet:", error);
@@ -341,27 +452,34 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const onFoodFluidLogSubmit = async (values: z.infer<typeof FoodFluidLogSchema>) => {
     setIsLogLoading(true);
     try {
-      if (!activeOrganization?.id || !user?.user?.id) {
+      if (!profile?.active_organization_id || !profile?.id) {
         toast.error("Missing organization or user information");
         return;
       }
 
-      await createFoodFluidLogMutation({
-        residentId: id as Id<"residents">,
-        section: values.section,
-        typeOfFoodDrink: values.typeOfFoodDrink,
-        portionServed: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
-        amountEaten: values.amountEaten,
-        fluidConsumedMl: values.fluidConsumedMl,
-        signature: values.signature,
-        organizationId: activeOrganization.id,
-        createdBy: user.user.id,
-      });
+      const { error } = await supabase
+        .from("food_fluid_logs")
+        .insert({
+          resident_id: id,
+          organization_id: profile.active_organization_id,
+          section: values.section,
+          type_of_food_drink: values.typeOfFoodDrink,
+          portion_served: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
+          amount_eaten: values.amountEaten,
+          fluid_consumed_ml: values.fluidConsumedMl,
+          signature: values.signature,
+          date: getUKTodayDate(), // Use UK timezone date
+          timestamp: new Date().toISOString(), // Keep ISO timestamp for database
+          created_by: profile.id,
+        });
+
+      if (error) throw error;
 
       // Update persistent signature from form
       setPersistentStaffSignature(values.signature);
 
       toast.success("Food/fluid entry logged successfully");
+      fetchData();
 
       // Reset form for next entry but preserve signature
       logForm.reset({
@@ -396,6 +514,55 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     setShowLogAnotherActions(false);
   };
 
+  const handleAddDish = async () => {
+    if (!dishName.trim()) return;
+    setIsAddingDish(true);
+    try {
+      if (!profile?.active_organization_id || !profile?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("menu_items")
+        .insert({
+          name: dishName.trim(),
+          organization_id: profile.active_organization_id,
+          created_by: profile.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMenuItems(prev => [...prev, data]);
+      setDishName("");
+      toast.success("Dish added to menu");
+    } catch (error) {
+      toast.error("Failed to add dish");
+      console.error("Error adding dish:", error);
+    } finally {
+      setIsAddingDish(false);
+    }
+  };
+
+  const handleDeleteDish = async (dishId: string) => {
+    try {
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("id", dishId);
+
+      if (error) throw error;
+
+      setMenuItems(prev => prev.filter(item => item.id !== dishId));
+      toast.success("Dish removed from menu");
+    } catch (error) {
+      toast.error("Failed to remove dish");
+      console.error("Error removing dish:", error);
+    }
+  };
+
 
 
   return (
@@ -407,7 +574,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Avatar className="w-10 h-10">
-            <AvatarImage src={residentImage?.url || ""} alt={fullName} className="border" />
+            <AvatarImage src={resident?.image_url || ""} alt={fullName} className="border" />
             <AvatarFallback className="text-sm bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
@@ -415,7 +582,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Food & Fluid</h1>
             <p className="text-muted-foreground text-sm">
-              View nutrition and hydration tracking for {resident.firstName} {resident.lastName}.
+              View nutrition and hydration tracking for {resident?.first_name} {resident?.last_name}.
             </p>
           </div>
           <div className="flex flex-row gap-2">
@@ -428,13 +595,15 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   <Plus className="w-4 h-4 mr-2" />
                   Add Diet
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(true)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Menu
-                </Button>
+                {canManageMenuActions && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsMenuDialogOpen(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Menu
+                  </Button>
+                )}
               </>
             )}
             <Button
@@ -587,6 +756,25 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     </Badge>
                   </div>
                 )}
+
+                {/* Chef Notification */}
+                {existingDiet.chefNotified && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Chef Notified
+                    </p>
+                    <Badge
+                      className={`text-xs ${existingDiet.chefNotified === "yes"
+                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                        : "bg-gray-100 text-gray-800 border-gray-300"
+                        }`}
+                    >
+                      {existingDiet.chefNotified === "yes"
+                        ? `Notified: ${existingDiet.chefName || "Yes"}`
+                        : "Not Notified"}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -689,7 +877,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               </div>
               <div className="flex flex-col space-y-2">
                 <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 self-start">
-                  {new Date().toLocaleDateString()}
+                  {formatInTimeZone(new Date(), UK_TIMEZONE, "dd MMM yyyy")}
                 </Badge>
               </div>
             </CardTitle>
@@ -732,17 +920,14 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   return sortedFoodLogs.length > 0 ? (
                     <div className="space-y-2">
                       {sortedFoodLogs.map((log) => (
-                        <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
+                        <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
                           <span className="font-medium">
-                            {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatTimestampToUKTime(new Date(log.timestamp))}
                           </span>
                           {" - "}
-                          <span className="text-muted-foreground">{log.typeOfFoodDrink}</span>
-                          <span className="text-muted-foreground"> - Portion: {log.portionServed}</span>
-                          <span className="text-muted-foreground"> - Amount: {log.amountEaten}</span>
+                          <span className="text-muted-foreground">{log.type_of_food_drink}</span>
+                          <span className="text-muted-foreground"> - Portion: {log.portion_served}</span>
+                          <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
                           <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
                         </div>
                       ))}
@@ -773,19 +958,16 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   return sortedFluidLogs.length > 0 ? (
                     <div className="space-y-2">
                       {sortedFluidLogs.map((log) => (
-                        <div key={log._id} className="text-sm border-b pb-2 last:border-b-0">
+                        <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
                           <span className="font-medium">
-                            {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatTimestampToUKTime(new Date(log.timestamp))}
                           </span>
                           {" - "}
-                          <span className="text-muted-foreground">{log.typeOfFoodDrink}</span>
+                          <span className="text-muted-foreground">{log.type_of_food_drink}</span>
                           <span className="text-muted-foreground">
-                            {log.fluidConsumedMl ? ` - Volume: ${log.fluidConsumedMl}ml` : ` - Portion: ${log.portionServed}`}
+                            {log.fluid_consumed_ml ? ` - Volume: ${log.fluid_consumed_ml}ml` : ` - Portion: ${log.portion_served}`}
                           </span>
-                          <span className="text-muted-foreground"> - Amount: {log.amountEaten}</span>
+                          <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
                           <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
                         </div>
                       ))}
@@ -849,10 +1031,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 <div className="relative z-10">
                   <div className="text-3xl font-bold text-gray-600 mb-1">
                     {logSummary?.lastRecorded
-                      ? new Date(logSummary.lastRecorded).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
+                      ? formatTimestampToUKTime(new Date(logSummary.lastRecorded))
                       : "--:--"
                     }
                   </div>
@@ -1131,6 +1310,51 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                       )}
                     />
 
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="chefNotified"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Chef Notified?</FormLabel>
+                            <FormControl>
+                              <RadioGroup
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                className="flex space-x-4"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="yes" id="chef-yes" />
+                                  <label htmlFor="chef-yes" className="text-sm cursor-pointer">Yes</label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="no" id="chef-no" />
+                                  <label htmlFor="chef-no" className="text-sm cursor-pointer">No</label>
+                                </div>
+                              </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {form.watch("chefNotified") === "yes" && (
+                        <FormField
+                          control={form.control}
+                          name="chefName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Chef Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter chef's name..." {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+
                     {/* Summary */}
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h4 className="font-medium mb-2">Summary</h4>
@@ -1150,6 +1374,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                               )}
                               {formValues.fluidConsistency && (
                                 <p>Fluid Consistency: {formValues.fluidConsistency}</p>
+                              )}
+                              {formValues.chefNotified === "yes" && (
+                                <p>Chef Notified: {formValues.chefName}</p>
                               )}
                             </>
                           );
@@ -1210,6 +1437,70 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           </DialogContent>
         </Dialog>
 
+        {/* Add Menu Dialog */}
+        <Dialog open={isMenuDialogOpen} onOpenChange={setIsMenuDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Management Menu Items</DialogTitle>
+              <DialogDescription>
+                Add or remove dishes from the list. These will appear when logging food entries.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              <div className="flex space-x-2">
+                <Input
+                  placeholder="Enter dish name (e.g., Roast Chicken)..."
+                  value={dishName}
+                  onChange={(e) => setDishName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddDish();
+                    }
+                  }}
+                />
+                <Button onClick={handleAddDish} disabled={isAddingDish || !dishName.trim()}>
+                  {isAddingDish ? "Adding..." : "Add"}
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Already Added Menu Items</Label>
+                <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                  {menuItems.length > 0 ? (
+                    <div className="divide-y">
+                      {menuItems.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDish(item.id)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <p className="text-sm">No dishes added to the menu yet.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setIsMenuDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Food/Fluid Log Dialog */}
         <Dialog open={isFoodFluidDialogOpen} onOpenChange={setIsFoodFluidDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -1259,14 +1550,31 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                         {entryType === "food" ? "Type of Food" : "Type of Fluid"}
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder={
-                            entryType === "food"
-                              ? "e.g., Chicken, Toast, Soup..."
-                              : "e.g., Water, Tea, Coffee, Juice..."
-                          }
-                          {...field}
-                        />
+                        {entryType === "food" ? (
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select food item..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {menuItems.length > 0 ? (
+                                menuItems.map((item) => (
+                                  <SelectItem key={item.id} value={item.name}>
+                                    {item.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="p-2 text-sm text-muted-foreground">No menu items added. Please add menu items first.</div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="e.g., Water, Tea, Coffee, Juice..."
+                            {...field}
+                          />
+                        )}
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1418,7 +1726,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   )}
                 />
 
-                {/* Form Actions */}
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button
                     type="button"
@@ -1427,14 +1734,18 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isLogLoading}>
-                    {isLogLoading ? "Saving..." : "Log Entry"}
+                  <Button
+                    type="submit"
+                    disabled={isLogLoading}
+                  >
+                    {isLogLoading ? "Saving..." : "Save Entry"}
                   </Button>
                 </div>
               </form>
             </Form>
           </DialogContent>
         </Dialog>
+
       </div>
     </div>
   );

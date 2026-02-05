@@ -64,7 +64,10 @@ export const CreateTimlAssessmentSchema = z.object({
   completedBy: z.string().min(1, "Completed by is required"),
   completedByJobRole: z.string().min(1, "Job role is required"),
   completedBySignature: z.string().min(1, "Signature is required"),
-  date: z.number()
+  assessmentDate: z.number(),
+  status: z.string().optional(),
+  managementPlan: z.string().optional(),
+  treatmentRecommendation: z.string().optional()
 });
 
 export type CreateTimlAssessmentData = z.infer<

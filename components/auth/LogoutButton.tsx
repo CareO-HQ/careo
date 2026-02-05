@@ -2,7 +2,7 @@
 
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -26,20 +26,13 @@ export function LogoutButton({
     const handleLogout = async () => {
         try {
             setIsLoading(true);
-            await authClient.signOut({
-                fetchOptions: {
-                    onSuccess: () => {
-                        // Clear any local storage if needed (Best Practice)
-                        // localStorage.clear(); // Use with caution, maybe only clear specific keys
+            const { error } = await supabase.auth.signOut();
+            if (error) throw error;
 
-                        // Invalidate router cache to ensure fresh state
-                        router.refresh();
-                        // Force a hard redirect for absolute safety in some cases, 
-                        // but push is usually enough for SPA state clearing
-                        window.location.href = redirectUrl;
-                    },
-                },
-            });
+            // Invalidate router cache to ensure fresh state
+            router.refresh();
+            // Force a hard redirect to clear all contexts
+            window.location.href = redirectUrl;
         } catch (error) {
             console.error("Logout failed:", error);
         } finally {

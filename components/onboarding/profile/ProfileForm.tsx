@@ -10,15 +10,16 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { api } from "@/convex/_generated/api";
 import { OnboardingProfileFormSchema } from "@/schemas/SaveOnboardingProfileForm";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 import React, { useTransition, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
 import ImageSelector from "./ImageSelector";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 // Type for user data returned from getCurrentUser query
 type User = {
@@ -39,86 +40,85 @@ export default function ProfileForm({
 }) {
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const user: User = useQuery(api.auth.getCurrentUser);
-
-  const updateUser = useMutation(api.user.updateUserOnboarding);
-
-  const generateUploadUrlMutation = useMutation(
-    api.files.image.generateUploadUrl
-  );
-  const sendImageMutation = useMutation(api.files.image.sendImage);
-
-  const getUserLogoQuery = useQuery(
-    api.files.image.getUserLogo,
-    user ? {} : "skip"
-  );
-  const deleteImageMutation = useMutation(api.files.image.deleteById);
+  const { profile, refresh: refreshProfile } = useProfile();
 
   const form = useForm<z.infer<typeof OnboardingProfileFormSchema>>({
     resolver: zodResolver(OnboardingProfileFormSchema),
     defaultValues: {
-      name: user?.name || "",
-      email: user?.email || "",
-      phone: user?.phone || "",
-      imageUrl: user?.image || ""
+      name: profile?.name || "",
+      email: profile?.email || "",
+      phone: profile?.phone || "",
+      imageUrl: profile?.image_url || ""
     }
   });
 
-  // Reset form when user data loads
+  // Reset form when profile loads
   useEffect(() => {
-    if (user) {
+    if (profile) {
       form.reset({
-        name: user.name || "",
-        email: user.email || "",
-        phone: user.phone || "",
-        imageUrl: user.image || ""
+        name: profile.name || "",
+        email: profile.email || "",
+        phone: profile.phone || "",
+        imageUrl: profile.image_url || ""
       });
     }
-  }, [user, form]);
+  }, [profile, form]);
 
-  // Log getUserLogoQuery as soon as it's available
-  useEffect(() => {
-    if (getUserLogoQuery) {
-      console.log("getUserLogoQuery:", getUserLogoQuery);
-    }
-  }, [getUserLogoQuery]);
 
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof OnboardingProfileFormSchema>) {
     startTransition(async () => {
-      if (!user) {
-        toast.error("User not found");
+      if (!profile) {
+        toast.error("Profile not found");
         return;
       }
       try {
-        await updateUser({
-          name: values.name,
-          phone: values.phone,
-          imageUrl: values.imageUrl
-        });
+        let finalImageUrl = values.imageUrl;
+
         if (selectedFile) {
-          // Delete the old image
-          if (getUserLogoQuery?.storageId) {
-            await deleteImageMutation({
-              fileId: getUserLogoQuery.storageId
-            });
-          }
-          const uploadUrl = await generateUploadUrlMutation();
-          const result = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": selectedFile!.type },
-            body: selectedFile
-          });
-          const { storageId } = await result.json();
-          await sendImageMutation({
-            storageId,
-            type: "profile"
-          });
-          console.log("userLogo", getUserLogoQuery);
+          const fileExt = selectedFile.name.split('.').pop();
+          const fileName = `${profile.id}-${Math.random()}.${fileExt}`;
+          const filePath = `avatars/${fileName}`;
+
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from('careo-public')
+            .upload(filePath, selectedFile);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('careo-public')
+            .getPublicUrl(filePath);
+
+          finalImageUrl = publicUrl;
         }
+
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({
+            name: values.name,
+            phone: values.phone,
+            image_url: finalImageUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", profile.id);
+
+        if (updateError) throw updateError;
+
+        // Sync with auth metadata
+        await supabase.auth.updateUser({
+          data: {
+            name: values.name,
+            phone: values.phone,
+            avatar_url: finalImageUrl
+          }
+        });
+
+        await refreshProfile();
         setStep(step + 1);
-      } catch (error) {
-        console.error("Error updating user:", error);
+      } catch (error: any) {
+        console.error("Error updating profile:", error);
+        toast.error(error.message || "Failed to update profile");
       }
     });
   }
@@ -127,11 +127,11 @@ export default function ProfileForm({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full">
         <ImageSelector
-          currentImageUrl={getUserLogoQuery?.url}
-          fileId={getUserLogoQuery?.storageId}
+          currentImageUrl={profile?.image_url || undefined}
+          fileId={undefined}
           selectedFile={selectedFile}
           setSelectedFile={setSelectedFile}
-          userInitial={user?.name?.charAt(0) || ""}
+          userInitial={profile?.name?.charAt(0) || ""}
         />
         <FormField
           control={form.control}

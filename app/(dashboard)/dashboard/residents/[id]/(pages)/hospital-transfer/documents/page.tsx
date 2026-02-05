@@ -1,9 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -46,6 +43,9 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { ViewTransferLogDialog } from "../view-transfer-log-dialog";
+import { hospitalTransferService } from "@/lib/hospital-transfer-service";
+import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
 
 type TransferHistoryPageProps = {
   params: Promise<{ id: string }>;
@@ -54,7 +54,12 @@ type TransferHistoryPageProps = {
 export default function TransferHistoryPage({ params }: TransferHistoryPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const { profile } = useProfile();
+
+  // State for data
+  const [resident, setResident] = useState<any>(null);
+  const [transferLogs, setTransferLogs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,11 +73,27 @@ export default function TransferHistoryPage({ params }: TransferHistoryPageProps
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
-
-  // Fetch transfer logs
-  const transferLogs = useQuery(api.hospitalTransferLogs.getByResidentId, { residentId });
+  // Fetch data
+  useEffect(() => {
+    async function loadData() {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        const [residentData, logsData] = await Promise.all([
+          hospitalTransferService.getResidentById(id),
+          hospitalTransferService.getTransferLogsByResidentId(id)
+        ]);
+        setResident(residentData);
+        setTransferLogs(logsData);
+      } catch (error) {
+        console.error("Error loading transfer history:", error);
+        toast.error("Failed to load history data");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [id]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -183,7 +204,7 @@ export default function TransferHistoryPage({ params }: TransferHistoryPageProps
   };
 
   // Loading state
-  if (!resident || !transferLogs) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -192,6 +213,10 @@ export default function TransferHistoryPage({ params }: TransferHistoryPageProps
         </div>
       </div>
     );
+  }
+
+  if (!resident) {
+    return <div className="p-8 text-center">Resident not found</div>;
   }
 
   return (
@@ -267,7 +292,7 @@ export default function TransferHistoryPage({ params }: TransferHistoryPageProps
                     const logDate = new Date(log.date);
                     const now = new Date();
                     return logDate.getMonth() === now.getMonth() &&
-                           logDate.getFullYear() === now.getFullYear();
+                      logDate.getFullYear() === now.getFullYear();
                   }).length}
                 </p>
               </div>
@@ -499,10 +524,10 @@ export default function TransferHistoryPage({ params }: TransferHistoryPageProps
                               </Badge>
                             )}
                             {!log.medicationChanges?.medicationsAdded &&
-                             !log.medicationChanges?.medicationsRemoved &&
-                             !log.medicationChanges?.medicationsModified && (
-                              <span className="text-xs text-gray-400">None</span>
-                            )}
+                              !log.medicationChanges?.medicationsRemoved &&
+                              !log.medicationChanges?.medicationsModified && (
+                                <span className="text-xs text-gray-400">None</span>
+                              )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -593,7 +618,7 @@ export default function TransferHistoryPage({ params }: TransferHistoryPageProps
         onOpenChange={setIsViewDialogOpen}
         transferLog={selectedLog}
         residentName={fullName}
-        currentUser={null}
+        currentUser={profile}
       />
     </div>
   );

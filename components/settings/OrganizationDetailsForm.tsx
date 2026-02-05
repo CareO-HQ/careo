@@ -10,13 +10,14 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
 import { organizationDetailsSchema } from "@/schemas/settings/organizationDetailsSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 
 interface OrganizationDetailsFormProps {
   metadata: Record<string, string>;
@@ -29,6 +30,8 @@ export default function OrganizationDetailsForm({
   isPending,
   onSuccess
 }: OrganizationDetailsFormProps) {
+  const { supabase } = useSupabase();
+  const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof organizationDetailsSchema>>({
@@ -43,25 +46,28 @@ export default function OrganizationDetailsForm({
 
   const onSubmit = (values: z.infer<typeof organizationDetailsSchema>) => {
     startTransition(async () => {
-      await authClient.organization.update(
-        {
-          data: {
-            metadata: {
-              ...metadata,
-              address: values.address,
-              phone: values.phone,
-              email: values.email,
-              website: values.website
-            }
+      if (!supabase || !profile?.active_organization_id) return;
+
+      const { data, error } = await supabase
+        .from('organizations')
+        .update({
+          metadata: {
+            ...metadata,
+            address: values.address,
+            phone: values.phone,
+            email: values.email,
+            website: values.website
           }
-        },
-        {
-          onSuccess: () => {
-            toast.success("Organization details updated");
-            onSuccess?.();
-          }
-        }
-      );
+        })
+        .eq('id', profile.active_organization_id);
+
+      if (error) {
+        toast.error("Failed to update organization details");
+        console.error("Error updating organization:", error);
+      } else {
+        toast.success("Organization details updated");
+        onSuccess?.();
+      }
     });
   };
 

@@ -1,13 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, MoreHorizontal, Eye, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
@@ -41,31 +38,42 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
+import { auditService, AuditTemplate, AuditCompletion } from "@/lib/audit-service";
+import { supabase } from "@/lib/supabase";
 
 function CareFileAuditPageContent() {
   const params = useParams();
   const router = useRouter();
-  const residentId = params.residentId as Id<"residents">;
+  const residentId = params.residentId as string;
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
 
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId: residentId });
+  const [resident, setResident] = useState<any>(undefined);
+  const [templates, setTemplates] = useState<AuditTemplate[]>([]);
+  const [responses, setResponses] = useState<AuditCompletion[]>([]);
 
-  // Fetch care file audit templates for the organization
-  const templates = useQuery(
-    api.careFileAuditTemplates.getTemplatesByOrganization,
-    activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
-  );
+  useEffect(() => {
+    if (residentId) {
+      supabase.from('residents').select('*').eq('id', residentId).single().then(({ data, error }) => {
+        if (data) setResident(data);
+        else if (error) setResident(null);
+      });
+    }
+  }, [residentId]);
 
-  // Fetch all responses for this resident
-  const responses = useQuery(
-    api.careFileAuditResponses.getResponsesByResident,
-    { residentId }
-  );
+
+  useEffect(() => {
+    if (activeOrganizationId) {
+      auditService.getCareFileTemplates(activeOrganizationId).then(setTemplates);
+    }
+    if (residentId) {
+      auditService.getCareFileCompletionsByResident(residentId).then(setResponses);
+    }
+  }, [activeOrganizationId, residentId]);
 
   // Dialog states
   const [isAddAuditDialogOpen, setIsAddAuditDialogOpen] = useState(false);
@@ -78,10 +86,6 @@ function CareFileAuditPageContent() {
     description: "",
     frequency: "quarterly" as "monthly" | "quarterly" | "yearly",
   });
-
-  // Mutations
-  const createTemplate = useMutation(api.careFileAuditTemplates.createTemplate);
-  const deleteTemplate = useMutation(api.careFileAuditTemplates.deleteTemplate);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -98,20 +102,22 @@ function CareFileAuditPageContent() {
   };
 
   const handleAddAudit = async () => {
-    if (!newAuditForm.name || !activeTeamId || !activeOrganizationId || !session?.user?.email) {
+    if (!newAuditForm.name || !activeTeamId || !activeOrganizationId || !profile?.email) {
       toast.error("Missing required information");
       return;
     }
 
     try {
-      const templateId = await createTemplate({
+      const template = await auditService.createCareFileTemplate({
         name: newAuditForm.name,
         description: newAuditForm.description,
         items: [],
         frequency: newAuditForm.frequency,
-        teamId: activeTeamId,
-        organizationId: activeOrganizationId,
-        createdBy: session.user.email,
+        team_id: activeTeamId,
+        organization_id: activeOrganizationId,
+        created_by: profile.email,
+        is_active: true,
+        category: 'carefile'
       });
 
       toast.success("Audit template created successfully");
@@ -122,8 +128,14 @@ function CareFileAuditPageContent() {
         frequency: "quarterly",
       });
 
+      // Refresh templates
+      const updatedTemplates = await auditService.getCareFileTemplates(activeOrganizationId);
+      setTemplates(updatedTemplates);
+
       // Navigate to the audit editor
-      router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${templateId}`);
+      if (template) {
+        router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${template.id}`);
+      }
     } catch (error) {
       console.error("Error creating audit template:", error);
       toast.error("Failed to create audit template");
@@ -134,39 +146,37 @@ function CareFileAuditPageContent() {
     if (!templateToDelete) return;
 
     try {
-      await deleteTemplate({ templateId: templateToDelete._id });
+      await auditService.deleteCareFileTemplate(templateToDelete.id);
       toast.success("Audit template deleted successfully");
       setIsDeleteDialogOpen(false);
       setTemplateToDelete(null);
+      // Refresh
+      if (activeOrganizationId) {
+        const t = await auditService.getCareFileTemplates(activeOrganizationId);
+        setTemplates(t);
+      }
     } catch (error) {
       console.error("Error deleting audit template:", error);
       toast.error("Failed to delete audit template");
     }
   };
 
-  // Helper to get latest completion for a template
   const getLatestCompletion = (templateId: string) => {
     if (!responses) return null;
-
     const templateResponses = responses.filter(
-      (r) => r.templateId === templateId && r.status === "completed"
+      (r) => r.template_id === templateId && r.status === "completed"
     );
-
     if (templateResponses.length === 0) return null;
-
     return templateResponses.sort((a, b) =>
-      (b.completedAt || 0) - (a.completedAt || 0)
+      new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
     )[0];
   };
 
-  // Helper to calculate completion percentage
   const getCompletionPercentage = (completion: any) => {
     if (!completion || !completion.items || completion.items.length === 0) return 0;
-
     const compliantItems = completion.items.filter(
       (item: any) => item.status === "compliant" || item.status === "checked"
     ).length;
-
     return Math.round((compliantItems / completion.items.length) * 100);
   };
 
@@ -191,14 +201,13 @@ function CareFileAuditPageContent() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-      {/* Header */}
+    <div className="flex flex-col h-full w-full bg-background">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push("/dashboard/careo-audit?tab=carefile")}
+            onClick={() => router.push("/dashboard/careo-audit?tab=careFile")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -206,7 +215,7 @@ function CareFileAuditPageContent() {
             <Avatar className="h-10 w-10">
               <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
               <AvatarFallback>
-                {resident.firstName.charAt(0)}{resident.lastName.charAt(0)}
+                {resident.firstName?.[0]}{resident.lastName?.[0]}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -226,96 +235,66 @@ function CareFileAuditPageContent() {
         </div>
       </div>
 
-      {/* Filters & Actions */}
       <div className="flex items-center justify-between border-b px-6 py-3">
+        <div className="flex items-center gap-2"></div>
         <div className="flex items-center gap-2">
-          {/* Placeholder for filters */}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setIsAddAuditDialogOpen(true)} size="sm" className="h-8">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => setIsAddAuditDialogOpen(true)} variant="default" className="bg-black hover:bg-black/90 text-white rounded-md px-4 py-2 flex items-center gap-2">
+            <Plus className="h-4 w-4" />
             Add Audit
           </Button>
         </div>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-auto">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
               <TableHead className="w-12 border-r last:border-r-0">
-                <input type="checkbox" className="rounded border-gray-300" />
+                <input type="checkbox" className="rounded border-gray-300 ml-1" />
               </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Audit Name
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Status
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Auditor
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Last Audited
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0">
-                Next Audit
-              </TableHead>
-              <TableHead className="font-medium border-r last:border-r-0 w-20">
-                Actions
-              </TableHead>
+              <TableHead className="font-medium border-r last:border-r-0">Audit Name</TableHead>
+              <TableHead className="font-medium border-r last:border-r-0">Status</TableHead>
+              <TableHead className="font-medium border-r last:border-r-0">Auditor</TableHead>
+              <TableHead className="font-medium border-r last:border-r-0">Last Audited</TableHead>
+              <TableHead className="font-medium border-r last:border-r-0">Next Audit</TableHead>
+              <TableHead className="font-medium border-r last:border-r-0 w-20">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {templates && templates.length > 0 ? (
               templates.map((template) => {
-                const latestCompletion = getLatestCompletion(template._id);
+                const latestCompletion = getLatestCompletion(template.id);
                 const isCompleted = !!latestCompletion;
                 const completionPercentage = latestCompletion ? getCompletionPercentage(latestCompletion) : 0;
 
-                const lastAudited = isCompleted && latestCompletion.completedAt
-                  ? new Date(latestCompletion.completedAt).toLocaleDateString('en-GB')
+                const lastAudited = isCompleted && latestCompletion.completed_at
+                  ? new Date(latestCompletion.completed_at).toLocaleDateString('en-GB')
                   : "-";
 
-                const nextAudit = isCompleted && latestCompletion.nextAuditDue
-                  ? new Date(latestCompletion.nextAuditDue).toLocaleDateString('en-GB')
+                const nextAudit = isCompleted && latestCompletion.next_audit_due
+                  ? new Date(latestCompletion.next_audit_due).toLocaleDateString('en-GB')
                   : "-";
 
                 return (
-                  <TableRow key={template._id} className="hover:bg-muted/50">
+                  <TableRow key={template.id} className="hover:bg-muted/50">
                     <TableCell className="border-r last:border-r-0">
                       <input type="checkbox" className="rounded border-gray-300" />
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
                       <button
-                        onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${template._id}`)}
+                        onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${template.id}`)}
                         className="font-medium hover:underline text-left"
                       >
                         {template.name}
                       </button>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
-                      {isCompleted ? (
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-green-500 rounded-full transition-all"
-                              style={{ width: `${completionPercentage}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {completionPercentage}%
-                          </span>
-                        </div>
-                      ) : (
-                        <Badge variant="secondary" className={`text-xs h-6 ${getStatusColor("new")}`}>
-                          New
-                        </Badge>
-                      )}
+                      <Badge variant={completionPercentage === 100 ? "default" : "secondary"}>
+                        {completionPercentage === 100 ? "completed" : "new"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="border-r last:border-r-0">
-                      {latestCompletion?.auditedBy || "-"}
+                      {latestCompletion?.audited_by_name || latestCompletion?.audited_by || "-"}
                     </TableCell>
                     <TableCell className="text-muted-foreground border-r last:border-r-0">
                       {lastAudited}
@@ -331,17 +310,10 @@ function CareFileAuditPageContent() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {isCompleted && latestCompletion ? (
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${template._id}/view`)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Completed
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${template._id}`)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Start Audit
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit/${template.id}`)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            {isCompleted ? "View/Audit Again" : "Start Audit"}
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
                               setTemplateToDelete(template);
@@ -373,12 +345,9 @@ function CareFileAuditPageContent() {
             )}
           </TableBody>
         </Table>
-
-        {/* Bottom border */}
         <div className="border-t"></div>
       </div>
 
-      {/* Add Audit Dialog */}
       <Dialog open={isAddAuditDialogOpen} onOpenChange={setIsAddAuditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -394,9 +363,7 @@ function CareFileAuditPageContent() {
                 id="auditName"
                 placeholder="e.g., Pre-Admission Assessment"
                 value={newAuditForm.name}
-                onChange={(e) =>
-                  setNewAuditForm({ ...newAuditForm, name: e.target.value })
-                }
+                onChange={(e) => setNewAuditForm({ ...newAuditForm, name: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -405,9 +372,7 @@ function CareFileAuditPageContent() {
                 id="description"
                 placeholder="Brief description of this audit"
                 value={newAuditForm.description}
-                onChange={(e) =>
-                  setNewAuditForm({ ...newAuditForm, description: e.target.value })
-                }
+                onChange={(e) => setNewAuditForm({ ...newAuditForm, description: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -430,21 +395,12 @@ function CareFileAuditPageContent() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAddAuditDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" onClick={handleAddAudit}>
-              Create Audit
-            </Button>
+            <Button type="button" variant="outline" onClick={() => setIsAddAuditDialogOpen(false)}>Cancel</Button>
+            <Button type="submit" onClick={handleAddAudit}>Create Audit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Audit Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -454,23 +410,8 @@ function CareFileAuditPageContent() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsDeleteDialogOpen(false);
-                setTemplateToDelete(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDeleteAudit}
-            >
-              Delete
-            </Button>
+            <Button type="button" variant="outline" onClick={() => { setIsDeleteDialogOpen(false); setTemplateToDelete(null); }}>Cancel</Button>
+            <Button type="button" variant="destructive" onClick={handleDeleteAudit}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -480,12 +421,7 @@ function CareFileAuditPageContent() {
 
 export default function CareFileAuditPage() {
   return (
-    <ErrorBoundary 
-      fallback={
-        // @ts-expect-error - TypeScript incorrectly infers AuditErrorFallback as intrinsic element
-        <AuditErrorFallback context="listing" />
-      }
-    >
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
       <CareFileAuditPageContent />
     </ErrorBoundary>
   );

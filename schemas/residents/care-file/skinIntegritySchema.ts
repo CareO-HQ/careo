@@ -10,7 +10,8 @@ export const skinIntegrityAssessmentSchema = z.object({
   // Resident information & date
   residentName: z.string().min(1, "Resident name is required"),
   bedroomNumber: z.string().min(1, "Bedroom number is required"),
-  date: z.number().min(1, "Date is required"),
+  assessmentDate: z.number().min(1, "Date is required"),
+  completedBy: z.string().min(1, "Completed by is required"),
 
   // Assessment questions (scores 1-4 for most, 1-3 for friction/shear)
   sensoryPerception: z.union([

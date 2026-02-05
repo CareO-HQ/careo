@@ -11,20 +11,27 @@ import CreateCareHomeForm from "./CreateCareHomeForm";
 import { useState, cloneElement, isValidElement, ReactElement } from "react";
 
 export default function CreateCareHomeModal({
-  children
+  children,
+  onSuccess
 }: {
   children: React.ReactNode;
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+
+  const handleSuccess = () => {
+    setOpen(false);
+    onSuccess?.();
+  };
 
   // Clone the child element and add onSelect handler for DropdownMenuItem
   const trigger = isValidElement(children)
     ? cloneElement(children as ReactElement<any>, {
-        onSelect: (e: Event) => {
-          e.preventDefault();
-          setOpen(true);
-        }
-      } as any)
+      onSelect: (e: Event) => {
+        e.preventDefault();
+        setOpen(true);
+      }
+    } as any)
     : children;
 
   return (
@@ -38,7 +45,7 @@ export default function CreateCareHomeModal({
               A new Care home will be added to your account.
             </DialogDescription>
           </DialogHeader>
-          <CreateCareHomeForm onSuccess={() => setOpen(false)} />
+          <CreateCareHomeForm onSuccess={handleSuccess} />
         </DialogContent>
       </Dialog>
     </>

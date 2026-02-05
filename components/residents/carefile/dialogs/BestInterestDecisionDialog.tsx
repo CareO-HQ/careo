@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -35,7 +34,7 @@ import { format } from "date-fns";
 import { X, Plus } from "lucide-react";
 
 interface BestInterestDecisionDialogProps {
-  residentId: Id<"residents">;
+  residentId: string;
   teamId: string;
   organizationId: string;
   userId: string;
@@ -78,10 +77,6 @@ export default function BestInterestDecisionDialog({
 }: BestInterestDecisionDialogProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const submitDecision = useMutation(
-    api.careFiles.bestInterestDecision.submitBestInterestDecision
-  );
 
   const form = useForm<BestInterestDecisionFormData>({
     resolver: zodResolver(bestInterestDecisionSchema),
@@ -129,9 +124,9 @@ export default function BestInterestDecisionDialog({
       teamId,
       organizationId,
       userId,
-      residentFullName: resident ? `${resident.firstName} ${resident.lastName}` : "",
-      dateOfBirth: resident?.dateOfBirth ? new Date(resident.dateOfBirth).getTime() : Date.now(),
-      residentIdNumber: resident?.residentId || "",
+      residentFullName: resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : "",
+      dateOfBirth: resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
+      residentIdNumber: resident?.nhs_health_number || resident?.id || "",
       dateOfDecision: format(new Date(), "yyyy-MM-dd"),
       typeOfDecision: [],
       detailsOfDecision: "",
@@ -177,7 +172,22 @@ export default function BestInterestDecisionDialog({
   const onSubmit = async (data: BestInterestDecisionFormData) => {
     try {
       setIsSubmitting(true);
-      await submitDecision(data as any);
+
+      await submitAssessmentWithVersioning(
+        "best_interest_decisions",
+        {
+          resident_id: residentId,
+          organization_id: organizationId,
+          assessment_data: data,
+          decision_details: data.detailsOfDecision || data.summaryRationale || "Best interest decision",
+          assessment_date: data.dateOfDecision,
+          completed_by: data.assessorName,
+          created_by: userId
+        },
+        initialData,
+        !!initialData
+      );
+
       toast.success("Best interest decision submitted successfully");
       setTimeout(() => {
         onClose?.();

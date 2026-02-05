@@ -6,21 +6,21 @@ This guide covers the setup and configuration for the Moving and Handling Assess
 
 The Moving and Handling Assessment feature consists of:
 - A multi-step form dialog for collecting assessment data
-- Convex mutations for storing assessments in the database
+- Next.js server actions for storing assessments in the Supabase database
 - PDF generation API for creating downloadable assessment reports
 - PDF download functionality
 
 ## Files Created/Modified
 
-### Convex Backend
-- `convex/careFiles/movingHandling.ts` - All mutations and queries for moving handling assessments
-- `convex/schema.ts` - Updated with movingHandlingAssessments table (already existed)
+### Backend (Supabase)
+- Database table: `moving_handling_assessments` - Stores assessment data in PostgreSQL
+- Server actions: Functions in `app/actions/` or API routes for CRUD operations
 
 ### API Endpoints
 - `app/api/pdf/moving-handling/route.ts` - PDF generation endpoint
 
 ### Frontend Components
-- `components/residents/carefile/dialogs/MovingHandlingDialog.tsx` - Updated to use the new mutations
+- `components/residents/carefile/dialogs/MovingHandlingDialog.tsx` - Updated to use Supabase server actions
 - `schemas/residents/care-file/movingHandlingSchema.ts` - Form validation schema (already existed)
 
 ### Dependencies
@@ -28,20 +28,20 @@ The Moving and Handling Assessment feature consists of:
 
 ## Available Functions
 
-### Mutations
+### Server Actions / API Routes
 - `submitMovingHandlingAssessment` - Create new assessment
 - `updateMovingHandlingAssessment` - Update existing assessment (for drafts)
 - `deleteMovingHandlingAssessment` - Delete an assessment
 
-### Queries
-- `getMovingHandlingAssessment` - Get single assessment by ID
-- `getMovingHandlingAssessmentsByResident` - Get all assessments for a resident
-- `hasMovingHandlingAssessment` - Check if resident has any assessments
-- `getPDFUrl` - Get download URL for assessment PDF
+### Data Fetching
+- `getMovingHandlingAssessment` - Get single assessment by ID (via Supabase query)
+- `getMovingHandlingAssessmentsByResident` - Get all assessments for a resident (via Supabase query)
+- `hasMovingHandlingAssessment` - Check if resident has any assessments (via Supabase query)
+- `getPDFUrl` - Get download URL for assessment PDF (from Supabase Storage)
 
-### Internal Functions
-- `generatePDFAndUpdateRecord` - Background PDF generation
-- `updatePDFFileId` - Update assessment with generated PDF file ID
+### Background Processing
+- PDF generation runs via Next.js API routes after form submission
+- PDF file ID is stored in the assessment record in Supabase
 
 ## Setup Instructions
 
@@ -68,10 +68,13 @@ PDF_API_TOKEN=your-optional-bearer-token
 
 ### 3. Database Schema
 
-The `movingHandlingAssessments` table is already defined in `convex/schema.ts`. Run your Convex deployment to ensure the schema is up to date:
+The `moving_handling_assessments` table should be created in Supabase PostgreSQL. Ensure your database migrations are up to date:
 
 ```bash
-npx convex dev
+# Run Supabase migrations if using Supabase CLI
+supabase db push
+
+# Or apply migrations manually via Supabase Dashboard
 ```
 
 ### 4. PDF Generation Setup
@@ -111,21 +114,25 @@ If Puppeteer doesn't work in your environment, you can replace the `generatePDFF
 ### Frontend Usage
 
 ```tsx
-import { useMutation, useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
+import { createClient } from "@/lib/supabase/client";
+import { submitMovingHandlingAssessment } from "@/app/actions/moving-handling";
 
 // Submit new assessment
-const submitAssessment = useMutation(api.careFiles.movingHandling.submitMovingHandlingAssessment);
+const handleSubmit = async (data: MovingHandlingData) => {
+  await submitMovingHandlingAssessment(data);
+};
 
 // Get assessments for a resident
-const assessments = useQuery(api.careFiles.movingHandling.getMovingHandlingAssessmentsByResident, {
-  residentId: "resident_id_here"
-});
+const supabase = createClient();
+const { data: assessments } = await supabase
+  .from("moving_handling_assessments")
+  .select("*")
+  .eq("resident_id", residentId);
 
-// Get PDF download URL
-const pdfUrl = useQuery(api.careFiles.movingHandling.getPDFUrl, {
-  assessmentId: "assessment_id_here"
-});
+// Get PDF download URL from Supabase Storage
+const { data: pdfData } = await supabase.storage
+  .from("assessments")
+  .createSignedUrl(`moving-handling/${assessmentId}.pdf`, 3600);
 ```
 
 ### API Usage
@@ -212,12 +219,14 @@ The generated PDF includes:
 ### Database Issues
 
 1. **Schema mismatch:**
-   - Ensure Convex is deployed with latest schema
-   - Check all field types match the validators
+   - Ensure Supabase migrations are applied
+   - Check all field types match the PostgreSQL schema
+   - Verify RLS policies are correctly configured
 
 2. **Permission errors:**
-   - Verify user authentication in mutations
-   - Check team/organization permissions
+   - Verify user authentication in server actions
+   - Check RLS policies for team/organization permissions
+   - Ensure user has proper role and active organization/team set
 
 ## Security Considerations
 

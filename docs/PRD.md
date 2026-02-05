@@ -43,7 +43,7 @@ CareO is a comprehensive Care Home Management System designed to streamline heal
 ## 5. Non-Functional Requirements
 - **Security**: Role-Based Access Control (RBAC) at Organization, Team, and Unit levels.
 - **Data Retention**: 7-year retention policy for healthcare records as per UK law.
-- **Responsiveness**: Real-time updates via Convex for multi-user collaboration.
+- **Responsiveness**: Real-time updates via Supabase Realtime for multi-user collaboration.
 - **Searchability**: Full-text search for residents and clinical notes.
 
 ## 6. Future Roadmap (Potential)

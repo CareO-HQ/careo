@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { getUKTodayDate } from "@/lib/date-utils";
 import {
   Card,
   CardContent,
@@ -58,7 +58,7 @@ type NightCheckDocumentsPageProps = {
 export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+  const { profile } = useProfile();
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,40 +73,292 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
+  // Data state
+  const [resident, setResident] = useState<any>(null);
+  const [paginatedData, setPaginatedData] = useState<{
+    dates: Array<{ date: string; hasData: boolean }>;
+    totalCount: number;
+    hasMore: boolean;
+    earliestDate: string | null;
+  } | null>(null);
+  const [selectedReportData, setSelectedReportData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  useEffect(() => {
+    const fetchResident = async () => {
+      if (!id) return;
+      const { data, error } = await supabase
+        .from('residents')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (!error && data) {
+        setResident(data);
+      }
+    };
+    fetchResident();
+  }, [id]);
 
-  // Use server-side pagination query
-  const paginatedData = useQuery(api.nightCheckRecordings.getPaginatedNightCheckReports, {
-    residentId,
-    page: currentPage,
-    pageSize: itemsPerPage,
-    dateRangeFilter,
-    month: selectedMonth !== "all" ? parseInt(selectedMonth) : undefined,
-    year: selectedYear !== "all" ? parseInt(selectedYear) : undefined,
-  });
+  // Fetch paginated dates with recordings
+  const fetchPaginatedData = useCallback(async () => {
+    if (!id || !profile?.active_organization_id) return;
+    setIsLoading(true);
+    try {
+      // Get all recordings for this resident
+      const { data: allRecordings, error } = await supabase
+        .from('night_check_recordings')
+        .select('record_date')
+        .eq('resident_id', id)
+        .order('record_date', { ascending: false });
 
-  // Get the selected report data when viewing
-  const selectedReportData = useQuery(
-    api.nightCheckRecordings.getByResidentAndDate,
-    selectedReport ? {
-      residentId: id as Id<"residents">,
-      recordDate: selectedReport.date,
-    } : "skip"
-  );
+      if (error) {
+        console.error("Error fetching recordings:", error);
+        throw error;
+      }
+
+      // Get unique dates - ensure they're in YYYY-MM-DD format
+      const datesWithData = [...new Set((allRecordings || []).map(r => {
+        // Ensure date is in YYYY-MM-DD format
+        let dateStr: string;
+        if (typeof r.record_date === 'string') {
+          dateStr = r.record_date.split('T')[0]; // Remove time part if present
+        } else {
+          // Handle Date object or other formats
+          dateStr = typeof r.record_date === 'object' && r.record_date instanceof Date
+            ? r.record_date.toISOString().split('T')[0]
+            : String(r.record_date);
+        }
+        return dateStr;
+      }))];
+      
+      console.log("Dates with data:", datesWithData.length, datesWithData);
+      console.log("Sample record_date types:", (allRecordings || []).slice(0, 3).map(r => ({
+        record_date: r.record_date,
+        type: typeof r.record_date
+      })));
+
+      if (datesWithData.length === 0) {
+        setPaginatedData({
+          dates: [],
+          totalCount: 0,
+          hasMore: false,
+          earliestDate: null
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // UK TIMEZONE: Get current date in UK timezone
+      const today = getUKTodayDate();
+      const todayDate = new Date(today + 'T00:00:00');
+      todayDate.setHours(0, 0, 0, 0);
+
+      const earliestDataDate = new Date(Math.min(...datesWithData.map(d => new Date(d + 'T00:00:00').getTime())));
+      earliestDataDate.setHours(0, 0, 0, 0);
+
+      let startDate = earliestDataDate;
+      if (dateRangeFilter === "last_7") {
+        startDate = new Date(todayDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (dateRangeFilter === "last_30") {
+        startDate = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      } else if (dateRangeFilter === "last_90") {
+        startDate = new Date(todayDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+      }
+
+      // Generate all dates in range
+      const allDates: Array<{ date: string; hasData: boolean }> = [];
+      const currentDate = new Date(Math.max(startDate.getTime(), earliestDataDate.getTime()));
+      currentDate.setHours(0, 0, 0, 0);
+
+      while (currentDate <= todayDate) {
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        // Apply month/year filters
+        let includeDate = true;
+        if (selectedMonth !== "all") {
+          includeDate = currentDate.getMonth() + 1 === parseInt(selectedMonth);
+        }
+        if (selectedYear !== "all" && includeDate) {
+          includeDate = currentDate.getFullYear() === parseInt(selectedYear);
+        }
+
+        if (includeDate) {
+          allDates.push({
+            date: dateStr,
+            hasData: datesWithData.includes(dateStr)
+          });
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Sort newest first
+      allDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      // Paginate
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedDates = allDates.slice(startIndex, endIndex);
+
+      setPaginatedData({
+        dates: paginatedDates,
+        totalCount: allDates.length,
+        hasMore: endIndex < allDates.length,
+        earliestDate: (() => {
+          const year = earliestDataDate.getFullYear();
+          const month = String(earliestDataDate.getMonth() + 1).padStart(2, '0');
+          const day = String(earliestDataDate.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })()
+      });
+    } catch (e) {
+      console.error("Error fetching paginated data:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, profile?.active_organization_id, currentPage, dateRangeFilter, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    fetchPaginatedData();
+  }, [fetchPaginatedData]);
+
+  // Refresh data when page comes into focus (user navigates back)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPaginatedData();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [fetchPaginatedData]);
+
+  // Fetch recordings for selected date
+  useEffect(() => {
+    const fetchReportData = async () => {
+      if (!selectedReport?.date || !id) {
+        setSelectedReportData([]);
+        return;
+      }
+      // Ensure date is in YYYY-MM-DD format
+      let queryDate = selectedReport.date;
+      if (typeof queryDate === 'string') {
+        queryDate = queryDate.split('T')[0]; // Remove time part if present
+      } else if (queryDate instanceof Date) {
+        queryDate = queryDate.toISOString().split('T')[0];
+      } else {
+        queryDate = String(queryDate);
+      }
+      
+      console.log("Fetching recordings for date:", queryDate, "Type:", typeof queryDate, "resident_id:", id);
+      
+      // Use UTC date calculation to avoid timezone issues
+      const [year, month, day] = queryDate.split('-').map(Number);
+      const queryDateObj = new Date(Date.UTC(year, month - 1, day));
+      const nextDayObj = new Date(queryDateObj);
+      nextDayObj.setUTCDate(nextDayObj.getUTCDate() + 1);
+      const nextDayStr = `${nextDayObj.getUTCFullYear()}-${String(nextDayObj.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDayObj.getUTCDate()).padStart(2, '0')}`;
+      
+      console.log("Query date range: from", queryDate, "to", nextDayStr);
+      
+      // First, try a simple equality query
+      const { data: recDataEq, error: recErrorEq } = await supabase
+        .from('night_check_recordings')
+        .select('*')
+        .eq('resident_id', id)
+        .eq('record_date', queryDate)
+        .order('record_date_time', { ascending: false });
+      
+      console.log("Equality query result:", recDataEq?.length || 0, "records, error:", recErrorEq);
+      if (recDataEq && recDataEq.length > 0) {
+        console.log("Equality query found records with dates:", recDataEq.map(r => r.record_date));
+      }
+      
+      // Also try range query as fallback
+      const { data: recData, error: recError } = await supabase
+        .from('night_check_recordings')
+        .select('*')
+        .eq('resident_id', id)
+        .gte('record_date', queryDate)
+        .lt('record_date', nextDayStr)
+        .order('record_date_time', { ascending: false });
+      
+      console.log("Range query result:", recData?.length || 0, "records, error:", recError);
+      if (recData && recData.length > 0) {
+        console.log("Range query found records with dates:", recData.map(r => r.record_date));
+      }
+      
+      // Use whichever query returned data (prefer equality, fallback to range)
+      const finalData = (recDataEq && recDataEq.length > 0) ? recDataEq : recData;
+      const finalError = recErrorEq || recError;
+
+      if (finalError) {
+        console.error("Error fetching report data:", finalError);
+        setSelectedReportData([]);
+        return;
+      }
+
+      if (finalData) {
+        console.log("Fetched", finalData.length, "recordings for date", queryDate);
+        console.log("Sample record dates:", finalData.slice(0, 3).map(r => ({
+          id: r.id,
+          check_type: r.check_type,
+          record_date: r.record_date,
+          record_date_type: typeof r.record_date,
+          record_time: r.record_time
+        })));
+        
+        const formatted = finalData.map(r => {
+          // Normalize record_date to YYYY-MM-DD format
+          let normalizedDate = r.record_date;
+          if (typeof normalizedDate === 'string') {
+            normalizedDate = normalizedDate.split('T')[0];
+          } else if (normalizedDate instanceof Date) {
+            normalizedDate = normalizedDate.toISOString().split('T')[0];
+          }
+          
+          return {
+            _id: r.id,
+            checkType: r.check_type,
+            recordTime: r.record_time,
+            recordDate: normalizedDate,
+            checkData: r.check_data,
+            notes: r.notes,
+            recordedByName: r.recorded_by_name,
+            recordedBy: r.recorded_by,
+          };
+        });
+        setSelectedReportData(formatted);
+      } else {
+        console.log("No data returned from query");
+        setSelectedReportData([]);
+      }
+    };
+    fetchReportData();
+  }, [selectedReport, id]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
-    if (!resident?.firstName || !resident?.lastName) return "Unknown Resident";
-    return `${resident.firstName} ${resident.lastName}`;
+    if (!resident?.first_name || !resident?.last_name) return "Unknown Resident";
+    return `${resident.first_name} ${resident.last_name}`;
   }, [resident]);
 
-  // Transform server-side paginated data
+  // Transform paginated data
   const reportObjects = useMemo(() => {
     if (!paginatedData?.dates) return [];
     return paginatedData.dates.map(dateInfo => ({
       date: dateInfo.date,
-      formattedDate: format(new Date(dateInfo.date), "PPP"),
+      formattedDate: format(new Date(dateInfo.date + 'T00:00:00'), "PPP"),
       _id: dateInfo.date,
       hasData: dateInfo.hasData
     }));
@@ -115,7 +367,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   // Get unique years from earliest date for filter
   const availableYears = useMemo(() => {
     if (!paginatedData?.earliestDate) return [];
-    const earliestYear = new Date(paginatedData.earliestDate).getFullYear();
+    const earliestYear = new Date(paginatedData.earliestDate + 'T00:00:00').getFullYear();
     const currentYear = new Date().getFullYear();
     const years: number[] = [];
     for (let year = currentYear; year >= earliestYear; year--) {
@@ -139,6 +391,19 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   // Pagination state from server
   const totalPages = Math.ceil((paginatedData?.totalCount || 0) / itemsPerPage);
   const paginatedReports = sortOrder === "desc" ? filteredReports : [...filteredReports].reverse();
+
+  // Calculate stats from paginated data (must be before early return)
+  const reportStats = useMemo(() => {
+    const today = getUKTodayDate();
+    const todayDate = new Date(today + 'T00:00:00');
+    return {
+      total: paginatedData?.totalCount || 0,
+      thisMonth: reportObjects.filter(report => {
+        const reportDate = new Date(report.date + 'T00:00:00');
+        return reportDate.getMonth() === todayDate.getMonth() && reportDate.getFullYear() === todayDate.getFullYear();
+      }).length,
+    };
+  }, [paginatedData, reportObjects]);
 
   // Handlers
   const handleViewReport = (report: any) => {
@@ -167,26 +432,90 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `night-check-reports-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    const today = getUKTodayDate();
+    a.download = `night-check-reports-${fullName.replace(/\s+/g, "-")}-${today}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
-  const handleDownloadReport = (report: any) => {
+  const handleDownloadReport = async (report: any) => {
     if (!resident) {
       toast.error('Resident data not available');
       return;
     }
 
-    const reportToDownload = selectedReportData && selectedReport?.date === report.date
-      ? selectedReportData
-      : [];
+    // Fetch recordings for this date if not already loaded
+    let reportToDownload = selectedReportData;
+    if (!selectedReport || selectedReport.date !== report.date) {
+      // Normalize date to YYYY-MM-DD format
+      let queryDate = report.date;
+      if (typeof queryDate === 'string') {
+        queryDate = queryDate.split('T')[0];
+      } else if (queryDate instanceof Date) {
+        queryDate = queryDate.toISOString().split('T')[0];
+      } else {
+        queryDate = String(queryDate);
+      }
+      
+      // Use UTC date calculation to avoid timezone issues
+      const [year, month, day] = queryDate.split('-').map(Number);
+      const queryDateObj = new Date(Date.UTC(year, month - 1, day));
+      const nextDayObj = new Date(queryDateObj);
+      nextDayObj.setUTCDate(nextDayObj.getUTCDate() + 1);
+      const nextDayStr = `${nextDayObj.getUTCFullYear()}-${String(nextDayObj.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDayObj.getUTCDate()).padStart(2, '0')}`;
+      
+      // Try equality query first
+      const { data: recDataEq, error: recErrorEq } = await supabase
+        .from('night_check_recordings')
+        .select('*')
+        .eq('resident_id', id)
+        .eq('record_date', queryDate)
+        .order('record_date_time', { ascending: false });
+      
+      // Fallback to range query
+      const { data: recData, error: recError } = await supabase
+        .from('night_check_recordings')
+        .select('*')
+        .eq('resident_id', id)
+        .gte('record_date', queryDate)
+        .lt('record_date', nextDayStr)
+        .order('record_date_time', { ascending: false });
+      
+      // Use whichever query returned data
+      const finalData = (recDataEq && recDataEq.length > 0) ? recDataEq : recData;
+      const error = recErrorEq || recError;
+
+      if (!error && finalData) {
+        reportToDownload = finalData.map(r => {
+          // Normalize record_date to YYYY-MM-DD format
+          let normalizedDate = r.record_date;
+          if (typeof normalizedDate === 'string') {
+            normalizedDate = normalizedDate.split('T')[0];
+          } else if (normalizedDate instanceof Date) {
+            normalizedDate = normalizedDate.toISOString().split('T')[0];
+          }
+          
+          return {
+            _id: r.id,
+            checkType: r.check_type,
+            recordTime: r.record_time,
+            recordDate: normalizedDate,
+            checkData: r.check_data,
+            notes: r.notes,
+            recordedByName: r.recorded_by_name,
+            recordedBy: r.recorded_by,
+          };
+        });
+      } else {
+        reportToDownload = [];
+      }
+    }
 
     const htmlContent = generatePDFContent({
       resident,
-      recordings: reportToDownload,
+      recordings: reportToDownload || [],
       date: report.date
     });
 
@@ -197,7 +526,8 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   const generatePDFContent = ({ resident, recordings, date }: { resident: any; recordings: any[]; date: string; }) => {
     const totalChecks = recordings.length;
 
-    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+    const formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+      timeZone: 'Europe/London',
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -217,7 +547,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     return `
       <div class="header">
         <h1>Night Check Report</h1>
-        <p style="color: #64748B; margin: 0;">${resident.firstName} ${resident.lastName}</p>
+        <p style="color: #64748B; margin: 0;">${resident.first_name} ${resident.last_name}</p>
       </div>
 
       <div class="info-grid">
@@ -231,7 +561,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         </div>
         <div class="info-box">
           <h3>Room</h3>
-          <p>${resident.roomNumber || 'N/A'}</p>
+          <p>${resident.room_number || 'N/A'}</p>
         </div>
       </div>
 
@@ -280,8 +610,8 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
   };
 
-  // Loading state
-  if (!resident || !paginatedData) {
+  // Loading state (must be after all hooks)
+  if (isLoading || !resident || !paginatedData) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -291,16 +621,6 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
       </div>
     );
   }
-
-  // Calculate stats from paginated data
-  const reportStats = {
-    total: paginatedData.totalCount || 0,
-    thisMonth: reportObjects.filter(report => {
-      const reportDate = new Date(report.date);
-      const now = new Date();
-      return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
-    }).length,
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
@@ -545,7 +865,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{format(new Date(report.date), "dd MMM yyyy")}</span>
+                            <span>{format(new Date(report.date + 'T00:00:00'), "dd MMM yyyy")}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -662,7 +982,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              Night Check Report - {selectedReport && format(new Date(selectedReport.date), "PPP")}
+              Night Check Report - {selectedReport && format(new Date(selectedReport.date + 'T00:00:00'), "PPP")}
             </DialogTitle>
             <DialogDescription>
               All night checks logged for this day

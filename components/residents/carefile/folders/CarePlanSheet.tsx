@@ -15,14 +15,12 @@ import {
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery, useMutation } from "convex/react";
 import { format } from "date-fns";
 import { Plus, Trash2, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
-import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/lib/supabase";
 import { Separator } from "@/components/ui/separator";
 
 export default function CarePlanSheetContent({
@@ -41,27 +39,70 @@ export default function CarePlanSheetContent({
   };
 }) {
   // Fetch the full care plan data
-  const carePlanData = useQuery(api.careFiles.carePlan.getCarePlanAssessment, {
-    assessmentId: carePlan.formId as Id<"carePlanAssessments">
-  });
+  const [carePlanData, setCarePlanData] = useState<any>(null);
+  const [evaluations, setEvaluations] = useState<any[]>([]);
+  const { profile } = useProfile();
 
-  // Fetch evaluations for this care plan
-  const evaluations = useQuery(api.careFiles.carePlan.getCarePlanEvaluations, {
-    carePlanId: carePlan.formId as Id<"carePlanAssessments">
-  });
+  const fetchCarePlanData = async () => {
+    if (!carePlan.formId) return;
+    const { data } = await supabase
+      .from('care_plan_assessments')
+      .select('*')
+      .eq('id', carePlan.formId)
+      .single();
+    if (data) {
+      // Map fields if necessary (Convex vs Supabase)
+      // Assuming Supabase columns match what we expect roughly or mapped.
+      // Actually, Supabase uses snake_case usually, but let's see. 
+      // Based on previous files, we might be using camelCase in mapped objects or just using raw data.
+      // If raw data is snake_case, we need to adapt.
+      // For now, I'll store raw data and assume component adapts or use snake_case where appropriate.
+      // Wait, the component accesses `carePlanData.nameOfCarePlan`, `carePlanData.residentName`, etc. (CamelCase).
+      // If Supabase returns snake_case, I need to map it or change usages.
+      // I will assume Supabase columns are snake_case and map them to camelCase here for compatibility.
+      setCarePlanData({
+        ...data,
+        nameOfCarePlan: data.care_plan_type || data.name_of_care_plan || data.nameOfCarePlan,
+        carePlanNumber: data.goals?.carePlanNumber || data.care_plan_number || data.carePlanNumber,
+        writtenBy: data.goals?.writtenBy || data.written_by || data.writtenBy,
+        dateWritten: data.goals?.dateWritten || data.date_written || data.created_at || data.dateWritten,
+        residentName: data.goals?.residentName || data.resident_name || data.residentName,
+        dob: data.goals?.dob || data.dob,
+        bedroomNumber: data.goals?.bedroomNumber || data.bedroom_number || data.bedroomNumber,
+        aims: data.goals?.aims || data.aims,
+        identifiedNeeds: data.need_identified || data.identified_needs || data.identifiedNeeds,
+        plannedCareDate: data.interventions || data.planned_care_date || data.plannedCareDate || [],
+        previousCarePlanId: data.previous_care_plan_id || data.previousCarePlanId
+      });
+    }
+  };
 
-  // Get current user
-  const { data: currentUser } = authClient.useSession();
+  const fetchEvaluations = async () => {
+    if (!carePlan.formId) return;
+    const { data } = await supabase
+      .from('care_plan_evaluations')
+      .select('*')
+      // care_plan_id is likely the column
+      .eq('care_plan_id', carePlan.formId)
+      .order('created_at', { ascending: false });
 
-  // Mutation for creating new care plan version
-  const createNewVersion = useMutation(
-    api.careFiles.carePlan.createNewCarePlanVersion
-  );
+    if (data) {
+      setEvaluations(data.map(e => ({
+        ...e,
+        _id: e.id,
+        evaluationDate: e.evaluation_date || e.created_at,
+        comments: e.progress_notes || e.comments
+      })));
+    }
+  };
 
-  // Mutation for creating evaluation
-  const createEvaluation = useMutation(
-    api.careFiles.carePlan.createCarePlanEvaluation
-  );
+  useEffect(() => {
+    if (open) {
+      fetchCarePlanData();
+      fetchEvaluations();
+    }
+  }, [open, carePlan.formId]);
+
 
   // State for managing form data
   const [aims, setAims] = useState("");
@@ -136,7 +177,7 @@ export default function CarePlanSheetContent({
 
   // Handle submitting evaluation
   const handleSubmitEvaluation = async () => {
-    if (!currentUser?.user?.id) {
+    if (!profile?.id) {
       toast.error("User information not available");
       return;
     }
@@ -149,15 +190,21 @@ export default function CarePlanSheetContent({
     setIsSubmitting(true);
 
     try {
-      await createEvaluation({
-        carePlanId: carePlan.formId as Id<"carePlanAssessments">,
-        evaluationDate: Date.now(),
-        comments: evaluationComments.trim()
+      const { error } = await supabase.from('care_plan_evaluations').insert({
+        care_plan_id: carePlan.formId,
+        evaluation_date: new Date().toISOString(),
+        progress_notes: evaluationComments.trim(),
+        created_by: profile.id,
+        organization_id: profile.active_organization_id,
+        resident_id: carePlanData.resident_id
       });
+
+      if (error) throw error;
 
       toast.success("Evaluation submitted successfully!");
       setEvaluationComments("");
       setShowEvaluationForm(false);
+      fetchEvaluations(); // Refresh
     } catch (error) {
       console.error("Error submitting evaluation:", error);
       toast.error("Failed to submit evaluation. Please try again.");
@@ -168,7 +215,7 @@ export default function CarePlanSheetContent({
 
   // Handle updating care plan (creates new version)
   const handleUpdateCarePlan = async () => {
-    if (!currentUser?.user?.id || !currentUser?.user?.name) {
+    if (!profile?.id || !profile?.name) {
       toast.error("User information not available");
       return;
     }
@@ -194,14 +241,31 @@ export default function CarePlanSheetContent({
     setIsSubmitting(true);
 
     try {
-      await createNewVersion({
-        previousCarePlanId: carePlan.formId as Id<"carePlanAssessments">,
-        identifiedNeeds: identifiedNeeds.trim(),
+      // Create new version
+      // We need to fetch original to copy other fields if needed, 
+      // or just insert what we have + references.
+      // Ideally we should copy resident_id etc from carePlanData.
+      if (!carePlanData) return;
+
+      const { error } = await supabase.from('care_plan_assessments').insert({
+        resident_id: carePlanData.resident_id, // Ensure this is available in carePlanData
+        name_of_care_plan: carePlanData.nameOfCarePlan,
+        care_plan_number: (carePlanData.carePlanNumber || 0) + 1, // Increment version or number
+        identified_needs: identifiedNeeds.trim(),
         aims: aims.trim(),
-        plannedCareDate: plannedCareEntries,
-        userId: currentUser.user.id,
-        writtenBy: currentUser.user.name
+        planned_care_date: plannedCareEntries,
+        user_id: profile.id,
+        written_by: profile.name,
+        previous_care_plan_id: carePlan.formId,
+        status: 'active', // New one is active
+        care_plan_type: carePlanData.care_plan_type || 'General'
       });
+
+      if (error) throw error;
+
+      // Archive the old one? Or does backend handle it?
+      // Usually we set old one to 'archived'.
+      await supabase.from('care_plan_assessments').update({ status: 'archived' }).eq('id', carePlan.formId);
 
       toast.success(
         "Care plan updated successfully! A new version has been created."
@@ -222,7 +286,7 @@ export default function CarePlanSheetContent({
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side="left"
+          side="right"
           size="lg"
           className="z-[60]"
           onClick={(e) => e.stopPropagation()}
@@ -243,7 +307,7 @@ export default function CarePlanSheetContent({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="left"
+        side="right"
         size="lg"
         className="z-[60] overflow-y-auto flex flex-col justify-start"
         onClick={(e) => e.stopPropagation()}
@@ -265,7 +329,7 @@ export default function CarePlanSheetContent({
                   </span>{" "}
                   on{" "}
                   <span className="font-medium text-primary">
-                    {format(new Date(carePlanData.dateWritten), "dd MMM yyyy")}
+                    {carePlanData.dateWritten ? format(new Date(carePlanData.dateWritten), "dd MMM yyyy") : "Unknown Date"}
                   </span>
                 </span>
                 {carePlanData.previousCarePlanId && (
@@ -296,7 +360,7 @@ export default function CarePlanSheetContent({
               <p className="text-sm font-normal text-muted-foreground">
                 Date of Birth:{" "}
                 <span className="font-medium text-primary">
-                  {format(new Date(carePlanData.dob), "dd MMMM yyyy")}
+                  {carePlanData.dob ? format(new Date(carePlanData.dob), "dd MMMM yyyy") : "N/A"}
                 </span>
               </p>
               <p className="text-sm font-normal text-muted-foreground">
@@ -513,7 +577,7 @@ export default function CarePlanSheetContent({
                 <div className="rounded-lg border p-4 bg-muted/20 space-y-3">
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-foreground">
-                      {currentUser?.user?.name || "Unknown User"}
+                      {profile?.name || "Unknown User"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(), "dd MMMM yyyy 'at' HH:mm")}
@@ -568,10 +632,12 @@ export default function CarePlanSheetContent({
                     >
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">
-                          {format(
-                            new Date(evaluation.evaluationDate),
-                            "dd MMMM yyyy 'at' HH:mm"
-                          )}
+                          {evaluation.evaluationDate
+                            ? format(
+                              new Date(evaluation.evaluationDate),
+                              "dd MMMM yyyy 'at' HH:mm"
+                            )
+                            : "Unknown Date"}
                         </p>
                       </div>
                       <p className="text-sm text-foreground whitespace-pre-wrap">

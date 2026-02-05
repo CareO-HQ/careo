@@ -8,11 +8,21 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+
+const safeFormat = (dateValue: any, formatStr: string) => {
+  if (!dateValue) return "N/A";
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return "N/A";
+    return format(date, formatStr);
+  } catch (e) {
+    return "N/A";
+  }
+};
 
 interface RiskAssessmentViewDialogProps {
   open: boolean;
@@ -32,90 +42,60 @@ export default function RiskAssessmentViewDialog({
   assessment
 }: RiskAssessmentViewDialogProps) {
   // Fetch the assessment data based on the form key
-  const getQueryFunction = () => {
-    switch (assessment.formKey) {
-      case "infection-prevention":
-        return api.careFiles.infectionPrevention.getInfectionPreventionAssessment;
-      case "moving-handling-form":
-        return api.careFiles.movingHandling.getMovingHandlingAssessment;
-      case "bedrail-consent-form":
-        return api.careFiles.bedrailConsent.getBedrailConsent;
-      case "bed-rails-risk-assessment-form":
-        return api.careFiles.bedRailsRiskAssessment.getBedRailsRiskAssessment;
-      case "long-term-fall-risk-form":
-        return api.careFiles.longTermFalls.getLongTermFallsAssessment;
-      case "blader-bowel-form":
-        return api.careFiles.bladderBowel.getBladderBowelAssessment;
-      case "preAdmission-form":
-        return api.careFiles.preadmission.getPreAdmissionForm;
-      case "admission-form":
-        return api.careFiles.admission.getAdmissionAssessmentById;
-      case "dnacpr":
-        return api.careFiles.dnacpr.getDnacprById;
-      case "peep":
-        return api.careFiles.peep.getPeepById;
-      case "dependency-assessment":
-        return api.careFiles.dependency.getDependencyAssessmentById;
-      case "timl":
-        return api.careFiles.timl.getTimlAssessmentById;
-      case "skin-integrity-form":
-        return api.careFiles.skinIntegrity.getSkinIntegrityAssessment;
-      case "resident-valuables-form":
-        return api.careFiles.residentValuables.getResidentValuablesById;
-      case "photography-consent":
-        return api.careFiles.photographyConsent.getPhotographyConsentById;
-      case "pain-assessment-form":
-        return api.careFiles.painAssessment.getPainAssessment;
-      case "resident-handling-profile-form":
-        return api.careFiles.handlingProfile.getHandlingProfileById;
-      case "nutritional-assessment-form":
-        return api.careFiles.nutritionalAssessment.getNutritionalAssessment;
-      case "oral-assessment-form":
-        return api.careFiles.oralAssessment.getOralAssessment;
-      case "diet-notification-form":
-        return api.careFiles.dietNotification.getDietNotification;
-      case "choking-risk-assessment-form":
-        return api.careFiles.chokingRiskAssessment.getChokingRiskAssessment;
-      case "cornell-depression-scale-form":
-        return api.careFiles.cornellDepressionScale.getCornellDepressionScale;
-      case "best-interest-decision-form":
-        return api.careFiles.bestInterestDecision.getBestInterestDecision;
-      default:
-        return "skip";
+  const [assessmentData, setAssessmentData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const TABLE_MAP: Record<string, string> = {
+    "preAdmission-form": "pre_admission_care_files",
+    "infection-prevention": "infection_prevention_assessments",
+    "blader-bowel-form": "bladder_bowel_assessments",
+    "moving-handling-form": "moving_handling_assessments",
+    "bedrail-consent-form": "bedrail_consents",
+    "bed-rails-risk-assessment-form": "bedrails_risk_assessments",
+    "long-term-fall-risk-form": "long_term_falls_risk_assessments",
+    "admission-form": "admission_assessments",
+    "photography-consent": "photography_consents",
+    "dnacpr": "dnacprs",
+    "peep": "peeps",
+    "dependency-assessment": "dependency_assessments",
+    "timl": "timl_assessments",
+    "skin-integrity-form": "skin_integrity_assessments",
+    "resident-valuables-form": "resident_valuables_assessments",
+    "resident-handling-profile-form": "handling_profiles",
+    "pain-assessment-form": "pain_assessments",
+    "nutritional-assessment-form": "nutritional_assessments",
+    "oral-assessment-form": "oral_assessments",
+    "diet-notification-form": "diet_notifications",
+    "choking-risk-assessment-form": "choking_risk_assessments",
+    "cornell-depression-scale-form": "cornell_depression_scales",
+    "best-interest-decision-form": "best_interest_decisions"
+  };
+
+  useEffect(() => {
+    async function fetchData() {
+      if (!open || !assessment.formId) return;
+
+      try {
+        const table = TABLE_MAP[assessment.formKey];
+        if (table) {
+          const { data } = await supabase
+            .from(table)
+            .select('*')
+            .eq('id', assessment.formId)
+            .single();
+          setAssessmentData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching assessment data:", error);
+      } finally {
+        setLoading(false);
+      }
     }
-  };
 
-  const getQueryParams = () => {
-    const formKey = assessment.formKey;
-    if (formKey === "infection-prevention") return { id: assessment.formId as Id<"infectionPreventionAssessments"> };
-    if (formKey === "moving-handling-form") return { id: assessment.formId as Id<"movingHandlingAssessments"> };
-    if (formKey === "bedrail-consent-form") return { id: assessment.formId as Id<"bedrailConsents"> };
-    if (formKey === "bed-rails-risk-assessment-form") return { assessmentId: assessment.formId as Id<"bedRailsRiskAssessments"> };
-    if (formKey === "long-term-fall-risk-form") return { id: assessment.formId as any };
-    if (formKey === "blader-bowel-form") return { id: assessment.formId as Id<"bladderBowelAssessments"> };
-    if (formKey === "preAdmission-form") return { id: assessment.formId as Id<"preAdmissionCareFiles"> };
-    if (formKey === "admission-form") return { assessmentId: assessment.formId as Id<"admissionAssesments"> };
-    if (formKey === "dnacpr") return { dnacprId: assessment.formId as Id<"dnacprs"> };
-    if (formKey === "peep") return { peepId: assessment.formId as Id<"peeps"> };
-    if (formKey === "dependency-assessment") return { assessmentId: assessment.formId as Id<"dependencyAssessments"> };
-    if (formKey === "timl") return { assessmentId: assessment.formId as Id<"timlAssessments"> };
-    if (formKey === "skin-integrity-form") return { assessmentId: assessment.formId as Id<"skinIntegrityAssessments"> };
-    if (formKey === "resident-valuables-form") return { assessmentId: assessment.formId as Id<"residentValuablesAssessments"> };
-    if (formKey === "photography-consent") return { consentId: assessment.formId as Id<"photographyConsents"> };
-    if (formKey === "pain-assessment-form") return { assessmentId: assessment.formId as Id<"painAssessments"> };
-    if (formKey === "resident-handling-profile-form") return { profileId: assessment.formId as Id<"residentHandlingProfileForm"> };
-    if (formKey === "nutritional-assessment-form") return { assessmentId: assessment.formId as Id<"nutritionalAssessments"> };
-    if (formKey === "oral-assessment-form") return { assessmentId: assessment.formId as Id<"oralAssessments"> };
-    if (formKey === "diet-notification-form") return { notificationId: assessment.formId as Id<"dietNotifications"> };
-    if (formKey === "choking-risk-assessment-form") return { assessmentId: assessment.formId as Id<"chokingRiskAssessments"> };
-    if (formKey === "cornell-depression-scale-form") return { assessmentId: assessment.formId as Id<"cornellDepressionScales"> };
-    if (formKey === "best-interest-decision-form") return { decisionId: assessment.formId as Id<"bestInterestDecisions"> };
-    return "skip";
-  };
+    fetchData();
+  }, [open, assessment.formId, assessment.formKey]);
 
-  const assessmentData = useQuery(getQueryFunction() as any, getQueryParams());
-
-  if (!assessmentData) {
+  if (loading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
@@ -202,7 +182,7 @@ export default function RiskAssessmentViewDialog({
               <div key={key} className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Date of Birth</p>
                 <p className="text-sm leading-relaxed">
-                  {dateValue ? format(dateValue, "dd MMM yyyy") : "Not available"}
+                  {safeFormat(value, "dd MMM yyyy")}
                 </p>
               </div>
             );
@@ -500,14 +480,10 @@ export default function RiskAssessmentViewDialog({
           let displayValue = value;
           if (typeof value === "number" && value > 1000000000000) {
             // Likely a timestamp
-            displayValue = format(new Date(value), "dd MMM yyyy");
+            displayValue = safeFormat(value, "dd MMM yyyy");
           } else if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
             // ISO date string
-            try {
-              displayValue = format(new Date(value), "dd MMM yyyy");
-            } catch {
-              displayValue = value;
-            }
+            displayValue = safeFormat(value, "dd MMM yyyy");
           } else if (typeof value === "boolean") {
             displayValue = value ? "Yes" : "No";
           } else if (Array.isArray(value)) {
@@ -523,7 +499,7 @@ export default function RiskAssessmentViewDialog({
                 displayValue = value
                   .map(
                     (item: any, index: number) =>
-                      `${index + 1}. ${item.details}\n   Received by: ${item.receivedBy} | Witnessed by: ${item.witnessedBy}\n   Date: ${format(new Date(item.date), "dd MMM yyyy")} at ${item.time}`
+                      `${index + 1}. ${item.details}\n   Received by: ${item.receivedBy} | Witnessed by: ${item.witnessedBy}\n   Date: ${safeFormat(item.date, "dd MMM yyyy")} at ${item.time}`
                   )
                   .join("\n\n");
               } else {
@@ -552,7 +528,7 @@ export default function RiskAssessmentViewDialog({
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Date for Review</p>
-                        <p className="text-sm">{format(new Date((value as any).dateForReview), "dd MMM yyyy")}</p>
+                        <p className="text-sm">{safeFormat((value as any).dateForReview, "dd MMM yyyy")}</p>
                       </div>
                     </div>
                     <div>
@@ -735,7 +711,7 @@ export default function RiskAssessmentViewDialog({
                   {assessment.category}
                 </span>
                 <span>•</span>
-                <span>{format(new Date(assessment.completedAt), "dd MMM yyyy 'at' HH:mm")}</span>
+                <span>{safeFormat(assessment.completedAt, "dd MMM yyyy 'at' HH:mm")}</span>
               </DialogDescription>
             </div>
           </div>

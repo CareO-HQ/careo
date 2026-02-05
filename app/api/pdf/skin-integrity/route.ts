@@ -3,15 +3,21 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -59,7 +65,7 @@ function getScoreDescription(category: string, score: number): string {
 
   return (
     descriptions[category as keyof typeof descriptions]?.[
-      score as keyof (typeof descriptions)[keyof typeof descriptions]
+    score as keyof (typeof descriptions)[keyof typeof descriptions]
     ] || ""
   );
 }
@@ -432,21 +438,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Skin Integrity Assessment PDF API called with data:", {
-      residentName: assessmentData.residentName,
-      bedroomNumber: assessmentData.bedroomNumber,
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure resident details and scores are at the top level
+      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
+      date: assessmentData.assessment_date || assessmentData.date || assessmentData.created_at || Date.now(),
+      // Ensure Braden Scale scores are available (mapping from both snake_case if present)
+      sensoryPerception: assessmentData.sensoryPerception || assessmentData.assessment_data?.sensoryPerception || 0,
+      moisture: assessmentData.moisture || assessmentData.assessment_data?.moisture || 0,
+      activity: assessmentData.activity || assessmentData.assessment_data?.activity || 0,
+      mobility: assessmentData.mobility || assessmentData.assessment_data?.mobility || 0,
+      nutrition: assessmentData.nutrition || assessmentData.assessment_data?.nutrition || 0,
+      frictionShear: assessmentData.frictionShear || assessmentData.assessment_data?.frictionShear || 0
+    };
+
+    console.log("Skin Integrity Assessment PDF API flattening data:", {
+      residentName: flattenedData.residentName,
       totalScore:
-        assessmentData.sensoryPerception +
-        assessmentData.moisture +
-        assessmentData.activity +
-        assessmentData.mobility +
-        assessmentData.nutrition +
-        assessmentData.frictionShear,
-      formId: assessmentData._id
+        flattenedData.sensoryPerception +
+        flattenedData.moisture +
+        flattenedData.activity +
+        flattenedData.mobility +
+        flattenedData.nutrition +
+        flattenedData.frictionShear,
+      formId: flattenedData._id || flattenedData.id
     });
 
     // Generate HTML content
-    const htmlContent = generateSkinIntegrityAssessmentHTML(assessmentData);
+    const htmlContent = generateSkinIntegrityAssessmentHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({

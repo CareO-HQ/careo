@@ -325,11 +325,10 @@ function generateNHSReportHTML(data: NHSReportData): string {
           </div>
         </div>
 
-        ${
-          incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm"
-            ? '<div class="critical">⚠️ CRITICAL INCIDENT - This incident requires immediate escalation and review</div>'
-            : ""
-        }
+        ${incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm"
+      ? '<div class="critical">⚠️ CRITICAL INCIDENT - This incident requires immediate escalation and review</div>'
+      : ""
+    }
 
         <div class="section">
           <h2>Patient Information</h2>
@@ -380,38 +379,35 @@ function generateNHSReportHTML(data: NHSReportData): string {
           <p>${incident.description || "No description provided"}</p>
         </div>
 
-        ${
-          incident.immediateAction
-            ? `
+        ${incident.immediateAction
+      ? `
         <div class="section">
           <h2>Immediate Action Taken</h2>
           <p>${incident.immediateAction}</p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
 
-        ${
-          incident.witnesses
-            ? `
+        ${incident.witnesses
+      ? `
         <div class="section">
           <h2>Witnesses</h2>
           <p>${incident.witnesses}</p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
 
-        ${
-          trustReport.additionalNotes
-            ? `
+        ${trustReport.additionalNotes
+      ? `
         <div class="section">
           <h2>Additional Trust Notes</h2>
           <p>${trustReport.additionalNotes}</p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
 
         <div class="section" style="background: #f5f5f5; border: none;">
           <p style="font-size: 12px; color: #666;">
@@ -825,9 +821,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the request body
-    const reportData: NHSReportData = await request.json();
+    const rawData = await request.json();
 
-    if (!reportData || !reportData.incident || !reportData.trustReport) {
+    if (!rawData) {
+      return NextResponse.json(
+        { error: "Report data is required" },
+        { status: 400 }
+      );
+    }
+
+    // Flatten the data: merge assessment_data into the top level
+    const reportData: NHSReportData = {
+      ...rawData,
+      ...(rawData.assessment_data || {}),
+    } as NHSReportData;
+
+    if (!reportData.incident || !reportData.trustReport) {
       return NextResponse.json(
         { error: "Incident and trust report data are required" },
         { status: 400 }
@@ -845,8 +854,8 @@ export async function POST(request: NextRequest) {
     const htmlContent = reportData.isBHSCT
       ? generateBHSCTReportHTML(reportData)
       : reportData.isSEHSCT
-      ? generateSEHSCTReportHTML(reportData)
-      : generateNHSReportHTML(reportData);
+        ? generateSEHSCTReportHTML(reportData)
+        : generateNHSReportHTML(reportData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -884,7 +893,7 @@ export async function POST(request: NextRequest) {
       const fileName = `${trustType}-report-${reportData.incident.date}-${reportData.incident._id.slice(-6)}.pdf`;
 
       // Return the PDF as a response
-      return new NextResponse(pdfBuffer as Buffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${fileName}"`,

@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id, Doc } from "@/convex/_generated/dataModel";
+import React, { useMemo, useState, useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { getUpcomingAppointments, updateAppointment as updateAppointmentAPI, deleteAppointment as deleteAppointmentAPI } from "@/lib/appointments";
+import { createAppointmentNote, getAppointmentNotes, deleteAppointmentNote } from "@/lib/appointment-notes";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { format } from "date-fns";
 import {
   Card,
   CardContent,
@@ -60,22 +61,102 @@ import { CreateAppointmentForm } from "./form/create-appointment-form";
 import { FormDateTimePicker } from "@/components/ui/date-time-picker";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 type DailyCarePageProps = {
   params: Promise<{ id: string }>;
 };
 
 // Type aliases for better type safety
-type Appointment = Doc<"appointments">;
-type AppointmentNote = Doc<"appointmentNotes">;
-type Resident = Doc<"residents">;
+type Appointment = {
+  id: string;
+  resident_id: string;
+  organization_id: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  location: string;
+  staff_id?: string;
+  team_id?: string;
+  status: "scheduled" | "completed" | "cancelled";
+  created_by: string;
+  created_at: string;
+  updated_at?: string;
+  updated_by?: string;
+  // For compatibility with existing code that uses _id
+  _id?: string;
+  startTime?: string;
+  endTime?: string;
+  staffId?: string;
+};
+type AppointmentNote = {
+  _id: string;
+  residentId: string;
+  category: string;
+  preparationTime?: string;
+  preparationNotes?: string;
+  preferredTime?: string;
+  transportPreference?: string;
+  instructions?: string;
+  transportationNeeds?: string[];
+  medicalNeeds?: string[];
+  priority?: string;
+  isActive?: boolean;
+  createdAt: number;
+};
+
+type Resident = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  imageUrl?: string;
+  [key: string]: any;
+};
 
 function DailyCarePage({ params }: DailyCarePageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const { supabase } = useSupabase();
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [residentLoading, setResidentLoading] = useState(true);
+
+  // Fetch resident from Supabase
+  useEffect(() => {
+    async function fetchResident() {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching resident:", error);
+          setResident(null);
+        } else {
+          // Transform Supabase data to match expected format
+          setResident({
+            id: data.id,
+            firstName: data.first_name,
+            lastName: data.last_name,
+            imageUrl: data.image_url,
+            team_id: data.team_id,
+            ...data,
+          } as Resident);
+        }
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      } finally {
+        setResidentLoading(false);
+      }
+    }
+
+    if (id) {
+      fetchResident();
+    }
+  }, [id, supabase]);
 
   // Get today's date and shift information
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -98,7 +179,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Appointment Notes Dialog state
   const [isAppointmentNotesDialogOpen, setIsAppointmentNotesDialogOpen] = React.useState(false);
-  const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(false);
+  const [appointmentNotesLoading, setAppointmentNotesLoading] = React.useState(true);
+  const [appointmentNotes, setAppointmentNotes] = useState<AppointmentNote[]>([]);
 
   // Create Appointment Dialog state
   const [isCreateAppointmentDialogOpen, setIsCreateAppointmentDialogOpen] = React.useState(false);
@@ -196,24 +278,289 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     },
   });
 
-  // Get appointment notes for the resident
-  const appointmentNotes = useQuery(api.appointmentNotes.getAppointmentNotesByResident, {
-    residentId: id as Id<"residents">,
-    activeOnly: true,
-  });
+  // Fetch appointment notes from Supabase
+  useEffect(() => {
+    async function fetchAppointmentNotes() {
+      try {
+        setAppointmentNotesLoading(true);
+        const { data, error } = await supabase
+          .from("appointment_notes")
+          .select("*")
+          .eq("resident_id", id)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching appointment notes:", error);
+          setAppointmentNotes([]);
+        } else {
+          // Transform Supabase data to match AppointmentNote type
+          const transformedNotes: AppointmentNote[] = (data || []).map((note: any) => ({
+            _id: note.id,
+            residentId: note.resident_id,
+            category: note.category,
+            preparationTime: note.preparation_time,
+            preparationNotes: note.preparation_notes,
+            preferredTime: note.preferred_time,
+            transportPreference: note.transport_preference,
+            instructions: note.instructions,
+            transportationNeeds: note.transportation_needs || [],
+            medicalNeeds: note.medical_needs || [],
+            priority: note.priority,
+            isActive: note.is_active,
+            createdAt: new Date(note.created_at).getTime(),
+          }));
+          setAppointmentNotes(transformedNotes);
+        }
+      } catch (error) {
+        console.error("Error fetching appointment notes:", error);
+        setAppointmentNotes([]);
+      } finally {
+        setAppointmentNotesLoading(false);
+      }
+    }
+
+    if (id) {
+      fetchAppointmentNotes();
+    }
+  }, [id, supabase]);
 
   // Get upcoming appointments for the resident (server-side filtered)
-  const appointments = useQuery(api.appointments.getUpcomingAppointments, {
-    residentId: id as Id<"residents">,
-    limit: 50, // Reasonable limit for pagination
-  });
+  const [appointments, setAppointments] = useState<Appointment[] | undefined>(undefined);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
 
-  // Get all users for staff selection
-  const allUsers = useQuery(api.user.getAllUsers);
+  useEffect(() => {
+    async function fetchAppointments() {
+      try {
+        setAppointmentsLoading(true);
+        const result = await getUpcomingAppointments({
+          residentId: id,
+          limit: 50,
+        });
+        // Transform appointments to include _id for compatibility
+        const transformedAppointments = result.appointments?.map((apt: any) => ({
+          ...apt,
+          _id: apt.id,
+          startTime: apt.start_time,
+          endTime: apt.end_time,
+          staffId: apt.staff_id,
+        })) || [];
+        setAppointments(transformedAppointments);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        setAppointments([]);
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    }
+    fetchAppointments();
+  }, [id]);
 
   // Auth data
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const { data: user } = authClient.useSession();
+  const { activeTeamId } = useActiveTeam();
+
+  // Get all users for staff selection from Supabase
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string; email: string; role?: string; activeTeamId?: string; teamIds?: string[] }>>([]);
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        if (!activeOrganization?.id) {
+          setAllUsers([]);
+          return;
+        }
+
+        console.log("[AppointmentsPage] Fetching users for organization:", activeOrganization.id);
+
+        // Step 1: Get all teams in this organization
+        const { data: teamsData, error: teamsError } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("organization_id", activeOrganization.id);
+
+        const teamIds = (teamsData || []).map(t => t.id);
+        console.log("[AppointmentsPage] Teams in org:", teamIds.length);
+
+        // Step 2: Get all care homes in this organization
+        const { data: careHomes, error: careHomesError } = await supabase
+          .from("care_homes")
+          .select("id")
+          .eq("organization_id", activeOrganization.id);
+
+        const careHomeIds = (careHomes || []).map(ch => ch.id);
+        console.log("[AppointmentsPage] Care homes in org:", careHomeIds.length);
+
+        // Step 3: Collect user IDs from multiple sources
+        const allUserIdsSet = new Set<string>();
+
+        // 3a: Users with active_organization_id set
+        const { data: directOrgUsers, error: directOrgError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("active_organization_id", activeOrganization.id);
+
+        if (!directOrgError && directOrgUsers) {
+          directOrgUsers.forEach(u => allUserIdsSet.add(u.id));
+          console.log("[AppointmentsPage] Users with active_organization_id:", directOrgUsers.length);
+        }
+
+        // 3b: Users from team_staff (nurses/care assistants assigned to teams)
+        if (teamIds.length > 0) {
+          const { data: teamStaffData, error: teamStaffError } = await supabase
+            .from("team_staff")
+            .select("user_id")
+            .in("team_id", teamIds);
+
+          if (!teamStaffError && teamStaffData) {
+            teamStaffData.forEach((ts: any) => allUserIdsSet.add(ts.user_id));
+            console.log("[AppointmentsPage] Users from team_staff:", teamStaffData.length);
+          }
+        }
+
+        // 3c: Managers from care_home_managers
+        if (careHomeIds.length > 0) {
+          const { data: managersData, error: managersError } = await supabase
+            .from("care_home_managers")
+            .select("user_id")
+            .in("care_home_id", careHomeIds);
+
+          if (!managersError && managersData) {
+            managersData.forEach((m: any) => allUserIdsSet.add(m.user_id));
+            console.log("[AppointmentsPage] Users from care_home_managers:", managersData.length);
+          }
+        }
+
+        const allUserIds = Array.from(allUserIdsSet);
+        console.log("[AppointmentsPage] Total unique user IDs to fetch:", allUserIds.length);
+
+        if (allUserIds.length === 0) {
+          console.warn("[AppointmentsPage] No users found in organization through any method");
+          setAllUsers([]);
+          return;
+        }
+
+        // Step 4: Fetch user details for all collected user IDs
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, name, email, role, active_team_id, is_saas_admin")
+          .in("id", allUserIds);
+
+        if (usersError) {
+          console.error("[AppointmentsPage] Error fetching user details:", usersError);
+          setAllUsers([]);
+          return;
+        }
+
+        console.log("[AppointmentsPage] Fetched user details:", usersData?.length || 0);
+        if (usersData && usersData.length > 0) {
+          console.log("[AppointmentsPage] All user roles:", usersData.map(u => ({ email: u.email, role: u.role, name: u.name })));
+        }
+
+        if (!usersData || usersData.length === 0) {
+          console.warn("[AppointmentsPage] No users found after fetching details");
+          setAllUsers([]);
+          return;
+        }
+
+        // Step 5: Filter to nurses and managers, and exclude SaaS admins
+        const usersDataFiltered = usersData.filter((u: any) => {
+          const role = u.role?.toLowerCase()?.trim();
+          const isNurseOrManager = role === "nurse" || role === "manager";
+          const isNotSaasAdmin = u.is_saas_admin !== true;
+
+          if (!isNurseOrManager) {
+            console.log(`[AppointmentsPage] Excluding user ${u.email} - role: ${role} (not nurse/manager)`);
+          }
+          if (!isNotSaasAdmin) {
+            console.log(`[AppointmentsPage] Excluding user ${u.email} - is SaaS admin`);
+          }
+
+          return isNurseOrManager && isNotSaasAdmin;
+        });
+
+        console.log("[AppointmentsPage] Filtered nurses/managers (excluding SaaS admins):", usersDataFiltered.length);
+
+        if (usersDataFiltered.length === 0) {
+          console.warn("[AppointmentsPage] No nurses or managers found after filtering");
+          setAllUsers([]);
+          return;
+        }
+
+        // Supplementary: Get team assignments for role enrichment and sorting
+        const userIds = usersDataFiltered.map(u => u.id);
+        const { data: teamStaffData, error: teamStaffError } = await supabase
+          .from("team_staff")
+          .select("user_id, team_id, role")
+          .in("user_id", userIds);
+
+        if (teamStaffError) {
+          console.error("[AppointmentsPage] Error fetching team_staff:", teamStaffError);
+        }
+
+        // Create a map of user_id -> team_ids for sorting
+        const userTeamMap = new Map<string, string[]>();
+        (teamStaffData || []).forEach((ts: any) => {
+          if (!userTeamMap.has(ts.user_id)) {
+            userTeamMap.set(ts.user_id, []);
+          }
+          userTeamMap.get(ts.user_id)!.push(ts.team_id);
+        });
+
+        // Transform to match expected format and add team information
+        const transformedUsers = usersDataFiltered.map((u: any) => ({
+          id: u.id,
+          name: u.name || u.email?.split("@")[0] || "",
+          email: u.email || "",
+          role: u.role?.toLowerCase()?.trim() || u.role,
+          activeTeamId: u.active_team_id,
+          teamIds: userTeamMap.get(u.id) || [],
+        }));
+
+        // Sort: resident's team members first, then alphabetical
+        const sortedUsers = transformedUsers.sort((a, b) => {
+          // Priority 1: Resident's team (staff belonging to resident's team)
+          const aInResidentTeam = resident?.team_id && (
+            a.activeTeamId === resident.team_id ||
+            (a.teamIds && a.teamIds.includes(resident.team_id))
+          );
+          const bInResidentTeam = resident?.team_id && (
+            b.activeTeamId === resident.team_id ||
+            (b.teamIds && b.teamIds.includes(resident.team_id))
+          );
+
+          if (aInResidentTeam && !bInResidentTeam) return -1;
+          if (!aInResidentTeam && bInResidentTeam) return 1;
+
+          // Priority 2: Staff from the CURRENT user's active team (if any)
+          const aInActiveTeam = activeTeamId && (
+            a.activeTeamId === activeTeamId ||
+            (a.teamIds && a.teamIds.includes(activeTeamId))
+          );
+          const bInActiveTeam = activeTeamId && (
+            b.activeTeamId === activeTeamId ||
+            (b.teamIds && b.teamIds.includes(activeTeamId))
+          );
+
+          if (aInActiveTeam && !bInActiveTeam) return -1;
+          if (!aInActiveTeam && bInActiveTeam) return 1;
+
+          // Priority 3: Alphabetical by name
+          return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        });
+
+        setAllUsers(sortedUsers);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setAllUsers([]);
+      }
+    }
+
+    if (activeOrganization?.id && resident?.team_id) {
+      fetchUsers();
+    }
+  }, [supabase, activeOrganization?.id, activeTeamId, resident?.team_id]);
 
   // Form setup - after user data is available
   const form = useForm<z.infer<typeof PersonalCareSchema>>({
@@ -243,40 +590,75 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     }
   }, [user, form]);
 
-  // Mutations
-  const createPersonalCareActivities = useMutation(api.personalCare.createPersonalCareActivities);
-  const createDailyActivityRecord = useMutation(api.personalCare.createDailyActivityRecord);
-  const createAppointmentNote = useMutation(api.appointmentNotes.createAppointmentNote);
-  const deleteAppointmentNote = useMutation(api.appointmentNotes.deleteAppointmentNote);
-  const updateAppointment = useMutation(api.appointments.updateAppointment);
-  const deleteAppointment = useMutation(api.appointments.deleteAppointment);
+  // Note: Personal care activities and daily activity records mutations are not yet migrated to Supabase
+  // These will need API routes or direct Supabase operations
+  // Supabase implementations for helper functions
+  const createPersonalCareActivities = async (data: any) => {
+    const response = await fetch("/api/progress-notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        residentId: data.residentId,
+        type: "personal_care",
+        date: data.date,
+        time: data.time,
+        note: `Activities: ${data.activities.join(", ")}. Notes: ${data.notes || ""}`,
+        authorId: user?.user?.id,
+        authorName: user?.user?.name || user?.user?.email,
+      }),
+    });
+    if (!response.ok) throw new Error("Failed to save personal care");
+    return response.json();
+  };
 
-  // Define activity options
-  const activityOptions = [
-    { id: "bath", label: "Bath" },
-    { id: "shower", label: "Shower" },
-    { id: "dressed", label: "Dressed" },
-    { id: "changed", label: "Changed Clothes" },
-    { id: "brushed", label: "Teeth Brushed/Dentures Cleaned" },
-    { id: "hair_care", label: "Hair Combed" },
-    { id: "hair_dried", label: "Hair Dried" },
-    { id: "shaved", label: "Shaved" },
-    { id: "nails_care", label: "Nail Care" },
-    { id: "mouth_care", label: "Oral Care" },
-    { id: "toileting", label: "Toileting" },
-    { id: "continence", label: "Continence Support (Pad Change)" },
-    { id: "skin_care", label: "Skin Care" },
-    { id: "cream_applied", label: "Creams Applied" },
-    { id: "position_change", label: "Position Change" },
-    { id: "Bed_changed", label: "Bed Cover Changed" }
-  ] as const;
+  const createDailyActivityRecord = async (data: any) => {
+    const response = await fetch("/api/progress-notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        residentId: data.residentId,
+        type: "daily_activity",
+        date: data.date,
+        time: data.time,
+        note: data.notes || "Recorded daily activity",
+        authorId: user?.user?.id,
+        authorName: user?.user?.name || user?.user?.email,
+      }),
+    });
+    if (!response.ok) throw new Error("Failed to save daily activity");
+    return response.json();
+  };
+
+
+  const deleteAppointmentNoteAPI = async (data: { noteId: string }) => {
+    const response = await fetch(`/api/appointment-notes/${data.noteId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to delete appointment note");
+    }
+
+    return await response.json();
+  };
+
+  // Helper to format role name
+  const formatRole = (role?: string) => {
+    if (!role) return "";
+    return role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
 
   // Get other staff (excluding current user) for assisted staff dropdown
-  const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => ({
-    key: u.name,
-    label: u.name,
-    email: u.email
-  })) || [];
+  const otherStaffOptions = allUsers?.filter(u => u.email !== user?.user?.email).map(u => {
+    const roleText = formatRole(u.role);
+    const label = roleText ? `${u.name} (${roleText})` : u.name;
+    return {
+      key: u.id,
+      label,
+      email: u.email
+    };
+  }) || [];
 
   // Current user info for primary staff
   const currentUserName = user?.user?.name || user?.user?.email?.split('@')[0] || "";
@@ -285,7 +667,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   const onSubmit = async (data: z.infer<typeof PersonalCareSchema>) => {
     try {
       await createPersonalCareActivities({
-        residentId: id as Id<"residents">,
+        residentId: id,
         date: today,
         activities: data.activities,
         time: data.time,
@@ -311,7 +693,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     try {
       await createDailyActivityRecord({
-        residentId: id as Id<"residents">,
+        residentId: id,
         date: today,
         time: activityRecordTime,
         staff: currentUserName,
@@ -339,7 +721,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     setAppointmentNotesLoading(true);
     try {
       await createAppointmentNote({
-        residentId: id as Id<"residents">,
+        residentId: id,
         category: data.category,
         preparationTime: data.preparationTime,
         preparationNotes: data.preparationNotes,
@@ -350,16 +732,42 @@ function DailyCarePage({ params }: DailyCarePageProps) {
         medicalNeeds: data.medicalNeeds,
         priority: data.priority,
         organizationId: activeOrganization.id,
-        teamId: activeOrganization.id, // Using organization ID as team ID for now
-        createdBy: user.user.id,
+        teamId: resident?.team_id || activeOrganization.id, // Using resident's team ID if available
       });
 
       toast.success("Appointment note saved successfully");
       appointmentNotesForm.reset();
       setIsAppointmentNotesDialogOpen(false);
-    } catch (error) {
+
+      // Refresh appointment notes list
+      const { data: notesData, error: fetchError } = await supabase
+        .from("appointment_notes")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (!fetchError && notesData) {
+        const transformedNotes: AppointmentNote[] = notesData.map((note: any) => ({
+          _id: note.id,
+          residentId: note.resident_id,
+          category: note.category,
+          preparationTime: note.preparation_time,
+          preparationNotes: note.preparation_notes,
+          preferredTime: note.preferred_time,
+          transportPreference: note.transport_preference,
+          instructions: note.instructions,
+          transportationNeeds: note.transportation_needs || [],
+          medicalNeeds: note.medical_needs || [],
+          priority: note.priority,
+          isActive: note.is_active,
+          createdAt: new Date(note.created_at).getTime(),
+        }));
+        setAppointmentNotes(transformedNotes);
+      }
+    } catch (error: any) {
       console.error("Error saving appointment note:", error);
-      toast.error("Failed to save appointment note");
+      toast.error(error.message || "Failed to save appointment note");
     } finally {
       setAppointmentNotesLoading(false);
     }
@@ -371,13 +779,40 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     setDeleteLoading(true);
     try {
-      await deleteAppointmentNote({ noteId: noteToDelete as Id<"appointmentNotes"> });
+      await deleteAppointmentNote({ noteId: noteToDelete });
       toast.success("Appointment note deleted successfully");
       setDeleteConfirmOpen(false);
       setNoteToDelete(null);
-    } catch (error) {
+
+      // Refresh appointment notes list
+      const { data: notesData, error: fetchError } = await supabase
+        .from("appointment_notes")
+        .select("*")
+        .eq("resident_id", id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (!fetchError && notesData) {
+        const transformedNotes: AppointmentNote[] = notesData.map((note: any) => ({
+          _id: note.id,
+          residentId: note.resident_id,
+          category: note.category,
+          preparationTime: note.preparation_time,
+          preparationNotes: note.preparation_notes,
+          preferredTime: note.preferred_time,
+          transportPreference: note.transport_preference,
+          instructions: note.instructions,
+          transportationNeeds: note.transportation_needs || [],
+          medicalNeeds: note.medical_needs || [],
+          priority: note.priority,
+          isActive: note.is_active,
+          createdAt: new Date(note.created_at).getTime(),
+        }));
+        setAppointmentNotes(transformedNotes);
+      }
+    } catch (error: any) {
       console.error("Error deleting appointment note:", error);
-      toast.error("Failed to delete appointment note");
+      toast.error(error.message || "Failed to delete appointment note");
     } finally {
       setDeleteLoading(false);
     }
@@ -385,7 +820,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Handle edit appointment
   const handleEditAppointment = (appointment: Appointment) => {
-    setLoadingAppointmentId(appointment._id);
+    setLoadingAppointmentId(appointment._id || appointment.id);
     setAppointmentToEdit(appointment);
     editAppointmentForm.setValue("title", appointment.title || "");
     editAppointmentForm.setValue("description", appointment.description || "");
@@ -406,15 +841,29 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     setEditAppointmentLoading(true);
     try {
-      await updateAppointment({
-        appointmentId: appointmentToEdit._id,
+      const appointmentId = appointmentToEdit._id || appointmentToEdit.id;
+      await updateAppointmentAPI(appointmentId, {
         title: data.title,
         description: data.description,
         startTime: data.startTime,
         location: data.location,
         staffId: data.staffId === "none" ? undefined : data.staffId,
-        updatedBy: user.user.id,
+        updatedBy: user?.user?.id || "",
       });
+
+      // Refresh appointments list
+      const result = await getUpcomingAppointments({
+        residentId: id,
+        limit: 50,
+      });
+      const transformedAppointments = result.appointments?.map((apt: any) => ({
+        ...apt,
+        _id: apt.id,
+        startTime: apt.start_time,
+        endTime: apt.end_time,
+        staffId: apt.staff_id,
+      })) || [];
+      setAppointments(transformedAppointments);
 
       toast.success("Appointment updated successfully");
       editAppointmentForm.reset();
@@ -436,7 +885,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
   // Handle delete appointment
   const handleDeleteAppointment = (appointment: Appointment) => {
-    setLoadingAppointmentId(appointment._id);
+    setLoadingAppointmentId(appointment._id || appointment.id);
     setAppointmentToDelete(appointment);
     setIsDeleteAppointmentDialogOpen(true);
     // Clear loading state when dialog opens
@@ -449,9 +898,22 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
     setDeleteAppointmentLoading(true);
     try {
-      await deleteAppointment({
-        appointmentId: appointmentToDelete._id,
+      const appointmentId = appointmentToDelete._id || appointmentToDelete.id;
+      await deleteAppointmentAPI(appointmentId);
+
+      // Refresh appointments list
+      const result = await getUpcomingAppointments({
+        residentId: id,
+        limit: 50,
       });
+      const transformedAppointments = result.appointments?.map((apt: any) => ({
+        ...apt,
+        _id: apt.id,
+        startTime: apt.start_time,
+        endTime: apt.end_time,
+        staffId: apt.staff_id,
+      })) || [];
+      setAppointments(transformedAppointments);
 
       toast.success("Appointment deleted successfully");
       setIsDeleteAppointmentDialogOpen(false);
@@ -484,6 +946,24 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   const endIndex = startIndex + appointmentsPerPage;
   const currentAppointments = upcomingAppointments.slice(startIndex, endIndex);
 
+  // Group appointments by date
+  const groupedAppointments = useMemo(() => {
+    const groups: { [key: string]: Appointment[] } = {};
+
+    currentAppointments.forEach(appointment => {
+      const dateKey = appointment.startTime
+        ? format(new Date(appointment.startTime), "EEEE, d MMMM yyyy")
+        : "No Date";
+
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(appointment);
+    });
+
+    return groups;
+  }, [currentAppointments]);
+
   // Handle page navigation
   const goToNextPage = () => {
     if (currentPage < totalPages) {
@@ -498,7 +978,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   };
 
   // Loading state - queries are still fetching
-  if (resident === undefined || appointments === undefined || appointmentNotes === undefined) {
+  if (residentLoading || resident === null || appointmentsLoading || appointmentNotesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -509,8 +989,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     );
   }
 
-  // Error state - resident not found
-  if (resident === null) {
+  // Error state - resident not found (already handled in loading check)
+  if (!residentLoading && resident === null) {
     return (
       <ErrorState
         message="Resident not found"
@@ -522,7 +1002,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   }
 
   // Error state - failed to load appointments
-  if (!appointments) {
+  if (appointments === undefined) {
     return (
       <ErrorState
         message="Failed to load appointments"
@@ -533,8 +1013,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`;
+  const fullName = resident ? `${resident.firstName} ${resident.lastName}` : "";
+  const initials = resident ? `${resident.firstName[0]}${resident.lastName[0]}` : "";
 
   // Helper function to get readable category names
   const getCategoryDisplayName = (category: string) => {
@@ -649,794 +1129,822 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="flex flex-col gap-6">
-      {/* Header with Back Button */}
-      <div className="flex items-center space-x-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <Avatar className="w-10 h-10">
-          <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
-          <p className="text-muted-foreground text-sm">
-            View and manage appointments for {resident.firstName} {resident.lastName}.
-          </p>
-        </div>
-        <div className="flex flex-row gap-2">
-          <Button
-            onClick={() => setIsCreateAppointmentDialogOpen(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Appointment
+        {/* Header with Back Button */}
+        <div className="flex items-center space-x-4 mb-6">
+          <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
+            <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            History
-          </Button>
+          <Avatar className="w-10 h-10">
+            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold">Appointments</h1>
+            <p className="text-muted-foreground text-sm">
+              View and manage appointments for {resident.firstName} {resident.lastName}.
+            </p>
+          </div>
+          <div className="flex flex-row gap-2">
+            <Button
+              onClick={() => setIsCreateAppointmentDialogOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Appointment
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/dashboard/residents/${id}/appointments/documents`)}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              History
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Appointment Notes Section */}
-      {appointmentNotes && appointmentNotes.length > 0 && (
-        <Card className="border-0">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <StickyNote className="w-4 h-4 text-purple-600" />
-                <span className="text-sm font-medium">Appointment Notes</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAppointmentNotesDialogOpen(true)}
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add Note
-              </Button>
-            </div>
-
-            {/* Display appointment notes */}
-            <div className="flex flex-wrap gap-2">
-              {appointmentNotes.map((note) => (
-                <div
-                  key={note._id}
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs border ${getCategoryColor(note.category)}`}
-                >
-                  <span className="font-medium mr-1">
-                    {getNoteDisplayText(note)}
-                  </span>
-                  {note.priority && note.priority !== 'medium' && (
-                    <span className="text-xs opacity-75 mr-2">
-                      ({note.priority})
-                    </span>
-                  )}
-                  <button
-                    onClick={() => {
-                      setNoteToDelete(note._id);
-                      setDeleteConfirmOpen(true);
-                    }}
-                    className="ml-1 hover:bg-black hover:bg-opacity-10 rounded-full p-0.5 transition-colors"
-                    aria-label="Delete note"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+        {/* Appointment Notes Section */}
+        {appointmentNotes && appointmentNotes.length > 0 && (
+          <Card className="border-0">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <StickyNote className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium">Appointment Notes</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAppointmentNotesDialogOpen(true)}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add Note
+                </Button>
+              </div>
 
-      {/* Appointment List Card */}
-      <Card className="border-0">
-        <CardHeader>
-          {/* Mobile Layout */}
-          <CardTitle className="block sm:hidden">
-            <div className="flex items-center space-x-2 mb-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <span>Upcoming Appointments</span>
-            </div>
-            <Badge variant="outline" className="self-start">
-              {upcomingAppointments.length} upcoming
-            </Badge>
-          </CardTitle>
-          {/* Desktop Layout */}
-          <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            <span>Upcoming Appointments</span>
-            <Badge variant="outline" className="ml-auto">
-              {upcomingAppointments.length} upcoming
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="border-0" >
-          {upcomingAppointments.length > 0 ? (
-            <>
-              <div className="space-y-4">
-                {currentAppointments.map((appointment) => (
-                  <div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-sm">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-sm">
-                          {appointment.title
-                            .split(" ")
-                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                            .join(" ")}
-                        </h4>
-                        <div className="flex items-center space-x-2">
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditAppointment(appointment)}
-                            disabled={loadingAppointmentId === appointment._id}
-                            className="h-6 px-2 text-xs "
-                          >
-                            {loadingAppointmentId === appointment._id ? (
-                              <>
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                Loading...
-                              </>
-                            ) : (
-                              "Edit"
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDeleteAppointment(appointment)}
-                            disabled={loadingAppointmentId === appointment._id}
-                            className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
-                          >
-                            {loadingAppointmentId === appointment._id ? (
-                              <>
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                Deleting...
-                              </>
-                            ) : (
-                              "Delete"
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-
-                      {appointment.description && (
-                        <p className="text-xs text-gray-600">{appointment.description}</p>
-                      )}
-
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{formatAppointmentDateTime(appointment.startTime)}</span>
-                        </div>
-                        {appointment.location && (
-                          <div className="flex items-center space-x-1">
-                            <span>📍</span>
-                            <span>{appointment.location}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {appointment.staffId && (
-                        <div className="text-xs text-blue-600">
-                          Assigned to: {appointment.staffId}
-                        </div>
-                      )}
-                    </div>
+              {/* Display appointment notes */}
+              <div className="flex flex-wrap gap-2">
+                {appointmentNotes.map((note) => (
+                  <div
+                    key={note._id}
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs border ${getCategoryColor(note.category)}`}
+                  >
+                    <span className="font-medium mr-1">
+                      {getNoteDisplayText(note)}
+                    </span>
+                    {note.priority && note.priority !== 'medium' && (
+                      <span className="text-xs opacity-75 mr-2">
+                        ({note.priority})
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setNoteToDelete(note._id);
+                        setDeleteConfirmOpen(true);
+                      }}
+                      className="ml-1 hover:bg-black hover:bg-opacity-10 rounded-full p-0.5 transition-colors"
+                      aria-label="Delete note"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  {/* Mobile Layout */}
-                  <div className="sm:hidden">
-                    <div className="text-center text-xs text-gray-500 mb-3">
-                      {startIndex + 1}-{Math.min(endIndex, upcomingAppointments.length)} of {upcomingAppointments.length} upcoming
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousPage}
-                        disabled={currentPage === 1}
-                        className="h-8 px-2 text-xs flex-1 max-w-[80px]"
-                      >
-                        Prev
-                      </Button>
-                      <span className="text-xs text-gray-600 mx-3 flex-shrink-0">
-                        {currentPage} / {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextPage}
-                        disabled={currentPage === totalPages}
-                        className="h-8 px-2 text-xs flex-1 max-w-[80px]"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+        {/* Appointment List Card */}
+        <Card className="border-0">
+          <CardHeader>
+            {/* Mobile Layout */}
+            <CardTitle className="block sm:hidden">
+              <div className="flex items-center space-x-2 mb-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <span>Upcoming Appointments</span>
+              </div>
+              <Badge variant="outline" className="self-start">
+                {upcomingAppointments.length} upcoming
+              </Badge>
+            </CardTitle>
+            {/* Desktop Layout */}
+            <CardTitle className="hidden sm:flex sm:items-center sm:space-x-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <span>Upcoming Appointments</span>
+              <Badge variant="outline" className="ml-auto">
+                {upcomingAppointments.length} upcoming
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="border-0" >
+            {upcomingAppointments.length > 0 ? (
+              <>
+                <div className="space-y-6">
+                  {Object.entries(groupedAppointments).map(([date, appointments]) => (
+                    <div key={date} className="space-y-3">
+                      <div className="flex items-center">
+                        <div className="h-px flex-1 bg-gray-100" />
+                        <span className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{date}</span>
+                        <div className="h-px flex-1 bg-gray-100" />
+                      </div>
+                      <div className="space-y-3">
+                        {appointments.map((appointment) => (
+                          <div key={appointment._id} className="flex items-start space-x-4 p-4 border rounded-sm bg-white hover:border-blue-200 transition-colors">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-semibold text-sm text-gray-800">
+                                  {appointment.title
+                                    .split(" ")
+                                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                    .join(" ")}
+                                </h4>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleEditAppointment(appointment)}
+                                    disabled={loadingAppointmentId === appointment._id}
+                                    className="h-6 px-2 text-[10px] uppercase font-bold tracking-tight"
+                                  >
+                                    {loadingAppointmentId === appointment._id ? (
+                                      <>
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        Loading...
+                                      </>
+                                    ) : (
+                                      "Edit"
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleDeleteAppointment(appointment)}
+                                    disabled={loadingAppointmentId === appointment._id}
+                                    className="h-6 px-2 text-[10px] uppercase font-bold tracking-tight text-red-500 hover:text-red-700 hover:bg-red-50 hover:border-red-200"
+                                  >
+                                    {loadingAppointmentId === appointment._id ? (
+                                      <>
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        Deleting...
+                                      </>
+                                    ) : (
+                                      "Delete"
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
 
-                  {/* Desktop Layout */}
-                  <div className="hidden sm:flex sm:items-center sm:justify-between">
-                    <div className="text-sm text-gray-500">
-                      Showing {startIndex + 1}-{Math.min(endIndex, upcomingAppointments.length)} of {upcomingAppointments.length} upcoming appointments
+                              {appointment.description && (
+                                <p className="text-xs text-gray-500 leading-relaxed">{appointment.description}</p>
+                              )}
+
+                              <div className="flex items-center space-x-4 text-[11px] text-gray-400">
+                                <div className="flex items-center space-x-1.5 bg-gray-50 px-2 py-0.5 rounded-full">
+                                  <Clock className="w-3 h-3 text-blue-500" />
+                                  <span className="font-medium text-gray-600">{formatAppointmentDateTime(appointment.startTime || "")}</span>
+                                </div>
+                                {appointment.location && (
+                                  <div className="flex items-center space-x-1.5 bg-gray-50 px-2 py-0.5 rounded-full">
+                                    <span className="text-xs">📍</span>
+                                    <span className="font-medium text-gray-600 uppercase tracking-tighter">{appointment.location}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {appointment.staffId && (
+                                <div className="text-[10px] text-blue-600 font-medium flex items-center space-x-1">
+                                  <div className="w-1 h-1 rounded-full bg-blue-600 animate-pulse"></div>
+                                  <span>Assigned to: {appointment.staffId}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousPage}
-                        disabled={currentPage === 1}
-                        className="h-8 px-3 text-xs"
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextPage}
-                        disabled={currentPage === totalPages}
-                        className="h-8 px-3 text-xs"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">No upcoming appointments</p>
-              <p className="text-xs text-gray-400 mt-1">Create a new appointment using the button above</p>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    {/* Mobile Layout */}
+                    <div className="sm:hidden">
+                      <div className="text-center text-xs text-gray-500 mb-3">
+                        {startIndex + 1}-{Math.min(endIndex, upcomingAppointments.length)} of {upcomingAppointments.length} upcoming
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToPreviousPage}
+                          disabled={currentPage === 1}
+                          className="h-8 px-2 text-xs flex-1 max-w-[80px]"
+                        >
+                          Prev
+                        </Button>
+                        <span className="text-xs text-gray-600 mx-3 flex-shrink-0">
+                          {currentPage} / {totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToNextPage}
+                          disabled={currentPage === totalPages}
+                          className="h-8 px-2 text-xs flex-1 max-w-[80px]"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Desktop Layout */}
+                    <div className="hidden sm:flex sm:items-center sm:justify-between">
+                      <div className="text-sm text-gray-500">
+                        Showing {startIndex + 1}-{Math.min(endIndex, upcomingAppointments.length)} of {upcomingAppointments.length} upcoming appointments
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToPreviousPage}
+                          disabled={currentPage === 1}
+                          className="h-8 px-3 text-xs"
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-gray-600">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToNextPage}
+                          disabled={currentPage === totalPages}
+                          className="h-8 px-3 text-xs"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500">No upcoming appointments</p>
+                <p className="text-xs text-gray-400 mt-1">Create a new appointment using the button above</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Create Appointment Form */}
+        <CreateAppointmentForm
+          residentId={id}
+          residentName={fullName}
+          residentTeamId={resident?.team_id}
+          isOpen={isCreateAppointmentDialogOpen}
+          onClose={async () => {
+            setIsCreateAppointmentDialogOpen(false);
+            // Refresh appointments after creation
+            try {
+              const result = await getUpcomingAppointments({ residentId: id, limit: 50 });
+              const transformedAppointments = result.appointments?.map((apt: any) => ({
+                ...apt,
+                _id: apt.id,
+                startTime: apt.start_time,
+                endTime: apt.end_time,
+                staffId: apt.staff_id,
+              })) || [];
+              setAppointments(transformedAppointments);
+            } catch (error) {
+              console.error("Error refreshing appointments:", error);
+            }
+          }}
+        />
+
+        {/* Add Appointment Notes Dialog - keeping the existing dialog code here for now */}
+        <Dialog open={isAppointmentNotesDialogOpen} onOpenChange={setIsAppointmentNotesDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Add Appointment Note for {fullName}</DialogTitle>
+              <DialogDescription>
+                Add a quick note about appointment preferences or preparations for this resident.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Form {...appointmentNotesForm}>
+              <form onSubmit={appointmentNotesForm.handleSubmit(onAppointmentNotesSubmit)} className="space-y-6">
+                {/* Category Selection */}
+                <FormField
+                  control={appointmentNotesForm.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Appointment Category</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select appointment category..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="preparation">Preparation Requirements</SelectItem>
+                          <SelectItem value="preferences">Preferences</SelectItem>
+                          <SelectItem value="special_instructions">Special Instructions</SelectItem>
+                          <SelectItem value="transportation">Transportation</SelectItem>
+                          <SelectItem value="medical_requirements">Medical Requirements</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Preparation Requirements Fields */}
+                {appointmentNotesForm.watch('category') === 'preparation' && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
+                    <h4 className="font-medium text-blue-900">Preparation Requirements</h4>
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="preparationTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preparation Time Needed</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select preparation time..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="30_minutes">30 minutes</SelectItem>
+                              <SelectItem value="1_hour">1 hour</SelectItem>
+                              <SelectItem value="2_hours">2 hours</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="preparationNotes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preparation Notes</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter preparation details..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Preferences Fields */}
+                {appointmentNotesForm.watch('category') === 'preferences' && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-green-50">
+                    <h4 className="font-medium text-green-900">Appointment Preferences</h4>
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="preferredTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preferred Time</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select preferred time..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="morning">Morning</SelectItem>
+                              <SelectItem value="afternoon">Afternoon</SelectItem>
+                              <SelectItem value="evening">Evening</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="transportPreference"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Transport Preference</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select transport preference..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="wheelchair">Wheelchair</SelectItem>
+                              <SelectItem value="walking_aid">Walking Aid</SelectItem>
+                              <SelectItem value="independent">Independent</SelectItem>
+                              <SelectItem value="stretcher">Stretcher</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Special Instructions Fields */}
+                {appointmentNotesForm.watch('category') === 'special_instructions' && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-purple-50">
+                    <h4 className="font-medium text-purple-900">Special Instructions</h4>
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="instructions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Instructions</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter special instructions..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Transportation Fields */}
+                {appointmentNotesForm.watch('category') === 'transportation' && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
+                    <h4 className="font-medium text-orange-900">Transportation Requirements</h4>
+                    <p className="text-sm text-orange-700">Select all that apply:</p>
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="transportationNeeds"
+                      render={() => (
+                        <FormItem>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { id: 'wheelchair_accessible' as const, label: 'Wheelchair Accessible' },
+                              { id: 'oxygen_support' as const, label: 'Oxygen Support' },
+                              { id: 'medical_equipment' as const, label: 'Medical Equipment' },
+                              { id: 'assistance_required' as const, label: 'Assistance Required' }
+                            ].map((item) => (
+                              <FormField
+                                key={item.id}
+                                control={appointmentNotesForm.control}
+                                name="transportationNeeds"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(item?.id)}
+                                          onCheckedChange={(checked) => {
+                                            return checked
+                                              ? field.onChange([...(field.value || []), item.id])
+                                              : field.onChange(field.value?.filter((value: any) => value !== item.id));
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-sm font-normal cursor-pointer">
+                                        {item.label}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Medical Requirements Fields */}
+                {appointmentNotesForm.watch('category') === 'medical_requirements' && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-red-50">
+                    <h4 className="font-medium text-red-900">Medical Requirements</h4>
+                    <p className="text-sm text-red-700">Select all that apply:</p>
+
+                    <FormField
+                      control={appointmentNotesForm.control}
+                      name="medicalNeeds"
+                      render={() => (
+                        <FormItem>
+                          <div className="space-y-2">
+                            {[
+                              { id: 'fasting_required' as const, label: 'Fasting Required' },
+                              { id: 'medication_adjustment' as const, label: 'Medication Adjustment' },
+                              { id: 'blood_work' as const, label: 'Blood Work' },
+                              { id: 'vitals_check' as const, label: 'Vitals Check' }
+                            ].map((item) => (
+                              <FormField
+                                key={item.id}
+                                control={appointmentNotesForm.control}
+                                name="medicalNeeds"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(item.id)}
+                                          onCheckedChange={(checked) => {
+                                            return checked
+                                              ? field.onChange([...(field.value || []), item.id])
+                                              : field.onChange(field.value?.filter((value: any) => value !== item.id));
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-sm font-normal cursor-pointer">
+                                        {item.label}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Priority */}
+                <FormField
+                  control={appointmentNotesForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority Level</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex flex-row space-x-4"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="low" id="low" />
+                            <label htmlFor="low" className="text-sm font-medium cursor-pointer">Low</label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="medium" id="medium" />
+                            <label htmlFor="medium" className="text-sm font-medium cursor-pointer">Medium</label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="high" id="high" />
+                            <label htmlFor="high" className="text-sm font-medium cursor-pointer">High</label>
+                          </div>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Form Actions */}
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAppointmentNotesDialogOpen(false);
+                      appointmentNotesForm.reset();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={appointmentNotesLoading}>
+                    {appointmentNotesLoading ? "Saving..." : "Save Appointment Note"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Appointment Note</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this appointment note? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteConfirmOpen(false);
+                  setNoteToDelete(null);
+                }}
+                disabled={deleteLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAppointmentNote}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? "Deleting..." : "Delete"}
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </DialogContent>
+        </Dialog>
 
-      {/* Create Appointment Form */}
-      <CreateAppointmentForm
-        residentId={id}
-        residentName={fullName}
-        isOpen={isCreateAppointmentDialogOpen}
-        onClose={() => setIsCreateAppointmentDialogOpen(false)}
-      />
+        {/* Edit Appointment Dialog */}
+        <Dialog open={isEditAppointmentDialogOpen} onOpenChange={setIsEditAppointmentDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Edit Appointment for {fullName}</DialogTitle>
+              <DialogDescription>
+                Update the appointment details for this resident.
+              </DialogDescription>
+            </DialogHeader>
 
-      {/* Add Appointment Notes Dialog - keeping the existing dialog code here for now */}
-      <Dialog open={isAppointmentNotesDialogOpen} onOpenChange={setIsAppointmentNotesDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Add Appointment Note for {fullName}</DialogTitle>
-            <DialogDescription>
-              Add a quick note about appointment preferences or preparations for this resident.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...appointmentNotesForm}>
-            <form onSubmit={appointmentNotesForm.handleSubmit(onAppointmentNotesSubmit)} className="space-y-6">
-              {/* Category Selection */}
-              <FormField
-                control={appointmentNotesForm.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Appointment Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <Form {...editAppointmentForm}>
+              <form onSubmit={editAppointmentForm.handleSubmit(onEditAppointmentSubmit)} className="space-y-6">
+                {/* Title */}
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Appointment Title *</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select appointment category..." />
-                        </SelectTrigger>
+                        <Input
+                          placeholder="e.g., Doctor Visit, Physical Therapy"
+                          {...field}
+                        />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="preparation">Preparation Requirements</SelectItem>
-                        <SelectItem value="preferences">Preferences</SelectItem>
-                        <SelectItem value="special_instructions">Special Instructions</SelectItem>
-                        <SelectItem value="transportation">Transportation</SelectItem>
-                        <SelectItem value="medical_requirements">Medical Requirements</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              {/* Preparation Requirements Fields */}
-              {appointmentNotesForm.watch('category') === 'preparation' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
-                  <h4 className="font-medium text-blue-900">Preparation Requirements</h4>
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="preparationTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preparation Time Needed</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select preparation time..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="30_minutes">30 minutes</SelectItem>
-                            <SelectItem value="1_hour">1 hour</SelectItem>
-                            <SelectItem value="2_hours">2 hours</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="preparationNotes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preparation Notes</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter preparation details..."
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Preferences Fields */}
-              {appointmentNotesForm.watch('category') === 'preferences' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-green-50">
-                  <h4 className="font-medium text-green-900">Appointment Preferences</h4>
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="preferredTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preferred Time</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select preferred time..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="morning">Morning</SelectItem>
-                            <SelectItem value="afternoon">Afternoon</SelectItem>
-                            <SelectItem value="evening">Evening</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="transportPreference"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Transport Preference</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select transport preference..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="wheelchair">Wheelchair</SelectItem>
-                            <SelectItem value="walking_aid">Walking Aid</SelectItem>
-                            <SelectItem value="independent">Independent</SelectItem>
-                            <SelectItem value="stretcher">Stretcher</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Special Instructions Fields */}
-              {appointmentNotesForm.watch('category') === 'special_instructions' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-purple-50">
-                  <h4 className="font-medium text-purple-900">Special Instructions</h4>
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="instructions"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Instructions</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter special instructions..."
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Transportation Fields */}
-              {appointmentNotesForm.watch('category') === 'transportation' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
-                  <h4 className="font-medium text-orange-900">Transportation Requirements</h4>
-                  <p className="text-sm text-orange-700">Select all that apply:</p>
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="transportationNeeds"
-                    render={() => (
-                      <FormItem>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { id: 'wheelchair_accessible' as const, label: 'Wheelchair Accessible' },
-                            { id: 'oxygen_support' as const, label: 'Oxygen Support' },
-                            { id: 'medical_equipment' as const, label: 'Medical Equipment' },
-                            { id: 'assistance_required' as const, label: 'Assistance Required' }
-                          ].map((item) => (
-                            <FormField
-                              key={item.id}
-                              control={appointmentNotesForm.control}
-                              name="transportationNeeds"
-                              render={({ field }) => {
-                                return (
-                                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                    <FormControl>
-                                      <Checkbox
-                                        checked={field.value?.includes(item?.id)}
-                                        onCheckedChange={(checked) => {
-                                          return checked
-                                            ? field.onChange([...(field.value || []), item.id])
-                                            : field.onChange(field.value?.filter((value: any) => value !== item.id));
-                                        }}
-                                      />
-                                    </FormControl>
-                                    <FormLabel className="text-sm font-normal cursor-pointer">
-                                      {item.label}
-                                    </FormLabel>
-                                  </FormItem>
-                                )
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Medical Requirements Fields */}
-              {appointmentNotesForm.watch('category') === 'medical_requirements' && (
-                <div className="space-y-4 p-4 border rounded-lg bg-red-50">
-                  <h4 className="font-medium text-red-900">Medical Requirements</h4>
-                  <p className="text-sm text-red-700">Select all that apply:</p>
-
-                  <FormField
-                    control={appointmentNotesForm.control}
-                    name="medicalNeeds"
-                    render={() => (
-                      <FormItem>
-                        <div className="space-y-2">
-                          {[
-                            { id: 'fasting_required' as const, label: 'Fasting Required' },
-                            { id: 'medication_adjustment' as const, label: 'Medication Adjustment' },
-                            { id: 'blood_work' as const, label: 'Blood Work' },
-                            { id: 'vitals_check' as const, label: 'Vitals Check' }
-                          ].map((item) => (
-                            <FormField
-                              key={item.id}
-                              control={appointmentNotesForm.control}
-                              name="medicalNeeds"
-                              render={({ field }) => {
-                                return (
-                                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                    <FormControl>
-                                      <Checkbox
-                                        checked={field.value?.includes(item.id)}
-                                        onCheckedChange={(checked) => {
-                                          return checked
-                                            ? field.onChange([...(field.value || []), item.id])
-                                            : field.onChange(field.value?.filter((value: any) => value !== item.id));
-                                        }}
-                                      />
-                                    </FormControl>
-                                    <FormLabel className="text-sm font-normal cursor-pointer">
-                                      {item.label}
-                                    </FormLabel>
-                                  </FormItem>
-                                )
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Priority */}
-              <FormField
-                control={appointmentNotesForm.control}
-                name="priority"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority Level</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex flex-row space-x-4"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="low" id="low" />
-                          <label htmlFor="low" className="text-sm font-medium cursor-pointer">Low</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="medium" id="medium" />
-                          <label htmlFor="medium" className="text-sm font-medium cursor-pointer">Medium</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="high" id="high" />
-                          <label htmlFor="high" className="text-sm font-medium cursor-pointer">High</label>
-                        </div>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsAppointmentNotesDialogOpen(false);
-                    appointmentNotesForm.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={appointmentNotesLoading}>
-                  {appointmentNotesLoading ? "Saving..." : "Save Appointment Note"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Appointment Note</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this appointment note? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDeleteConfirmOpen(false);
-                setNoteToDelete(null);
-              }}
-              disabled={deleteLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteAppointmentNote}
-              disabled={deleteLoading}
-            >
-              {deleteLoading ? "Deleting..." : "Delete"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Appointment Dialog */}
-      <Dialog open={isEditAppointmentDialogOpen} onOpenChange={setIsEditAppointmentDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit Appointment for {fullName}</DialogTitle>
-            <DialogDescription>
-              Update the appointment details for this resident.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...editAppointmentForm}>
-            <form onSubmit={editAppointmentForm.handleSubmit(onEditAppointmentSubmit)} className="space-y-6">
-              {/* Title */}
-              <FormField
-                control={editAppointmentForm.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Appointment Title *</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Doctor Visit, Physical Therapy"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Description */}
-              <FormField
-                control={editAppointmentForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Additional details about the appointment"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Date and Time */}
-              <FormField
-                control={editAppointmentForm.control}
-                name="startTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date & Time *</FormLabel>
-                    <FormControl>
-                      <FormDateTimePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        dateLabel="Date"
-                        timeLabel="Time"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Location */}
-              <FormField
-                control={editAppointmentForm.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location *</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., General Hospital, Room 205"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Staff Assignment */}
-              <FormField
-                control={editAppointmentForm.control}
-                name="staffId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Assigned Staff (optional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                {/* Description */}
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select staff member..." />
-                        </SelectTrigger>
+                        <Input
+                          placeholder="Additional details about the appointment"
+                          {...field}
+                        />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">No staff assigned</SelectItem>
-                        {otherStaffOptions.length > 0 ? (
-                          otherStaffOptions.map((staff) => (
-                            <SelectItem key={staff.key} value={staff.email}>
-                              {staff.label}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Date and Time */}
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="startTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date & Time *</FormLabel>
+                      <FormControl>
+                        <FormDateTimePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          dateLabel="Date"
+                          timeLabel="Time"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Location */}
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., General Hospital, Room 205"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Staff Assignment */}
+                <FormField
+                  control={editAppointmentForm.control}
+                  name="staffId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assigned Staff (optional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select staff member..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No staff assigned</SelectItem>
+                          {otherStaffOptions.length > 0 ? (
+                            otherStaffOptions.map((staff) => (
+                              <SelectItem key={staff.key} value={staff.email}>
+                                {staff.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no_staff" disabled>
+                              No other staff available
                             </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no_staff" disabled>
-                            No other staff available
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditAppointmentDialogOpen(false);
-                    editAppointmentForm.reset();
-                    setAppointmentToEdit(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={editAppointmentLoading}>
-                  {editAppointmentLoading ? "Updating..." : "Update Appointment"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+                {/* Form Actions */}
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditAppointmentDialogOpen(false);
+                      editAppointmentForm.reset();
+                      setAppointmentToEdit(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={editAppointmentLoading}>
+                    {editAppointmentLoading ? "Updating..." : "Update Appointment"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
 
-      {/* Delete Appointment Confirmation Dialog */}
-      <Dialog open={isDeleteAppointmentDialogOpen} onOpenChange={setIsDeleteAppointmentDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Appointment</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the appointment &quot;{appointmentToDelete?.title}&quot;? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsDeleteAppointmentDialogOpen(false);
-                setAppointmentToDelete(null);
-              }}
-              disabled={deleteAppointmentLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDeleteAppointment}
-              disabled={deleteAppointmentLoading}
-            >
-              {deleteAppointmentLoading ? "Deleting..." : "Delete Appointment"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        {/* Delete Appointment Confirmation Dialog */}
+        <Dialog open={isDeleteAppointmentDialogOpen} onOpenChange={setIsDeleteAppointmentDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Appointment</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the appointment &quot;{appointmentToDelete?.title}&quot;? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteAppointmentDialogOpen(false);
+                  setAppointmentToDelete(null);
+                }}
+                disabled={deleteAppointmentLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteAppointment}
+                disabled={deleteAppointmentLoading}
+              >
+                {deleteAppointmentLoading ? "Deleting..." : "Delete Appointment"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

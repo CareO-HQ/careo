@@ -218,7 +218,7 @@ export const organizationRoles = {
 
 ### Permission Functions
 
-All permission checks are implemented in `convex/lib/permissions.ts`:
+All permission checks are implemented in `lib/permissions.ts`:
 
 ```typescript
 // Type definition
@@ -233,7 +233,7 @@ export function canViewSidebarStaff(role?: string): boolean {
 ### Usage in Components
 
 ```typescript
-import { canViewSidebarStaff } from "@/convex/lib/permissions";
+import { canViewSidebarStaff } from "@/lib/permissions";
 
 // In component
 const { role } = useCurrentUserRole();
@@ -242,23 +242,30 @@ if (canViewSidebarStaff(role)) {
 }
 ```
 
-### Usage in Convex Functions
+### Usage in Server Actions/API Routes
 
 ```typescript
-import { canEditOverview, UserRole } from "./lib/permissions";
+import { canEditOverview, UserRole } from "@/lib/permissions";
 
-// In mutation/query handler
+// In server action or API route handler
 const userRole = member?.role as UserRole;
 if (!canEditOverview(userRole)) {
   throw new Error("Unauthorized: Cannot edit resident overview");
 }
 ```
 
+### Row Level Security (RLS) Policies
+
+Permissions are also enforced at the database level through Supabase RLS policies. These policies automatically filter data based on:
+- User's `active_organization_id`
+- User's `active_team_id`
+- User's role from `auth.users.app_metadata.role`
+
 ---
 
 ## Security Considerations
 
-1. **Server-Side Validation**: All permission checks are performed server-side in Convex functions
+1. **Server-Side Validation**: All permission checks are performed server-side in Next.js server actions and API routes, with additional enforcement via Supabase RLS policies
 2. **Role Inheritance**: Roles do not inherit permissions from lower roles by default
 3. **Organization Scope**: All permissions are scoped to the user's active organization
 4. **Team Scope**: Some operations are further scoped to the user's active team

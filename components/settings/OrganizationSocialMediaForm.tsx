@@ -10,13 +10,14 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
 import { organizationSocialMediaSchema } from "@/schemas/settings/organizationSocialMediaSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 
 interface OrganizationSocialMediaFormProps {
   metadata: Record<string, string>;
@@ -29,6 +30,8 @@ export default function OrganizationSocialMediaForm({
   isPending,
   onSuccess
 }: OrganizationSocialMediaFormProps) {
+  const { supabase } = useSupabase();
+  const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof organizationSocialMediaSchema>>({
@@ -43,25 +46,28 @@ export default function OrganizationSocialMediaForm({
 
   const onSubmit = (values: z.infer<typeof organizationSocialMediaSchema>) => {
     startTransition(async () => {
-      await authClient.organization.update(
-        {
-          data: {
-            metadata: {
-              ...metadata,
-              facebook: values.facebook,
-              instagram: values.instagram,
-              x: values.x,
-              linkedin: values.linkedin
-            }
+      if (!supabase || !profile?.active_organization_id) return;
+
+      const { data, error } = await supabase
+        .from('organizations')
+        .update({
+          metadata: {
+            ...metadata,
+            facebook: values.facebook,
+            instagram: values.instagram,
+            x: values.x,
+            linkedin: values.linkedin
           }
-        },
-        {
-          onSuccess: () => {
-            toast.success("Organization social media updated");
-            onSuccess?.();
-          }
-        }
-      );
+        })
+        .eq('id', profile.active_organization_id);
+
+      if (error) {
+        toast.error("Failed to update organization social media");
+        console.error("Error updating organization:", error);
+      } else {
+        toast.success("Organization social media updated");
+        onSuccess?.();
+      }
     });
   };
 

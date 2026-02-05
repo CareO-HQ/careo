@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
 import { ArrowLeft, Eye, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -35,80 +34,131 @@ function ResidentAuditViewPageContent() {
   const auditId = params.auditId as string;
   const { activeTeamId } = useActiveTeam();
 
+  const { supabase } = useSupabase();
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
-  const [templateId, setTemplateId] = useState<Id<"residentAuditTemplates"> | null>(null);
-  const [isCheckingId, setIsCheckingId] = useState(true);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [template, setTemplate] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [allTemplateActionPlans, setAllTemplateActionPlans] = useState<any[]>([]);
 
-  // Try to get templateId from responseId (in case old URL is used)
-  // TODO: Implement getTemplateIdFromResponse function in convex/auditResponses.ts
-  const templateIdFromResponse = useQuery(
-    api.auditResponses.getResponseById,
-    "skip" // Skipped until getTemplateIdFromResponse is implemented
-  );
-
-  // Determine if auditId is a templateId or responseId, and redirect if needed
+  // Check if auditId is a templateId or responseId
   useEffect(() => {
-    if (!isCheckingId) return;
+    if (!auditId || !supabase) return;
 
-    // If we got a templateId from the response query, it means auditId was a responseId
-    if (templateIdFromResponse) {
-      // Redirect to the correct URL with templateId
-      router.replace(`/dashboard/careo-audit/resident/${templateIdFromResponse}/view`);
-      setIsCheckingId(false);
-    } else if (templateIdFromResponse === null) {
-      // Query returned null, which means auditId is not a valid responseId
-      // So it must be a templateId already
-      setTemplateId(auditId as Id<"residentAuditTemplates">);
-      setIsCheckingId(false);
-    }
-  }, [templateIdFromResponse, auditId, router, isCheckingId]);
+    const checkAuditId = async () => {
+      try {
+        // Try to fetch as completion (responseId)
+        const { data: completionData } = await supabase
+          .from("audit_resident_completions")
+          .select("template_id")
+          .eq("id", auditId)
+          .single();
 
-  // Fetch template to get the name
-  const template = useQuery(
-    api.auditTemplates.getTemplateById,
-    templateId ? { templateId } : "skip"
-  );
+        if (completionData) {
+          // It's a responseId, redirect to templateId
+          router.replace(`/dashboard/careo-audit/resident/${completionData.template_id}/view`);
+          return;
+        }
+
+        // Try to fetch as template
+        const { data: templateData } = await supabase
+          .from("audit_resident_templates")
+          .select("*")
+          .eq("id", auditId)
+          .single();
+
+        if (templateData) {
+          // It's a templateId
+          setTemplateId(auditId);
+          setTemplate(templateData);
+        } else {
+          setTemplateId(null);
+        }
+      } catch (error) {
+        console.error("Error checking audit ID:", error);
+        setTemplateId(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuditId();
+  }, [auditId, router, supabase]);
+
+  // Fetch template if not already loaded
+  useEffect(() => {
+    if (!templateId || template) return;
+
+    const fetchTemplate = async () => {
+      try {
+        const templateData = await auditService.getResidentTemplateById(templateId);
+        setTemplate(templateData);
+      } catch (error) {
+        console.error("Error fetching template:", error);
+      }
+    };
+
+    fetchTemplate();
+  }, [templateId, template]);
 
   // Load completed audits from database for this template
-  const dbArchivedAudits = useQuery(
-    api.auditResponses.getResponsesByTemplate,
-    templateId && activeTeamId
-      ? {
-          templateId,
-          teamId: activeTeamId,
-        }
-      : "skip"
-  );
-
-  // Load all action plans for this template
-  const allTemplateActionPlans = useQuery(
-    api.auditActionPlans.getActionPlansByTemplate,
-    templateId ? { templateId } : "skip"
-  );
-
   useEffect(() => {
-    if (dbArchivedAudits) {
-      const formatted = dbArchivedAudits
-        .filter((audit) => audit.status === "completed")
-        .map((audit) => ({
-          id: audit._id,
-          templateName: audit.templateName,
-          completedAt: audit.completedAt || audit.createdAt,
-          status: audit.status,
-          responses: audit.responses,
-          auditedBy: audit.auditedBy,
-        }))
-        .sort((a, b) => b.completedAt - a.completedAt);
-      setArchivedAudits(formatted as any);
-    }
-  }, [dbArchivedAudits]);
+    if (!templateId || !activeTeamId || !supabase) return;
+
+    const fetchCompletions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("audit_resident_completions")
+          .select("*")
+          .eq("template_id", templateId)
+          .eq("team_id", activeTeamId)
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false });
+
+        if (error) throw error;
+
+        // Get all completion IDs for action plans query
+        const completionIds = (data || []).map(c => c.id);
+        
+        // Fetch action plans for all completions
+        if (completionIds.length > 0) {
+          const { data: actionPlansData, error: actionPlansError } = await supabase
+            .from("audit_resident_action_plans")
+            .select("*")
+            .in("audit_response_id", completionIds);
+
+          if (!actionPlansError) {
+            setAllTemplateActionPlans(actionPlansData || []);
+          }
+        }
+
+        const formatted = (data || [])
+          .map((audit) => ({
+            id: audit.id,
+            templateName: audit.template_name || template?.name || "",
+            completedAt: audit.completed_at ? new Date(audit.completed_at).getTime() : new Date(audit.created_at).getTime(),
+            status: audit.status,
+            responses: audit.responses,
+            auditedBy: audit.audited_by_name || audit.audited_by,
+          }))
+          .sort((a, b) => b.completedAt - a.completedAt);
+        
+        setArchivedAudits(formatted);
+      } catch (error) {
+        console.error("Error fetching completions:", error);
+        setArchivedAudits([]);
+      }
+    };
+
+    fetchCompletions();
+  }, [templateId, activeTeamId, supabase, template]);
 
   // Helper function to get action plans count for a specific audit response
   const getActionPlansCountForAudit = (auditResponseId: string): number => {
-    if (!allTemplateActionPlans) return 0;
+    if (!allTemplateActionPlans || allTemplateActionPlans.length === 0) return 0;
 
     return allTemplateActionPlans.filter(
-      (plan: any) => plan.auditResponseId === auditResponseId
+      (plan: any) => plan.audit_response_id === auditResponseId
     ).length;
   };
 
@@ -117,7 +167,7 @@ function ResidentAuditViewPageContent() {
     return audit.responses?.length || 0;
   };
 
-  if (template === undefined) {
+  if (isLoading || template === null) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading...</p>
@@ -152,7 +202,7 @@ function ResidentAuditViewPageContent() {
           <div>
             <h1 className="text-xl font-semibold">Archived Audits</h1>
             <p className="text-sm text-muted-foreground">
-              {template.name}
+              {template?.name || "Resident Audit"}
             </p>
           </div>
         </div>
@@ -168,7 +218,7 @@ function ResidentAuditViewPageContent() {
             <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Archived Audits</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              No completed audits found for &quot;{template.name}&quot;
+              No completed audits found for &quot;{template?.name || "this template"}&quot;
             </p>
             <Button
               variant="outline"

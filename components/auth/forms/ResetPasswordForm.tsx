@@ -10,12 +10,13 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MailIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
+import { toast } from "sonner";
 
 export default function ResetPasswordForm() {
   const [isLoading, startTransition] = useTransition();
@@ -33,12 +34,14 @@ export default function ResetPasswordForm() {
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     startTransition(async () => {
-      const sent = await authClient.forgetPassword({
-        email: values.email,
-        redirectTo: "/new-password"
+      const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+        redirectTo: window.location.origin + "/new-password"
       });
-      console.log(sent);
-      setIsSent(true);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        setIsSent(true);
+      }
     });
   };
 

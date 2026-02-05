@@ -1,4 +1,3 @@
-import { Id } from "@/convex/_generated/dataModel";
 import { CareFileFormKey } from "@/types/care-files";
 import AdmissionDialog from "@/components/residents/carefile/dialogs/AdmissionDialog";
 import BedrailConsentDialog from "@/components/residents/carefile/dialogs/BedrailConsentDialog";
@@ -26,7 +25,7 @@ import CornellDepressionScaleDialog from "@/components/residents/carefile/dialog
 import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
 
 interface BaseDialogProps {
-  residentId: Id<"residents">;
+  residentId: string;
   teamId: string | undefined;
   organizationId: string;
   userId: string;
@@ -92,13 +91,20 @@ export function CareFileDialogRenderer({
       return (
         <PreAdmissionDialog
           {...commonProps}
+          userName={userName ?? ""}
           careHomeName={careHomeName ?? ""}
           initialData={editData}
         />
       );
 
     case "admission-form":
-      return <AdmissionDialog {...commonProps} initialData={editData} />;
+      return (
+        <AdmissionDialog
+          {...commonProps}
+          userName={userName ?? ""}
+          initialData={editData}
+        />
+      );
 
     case "infection-prevention":
       return (
@@ -250,6 +256,7 @@ export function CareFileDialogRenderer({
       return (
         <ChokingRiskAssessmentDialog
           {...commonProps}
+          userName={userName ?? ""}
           initialData={editData}
         />
       );
@@ -258,6 +265,7 @@ export function CareFileDialogRenderer({
       return (
         <CornellDepressionScaleDialog
           {...commonProps}
+          userName={userName ?? ""}
           initialData={editData}
         />
       );

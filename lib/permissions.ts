@@ -1,4 +1,4 @@
-export type UserRole = "owner" | "manager" | "nurse" | "care_assistant";
+export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant";
 
 // Simple role definitions for better-auth
 // The organization plugin expects minimal role configuration
@@ -140,6 +140,10 @@ export function canAddDietMenu(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
+export function canManageMenu(role?: string): boolean {
+  return role === "nurse";
+}
+
 export function canLogFoodFluidEntry(role?: string): boolean {
   return (
     role === "owner" ||
@@ -242,7 +246,7 @@ export function canCreateIncident(role?: string): boolean {
 }
 
 export function canForwardIncident(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "admin";
+  return role === "owner" || role === "manager" || role === "admin" || role === "nurse";
 }
 
 export function canViewAlert(alertType: string, role?: string): boolean {
@@ -298,7 +302,7 @@ export function canViewResidentSection(section: string, role?: string): boolean 
       return canViewDocuments(role);
     case "night-check":
       // Page is visible to all users
-    return true;
+      return true;
     case "appointments":
       return canViewAppointments(role);
     case "incidents":
@@ -319,10 +323,13 @@ export function canViewResidentSection(section: string, role?: string): boolean 
 }
 
 export function canInviteMembers(role: UserRole): boolean {
-  return role === "owner" || role === "manager";
+  return role === "saas_admin" || role === "owner" || role === "manager";
 }
 
 export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
+  if (role === "saas_admin") {
+    return ["owner", "manager"];
+  }
   if (role === "owner") {
     return ["manager"];
   }

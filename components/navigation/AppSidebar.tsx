@@ -11,7 +11,6 @@ import {
   SidebarMenuItem
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { authClient } from "@/lib/auth-client";
 import {
   MessageCircleQuestionMarkIcon,
   User2Icon,
@@ -27,11 +26,10 @@ import {
   ListTodo
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { useActiveTeam } from "@/hooks/use-active-team";
+import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import {
   canViewSidebarActionPlans,
   canViewSidebarAppointment,
@@ -52,143 +50,179 @@ import { LogoutButton } from "../auth/LogoutButton";
 
 export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
-  const activeOrg = authClient.useActiveOrganization();
-  const { data: user } = authClient.useSession();
-  const { data: activeMember, isPending: isActiveMemberPending } = authClient.useActiveMember();
-  const { activeTeamId, activeOrganizationId } = useActiveTeam();
-  const currentUser = useQuery(api.auth.getCurrentUser);
-  // SaaS Admin won't have activeMember, so check isSaasAdmin flag
-  const isSaasAdmin = (currentUser as any)?.isSaasAdmin === true;
-  // Use role from getCurrentUser as fallback if activeMember is not available (common after onboarding)
-  // During loading, currentUser is undefined, so we need to handle that case
-  const userRole = currentUser === undefined
-    ? undefined // Still loading
-    : isSaasAdmin
-      ? "saas_admin"
-      : (activeMember?.role as string | undefined) || (currentUser as any)?.role || undefined;
+  const { profile, isLoading: isProfileLoading } = useProfile();
+  const { supabase, user } = useSupabase();
 
-  // Debug logging to help diagnose issues
-  if (typeof window !== 'undefined') {
-    console.log('[AppSidebar] State check:', {
-      currentUserLoading: currentUser === undefined,
-      isSaasAdmin,
-      activeMemberRole: activeMember?.role,
-      activeMemberLoading: isActiveMemberPending,
-      currentUserRole: currentUser ? (currentUser as any)?.role : 'loading',
-      finalUserRole: userRole,
-      hasActiveMember: !!activeMember,
-      hasCurrentUser: !!currentUser,
-      activeOrganizationId,
-      activeTeamId,
-      activeOrgPending: activeOrg.isPending,
-      activeOrgData: activeOrg.data
-    });
-  }
+  const [unreadIncidentCount, setUnreadIncidentCount] = useState(0);
+  const [unreadAppointmentsCount, setUnreadAppointmentsCount] = useState(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [totalNewActionPlansCount, setTotalNewActionPlansCount] = useState(0);
 
-  // Get active care home
-  const currentUserContext = useQuery(api.users.getCurrentUserContext);
-  const activeCareHomeId = currentUserContext?.user?.activeCareHomeId;
-  // No-op: previously used for debug logging
-  const activeCareHome = useQuery(
-    api.rbac.careHomes.getActiveCareHome,
-    {}
-  );
-  // No-op: previously used for debug logging
+  // Map Supabase profile to variables used in the component
+  const activeOrganizationId = profile?.active_organization_id || null;
+  const activeTeamId = profile?.active_team_id || null;
+  const userRole = profile?.role;
+  const effectiveRole = userRole;
 
-  // Use care home name if available, otherwise fall back to organization name
-  const displayName = activeCareHome?.name || activeOrg.data?.name || "";
+  // Fetch all counts and set up real-time subscription
+  useEffect(() => {
+    if (!profile || !user) return;
 
-  // Extract email to a stable variable - always compute this before any conditional logic
-  // This ensures React sees consistent hook call patterns across renders
-  const userEmail = user?.user?.email || null;
+    async function fetchCounts() {
+      if (!user) return;
+      try {
+        // Fetch dismissals first
+        const { data: dismissals } = await supabase
+          .from("notification_dismissals")
+          .select("notification_id")
+          .eq("user_id", user.id);
 
-  // If we have a user but no role yet, and we're not still loading, try to show basic items
-  // This handles the case where role might be temporarily unavailable but user is authenticated
-  const isAuthenticated = !!user;
-  const isStillLoading = currentUser === undefined || (isActiveMemberPending && !activeMember);
+        const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
 
-  // If we have organizationId but no role, assume owner role (common after onboarding)
-  // This prevents empty sidebar while role is being resolved
-  const effectiveRole = userRole || (activeOrganizationId && !isStillLoading ? "owner" : undefined);
+        // 1. Unread Incidents (via notifications table with type incident)
+        // Check read status for incidents
+        const { data: allIncidentNotifs } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .eq("type", "incident")
+          .or(`user_id.eq.${user.id},user_id.is.null`);
 
-  // For owners and managers, always use organization-based queries; for other roles, use team if available
-  // Use effectiveRole to handle cases where role is temporarily unavailable
-  const shouldUseOrganization = effectiveRole === "manager" || effectiveRole === "owner";
+        const { data: incidentReadStatuses } = await supabase
+          .from("notification_read_status")
+          .select("notification_id")
+          .eq("user_id", user.id);
 
-  // Get unread notification count - dynamic based on selection and role
-  const unreadCount = useQuery(
-    api.notifications.getUnreadCount,
-    shouldUseOrganization && activeOrganizationId
-      ? { teamId: undefined, organizationId: activeOrganizationId }
-      : activeTeamId
-        ? { teamId: activeTeamId, organizationId: undefined }
-        : activeOrganizationId
-          ? { teamId: undefined, organizationId: activeOrganizationId }
-          : "skip"
-  );
+        const incidentReadIds = new Set((incidentReadStatuses || []).map(r => r.notification_id));
 
-  // Get unread appointments count - dynamic based on selection and role
-  const unreadAppointmentsCount = useQuery(
-    api.appointmentNotifications.getUnreadAppointmentCount,
-    shouldUseOrganization && activeOrganizationId
-      ? { teamId: undefined, organizationId: activeOrganizationId }
-      : activeTeamId
-        ? { teamId: activeTeamId, organizationId: undefined }
-        : activeOrganizationId
-          ? { teamId: undefined, organizationId: activeOrganizationId }
-          : "skip"
-  );
+        // Filter out read AND dismissed
+        const unreadIncidentList = (allIncidentNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
+        setUnreadIncidentCount(unreadIncidentList.length);
 
-  // Get unread notification count for current user
-  const unreadNotificationCount = useQuery(
-    api.notifications.getNotificationCount,
-    userEmail ? { userId: userEmail } : "skip"
-  );
+        // 2. Unread Appointments (via notifications table)
+        const { data: allAppointmentNotifs } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .like("type", "appointment_%")
+          .or(`user_id.eq.${user.id},user_id.is.null`);
 
-  // Get new action plans count for current user (Resident Audits)
-  const newResidentActionPlansCount = useQuery(
-    api.auditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
+        const unreadAppointmentList = (allAppointmentNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
+        setUnreadAppointmentsCount(unreadAppointmentList.length);
 
-  // Get new action plans count for current user (Care File Audits)
-  const newCareFileActionPlansCount = useQuery(
-    api.careFileAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
+        // 3. System Notifications
+        const { data: allNotifs } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .or(`user_id.eq.${user.id},user_id.is.null`);
 
-  // Get new action plans count for current user (Governance Audits)
-  const newGovernanceActionPlansCount = useQuery(
-    api.governanceAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
+        const unreadNotifs = (allNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
+        setUnreadNotificationCount(unreadNotifs.length);
 
-  // Get new action plans count for current user (Clinical Audits)
-  const newClinicalActionPlansCount = useQuery(
-    api.clinicalAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
+        // 4. Action Plans (via notifications table)
+        // We now track "unread" updates instead of "total pending tasks" for the badge
+        const { data: allActionPlanNotifs } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .in("type", ["action_plan", "action_plan_status"])
+          .or(`user_id.eq.${user.id},user_id.is.null`);
 
-  // Get new action plans count for current user (Environment Audits)
-  const newEnvironmentActionPlansCount = useQuery(
-    api.environmentAuditActionPlans.getNewActionPlansCount,
-    userEmail ? { assignedTo: userEmail } : "skip"
-  );
+        const unreadActionPlanList = (allActionPlanNotifs || []).filter(n =>
+          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
+        );
+        setTotalNewActionPlansCount(unreadActionPlanList.length);
+      } catch (error) {
+        console.error("Error fetching sidebar counts:", error);
+      }
+    }
 
-  // Combine all action plan counts
-  const totalNewActionPlansCount =
-    (newResidentActionPlansCount || 0) +
-    (newCareFileActionPlansCount || 0) +
-    (newGovernanceActionPlansCount || 0) +
-    (newClinicalActionPlansCount || 0) +
-    (newEnvironmentActionPlansCount || 0);
+    fetchCounts();
+
+    // Subscribe to real-time changes
+    const channelName = `sidebar-notifs-${user.id}-${activeOrganizationId || 'no-org'}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          // Only filter by org if we have one, otherwise listen to all (RLS will still protect)
+          ...(activeOrganizationId ? { filter: `organization_id=eq.${activeOrganizationId}` } : {}),
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notification_read_status",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[AppSidebar] Subscribed to real-time changes for user ${user.id}`);
+        }
+      });
+
+    // Subscribe to all action plan tables
+    const apTables = [
+      'audit_resident_action_plans',
+      'audit_care_file_action_plans',
+      'audit_governance_action_plans',
+      'audit_clinical_action_plans',
+      'audit_environment_action_plans'
+    ];
+
+    const apChannels = apTables.map(tableName =>
+      supabase
+        .channel(`${tableName}-sidebar-changes`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: tableName,
+            ...(activeOrganizationId ? { filter: `organization_id=eq.${activeOrganizationId}` } : {}),
+          },
+          () => {
+            fetchCounts();
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      supabase.removeChannel(channel);
+      apChannels.forEach(ch => supabase.removeChannel(ch));
+    };
+  }, [profile, user, activeOrganizationId, supabase]);
+
+  const displayName = profile?.care_home_name || profile?.organization_name || "";
+  const isStillLoading = isProfileLoading;
 
   return (
     <Sidebar>
       <SidebarContent>
         <TeamSwitcher
           orgName={displayName}
-          isPending={activeOrg.isPending}
+          isPending={isStillLoading}
         />
 
         {/* Management Section */}
@@ -264,7 +298,7 @@ export function AppSidebar() {
                       <CalendarIcon className="w-4 h-4" />
                       <span>Appointment</span>
                     </div>
-                    {unreadAppointmentsCount !== undefined && unreadAppointmentsCount > 0 && (
+                    {unreadAppointmentsCount > 0 && (
                       <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
                         {unreadAppointmentsCount}
                       </Badge>
@@ -283,9 +317,9 @@ export function AppSidebar() {
                       <Shield className="w-4 h-4" />
                       <span>Incidents</span>
                     </div>
-                    {unreadCount !== undefined && unreadCount > 0 && (
+                    {unreadIncidentCount > 0 && (
                       <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
-                        {unreadCount}
+                        {unreadIncidentCount}
                       </Badge>
                     )}
                   </Link>
@@ -321,7 +355,7 @@ export function AppSidebar() {
                       <BellIcon className="w-4 h-4" />
                       <span>Notification</span>
                     </div>
-                    {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                    {unreadNotificationCount > 0 && (
                       <Badge className="bg-red-500 text-white ml-auto h-5 w-5 text-xs flex items-center justify-center rounded-md">
                         {unreadNotificationCount}
                       </Badge>

@@ -80,13 +80,13 @@ export function DataTable<TData, TValue>({
             <TableRow key={headerGroup.id} className="hover:bg-transparent border-b">
               {headerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id} className="border-r last:border-r-0">
+                  <TableHead key={header.id} className="border-r last:border-r-0 px-2 py-2 h-9 text-[11px] uppercase tracking-wider">
                     {header.isPlaceholder
                       ? null
                       : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
                   </TableHead>
                 );
               })}
@@ -105,7 +105,7 @@ export function DataTable<TData, TValue>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className="border-r last:border-r-0"
+                      className="border-r last:border-r-0 p-1.5 text-xs"
                       style={{
                         width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined
                       }}

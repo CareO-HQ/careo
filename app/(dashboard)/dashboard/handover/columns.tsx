@@ -9,36 +9,135 @@ import {
   TooltipContent,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { getAge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { useQuery, useMutation } from "convex/react";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentShift } from "@/lib/config/shift-config";
 import { toast } from "sonner";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useHandoverComment } from "@/hooks/use-handover-comment";
+import { useProfile } from "@/hooks/use-profile";
+
+// Helper function to fetch handover report data
+const useHandoverReport = (residentId: string, teamId?: string) => {
+  const { supabase } = useSupabase();
+  const [report, setReport] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!residentId || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchReport = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
+
+        // Fetch food/fluid logs for today
+        const { data: logs, error: logsError } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", residentId)
+          .eq("date", today)
+          .eq("is_archived", false)
+          .order("timestamp", { ascending: false });
+
+        if (logsError) throw logsError;
+
+        // Separate food and fluid logs
+        const foodLogs = (logs || []).filter(log =>
+          log.type_of_food_drink &&
+          !fluidTypes.includes(log.type_of_food_drink) &&
+          !log.fluid_consumed_ml &&
+          log.amount_eaten &&
+          log.amount_eaten !== "None" &&
+          log.amount_eaten.trim() !== ""
+        );
+
+        const fluidLogs = (logs || []).filter(log =>
+          fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
+        );
+
+        const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
+
+        // Fetch incidents for today
+        const { data: incidents, error: incidentsError } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", residentId)
+          .eq("date", today)
+          .order("time", { ascending: false });
+
+        if (incidentsError) throw incidentsError;
+
+        // Fetch hospital transfers for today
+        const { data: transfers, error: transfersError } = await supabase
+          .from("hospital_transfers")
+          .select("*")
+          .eq("resident_id", residentId)
+          .eq("date", today);
+
+        if (transfersError) throw transfersError;
+
+        setReport({
+          foodIntakeCount: foodLogs.length,
+          foodIntakeLogs: foodLogs.map(log => ({
+            id: log.id,
+            typeOfFoodDrink: log.type_of_food_drink,
+            amountEaten: log.amount_eaten,
+            section: log.section,
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          totalFluid,
+          fluidLogs: fluidLogs.map(log => ({
+            id: log.id,
+            typeOfFoodDrink: log.type_of_food_drink,
+            fluidConsumedMl: log.fluid_consumed_ml,
+            section: log.section,
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          incidentCount: incidents?.length || 0,
+          incidents: (incidents || []).map(inc => ({
+            id: inc.id,
+            type: inc.incident_types || [],
+            level: inc.incident_level,
+            time: inc.time,
+          })),
+          hospitalTransferCount: transfers?.length || 0,
+          hospitalTransfers: (transfers || []).map(transfer => ({
+            id: transfer.id,
+            hospitalName: transfer.hospital_name,
+            reason: transfer.reason,
+          })),
+        });
+      } catch (error) {
+        console.error("Error fetching handover report:", error);
+        setReport(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReport();
+  }, [residentId, teamId, supabase]);
+
+  return { report, isLoading };
+};
 
 // Component for displaying handover report
 const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.foodIntakeCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0 meals
       </Badge>
     );
@@ -47,13 +146,13 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.foodIntakeCount} meals
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.foodIntakeLogs.map((log, index) => (
+          {report.foodIntakeLogs.map((log: any, index: number) => (
             <div key={log.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -85,24 +184,15 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
 
 // Component for displaying fluid total
 const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.totalFluid === 0 || !report.fluidLogs || report.fluidLogs.length === 0) {
     return (
-      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm">
+      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0 ml
       </Badge>
     );
@@ -111,13 +201,13 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.totalFluid} ml
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.fluidLogs.map((log, index) => (
+          {report.fluidLogs.map((log: any, index: number) => (
             <div key={log.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -153,24 +243,15 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
 
 // Component for displaying incidents
 const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.incidentCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0
       </Badge>
     );
@@ -179,13 +260,13 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.incidentCount}
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.incidents.map((incident, index) => (
+          {report.incidents.map((incident: any, index: number) => (
             <div key={incident.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -196,10 +277,10 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
                 </span>
               </div>
               <div className="text-sm text-muted-foreground">
-                Type: {incident.type.join(", ") || "Not specified"}
+                Type: {Array.isArray(incident.type) ? incident.type.join(", ") : incident.type || "Not specified"}
               </div>
               <div className="text-sm">
-                Level: <span className="capitalize">{incident.level.replace("_", " ")}</span>
+                Level: <span className="capitalize">{incident.level?.replace("_", " ") || "Not specified"}</span>
               </div>
               {index < report.incidents.length - 1 && (
                 <div className="border-t my-1" />
@@ -214,24 +295,15 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
 
 // Component for displaying hospital transfers
 const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.hospitalTransferCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0
       </Badge>
     );
@@ -240,13 +312,13 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.hospitalTransferCount}
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.hospitalTransfers.map((transfer, index) => (
+          {report.hospitalTransfers.map((transfer: any, index: number) => (
             <div key={transfer.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -275,98 +347,31 @@ const CommentsCell = ({
   residentId,
   teamId,
   currentUserId,
-  currentUserName
+  currentUserName,
+  organizationId,
 }: {
   residentId: string;
   teamId?: string;
   currentUserId?: string;
   currentUserName?: string;
+  organizationId?: string;
 }) => {
   const today = new Date().toISOString().split('T')[0];
   const shift = getCurrentShift();
 
-  // Fetch existing comment from database
-  const existingComment = useQuery(
-    api.handoverComments.getComment,
-    teamId && currentUserId ? {
-      teamId,
-      residentId: residentId as Id<"residents">,
-      date: today,
-      shift,
-    } : "skip"
-  );
-
-  const saveComment = useMutation(api.handoverComments.saveComment);
-
-  const [comment, setComment] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const initialLoadComplete = useRef(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-
-  // Load existing comment on mount
-  useEffect(() => {
-    if (existingComment && !initialLoadComplete.current) {
-      setComment(existingComment.comment);
-      setLastSavedAt(existingComment.updatedAt);
-      initialLoadComplete.current = true;
-    }
-  }, [existingComment]);
-
-  // Auto-save with debounce
-  const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setComment(value);
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Set new timeout for auto-save (2 seconds)
-    saveTimeoutRef.current = setTimeout(async () => {
-      if (!teamId || !currentUserId || !currentUserName) return;
-      if (value === existingComment?.comment) return;
-
-      setIsSaving(true);
-      try {
-        await saveComment({
-          teamId,
-          residentId: residentId as Id<"residents">,
-          date: today,
-          shift,
-          comment: value,
-          createdBy: currentUserId,
-          createdByName: currentUserName,
-        });
-        setLastSavedAt(Date.now());
-      } catch (error) {
-        console.error("Failed to save comment:", error);
-        toast.error("Failed to save comment. Please check your connection and try again.");
-      } finally {
-        setIsSaving(false);
-      }
-    }, 2000);
-  };
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Format last saved time
-  const getLastSavedText = () => {
-    if (!lastSavedAt) return null;
-
-    return `Edited at ${new Date(lastSavedAt).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-  };
+  const {
+    comment,
+    setComment,
+    isSaving,
+    lastSavedText,
+  } = useHandoverComment({
+    teamId: teamId || "",
+    residentId,
+    date: today,
+    shift,
+    currentUserId: currentUserId || "",
+    currentUserName: currentUserName || "",
+  });
 
   return (
     <div className="relative w-full h-full">
@@ -375,11 +380,11 @@ const CommentsCell = ({
         className="h-8 w-full text-sm border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-2"
         data-resident-id={residentId}
         value={comment}
-        onChange={handleCommentChange}
+        onChange={(e) => setComment(e.target.value)}
       />
-      {(isSaving || lastSavedAt) && (
+      {(isSaving || lastSavedText) && (
         <div className="absolute bottom-0 right-2 text-[10px] text-muted-foreground italic">
-          {isSaving ? "Saving..." : getLastSavedText()}
+          {isSaving ? "Saving..." : lastSavedText}
         </div>
       )}
     </div>
@@ -389,11 +394,12 @@ const CommentsCell = ({
 export const getColumns = (
   teamId?: string,
   currentUserId?: string,
-  currentUserName?: string
+  currentUserName?: string,
+  organizationId?: string
 ): ColumnDef<Resident, unknown>[] => [
   {
     id: "name",
-    accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+    accessorFn: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim(),
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm">Name</div>
@@ -408,8 +414,8 @@ export const getColumns = (
       const searchTerm = value.toLowerCase().trim();
       if (!searchTerm) return true;
 
-      const firstName = (resident.firstName || '').toLowerCase();
-      const lastName = (resident.lastName || '').toLowerCase();
+      const firstName = (resident.first_name || '').toLowerCase();
+      const lastName = (resident.last_name || '').toLowerCase();
       const fullName = `${firstName} ${lastName}`.trim();
 
       return firstName.includes(searchTerm) ||
@@ -418,18 +424,18 @@ export const getColumns = (
     },
     cell: ({ row }) => {
       const resident = row.original;
-      const name = `${resident.firstName} ${resident.lastName}`;
+      const name = `${resident.first_name} ${resident.last_name}`;
       const initials =
-        `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+        `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
       return (
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={resident.imageUrl} alt={name} />
+            <AvatarImage src={resident.image_url} alt={name} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="font-medium text-sm">
-            {resident.firstName} {resident.lastName}
+            {resident.first_name} {resident.last_name}
           </div>
         </div>
       );
@@ -445,8 +451,8 @@ export const getColumns = (
     enableSorting: true,
     size: 80,
     sortingFn: (rowA, rowB) => {
-      const a = rowA.original.roomNumber;
-      const b = rowB.original.roomNumber;
+      const a = rowA.original.room_number;
+      const b = rowB.original.room_number;
 
       if (!a && !b) return 0;
       if (!a) return 1;
@@ -458,13 +464,12 @@ export const getColumns = (
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
-
-      return a.localeCompare(b);
+      return 0;
     },
     cell: ({ row }) => {
       return (
         <p className="text-muted-foreground">
-          {row.original.roomNumber || "-"}
+          {row.original.room_number || "-"}
         </p>
       );
     }
@@ -482,7 +487,7 @@ export const getColumns = (
     size: 100,
     cell: ({ row }) => {
       const resident = row.original;
-      return <HandoverReportCell residentId={resident._id} teamId={teamId} />;
+      return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -498,7 +503,7 @@ export const getColumns = (
     size: 90,
     cell: ({ row }) => {
       const resident = row.original;
-      return <FluidTotalCell residentId={resident._id} teamId={teamId} />;
+      return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -512,7 +517,7 @@ export const getColumns = (
     size: 80,
     cell: ({ row }) => {
       const resident = row.original;
-      return <IncidentsCell residentId={resident._id} teamId={teamId} />;
+      return <IncidentsCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -528,7 +533,7 @@ export const getColumns = (
     size: 130,
     cell: ({ row }) => {
       const resident = row.original;
-      return <HospitalTransferCell residentId={resident._id} teamId={teamId} />;
+      return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -539,7 +544,7 @@ export const getColumns = (
       );
     },
     enableSorting: false,
-    size: 100,
+    size: 70,
     cell: ({ row }) => {
       return (
         <div className="text-sm text-muted-foreground">—</div>
@@ -559,12 +564,13 @@ export const getColumns = (
       const resident = row.original;
       return (
         <CommentsCell
-          residentId={resident._id}
+          residentId={resident.id}
           teamId={teamId}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
+          organizationId={organizationId}
         />
       );
     }
   }
-];
+  ];

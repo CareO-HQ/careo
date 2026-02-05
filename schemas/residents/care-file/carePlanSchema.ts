@@ -15,10 +15,10 @@ export const carePlanAssessmentSchema = z.object({
   nameOfCarePlan: z.string().min(1, "Name of care plan is required"),
   residentName: z.string().min(1, "Resident name is required"),
   dob: z.number(),
-  bedroomNumber: z.string().min(1, "Bedroom number is required"),
+  bedroomNumber: z.string(),
   writtenBy: z.string().min(1, "Written by is required"),
   dateWritten: z.number(),
-  carePlanNumber: z.string().min(1, "Care plan number is required"),
+  carePlanNumber: z.string().optional(), // Make optional since it might not always be available
 
   // Care plan details
   identifiedNeeds: z.string().min(1, "Identified needs are required"),

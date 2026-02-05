@@ -11,14 +11,14 @@ export const oralAssessmentSchema = z.object({
   // Section 1: Basic Resident Information
   residentName: z.string().min(1, "Resident name is required"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
-  weight: z.string().min(1, "Weight is required"),
-  height: z.string().min(1, "Height is required"),
+  weight: z.string().optional(),
+  height: z.string().optional(),
   completedBy: z.string().min(1, "Name of person completing assessment is required"),
-  signature: z.string().min(1, "Signature is required"),
+  signature: z.string().optional(),
   assessmentDate: z.number().min(1, "Assessment date is required"),
 
   // Section 2: Dental History and Registration
-  normalOralHygieneRoutine: z.string().min(1, "Oral hygiene routine is required"),
+  normalOralHygieneRoutine: z.string().optional(),
   isRegisteredWithDentist: z.boolean(),
   lastSeenByDentist: z.string().optional(),
   dentistName: z.string().optional(),
@@ -82,6 +82,7 @@ export const oralAssessmentSchema = z.object({
   cognitiveImpairmentCare: z.string().optional(),
 
   // Optional metadata fields for form state management
+  status: z.enum(["draft", "completed"]).optional(),
   savedAsDraft: z.boolean().optional()
 });
 

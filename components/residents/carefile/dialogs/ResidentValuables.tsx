@@ -32,10 +32,9 @@ import { useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { useMutation } from "convex/react";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface ResidentValuablesProps {
   teamId: string;
@@ -63,68 +62,58 @@ export default function ResidentValuables({
   const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
 
-  const submitValuables = useMutation(
-    api.careFiles.residentValuables.submitResidentValuables
-  );
-  const updateValuables = useMutation(
-    api.careFiles.residentValuables.updateResidentValuables
-  );
-  const submitReviewedFormMutation = useMutation(
-    api.managerAudits.submitReviewedForm
-  );
-
   const form = useForm<z.infer<typeof residentValuablesSchema>>({
     resolver: zodResolver(residentValuablesSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-          // Use existing data for editing
-          residentName: initialData.residentName ?? (`${resident.firstName || ""} ${resident.lastName || ""}`.trim() || ""),
-          bedroomNumber: initialData.bedroomNumber ?? resident.roomNumber ?? "",
-          date: initialData.date ?? Date.now(),
-          completedBy: initialData.completedBy ?? userName,
-          witnessedBy: initialData.witnessedBy ?? "",
-          valuables: initialData.valuables ?? [],
-          n50: initialData.n50 ?? undefined,
-          n20: initialData.n20 ?? undefined,
-          n10: initialData.n10 ?? undefined,
-          n5: initialData.n5 ?? undefined,
-          n2: initialData.n2 ?? undefined,
-          n1: initialData.n1 ?? undefined,
-          p50: initialData.p50 ?? undefined,
-          p20: initialData.p20 ?? undefined,
-          p10: initialData.p10 ?? undefined,
-          p5: initialData.p5 ?? undefined,
-          p2: initialData.p2 ?? undefined,
-          p1: initialData.p1 ?? undefined,
-          total: initialData.total ?? 0,
-          clothing: initialData.clothing ?? [],
-          other: initialData.other ?? []
-        }
+        // Use existing data for editing
+        residentName: initialData.residentName ?? (`${resident.first_name || ""} ${resident.last_name || ""}`.trim() || ""),
+        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        date: initialData.date ?? Date.now(),
+        completedBy: initialData.completedBy ?? userName,
+        witnessedBy: initialData.witnessedBy ?? "",
+        valuables: initialData.valuables ?? [],
+        n50: initialData.n50 ?? undefined,
+        n20: initialData.n20 ?? undefined,
+        n10: initialData.n10 ?? undefined,
+        n5: initialData.n5 ?? undefined,
+        n2: initialData.n2 ?? undefined,
+        n1: initialData.n1 ?? undefined,
+        p50: initialData.p50 ?? undefined,
+        p20: initialData.p20 ?? undefined,
+        p10: initialData.p10 ?? undefined,
+        p5: initialData.p5 ?? undefined,
+        p2: initialData.p2 ?? undefined,
+        p1: initialData.p1 ?? undefined,
+        total: initialData.total ?? 0,
+        clothing: initialData.clothing ?? [],
+        other: initialData.other ?? []
+      }
       : {
-          // Default values for new forms
-          residentName: `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "",
-          bedroomNumber: resident.roomNumber ?? "",
-          date: Date.now(),
-          completedBy: userName,
-          witnessedBy: "",
-          valuables: [],
-          n50: undefined,
-          n20: undefined,
-          n10: undefined,
-          n5: undefined,
-          n2: undefined,
-          n1: undefined,
-          p50: undefined,
-          p20: undefined,
-          p10: undefined,
-          p5: undefined,
-          p2: undefined,
-          p1: undefined,
-          total: 0,
-          clothing: [],
-          other: []
-        }
+        // Default values for new forms
+        residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim() || "",
+        bedroomNumber: resident.room_number ?? "",
+        date: Date.now(),
+        completedBy: userName,
+        witnessedBy: "",
+        valuables: [],
+        n50: undefined,
+        n20: undefined,
+        n10: undefined,
+        n5: undefined,
+        n2: undefined,
+        n1: undefined,
+        p50: undefined,
+        p20: undefined,
+        p10: undefined,
+        p5: undefined,
+        p2: undefined,
+        p1: undefined,
+        total: 0,
+        clothing: [],
+        other: []
+      }
   });
 
   // Field arrays for dynamic lists
@@ -224,41 +213,23 @@ export default function ResidentValuables({
       try {
         const formData = form.getValues();
 
-        // Ensure total is calculated before submission
-        calculateTotal();
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          assessment_data: formData,
+          created_by: userId
+        };
+
+        await submitAssessmentWithVersioning(
+          "resident_valuables_assessments",
+          payload,
+          initialData,
+          isEditMode
+        );
 
         if (isEditMode && initialData) {
-          // In review mode, use the special submission that creates audit automatically
-          const data = await submitReviewedFormMutation({
-            formType: "residentValuablesAssessment",
-            formData: {
-              ...formData,
-              residentId: residentId as Id<"residents">,
-              teamId,
-              organizationId,
-              userId
-            },
-            originalFormData: initialData,
-            originalFormId: initialData?._id,
-            residentId: residentId as Id<"residents">,
-            auditedBy: userName,
-            auditNotes: "Form reviewed and updated",
-            teamId,
-            organizationId
-          } as any);
-          if (data.hasChanges) {
-            toast.success("Resident valuables updated successfully!");
-          } else {
-            toast.success("Resident valuables reviewed and approved without changes!");
-          }
+          toast.success("Resident valuables updated successfully!");
         } else {
-          await submitValuables({
-            ...formData,
-            residentId: residentId as Id<"residents">,
-            teamId,
-            organizationId,
-            userId
-          } as any);
           toast.success("Resident valuables saved successfully");
         }
 

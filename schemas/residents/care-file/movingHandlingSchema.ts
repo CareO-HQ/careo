@@ -77,7 +77,7 @@ export const movingHandlingAssessmentSchema = z.object({
   completedBy: z.string(),
   jobRole: z.string(),
   signature: z.string(),
-  completionDate: z.string()
+  assessmentDate: z.string()
 });
 
 export type MovingHandlingAssessment = z.infer<

@@ -81,5 +81,5 @@ export const InfectionPreventionAssessmentSchema = z.object({
   completedBy: z.string().min(1, "Completed by is required"),
   jobRole: z.string().min(1, "Job role is required"),
   signature: z.string().min(1, "Signature is required"),
-  completionDate: z.number().min(1, "Date is required")
+  assessmentDate: z.number().min(1, "Date is required")
 });

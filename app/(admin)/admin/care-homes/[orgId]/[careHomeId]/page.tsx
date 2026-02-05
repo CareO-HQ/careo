@@ -1,59 +1,154 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UsersRound, ArrowLeft, Building2 } from "lucide-react";
+import { Users, UsersRound, ArrowLeft, Building2, Loader2 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Id } from "@/convex/_generated/dataModel";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Squad {
+  id: string;
+  name: string;
+  staffCount: number;
+}
+
+interface StaffMember {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  teamNames: string[];
+}
+
+interface CareHomeDetails {
+  id: string;
+  name: string;
+  createdAt: string;
+  staffCount: number;
+  teamsCount: number;
+  residentCount: number;
+  teams: Squad[];
+  staff: StaffMember[];
+}
 
 export default function CareHomeDetailsPage() {
-  const { data: session } = authClient.useSession();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const router = useRouter();
   const params = useParams();
   const orgId = params.orgId as string;
   const careHomeId = params.careHomeId as string;
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  const careHomeDetails = useQuery(
-    api.rbac.careHomes.getCareHomeDetails,
-    careHomeId ? { careHomeId: careHomeId as Id<"careHomes"> } : "skip"
-  );
+
+  const [careHomeDetails, setCareHomeDetails] = useState<CareHomeDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedRole, setSelectedRole] = useState<string>("all");
 
   // Redirect if not SaaS Admin
   useEffect(() => {
-    if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
+    if (!isProfileLoading && profile && !profile.is_saas_admin) {
       router.push("/dashboard");
     }
-  }, [saasAdminStatus, router]);
+  }, [profile, isProfileLoading, router]);
 
-  if (!session) {
+  const fetchDetails = useCallback(async () => {
+    if (!profile?.is_saas_admin || !careHomeId) return;
+
+    try {
+      setIsLoading(true);
+
+      // 1. Fetch care home basic details
+      const { data: chData, error: chError } = await supabase
+        .from("care_homes")
+        .select("id, name, created_at")
+        .eq("id", careHomeId)
+        .single();
+
+      if (chError) throw chError;
+
+      // 2. Fetch teams in this care home
+      const { data: teamsData, error: teamsError } = await supabase
+        .from("teams")
+        .select(`
+          id, name,
+          team_staff (count)
+        `)
+        .eq("care_home_id", careHomeId);
+
+      if (teamsError) throw teamsError;
+
+      // 3. Fetch staff members in this care home
+      const { data: staffData, error: staffError } = await supabase
+        .from("users")
+        .select(`
+          id, email, name, role,
+          teams:teams!active_team_id (name)
+        `)
+        .eq("active_care_home_id", careHomeId);
+
+      if (staffError) throw staffError;
+
+      // 4. Fetch resident count
+      const { count: residentCount, error: residentError } = await supabase
+        .from("residents")
+        .select("id", { count: "exact", head: true })
+        .eq("care_home_id", careHomeId);
+
+      if (residentError) throw residentError;
+
+      setCareHomeDetails({
+        id: chData.id,
+        name: chData.name,
+        createdAt: chData.created_at,
+        staffCount: staffData?.length || 0,
+        teamsCount: teamsData?.length || 0,
+        residentCount: residentCount || 0,
+        teams: (teamsData || []).map(team => ({
+          id: team.id,
+          name: team.name,
+          staffCount: (team as any).team_staff?.[0]?.count || 0
+        })),
+        staff: (staffData || []).map(staff => ({
+          id: staff.id,
+          email: staff.email,
+          name: staff.name,
+          role: staff.role,
+          teamNames: staff.teams ? [(staff.teams as any).name] : []
+        }))
+      });
+
+    } catch (error) {
+      console.error("Error fetching care home details:", error);
+      toast.error("Failed to load care home details");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profile, careHomeId]);
+
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  if (isProfileLoading || (isLoading && !careHomeDetails)) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
       </div>
     );
   }
 
-  if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-lg font-semibold mb-2">Access Denied</p>
-        <p className="text-muted-foreground">You don&apos;t have permission to access this page.</p>
-      </div>
-    );
-  }
-
-  if (careHomeDetails === undefined) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen">
-        <p className="text-muted-foreground">Loading care home details...</p>
-      </div>
-    );
+  if (!profile?.is_saas_admin) {
+    return null;
   }
 
   if (!careHomeDetails) {
@@ -67,6 +162,10 @@ export default function CareHomeDetailsPage() {
       </div>
     );
   }
+
+  const filteredStaff = selectedRole === "all"
+    ? careHomeDetails.staff
+    : careHomeDetails.staff.filter(staff => staff.role === selectedRole);
 
   return (
     <div className="w-full p-6 space-y-6">
@@ -127,8 +226,21 @@ export default function CareHomeDetailsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-sm font-mono text-muted-foreground truncate">
-              {careHomeDetails._id}
+              {careHomeDetails.id}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Residents</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{careHomeDetails.residentCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Residents in this care home
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -145,10 +257,10 @@ export default function CareHomeDetailsPage() {
         </CardHeader>
         <CardContent>
           {careHomeDetails.teams.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {careHomeDetails.teams.map((team) => (
                 <div
-                  key={team._id}
+                  key={team.id}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div>
@@ -174,19 +286,34 @@ export default function CareHomeDetailsPage() {
       {/* Staff List */}
       <Card>
         <CardHeader>
-          <CardTitle>Members</CardTitle>
-          <CardDescription>
-            {careHomeDetails.staffCount === 0
-              ? "No members yet"
-              : `${careHomeDetails.staffCount} member${careHomeDetails.staffCount === 1 ? "" : "s"} in this care home`}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Members</CardTitle>
+              <CardDescription>
+                {filteredStaff.length} member{filteredStaff.length === 1 ? "" : "s"} found
+                {selectedRole !== "all" && ` (${selectedRole})`}
+              </CardDescription>
+            </div>
+            <Select value={selectedRole} onValueChange={setSelectedRole}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="nurse">Nurse</SelectItem>
+                <SelectItem value="care_assistant">Care Assistant</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          {careHomeDetails.staff.length > 0 ? (
-            <div className="space-y-2">
-              {careHomeDetails.staff.map((staffMember) => (
+          {filteredStaff.length > 0 ? (
+            <div className="space-y-4">
+              {filteredStaff.map((staffMember) => (
                 <div
-                  key={staffMember.userId}
+                  key={staffMember.id}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div>
@@ -194,9 +321,11 @@ export default function CareHomeDetailsPage() {
                     <p className="text-sm text-muted-foreground">
                       {staffMember.email}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Units: {staffMember.unitNames.join(", ")}
-                    </p>
+                    {staffMember.teamNames.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Teams: {staffMember.teamNames.join(", ")}
+                      </p>
+                    )}
                   </div>
                   <Badge variant="outline">{staffMember.role}</Badge>
                 </div>

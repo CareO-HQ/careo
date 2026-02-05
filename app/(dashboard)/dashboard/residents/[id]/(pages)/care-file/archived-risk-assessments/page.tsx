@@ -10,20 +10,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { ArrowLeft, Eye, Archive } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
+import { supabase } from "@/lib/supabase";
 
 export default function ArchivedRiskAssessmentsPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
-  const residentId = pathname[3] as Id<"residents">;
+  const residentId = pathname[3];
 
   const [viewingAssessment, setViewingAssessment] = useState<{
     formKey: string;
@@ -33,153 +31,174 @@ export default function ArchivedRiskAssessmentsPage() {
     category: string;
   } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [resident, setResident] = useState<any>(undefined);
+  const [loading, setLoading] = useState(true);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: residentId as Id<"residents">
-  });
+  // State for all assessment types
+  const [archivedPreAdmission, setArchivedPreAdmission] = useState<any[]>([]);
+  const [archivedAdmission, setArchivedAdmission] = useState<any[]>([]);
+  const [archivedPhotographyConsent, setArchivedPhotographyConsent] = useState<any[]>([]);
+  const [archivedDnacpr, setArchivedDnacpr] = useState<any[]>([]);
+  const [archivedPeep, setArchivedPeep] = useState<any[]>([]);
+  const [archivedDependency, setArchivedDependency] = useState<any[]>([]);
+  const [archivedTiml, setArchivedTiml] = useState<any[]>([]);
+  const [archivedSkinIntegrity, setArchivedSkinIntegrity] = useState<any[]>([]);
+  const [archivedResidentValuables, setArchivedResidentValuables] = useState<any[]>([]);
+  const [archivedHandlingProfile, setArchivedHandlingProfile] = useState<any[]>([]);
+  const [archivedPainAssessment, setArchivedPainAssessment] = useState<any[]>([]);
+  const [archivedNutritionalAssessment, setArchivedNutritionalAssessment] = useState<any[]>([]);
+  const [archivedOralAssessment, setArchivedOralAssessment] = useState<any[]>([]);
+  const [archivedDietNotification, setArchivedDietNotification] = useState<any[]>([]);
+  const [archivedChokingRiskAssessment, setArchivedChokingRiskAssessment] = useState<any[]>([]);
+  const [archivedCornellDepressionScale, setArchivedCornellDepressionScale] = useState<any[]>([]);
+  const [archivedBestInterestDecision, setArchivedBestInterestDecision] = useState<any[]>([]);
+  const [archivedInfectionPrevention, setArchivedInfectionPrevention] = useState<any[]>([]);
+  const [archivedBladderBowel, setArchivedBladderBowel] = useState<any[]>([]);
+  const [archivedMovingHandling, setArchivedMovingHandling] = useState<any[]>([]);
+  const [archivedBedrailConsent, setArchivedBedrailConsent] = useState<any[]>([]);
+  const [archivedBedRailsRiskAssessment, setArchivedBedRailsRiskAssessment] = useState<any[]>([]);
+  const [archivedLongTermFalls, setArchivedLongTermFalls] = useState<any[]>([]);
 
-  // Fetch archived assessments for this resident from all 10 assessment types
-  const archivedPreAdmission = useQuery(
-    api.careFiles.preadmission.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+  const TABLE_MAP: Record<string, string> = {
+    "preAdmission-form": "pre_admission_care_files",
+    "infection-prevention": "infection_prevention_assessments",
+    "blader-bowel-form": "bladder_bowel_assessments",
+    "moving-handling-form": "moving_handling_assessments",
+    "bedrail-consent-form": "bedrail_consents",
+    "bed-rails-risk-assessment-form": "bedrails_risk_assessments",
+    "long-term-fall-risk-form": "long_term_falls_risk_assessments",
+    "admission-form": "admission_assessments",
+    "photography-consent": "photography_consents",
+    "dnacpr": "dnacprs",
+    "peep": "peeps",
+    "dependency-assessment": "dependency_assessments",
+    "timl": "timl_assessments",
+    "skin-integrity-form": "skin_integrity_assessments",
+    "resident-valuables-form": "resident_valuables_assessments",
+    "resident-handling-profile-form": "handling_profiles",
+    "pain-assessment-form": "pain_assessments",
+    "nutritional-assessment-form": "nutritional_assessments",
+    "oral-assessment-form": "oral_assessments",
+    "diet-notification-form": "diet_notifications",
+    "choking-risk-assessment-form": "choking_risk_assessments",
+    "cornell-depression-scale-form": "cornell_depression_scales",
+    "best-interest-decision-form": "best_interest_decisions"
+  };
 
-  const archivedAdmission = useQuery(
-    api.careFiles.admission.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+  useEffect(() => {
+    async function fetchData() {
+      if (!residentId) return;
 
-  const archivedPhotographyConsent = useQuery(
-    api.careFiles.photographyConsent.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+      try {
+        // Fetch resident
+        const { data: residentData } = await supabase
+          .from('residents')
+          .select('*')
+          .eq('id', residentId)
+          .single();
+        setResident(residentData);
 
-  const archivedDnacpr = useQuery(
-    api.careFiles.dnacpr.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+        // Fetch archived assessments for all types
+        const promises = Object.entries(TABLE_MAP).map(async ([formKey, tableName]) => {
+          const { data } = await supabase
+            .from(tableName)
+            .select('*')
+            .eq('resident_id', residentId)
+            .eq('status', 'archived')
+            .order('created_at', { ascending: false });
 
-  const archivedPeep = useQuery(
-    api.careFiles.peep.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+          const mappedData = (data || []).map(item => ({
+            ...item,
+            _id: item.id,
+            _creationTime: new Date(item.created_at).getTime()
+          }));
 
-  const archivedDependency = useQuery(
-    api.careFiles.dependency.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+          // Set state based on form key
+          switch (formKey) {
+            case "preAdmission-form":
+              setArchivedPreAdmission(mappedData);
+              break;
+            case "admission-form":
+              setArchivedAdmission(mappedData);
+              break;
+            case "photography-consent":
+              setArchivedPhotographyConsent(mappedData);
+              break;
+            case "dnacpr":
+              setArchivedDnacpr(mappedData);
+              break;
+            case "peep":
+              setArchivedPeep(mappedData);
+              break;
+            case "dependency-assessment":
+              setArchivedDependency(mappedData);
+              break;
+            case "timl":
+              setArchivedTiml(mappedData);
+              break;
+            case "skin-integrity-form":
+              setArchivedSkinIntegrity(mappedData);
+              break;
+            case "resident-valuables-form":
+              setArchivedResidentValuables(mappedData);
+              break;
+            case "resident-handling-profile-form":
+              setArchivedHandlingProfile(mappedData);
+              break;
+            case "pain-assessment-form":
+              setArchivedPainAssessment(mappedData);
+              break;
+            case "nutritional-assessment-form":
+              setArchivedNutritionalAssessment(mappedData);
+              break;
+            case "oral-assessment-form":
+              setArchivedOralAssessment(mappedData);
+              break;
+            case "diet-notification-form":
+              setArchivedDietNotification(mappedData);
+              break;
+            case "choking-risk-assessment-form":
+              setArchivedChokingRiskAssessment(mappedData);
+              break;
+            case "cornell-depression-scale-form":
+              setArchivedCornellDepressionScale(mappedData);
+              break;
+            case "best-interest-decision-form":
+              setArchivedBestInterestDecision(mappedData);
+              break;
+            case "infection-prevention":
+              setArchivedInfectionPrevention(mappedData);
+              break;
+            case "blader-bowel-form":
+              setArchivedBladderBowel(mappedData);
+              break;
+            case "moving-handling-form":
+              setArchivedMovingHandling(mappedData);
+              break;
+            case "bedrail-consent-form":
+              setArchivedBedrailConsent(mappedData);
+              break;
+            case "bed-rails-risk-assessment-form":
+              setArchivedBedRailsRiskAssessment(mappedData);
+              break;
+            case "long-term-fall-risk-form":
+              setArchivedLongTermFalls(mappedData);
+              break;
+          }
+        });
 
-  const archivedTiml = useQuery(
-    api.careFiles.timl.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+        await Promise.all(promises);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const archivedSkinIntegrity = useQuery(
-    api.careFiles.skinIntegrity.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
+    fetchData();
+  }, [residentId]);
 
-  const archivedResidentValuables = useQuery(
-    api.careFiles.residentValuables.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedHandlingProfile = useQuery(
-    api.careFiles.handlingProfile.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedPainAssessment = useQuery(
-    api.careFiles.painAssessment.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedNutritionalAssessment = useQuery(
-    api.careFiles.nutritionalAssessment.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedOralAssessment = useQuery(
-    api.careFiles.oralAssessment.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedDietNotification = useQuery(
-    api.careFiles.dietNotification.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedChokingRiskAssessment = useQuery(
-    api.careFiles.chokingRiskAssessment.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedCornellDepressionScale = useQuery(
-    api.careFiles.cornellDepressionScale.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedBestInterestDecision = useQuery(
-    api.careFiles.bestInterestDecision.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedInfectionPrevention = useQuery(
-    api.careFiles.infectionPrevention.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedBladderBowel = useQuery(
-    api.careFiles.bladderBowel.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedMovingHandling = useQuery(
-    api.careFiles.movingHandling.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedBedrailConsent = useQuery(
-    api.careFiles.bedrailConsent.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedBedRailsRiskAssessment = useQuery(
-    api.careFiles.bedRailsRiskAssessment.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  const archivedLongTermFalls = useQuery(
-    api.careFiles.longTermFalls.getArchivedForResident,
-    { residentId: residentId as Id<"residents"> }
-  );
-
-  if (
-    resident === undefined ||
-    archivedPreAdmission === undefined ||
-    archivedAdmission === undefined ||
-    archivedPhotographyConsent === undefined ||
-    archivedDnacpr === undefined ||
-    archivedPeep === undefined ||
-    archivedDependency === undefined ||
-    archivedTiml === undefined ||
-    archivedSkinIntegrity === undefined ||
-    archivedResidentValuables === undefined ||
-    archivedHandlingProfile === undefined ||
-    archivedPainAssessment === undefined ||
-    archivedNutritionalAssessment === undefined ||
-    archivedOralAssessment === undefined ||
-    archivedDietNotification === undefined ||
-    archivedChokingRiskAssessment === undefined ||
-    archivedCornellDepressionScale === undefined ||
-    archivedBestInterestDecision === undefined ||
-    archivedInfectionPrevention === undefined ||
-    archivedBladderBowel === undefined ||
-    archivedMovingHandling === undefined ||
-    archivedBedrailConsent === undefined ||
-    archivedBedRailsRiskAssessment === undefined ||
-    archivedLongTermFalls === undefined
-  ) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -190,7 +209,7 @@ export default function ArchivedRiskAssessmentsPage() {
     );
   }
 
-  if (resident === null) {
+  if (!resident) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -208,8 +227,8 @@ export default function ArchivedRiskAssessmentsPage() {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   // Collect all archived assessments from all 23 assessment types
   const archivedAssessments = [

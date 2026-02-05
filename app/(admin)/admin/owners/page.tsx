@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 import {
   Card,
   CardContent,
@@ -18,7 +18,6 @@ import {
   UserPlus,
   Search,
   Settings2,
-  MoreHorizontal,
   Plus,
   Loader2
 } from "lucide-react";
@@ -61,14 +60,33 @@ function LoadingSpinner() {
   );
 }
 
-type Owner = NonNullable<ReturnType<typeof useQuery<typeof api.saasAdmin.getAllOwnersWithStats>>>[number];
+interface Owner {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  nisccRegistrationNumber: string | null;
+  isOnboardingComplete: boolean;
+  createdAt: string;
+  organization: {
+    id: string;
+    name: string;
+    slug: string | null;
+    status: "active" | "suspended" | "deactivated";
+  };
+  stats: {
+    careHomeCount: number;
+    unitCount: number;
+    residentCount: number;
+    staffCount: number;
+  };
+}
 
 export default function OwnersPage() {
-  const { data: session } = authClient.useSession();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const router = useRouter();
-  const saasAdminStatus = useQuery(api.saasAdmin.getSaasAdminStatus);
-  const owners = useQuery(api.saasAdmin.getAllOwnersWithStats);
-  const updateOwnerMutation = useMutation(api.saasAdmin.updateOwnerDetail);
+  const [owners, setOwners] = useState<Owner[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -88,10 +106,71 @@ export default function OwnersPage() {
 
   // Redirect if not SaaS Admin
   useEffect(() => {
-    if (saasAdminStatus && !saasAdminStatus.isSaasAdmin) {
+    if (!isProfileLoading && profile && !profile.is_saas_admin) {
       router.push("/dashboard");
     }
-  }, [saasAdminStatus, router]);
+  }, [profile, isProfileLoading, router]);
+
+  const fetchOwners = useCallback(async () => {
+    if (!profile?.is_saas_admin) return;
+
+    try {
+      setIsLoading(true);
+      // Fetch profiles that are likely owners (have an active organization and are not saas admin)
+      // Note: In a real app, you might want a more explicit check for 'owner' role
+      const { data: usersData, error: usersError } = await supabase
+        .from("users")
+        .select(`
+          id, email, name, phone, niscc_registration_number, is_onboarding_complete, created_at,
+          active_organization_id,
+          organizations!active_organization_id (
+            id, name, slug,
+            organization_status (status),
+            care_homes (count),
+            teams (count),
+            residents (count),
+            staff:users (count)
+          )
+        `)
+        .not("active_organization_id", "is", null)
+        .eq("is_saas_admin", false);
+
+      if (usersError) throw usersError;
+
+      const formattedOwners: Owner[] = (usersData || []).map((p: any) => ({
+        id: p.id,
+        email: p.email,
+        name: p.name,
+        phone: p.phone,
+        nisccRegistrationNumber: p.niscc_registration_number,
+        isOnboardingComplete: p.is_onboarding_complete,
+        createdAt: p.created_at,
+        organization: {
+          id: p.organizations?.id || "",
+          name: p.organizations?.name || "Unknown",
+          slug: p.organizations?.slug || "",
+          status: p.organizations?.organization_status?.[0]?.status || "active",
+        },
+        stats: {
+          careHomeCount: p.organizations?.care_homes?.[0]?.count || 0,
+          unitCount: p.organizations?.teams?.[0]?.count || 0,
+          residentCount: p.organizations?.residents?.[0]?.count || 0,
+          staffCount: p.organizations?.staff?.[0]?.count || 0,
+        }
+      }));
+
+      setOwners(formattedOwners);
+    } catch (error) {
+      console.error("Error fetching owners:", error);
+      toast.error("Failed to load owners");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    fetchOwners();
+  }, [fetchOwners]);
 
   const filteredOwners = useMemo(() => {
     if (!owners) return [];
@@ -110,13 +189,14 @@ export default function OwnersPage() {
   const stats = useMemo(() => {
     if (!owners) return { total: 0, activeOrgs: 0, totalResidents: 0, recentSignups: 0 };
 
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     return {
       total: owners.length,
       activeOrgs: owners.filter(o => o.organization.status === "active").length,
       totalResidents: owners.reduce((acc, o) => acc + o.stats.residentCount, 0),
-      recentSignups: owners.filter(o => o.createdAt > thirtyDaysAgo).length,
+      recentSignups: owners.filter(o => new Date(o.createdAt) > thirtyDaysAgo).length,
     };
   }, [owners]);
 
@@ -137,18 +217,47 @@ export default function OwnersPage() {
     if (!selectedOwner) return;
     setIsUpdating(true);
     try {
-      await updateOwnerMutation({
-        userId: selectedOwner.id,
-        organizationId: selectedOwner.organization.id,
-        name: formData.name,
-        phone: formData.phone === "" ? undefined : formData.phone,
-        nisccRegistrationNumber: formData.niscc === "" ? undefined : formData.niscc,
-        organizationName: formData.organizationName,
-        status: formData.status,
-        statusReason: formData.statusReason === "" ? undefined : formData.statusReason,
-      });
+      // 1. Update User
+      const { error: userError } = await supabase
+        .from("users")
+        .update({
+          name: formData.name,
+          phone: formData.phone === "" ? null : formData.phone,
+          niscc_registration_number: formData.niscc === "" ? null : formData.niscc,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", selectedOwner.id);
+
+      if (userError) throw userError;
+
+      // 2. Update Organization Name
+      const { error: orgError } = await supabase
+        .from("organizations")
+        .update({
+          name: formData.organizationName,
+          slug: formData.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", selectedOwner.organization.id);
+
+      if (orgError) throw orgError;
+
+      // 3. Update Organization Status
+      const { error: statusError } = await supabase
+        .from("organization_status")
+        .upsert({
+          organization_id: selectedOwner.organization.id,
+          status: formData.status,
+          reason: formData.statusReason === "" ? null : formData.statusReason,
+          deactivated_at: formData.status !== "active" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        });
+
+      if (statusError) throw statusError;
+
       toast.success("Account updated successfully");
       setIsDrawerOpen(false);
+      fetchOwners(); // Refresh list
     } catch (error) {
       console.error(error);
       toast.error("Failed to update account");
@@ -157,10 +266,30 @@ export default function OwnersPage() {
     }
   };
 
-  if (!session || !saasAdminStatus) {
+  if (isProfileLoading || (isLoading && !owners)) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!profile?.is_saas_admin) {
+    return (
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center px-6">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>
+              You do not have permission to view this page. This area is reserved for SaaS Administrators.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={() => router.push("/dashboard")}>
+              Return to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

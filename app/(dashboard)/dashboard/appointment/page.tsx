@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar, ArrowLeft, Filter, Check } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { authClient } from "@/lib/auth-client";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useProfile } from "@/hooks/use-profile";
 import { format } from "date-fns";
 import {
   Select,
@@ -19,44 +17,67 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Id } from "@/convex/_generated/dataModel";
+import { getAppointments, markAppointmentAsRead, markMultipleAppointmentsAsRead } from "@/lib/appointments";
 
 export default function AppointmentPage() {
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
-  const { data: activeMember } = authClient.useActiveMember();
-  const userRole = activeMember?.role as string | undefined;
+  const { profile } = useProfile();
+  const userRole = profile?.role;
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [appointmentsData, setAppointmentsData] = useState<any[] | null>(null);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
 
   // For managers, always use organization-based queries; for other roles, use team if available
   const shouldUseOrganization = userRole === "manager";
 
-  // Fetch appointments - either for specific team or entire organization
-  const organizationAppointments = useQuery(
-    api.appointments.getAppointmentsByOrganization,
-    (shouldUseOrganization && activeOrganizationId) || (!activeTeamId && activeOrganizationId)
-      ? { organizationId: activeOrganizationId, includeAll: true }
-      : "skip"
-  );
+  // Fetch appointments from Supabase
+  useEffect(() => {
+    async function fetchAppointments() {
+      if (isTeamLoading) return;
+      
+      if (!activeOrganizationId && !activeTeamId) {
+        setAppointmentsData([]);
+        setAppointmentsLoading(false);
+        return;
+      }
 
-  const teamAppointments = useQuery(
-    api.appointments.getAppointmentsByTeam,
-    !shouldUseOrganization && activeTeamId
-      ? { teamId: activeTeamId, includeAll: true }
-      : "skip"
-  );
+      try {
+        setAppointmentsLoading(true);
+        const filters: {
+          organizationId?: string;
+          teamId?: string;
+          includeAll?: boolean;
+        } = {
+          includeAll: true,
+        };
 
-  // Use organization appointments if manager or no team, otherwise use team appointments
-  const appointmentsData = (shouldUseOrganization || !activeTeamId) ? organizationAppointments : teamAppointments;
+        if (shouldUseOrganization || !activeTeamId) {
+          filters.organizationId = activeOrganizationId ?? undefined;
+        } else {
+          filters.teamId = activeTeamId ?? undefined;
+        }
 
-  const markAppointmentAsRead = useMutation(api.appointmentNotifications.markAppointmentAsRead);
-  const markMultipleAsRead = useMutation(api.appointmentNotifications.markMultipleAppointmentsAsRead);
+        const result = await getAppointments(filters);
+        setAppointmentsData(result.appointments || []);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        toast.error("Failed to load appointments");
+        setAppointmentsData([]);
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    }
 
-  const isLoading = isTeamLoading;
+    fetchAppointments();
+  }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading]);
+
+  const isLoading = isTeamLoading || appointmentsLoading;
 
   // Filter appointments by read/unread status
   const filteredAppointments = useMemo(() => {
-    if (!appointmentsData) return [];
+    if (appointmentsData === null) return null; // Still loading
+    if (!appointmentsData.length) return []; // No appointments
 
     if (filter === "unread") {
       return appointmentsData.filter((apt) => !apt.isRead);
@@ -66,7 +87,7 @@ export default function AppointmentPage() {
   }, [appointmentsData, filter]);
 
   const unreadCount = useMemo(() => {
-    if (!appointmentsData) return 0;
+    if (!appointmentsData || appointmentsData === null) return 0;
     return appointmentsData.filter((apt) => !apt.isRead).length;
   }, [appointmentsData]);
 
@@ -74,19 +95,35 @@ export default function AppointmentPage() {
     // Mark as read
     if (!appointment.isRead) {
       try {
-        await markAppointmentAsRead({ appointmentId: appointment._id });
+        await markAppointmentAsRead(appointment.id || appointment._id);
+        // Update local state
+        setAppointmentsData((prev) =>
+          prev?.map((apt) =>
+            (apt.id === appointment.id || apt._id === appointment._id)
+              ? { ...apt, isRead: true }
+              : apt
+          ) || []
+        );
       } catch (error) {
         console.error("Error marking appointment as read:", error);
       }
     }
 
-    // Navigate to resident's appointment details (you can customize this)
-    router.push(`/dashboard/residents/${appointment.residentId}/appointments`);
+    // Navigate to resident's appointment details
+    router.push(`/dashboard/residents/${appointment.residentId || appointment.resident_id}/appointments`);
   };
 
-  const markAsRead = async (appointmentId: Id<"appointments">) => {
+  const markAsRead = async (appointmentId: string) => {
     try {
-      await markAppointmentAsRead({ appointmentId });
+      await markAppointmentAsRead(appointmentId);
+      // Update local state
+      setAppointmentsData((prev) =>
+        prev?.map((apt) =>
+          (apt.id === appointmentId || apt._id === appointmentId)
+            ? { ...apt, isRead: true }
+            : apt
+        ) || []
+      );
       toast.success("Appointment marked as read");
     } catch (error) {
       console.error("Error marking appointment as read:", error);
@@ -97,11 +134,15 @@ export default function AppointmentPage() {
   const markAllAsRead = async () => {
     try {
       const unreadAppointments = appointmentsData?.filter((apt) => !apt.isRead) || [];
-      const appointmentIds = unreadAppointments.map((apt) => apt._id);
+      const appointmentIds = unreadAppointments.map((apt) => apt.id || apt._id);
 
       if (appointmentIds.length === 0) return;
 
-      await markMultipleAsRead({ appointmentIds });
+      await markMultipleAppointmentsAsRead(appointmentIds);
+      // Update local state
+      setAppointmentsData((prev) =>
+        prev?.map((apt) => ({ ...apt, isRead: true })) || []
+      );
       toast.success("All appointments marked as read");
     } catch (error) {
       console.error("Error marking all appointments as read:", error);
@@ -209,7 +250,11 @@ export default function AppointmentPage() {
 
       {/* Appointments List */}
       <div className="space-y-0">
-        {filteredAppointments.length === 0 ? (
+        {filteredAppointments === null ? (
+          <div className="text-center py-12">
+            <div className="text-muted-foreground">Loading appointments...</div>
+          </div>
+        ) : filteredAppointments.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
             <p className="text-muted-foreground">
@@ -224,13 +269,14 @@ export default function AppointmentPage() {
             const initials = appointment.resident
               ? `${appointment.resident.firstName[0]}${appointment.resident.lastName[0]}`
               : "U";
+            const appointmentId = appointment.id || appointment._id;
+            const startTime = appointment.startTime || appointment.start_time;
 
             return (
               <div
-                key={appointment._id}
-                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${
-                  !appointment.isRead ? "bg-muted/50" : "bg-muted/5"
-                }`}
+                key={appointmentId}
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/50 transition-colors cursor-pointer ${!appointment.isRead ? "bg-muted/50" : "bg-muted/5"
+                  }`}
                 onClick={() => handleAppointmentClick(appointment)}
               >
                 {/* Resident Avatar */}
@@ -249,7 +295,7 @@ export default function AppointmentPage() {
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(appointment.startTime), "PPP 'at' p")}
+                          {format(new Date(startTime), "PPP 'at' p")}
                         </span>
                         <Badge
                           variant="outline"
@@ -265,7 +311,7 @@ export default function AppointmentPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          markAsRead(appointment._id);
+                          markAsRead(appointmentId);
                         }}
                         className="h-7 px-2 text-xs shrink-0"
                       >

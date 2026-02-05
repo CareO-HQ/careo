@@ -3,15 +3,21 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-GB");
+function formatDate(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
+  return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(timestamp: number): string {
+function formatDateTime(dateString?: string | number): string {
+  if (!dateString) return "Not specified";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Not specified";
   return (
-    new Date(timestamp).toLocaleDateString("en-GB") +
+    date.toLocaleDateString("en-GB") +
     " at " +
-    new Date(timestamp).toLocaleTimeString("en-GB", {
+    date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit"
     })
@@ -203,33 +209,30 @@ function generatePeepHTML(data: any): string {
           </div>
         </div>
 
-        ${
-          data.equipmentNeeded
-            ? `
+        ${data.equipmentNeeded
+      ? `
         <div class="info-box">
           <h3>Equipment Needed</h3>
           <p style="color: #6b7280; margin: 0;">${data.equipmentNeeded}</p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
 
-        ${
-          data.communicationNeeds
-            ? `
+        ${data.communicationNeeds
+      ? `
         <div class="info-box">
           <h3>Communication Needs</h3>
           <p style="color: #6b7280; margin: 0;">${data.communicationNeeds}</p>
         </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
 
       <!-- Evacuation Steps -->
-      ${
-        data.steps && data.steps.length > 0
-          ? `
+      ${data.steps && data.steps.length > 0
+      ? `
       <div class="section">
         <h2>Evacuation Procedure</h2>
         <p class="info-text">
@@ -237,19 +240,19 @@ function generatePeepHTML(data: any): string {
         </p>
         
         ${data.steps
-          .map(
-            (step: any, index: number) => `
+        .map(
+          (step: any, index: number) => `
         <div class="step-item">
           <h3>Step ${index + 1}: ${step.name}</h3>
           <p style="color: #6b7280; margin: 0;">${step.description}</p>
         </div>
         `
-          )
-          .join("")}
+        )
+        .join("")}
       </div>
       `
-          : ""
-      }
+      : ""
+    }
 
       <!-- Safety Considerations -->
       <div class="section">
@@ -264,16 +267,15 @@ function generatePeepHTML(data: any): string {
             Oxygen in Use
           </h3>
           <p><strong>Status:</strong> ${data.oxigenInUse ? "Yes - Oxygen equipment in use" : "No oxygen equipment"}</p>
-          ${
-            data.oxigenComments
-              ? `
+          ${data.oxigenComments
+      ? `
           <div style="margin-top: 8px;">
             <p><strong>Comments:</strong></p>
             <p style="color: #6b7280; margin-top: 4px;">${data.oxigenComments}</p>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
 
         <div class="safety-item">
@@ -282,16 +284,15 @@ function generatePeepHTML(data: any): string {
             Smoking Risk
           </h3>
           <p><strong>Status:</strong> ${data.residentSmokes ? "Resident smokes - Fire risk present" : "Resident does not smoke"}</p>
-          ${
-            data.residentSmokesComments
-              ? `
+          ${data.residentSmokesComments
+      ? `
           <div style="margin-top: 8px;">
             <p><strong>Comments:</strong></p>
             <p style="color: #6b7280; margin-top: 4px;">${data.residentSmokesComments}</p>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
 
         <div class="safety-item">
@@ -300,16 +301,15 @@ function generatePeepHTML(data: any): string {
             Furniture Fire Safety
           </h3>
           <p><strong>Status:</strong> ${data.furnitureFireRetardant ? "Furniture is fire retardant" : "Furniture is NOT fire retardant"}</p>
-          ${
-            data.furnitureFireRetardantComments
-              ? `
+          ${data.furnitureFireRetardantComments
+      ? `
           <div style="margin-top: 8px;">
             <p><strong>Comments:</strong></p>
             <p style="color: #6b7280; margin-top: 4px;">${data.furnitureFireRetardantComments}</p>
           </div>
           `
-              : ""
-          }
+      : ""
+    }
         </div>
       </div>
 
@@ -387,25 +387,35 @@ export async function POST(request: NextRequest) {
     });
 
     // Parse the request body
-    const peepData = await request.json();
+    const assessmentData = await request.json();
 
-    if (!peepData) {
+    if (!assessmentData) {
       return NextResponse.json(
         { error: "PEEP data is required" },
         { status: 400 }
       );
     }
 
-    console.log("PEEP PDF API called with data:", {
-      residentName: peepData.residentName,
-      bedroomNumber: peepData.bedroomNumber,
-      understands: peepData.understands,
-      staffNeeded: peepData.staffNeeded,
-      formId: peepData._id
+    // Flatten the data: merge assessment_data into the top level
+    const flattenedData = {
+      ...assessmentData,
+      ...(assessmentData.assessment_data || {}),
+      // Ensure resident details and common fields are at the top level
+      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
+      residentDateOfBirth: assessmentData.residentDateOfBirth || assessmentData.dateOfBirth || assessmentData.assessment_data?.residentDateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      steps: assessmentData.steps || assessmentData.assessment_data?.steps || []
+    };
+
+    console.log("PEEP PDF API flattening data:", {
+      residentName: flattenedData.residentName,
+      bedroomNumber: flattenedData.bedroomNumber,
+      formId: flattenedData._id || flattenedData.id
     });
 
     // Generate HTML content
-    const htmlContent = generatePeepHTML(peepData);
+    const htmlContent = generatePeepHTML(flattenedData);
 
     // Launch Playwright browser
     const browser = await chromium.launch({
@@ -442,7 +452,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="peep-${peepData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,
+          "Content-Disposition": `attachment; filename="peep-${flattenedData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,
           "Content-Length": pdfBuffer.length.toString()
         }
       });

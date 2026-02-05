@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +56,7 @@ export function SEHSCTReportForm({
   const [dateClosedPopoverOpen, setDateClosedPopoverOpen] = React.useState(false);
   const [dateApprovedPopoverOpen, setDateApprovedPopoverOpen] = React.useState(false);
 
-  const createSEHSCTReport = useMutation(api.sehsctReports.create);
+  // Supabase create mutation
 
   const [formData, setFormData] = React.useState({
     // Administrative
@@ -176,20 +175,20 @@ export function SEHSCTReportForm({
         // Section 1 & 2 - A: Where and when (auto-populated from incident)
         incidentDate: incident.date ? new Date(incident.date) : undefined,
         incidentTime: incident.time || "",
-        primaryLocation: incident.homeName || "",
+        primaryLocation: incident.home_name || "",
         exactLocation: incident.unit || "",
 
         // B: Circumstances (auto-populated from incident)
-        incidentDescription: incident.detailedDescription || "",
-        contributoryFactors: incident.typeOtherDetails || "",
+        incidentDescription: incident.detailed_description || "",
+        contributoryFactors: incident.type_other_details || "",
         propertyEquipmentMedication: "",
         causedByBehaviorsOfConcern: false,
         documentedInCarePlan: false,
-        apparentCauseOfInjury: incident.incidentTypes?.join(", ") || "",
+        apparentCauseOfInjury: incident.incident_types?.join(", ") || "",
 
         // C: Actions (auto-populated from incident)
-        remedialActionTaken: incident.treatmentDetails || "",
-        actionsTakenToPreventRecurrence: incident.preventionMeasures || "",
+        remedialActionTaken: incident.treatment_details || "",
+        actionsTakenToPreventRecurrence: incident.prevention_measures || "",
         riskAssessmentUpdateDate: undefined,
 
         // D: Equipment or Property
@@ -201,41 +200,41 @@ export function SEHSCTReportForm({
 
         // E: Persons notified (auto-populated from incident)
         personsNotified: [
-          incident.homeManagerInformedBy ? `Manager: ${incident.homeManagerInformedBy}` : "",
-          incident.nokInformedWho ? `NOK: ${incident.nokInformedWho}` : "",
+          incident.home_manager_informed_by ? `Manager: ${incident.home_manager_informed_by}` : "",
+          incident.nok_informed_who ? `NOK: ${incident.nok_informed_who}` : "",
         ].filter(Boolean).join(", ") || "",
 
         // F: Individual involved (auto-populated from resident + incident)
-        hcNumber: resident.nhsHealthNumber || incident.healthCareNumber || "",
+        hcNumber: resident.nhs_health_number || incident.health_care_number || "",
         gender: resident.gender || "",
-        dateOfBirth: resident.dateOfBirth ? new Date(resident.dateOfBirth) :
-                     (incident.injuredPersonDOB ? new Date(incident.injuredPersonDOB) : undefined),
-        serviceUserFullName: `${resident.firstName || ""} ${resident.lastName || ""}`.trim() ||
-                             `${incident.injuredPersonFirstName || ""} ${incident.injuredPersonSurname || ""}`.trim(),
-        serviceUserAddress: resident.gpAddress || "",
-        trustKeyWorkerName: resident.keyWorker?.name || "",
-        trustKeyWorkerDesignation: resident.keyWorker?.role || "",
+        dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth) :
+          (incident.injured_person_dob ? new Date(incident.injured_person_dob) : undefined),
+        serviceUserFullName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
+          `${incident.injured_person_first_name || ""} ${incident.injured_person_surname || ""}`.trim(),
+        serviceUserAddress: resident.gp_address || "",
+        trustKeyWorkerName: resident.key_worker?.name || "",
+        trustKeyWorkerDesignation: resident.key_worker?.role || "",
 
         // G: Injury details (auto-populated from incident)
-        personSufferedInjury: !!incident.injuryDescription,
-        partOfBodyAffected: incident.bodyPartInjured || "",
-        natureOfInjury: incident.injuryDescription || "",
+        personSufferedInjury: !!incident.injury_description,
+        partOfBodyAffected: incident.body_part_injured || "",
+        natureOfInjury: incident.injury_description || "",
 
         // H: Attention received (auto-populated from incident)
-        attentionReceived: incident.treatmentTypes || [],
+        attentionReceived: incident.treatment_types || [],
         attentionReceivedOther: "",
 
         // Section 3 - A: Staff/Service Users involved (auto-populated from incident)
-        staffMembersInvolved: incident.completedByFullName || "",
+        staffMembersInvolved: incident.completed_by_full_name || "",
         otherServiceUsersInvolved: "",
 
         // B: Witnesses (auto-populated from incident)
-        witnessDetails: [incident.witness1Name, incident.witness2Name]
+        witnessDetails: [incident.witness1_name, incident.witness2_name]
           .filter(Boolean)
           .join(", ") || "",
 
         // Section 4 - Provider Information (auto-populated from incident)
-        providerName: incident.homeName || "",
+        providerName: incident.home_name || "",
         providerAddress: "",
         groupName: "",
         serviceName: "",
@@ -247,18 +246,18 @@ export function SEHSCTReportForm({
 
         // Section 6 - Identification and Contact (auto-populated from incident)
         identifiedBy: "",
-        identifierName: incident.completedByFullName || "",
-        identifierJobTitle: incident.completedByJobTitle || "",
+        identifierName: incident.completed_by_full_name || "",
+        identifierJobTitle: incident.completed_by_job_title || "",
         identifierTelephone: "",
         identifierEmail: "",
-        trustStaffName: resident.careManagerName || "",
+        trustStaffName: resident.care_manager_name || "",
         trustStaffJobTitle: "",
         trustStaffTelephone: "",
-        trustStaffEmail: resident.careManager?.email || "",
+        trustStaffEmail: resident.care_manager?.email || "",
         returnEmail: "",
 
         // Section 7 - Trust Key Worker Completion (leave empty for user)
-        outcomeComments: incident.furtherActionsAdvised || "",
+        outcomeComments: incident.further_actions_advised || "",
         reviewOutcome: "",
         furtherActionByProvider: "",
         furtherActionByProviderDate: "",
@@ -394,108 +393,93 @@ export function SEHSCTReportForm({
     setIsSubmitting(true);
 
     try {
-      await createSEHSCTReport({
-        incidentId: incident._id,
-        residentId: resident._id,
-        organizationId: resident.organizationId,
-        teamId: resident.teamId,
+      const { data: reportData, error } = await supabase
+        .from("trust_incident_reports")
+        .insert({
+          incident_id: incident.id,
+          resident_id: resident.id,
+          trust_name: "SEHSCT",
+          report_type: "sehsct",
+          created_by: user?.id || null,
+          report_data: {
+            datixRef: formData.datixRef.trim() || undefined,
+            incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",
+            incidentTime: formData.incidentTime.trim(),
+            primaryLocation: formData.primaryLocation.trim(),
+            exactLocation: formData.exactLocation.trim() || undefined,
+            incidentDescription: formData.incidentDescription.trim(),
+            contributoryFactors: formData.contributoryFactors.trim() || undefined,
+            propertyEquipmentMedication: formData.propertyEquipmentMedication.trim() || undefined,
+            causedByBehaviorsOfConcern: formData.causedByBehaviorsOfConcern,
+            documentedInCarePlan: formData.documentedInCarePlan,
+            apparentCauseOfInjury: formData.apparentCauseOfInjury.trim() || undefined,
+            remedialActionTaken: formData.remedialActionTaken.trim() || undefined,
+            actionsTakenToPreventRecurrence: formData.actionsTakenToPreventRecurrence.trim() || undefined,
+            riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd") : undefined,
+            equipmentInvolved: formData.equipmentInvolved,
+            equipmentDetails: formData.equipmentDetails.trim() || undefined,
+            reportedToNIAC: formData.reportedToNIAC,
+            propertyInvolved: formData.propertyInvolved,
+            propertyDetails: formData.propertyDetails.trim() || undefined,
+            personsNotified: formData.personsNotified.trim() || undefined,
+            hcNumber: formData.hcNumber.trim() || undefined,
+            gender: formData.gender,
+            dateOfBirth: formData.dateOfBirth ? format(formData.dateOfBirth, "yyyy-MM-dd") : "",
+            serviceUserFullName: formData.serviceUserFullName.trim(),
+            serviceUserAddress: formData.serviceUserAddress.trim() || undefined,
+            trustKeyWorkerName: formData.trustKeyWorkerName.trim() || undefined,
+            trustKeyWorkerDesignation: formData.trustKeyWorkerDesignation.trim() || undefined,
+            personSufferedInjury: formData.personSufferedInjury,
+            partOfBodyAffected: formData.partOfBodyAffected.trim() || undefined,
+            natureOfInjury: formData.natureOfInjury.trim() || undefined,
+            attentionReceived: formData.attentionReceived,
+            attentionReceivedOther: formData.attentionReceivedOther.trim() || undefined,
+            staffMembersInvolved: formData.staffMembersInvolved.trim() || undefined,
+            otherServiceUsersInvolved: formData.otherServiceUsersInvolved.trim() || undefined,
+            witnessDetails: formData.witnessDetails.trim() || undefined,
+            providerName: formData.providerName.trim(),
+            providerAddress: formData.providerAddress.trim() || undefined,
+            groupName: formData.groupName.trim() || undefined,
+            serviceName: formData.serviceName.trim() || undefined,
+            typeOfService: formData.typeOfService.trim() || undefined,
+            medicationNames: formData.medicationNames.trim() || undefined,
+            pharmacyDetails: formData.pharmacyDetails.trim() || undefined,
+            identifiedBy: formData.identifiedBy,
+            identifierName: formData.identifierName.trim() || undefined,
+            identifierJobTitle: formData.identifierJobTitle.trim() || undefined,
+            identifierTelephone: formData.identifierTelephone.trim() || undefined,
+            identifierEmail: formData.identifierEmail.trim() || undefined,
+            trustStaffName: formData.trustStaffName.trim() || undefined,
+            trustStaffJobTitle: formData.trustStaffJobTitle.trim() || undefined,
+            trustStaffTelephone: formData.trustStaffTelephone.trim() || undefined,
+            trustStaffEmail: formData.trustStaffEmail.trim() || undefined,
+            returnEmail: formData.returnEmail.trim() || undefined,
+            outcomeComments: formData.outcomeComments.trim() || undefined,
+            reviewOutcome: formData.reviewOutcome || undefined,
+            furtherActionByProvider: formData.furtherActionByProvider.trim() || undefined,
+            furtherActionByProviderDate: formData.furtherActionByProviderDate.trim() || undefined,
+            furtherActionByProviderActionBy: formData.furtherActionByProviderActionBy.trim() || undefined,
+            furtherActionByTrust: formData.furtherActionByTrust.trim() || undefined,
+            furtherActionByTrustDate: formData.furtherActionByTrustDate.trim() || undefined,
+            furtherActionByTrustActionBy: formData.furtherActionByTrustActionBy.trim() || undefined,
+            lessonsLearned: formData.lessonsLearned.trim() || undefined,
+            finalReviewAndOutcome: formData.finalReviewAndOutcome.trim() || undefined,
+            allIssuesSatisfactorilyDealt: formData.allIssuesSatisfactorilyDealt,
+            clientFamilySatisfied: formData.clientFamilySatisfied,
+            allRecommendationsImplemented: formData.allRecommendationsImplemented || undefined,
+            caseReadyForClosure: formData.caseReadyForClosure,
+            caseNotReadyReason: formData.caseNotReadyReason.trim() || undefined,
+            keyWorkerNameDesignation: formData.keyWorkerNameDesignation.trim() || undefined,
+            dateClosed: formData.dateClosed ? format(formData.dateClosed, "yyyy-MM-dd") : undefined,
+            lineManagerNameDesignation: formData.lineManagerNameDesignation.trim() || undefined,
+            dateApproved: formData.dateApproved ? format(formData.dateApproved, "yyyy-MM-dd") : undefined,
+            status: "submitted",
+            reportedBy: user?.user?.email,
+            reportedByName: user?.user?.name || user?.user?.email,
+          }
+        });
 
-        // Administrative
-        datixRef: formData.datixRef.trim() || undefined,
-
-        // Section 1 & 2
-        incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",
-        incidentTime: formData.incidentTime.trim(),
-        primaryLocation: formData.primaryLocation.trim(),
-        exactLocation: formData.exactLocation.trim() || undefined,
-        incidentDescription: formData.incidentDescription.trim(),
-        contributoryFactors: formData.contributoryFactors.trim() || undefined,
-        propertyEquipmentMedication: formData.propertyEquipmentMedication.trim() || undefined,
-        causedByBehaviorsOfConcern: formData.causedByBehaviorsOfConcern,
-        documentedInCarePlan: formData.documentedInCarePlan,
-        apparentCauseOfInjury: formData.apparentCauseOfInjury.trim() || undefined,
-        remedialActionTaken: formData.remedialActionTaken.trim() || undefined,
-        actionsTakenToPreventRecurrence: formData.actionsTakenToPreventRecurrence.trim() || undefined,
-        riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd") : undefined,
-        equipmentInvolved: formData.equipmentInvolved,
-        equipmentDetails: formData.equipmentDetails.trim() || undefined,
-        reportedToNIAC: formData.reportedToNIAC,
-        propertyInvolved: formData.propertyInvolved,
-        propertyDetails: formData.propertyDetails.trim() || undefined,
-        personsNotified: formData.personsNotified.trim() || undefined,
-
-        // Individual involved
-        hcNumber: formData.hcNumber.trim() || undefined,
-        gender: formData.gender,
-        dateOfBirth: formData.dateOfBirth ? format(formData.dateOfBirth, "yyyy-MM-dd") : "",
-        serviceUserFullName: formData.serviceUserFullName.trim(),
-        serviceUserAddress: formData.serviceUserAddress.trim() || undefined,
-        trustKeyWorkerName: formData.trustKeyWorkerName.trim() || undefined,
-        trustKeyWorkerDesignation: formData.trustKeyWorkerDesignation.trim() || undefined,
-
-        // Injury details
-        personSufferedInjury: formData.personSufferedInjury,
-        partOfBodyAffected: formData.partOfBodyAffected.trim() || undefined,
-        natureOfInjury: formData.natureOfInjury.trim() || undefined,
-        attentionReceived: formData.attentionReceived,
-        attentionReceivedOther: formData.attentionReceivedOther.trim() || undefined,
-
-        // Section 3
-        staffMembersInvolved: formData.staffMembersInvolved.trim() || undefined,
-        otherServiceUsersInvolved: formData.otherServiceUsersInvolved.trim() || undefined,
-        witnessDetails: formData.witnessDetails.trim() || undefined,
-
-        // Section 4
-        providerName: formData.providerName.trim(),
-        providerAddress: formData.providerAddress.trim() || undefined,
-        groupName: formData.groupName.trim() || undefined,
-        serviceName: formData.serviceName.trim() || undefined,
-        typeOfService: formData.typeOfService.trim() || undefined,
-
-        // Section 5
-        medicationNames: formData.medicationNames.trim() || undefined,
-        pharmacyDetails: formData.pharmacyDetails.trim() || undefined,
-
-        // Section 6
-        identifiedBy: formData.identifiedBy,
-        identifierName: formData.identifierName.trim() || undefined,
-        identifierJobTitle: formData.identifierJobTitle.trim() || undefined,
-        identifierTelephone: formData.identifierTelephone.trim() || undefined,
-        identifierEmail: formData.identifierEmail.trim() || undefined,
-        trustStaffName: formData.trustStaffName.trim() || undefined,
-        trustStaffJobTitle: formData.trustStaffJobTitle.trim() || undefined,
-        trustStaffTelephone: formData.trustStaffTelephone.trim() || undefined,
-        trustStaffEmail: formData.trustStaffEmail.trim() || undefined,
-        returnEmail: formData.returnEmail.trim() || undefined,
-
-        // Section 7
-        outcomeComments: formData.outcomeComments.trim() || undefined,
-        reviewOutcome: formData.reviewOutcome || undefined,
-        furtherActionByProvider: formData.furtherActionByProvider.trim() || undefined,
-        furtherActionByProviderDate: formData.furtherActionByProviderDate.trim() || undefined,
-        furtherActionByProviderActionBy: formData.furtherActionByProviderActionBy.trim() || undefined,
-        furtherActionByTrust: formData.furtherActionByTrust.trim() || undefined,
-        furtherActionByTrustDate: formData.furtherActionByTrustDate.trim() || undefined,
-        furtherActionByTrustActionBy: formData.furtherActionByTrustActionBy.trim() || undefined,
-        lessonsLearned: formData.lessonsLearned.trim() || undefined,
-        finalReviewAndOutcome: formData.finalReviewAndOutcome.trim() || undefined,
-        allIssuesSatisfactorilyDealt: formData.allIssuesSatisfactorilyDealt,
-        clientFamilySatisfied: formData.clientFamilySatisfied,
-        allRecommendationsImplemented: formData.allRecommendationsImplemented || undefined,
-        caseReadyForClosure: formData.caseReadyForClosure,
-        caseNotReadyReason: formData.caseNotReadyReason.trim() || undefined,
-        keyWorkerNameDesignation: formData.keyWorkerNameDesignation.trim() || undefined,
-        dateClosed: formData.dateClosed ? format(formData.dateClosed, "yyyy-MM-dd") : undefined,
-        lineManagerNameDesignation: formData.lineManagerNameDesignation.trim() || undefined,
-        dateApproved: formData.dateApproved ? format(formData.dateApproved, "yyyy-MM-dd") : undefined,
-
-        // Status
-        status: "submitted",
-
-        // System fields
-        reportedBy: user.user.email,
-        reportedByName: user.user.name || user.user.email,
-      });
+      if (error) throw error;
 
       toast.success("SEHSCT report submitted successfully");
       onClose();

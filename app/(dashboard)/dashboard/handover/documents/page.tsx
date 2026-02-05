@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { format } from "date-fns";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,29 +17,67 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft,
-  Sun,
-  Moon,
-  Eye,
   FileText,
   MoreHorizontal,
   ArrowUpDown,
   SlidersHorizontal,
   Plus,
+  Eye,
 } from "lucide-react";
+import { handoverService } from "@/lib/handover-service";
+import { toast } from "sonner";
 
 export default function HandoverDocumentsPage() {
   const router = useRouter();
   const { activeTeamId } = useActiveTeam();
+  const { supabase } = useSupabase();
+  const [handovers, setHandovers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch handover reports from Convex
-  const handovers = useQuery(
-    api.handoverReports.getHandoverReportsByTeam,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
-  );
+  // Fetch handover reports from Supabase
+  useEffect(() => {
+    if (!activeTeamId || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchHandovers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("handover_reports")
+          .select("*")
+          .eq("team_id", activeTeamId)
+          .order("date", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        // Transform data to match expected format
+        const transformed = (data || []).map((report) => ({
+          _id: report.id,
+          id: report.id,
+          date: report.date,
+          shift: report.shift,
+          teamId: report.team_id,
+          createdAt: new Date(report.created_at).getTime(),
+          updatedAt: report.updated_at ? new Date(report.updated_at).getTime() : null,
+        }));
+
+        setHandovers(transformed);
+      } catch (error) {
+        console.error("Error fetching handover reports:", error);
+        setHandovers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHandovers();
+  }, [activeTeamId, supabase]);
 
   // Group handovers by date
   const groupedHandovers = useMemo(() => {
-    if (!handovers) return [];
+    if (!handovers || handovers.length === 0) return [];
 
     // Group by date
     const grouped = handovers.reduce((acc: any, handover: any) => {
@@ -69,10 +106,10 @@ export default function HandoverDocumentsPage() {
   }, [handovers]);
 
   // Loading state
-  if (handovers === undefined) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-2 text-muted-foreground">Loading handover reports...</p>
@@ -83,7 +120,7 @@ export default function HandoverDocumentsPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col min-h-full w-full bg-background text-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-3">
@@ -146,7 +183,7 @@ export default function HandoverDocumentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {groupedHandovers.length === 0 ? (
+            {!handovers || handovers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-8 py-1 text-center">
                   <div className="flex items-center justify-center">
@@ -169,12 +206,12 @@ export default function HandoverDocumentsPage() {
                       <Badge
                          
                           className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black"
-                          onClick={() => router.push(`/dashboard/handover/documents/${item.day._id}`)}
+                          onClick={() => router.push(`/dashboard/handover/documents/${item.day.id}`)}
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Badge>
-                    
+
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
@@ -183,15 +220,15 @@ export default function HandoverDocumentsPage() {
                   <TableCell className="h-8 py-1">
                     {item.night ? (
                       <div className="flex items-center gap-1.5">
-                         <Badge
+                        <Badge
                           variant="outline"
                           className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100"
-                          onClick={() => router.push(`/dashboard/handover/documents/${item.night._id}`)}
+                          onClick={() => router.push(`/dashboard/handover/documents/${item.night.id}`)}
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Badge>
-                    
+
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>

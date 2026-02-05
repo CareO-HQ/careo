@@ -58,7 +58,8 @@ export const longTermFallsRiskAssessmentSchema = z.object({
   safetyAwarness: z.boolean(),
   mentalState: z.enum(["CONFUSED", "ORIENTATED"]),
   completedBy: z.string(),
-  completionDate: z.string()
+  assessmentDate: z.string(),
+  status: z.enum(["draft", "completed"]).optional()
 });
 
 export type LongTermFallsRiskAssessment = z.infer<
@@ -176,7 +177,7 @@ export function calculateFallsRiskScore(
       fallsRiskScoring.bladderBowelMovement[assessment.bladderBowelMovement],
     residentEnvironmentalRisks:
       fallsRiskScoring.residentEnvironmentalRisks[
-        assessment.residentEnvironmentalRisks.toString()
+      assessment.residentEnvironmentalRisks.toString()
       ],
     socialRisks: fallsRiskScoring.socialRisks[assessment.socialRisks],
     medicalCondition:

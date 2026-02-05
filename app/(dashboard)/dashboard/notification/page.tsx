@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
+import {
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteAllNotifications,
+  getActionPlanById,
+  updateActionPlanStatus,
+  type Notification
+} from "@/lib/notifications";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +57,6 @@ import {
   Loader2,
   Trash2,
 } from "lucide-react";
-import type { Id } from "@/convex/_generated/dataModel";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
@@ -58,52 +65,60 @@ export default function NotificationPage() {
   const { data: session } = authClient.useSession();
   const userEmail = session?.user?.email || "";
 
+  // Supabase client
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   // State
   const [filter, setFilter] = useState<"all" | "unread">("all");
-  const [selectedNotification, setSelectedNotification] = useState<any>(null);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<ActionPlanStatus>("pending");
   const [statusComment, setStatusComment] = useState("");
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionPlanDetails, setActionPlanDetails] = useState<any>(null);
 
-  // Queries
-  const notifications = useQuery(
-    api.notifications.getUserNotifications,
-    userEmail ? { userId: userEmail, limit: 100 } : "skip"
-  );
+  const userId = session?.user?.id || "";
 
-  // Determine which table the action plan belongs to based on the ID
-  const getActionPlanTable = (actionPlanId: string): string => {
-    // Convex IDs are prefixed with the table name
-    // We need to parse metadata or use a different approach
-    // For now, we'll rely on notification metadata to tell us
-    return selectedNotification?.metadata?.auditCategory || "resident";
-  };
+  // Fetch notifications
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) return;
+    try {
+      setIsLoading(true);
+      const data = await getNotifications(userId);
+      setNotifications(data as Notification[]);
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+      toast.error("Failed to load notifications");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
 
-  // Get action plan details - dynamically choose which query based on category
-  const residentActionPlanDetails = useQuery(
-    api.auditActionPlans.getActionPlanById,
-    selectedNotification?.metadata?.actionPlanId && getActionPlanTable(selectedNotification.metadata.actionPlanId) === "resident"
-      ? { actionPlanId: selectedNotification.metadata.actionPlanId as Id<"residentAuditActionPlans"> }
-      : "skip"
-  );
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
-  // Note: We can't query clinical/governance/environment action plans here because
-  // those mutations don't have getActionPlanById. We'll need to handle this differently.
-  // For now, we'll just use the resident query and handle the error gracefully.
-  const actionPlanDetails = residentActionPlanDetails;
-
-  // Mutations
-  const markAsRead = useMutation(api.notifications.markNotificationAsRead);
-  const markAllAsRead = useMutation(api.notifications.markAllNotificationsAsRead);
-  const deleteAllNotifications = useMutation(api.notifications.deleteAllNotifications);
-
-  // Mutations for different audit types
-  const updateResidentStatus = useMutation(api.auditActionPlans.updateActionPlanStatus);
-  const updateClinicalStatus = useMutation(api.clinicalAuditActionPlans.updateActionPlanStatus);
-  const updateGovernanceStatus = useMutation(api.governanceAuditActionPlans.updateActionPlanStatus);
-  const updateEnvironmentStatus = useMutation(api.environmentAuditActionPlans.updateActionPlanStatus);
-  const updateCareFileStatus = useMutation(api.careFileAuditActionPlans.updateActionPlanStatus);
+  // Handle action plan details
+  useEffect(() => {
+    const fetchActionPlan = async () => {
+      if (selectedNotification?.metadata?.actionPlanId) {
+        try {
+          const details = await getActionPlanById(selectedNotification.metadata.actionPlanId);
+          setActionPlanDetails(details);
+        } catch (error) {
+          console.error("Failed to fetch action plan details:", error);
+        }
+      } else {
+        setActionPlanDetails(null);
+      }
+    };
+    fetchActionPlan();
+  }, [selectedNotification]);
 
   // Filter notifications
   const filteredNotifications = notifications?.filter((n) => {
@@ -117,11 +132,15 @@ export default function NotificationPage() {
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
 
   // Handle notification click
-  const handleNotificationClick = async (notification: any) => {
+  const handleNotificationClick = async (notification: Notification) => {
     // Mark as read
     if (!notification.isRead) {
       try {
-        await markAsRead({ notificationId: notification._id });
+        await markNotificationAsRead(notification.id, userId);
+        // Optimize UI: update locally
+        setNotifications(prev =>
+          prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n)
+        );
       } catch (error) {
         console.error("Failed to mark as read:", error);
       }
@@ -138,7 +157,7 @@ export default function NotificationPage() {
       setIsDetailModalOpen(true);
     } else if (notification.link) {
       // For other notifications, navigate to the link
-      router.push(notification.link);
+      router.push(notification.link as any);
     }
   };
 
@@ -150,7 +169,8 @@ export default function NotificationPage() {
     }
 
     try {
-      await markAllAsRead({ userId: userEmail });
+      await markAllNotificationsAsRead(userId);
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       toast.success("All notifications marked as read");
     } catch (error) {
       console.error("Failed to mark all as read:", error);
@@ -169,7 +189,8 @@ export default function NotificationPage() {
 
   const handleDeleteAllConfirm = async () => {
     try {
-      const result = await deleteAllNotifications({ userId: userEmail });
+      const result = await deleteAllNotifications(userId);
+      setNotifications([]);
       toast.success(`Deleted ${result.deleted} notification${result.deleted !== 1 ? 's' : ''}`);
       setDeleteAllDialogOpen(false);
     } catch (error) {
@@ -182,89 +203,28 @@ export default function NotificationPage() {
   const handleStatusUpdate = async () => {
     if (!selectedNotification?.metadata?.actionPlanId) return;
 
-    const actionPlanId = selectedNotification.metadata.actionPlanId;
-    const updateData = {
-      actionPlanId,
-      status: newStatus,
-      comment: statusComment || undefined,
-      updatedBy: userEmail,
-      updatedByName: session?.user?.name || userEmail,
-    };
-
     try {
-      // Determine which mutation to use based on audit category from metadata
-      const auditCategory = selectedNotification.metadata?.auditCategory;
+      await updateActionPlanStatus({
+        actionPlanId: selectedNotification.metadata.actionPlanId,
+        status: newStatus,
+        comment: statusComment || undefined,
+        updatedBy: userId,
+        updatedByName: session?.user?.name || userEmail,
+      });
 
-      // If no category in metadata (old notifications), try each mutation until one works
-      if (!auditCategory) {
-        console.log("No audit category in notification metadata, trying all mutations...");
-
-        // Try each mutation in order until one succeeds
-        const mutations = [
-          { name: "resident", fn: updateResidentStatus },
-          { name: "carefile", fn: updateCareFileStatus },
-          { name: "clinical", fn: updateClinicalStatus },
-          { name: "governance", fn: updateGovernanceStatus },
-          { name: "environment", fn: updateEnvironmentStatus },
-        ];
-
-        for (const mutation of mutations) {
-          try {
-            await mutation.fn(updateData as any);
-            console.log(`Successfully updated using ${mutation.name} mutation`);
-            toast.success("Status updated successfully");
-            setIsDetailModalOpen(false);
-            setSelectedNotification(null);
-            setStatusComment("");
-            return;
-          } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            // If it's a table mismatch error, try the next mutation
-            if (errorMessage.includes("does not match the table name")) {
-              console.log(`${mutation.name} mutation failed with table mismatch, trying next...`);
-              continue;
-            }
-            // If it's a different error, throw it
-            throw err;
-          }
-        }
-
-        // If we get here, none of the mutations worked
-        throw new Error("Could not find the correct mutation for this action plan");
-      }
-
-      // If we have a category, use it directly
-      let updateMutation;
-      switch (auditCategory) {
-        case "clinical":
-          updateMutation = updateClinicalStatus;
-          break;
-        case "governance":
-          updateMutation = updateGovernanceStatus;
-          break;
-        case "environment":
-          updateMutation = updateEnvironmentStatus;
-          break;
-        case "carefile":
-          updateMutation = updateCareFileStatus;
-          break;
-        default:
-          updateMutation = updateResidentStatus;
-      }
-
-      await updateMutation(updateData);
       toast.success("Status updated successfully");
       setIsDetailModalOpen(false);
       setSelectedNotification(null);
       setStatusComment("");
+
+      // Refresh action plan details if still selected
+      if (selectedNotification?.metadata?.actionPlanId) {
+        const details = await getActionPlanById(selectedNotification.metadata.actionPlanId);
+        setActionPlanDetails(details);
+      }
     } catch (error) {
       console.error("Failed to update status:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to update status";
-      if (errorMessage.includes("does not match the table name") || errorMessage.includes("Could not find the correct mutation")) {
-        toast.error("This action plan cannot be updated from notifications. Please go to the Action Plans page to update it.");
-      } else {
-        toast.error("Failed to update status. Please try again.");
-      }
+      toast.error("Failed to update status. Please try again.");
     }
   };
 
@@ -333,6 +293,12 @@ export default function NotificationPage() {
           label: "Action Plan Completed",
           color: "text-green-600",
         };
+      case "appointment_created":
+        return {
+          icon: <Calendar className="w-4 h-4" />,
+          label: "Appointment Created",
+          color: "text-blue-600",
+        };
       default:
         return {
           icon: <Bell className="w-4 h-4" />,
@@ -343,10 +309,13 @@ export default function NotificationPage() {
   };
 
   // Mark individual as read
-  const markNotificationAsRead = async (notificationId: Id<"notifications">, e: React.MouseEvent) => {
+  const handleMarkAsRead = async (notificationId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await markAsRead({ notificationId });
+      await markNotificationAsRead(notificationId, userId);
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+      );
     } catch (error) {
       console.error("Failed to mark as read:", error);
       toast.error("Failed to mark as read");
@@ -354,7 +323,7 @@ export default function NotificationPage() {
   };
 
   // Loading state
-  if (!session) {
+  if (isLoading || !session) {
     return (
       <div className="w-full flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -443,21 +412,20 @@ export default function NotificationPage() {
           </div>
         ) : (
           filteredNotifications.map((notification) => {
-            const typeInfo = getNotificationTypeInfo(notification.type);
-            const initials = notification.senderName
-              ? notification.senderName
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
+            const typeInfo = getNotificationTypeInfo(notification.type ?? "unknown");
+            const initials = notification.sender_name
+              ? notification.sender_name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()
               : "S";
 
             return (
               <div
-                key={notification._id}
-                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/30 transition-colors cursor-pointer ${
-                  !notification.isRead ? "bg-muted/10" : ""
-                }`}
+                key={notification.id}
+                className={`flex items-start gap-3 py-4 border-b hover:bg-muted/30 transition-colors cursor-pointer ${!notification.isRead ? "bg-muted/10" : ""
+                  }`}
                 onClick={() => handleNotificationClick(notification)}
               >
                 {/* Content */}
@@ -465,14 +433,14 @@ export default function NotificationPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <p className={`text-sm ${notification.isRead ? "text-muted-foreground" : "text-foreground"}`}>
-                        <span className="font-medium">{notification.title}</span> • {notification.senderName || "System"}
+                        <span className="font-medium">{notification.title}</span> • {notification.sender_name || "System"}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                         {notification.message}
                       </p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(notification.createdAt), "MMM dd, yyyy • HH:mm")}
+                          {format(new Date(notification.created_at || new Date()), "MMM dd, yyyy • HH:mm")}
                         </span>
                         {notification.metadata?.priority && (
                           <Badge
@@ -496,7 +464,7 @@ export default function NotificationPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => markNotificationAsRead(notification._id, e)}
+                        onClick={(e) => handleMarkAsRead(notification.id, e)}
                         className="h-7 px-2 text-xs shrink-0"
                       >
                         <Check className="w-3 h-3 mr-1" />

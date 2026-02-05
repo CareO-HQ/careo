@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { api } from "@/convex/_generated/api";
-import { useActiveTeam } from "@/hooks/use-active-team";
-import { useQuery } from "convex/react";
-import { authClient } from "@/lib/auth-client";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -21,205 +20,142 @@ import { Search, Mail, Phone, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
-import { useEffect } from "react";
 import { withRoleGuard } from "@/lib/route-guards";
 
-interface TeamStaffMember {
-  _id: string;
-  userId: string;
-  _creationTime: number;
-  email: string;
-  name?: string;
-  phone?: string;
-  imageUrl?: string | null;
-  role?: string;
-  teamId?: string;
-  teamName?: string; // Team/Unit name for display
-  organizationId?: string;
-}
-
-interface OrgStaffMember {
+interface StaffMember {
   id: string;
-  userId: string;
-  role: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    image?: string;
-  };
-  phone?: string;
-  address?: string;
-  dateOfJoin?: string;
-  rightToWorkStatus?: string;
-  teamName?: string; // Team/Unit name for display
-  activeTeamId?: string; // Active team ID for reference
+  name: string;
+  email: string;
+  phone: string | null;
+  image_url: string | null;
+  role: string | null;
+  active_team_id: string | null;
+  team_name?: string; // For display
 }
 
 function StaffPage() {
+  // State for filtering
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null); // Initialized to null for organization-wide view
+  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(true);
+  const [staff, setStaff] = useState<StaffMember[] | undefined>(undefined);
   const router = useRouter();
-  const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
-  const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
+  const { supabase } = useSupabase();
 
-  // Fetch staff by team if team is selected
-  const teamStaff = useQuery(
-    api.users.getByTeamId,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
-  ) as TeamStaffMember[] | undefined;
+  // Handle team change
+  const handleTeamChange = (value: string) => {
+    setActiveTeamId(value === "all" ? null : value);
+  };
+  const activeOrganizationId = profile?.active_organization_id;
 
-  // Fetch enriched organization members with phone numbers
-  const enrichedOrgStaff = useQuery(
-    api.users.getEnrichedOrgMembers,
-    !activeTeamId && activeOrganizationId ? { organizationId: activeOrganizationId } : "skip"
-  ) as OrgStaffMember[] | undefined;
+  const fetchStaff = useCallback(async () => {
+    if (!supabase || !activeOrganizationId) return;
 
-  // Use organization members if only org is selected, otherwise use team members
-  const staff = activeTeamId ? teamStaff : enrichedOrgStaff;
+    try {
+      setIsLoading(true);
+      // Base query - get all users that RLS allows (scoped to active care home)
+      let query = supabase
+        .from("users")
+        .select(`
+          *,
+          team_staff:team_staff!team_staff_user_id_fkey (
+            team_id,
+            teams (
+              id,
+              name
+            )
+          )
+        `)
+        .eq("active_organization_id", activeOrganizationId);
 
-  // Filter out current user from staff list (backup safety measure)
-  const currentUserId = activeMember?.userId;
-  const currentUserEmail = session?.user?.email;
-  const staffWithoutCurrentUser = (staff || []).filter((member) => {
-    // If no current user info, include all
-    if (!currentUserId && !currentUserEmail) return true;
-    
-    // Handle different member structures
-    const isTeamMember = !!activeTeamId;
-    const teamMember = member as TeamStaffMember;
-    const orgMember = member as OrgStaffMember;
-    
-    const memberUserId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
-    const memberEmail = isTeamMember ? teamMember.email : orgMember.user.email;
-    
-    // Exclude current user - check by userId first, then by email as fallback
-    const matchesByUserId = currentUserId && memberUserId === currentUserId;
-    const matchesByEmail = currentUserEmail && memberEmail && memberEmail === currentUserEmail;
-    
-    if (matchesByUserId || matchesByEmail) {
-      console.log(`[STAFF-PAGE] ⏭️ Filtering out current user:`, {
-        memberEmail: memberEmail,
-        memberUserId: memberUserId,
-        currentUserId: currentUserId,
-        currentUserEmail: currentUserEmail,
-        matchesByUserId: matchesByUserId,
-        matchesByEmail: matchesByEmail
+      // Filter by team assignment if explicitly provided
+      // If activeTeamId is set, we only want staff assigned to that unit
+      if (activeTeamId) {
+        // Using filter on the relationship. 
+        // Note: This requires the user to have at least one assignment matching this team.
+        query = query.filter("team_staff.team_id", "eq", activeTeamId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching staff:", error);
+        setStaff([]);
+        return;
+      }
+
+      // Map data to preserve existing expected format for table columns
+      const mappedStaff = (data || []).map((p: any) => {
+        // Get primary unit assignment for display
+        const primaryTeam = p.team_staff?.[0]?.teams;
+        return {
+          ...p,
+          team_name: primaryTeam?.name || null
+        };
+      }).filter(p => {
+        // If filtering by team but the join didn't filter strictly (Supabase JS can sometimes be tricky with nested filters)
+        // Ensure the staff member has the target team in their assignments
+        if (activeTeamId) {
+          return p.team_staff?.some((ts: any) => ts.team_id === activeTeamId);
+        }
+        return true;
       });
-      return false;
+
+      console.log(`[Staff Page] Found ${mappedStaff.length} staff members for organization ${activeOrganizationId}${activeTeamId ? ` (filtered by team ${activeTeamId})` : ''}`);
+      setStaff(mappedStaff);
+    } catch (err) {
+      console.error("Unexpected error fetching staff:", err);
+      toast.error("Failed to load staff members");
+    } finally {
+      setIsLoading(false);
     }
-    return true;
+  }, [supabase, activeOrganizationId, activeTeamId]);
+
+  useEffect(() => {
+    fetchStaff();
+  }, [fetchStaff]);
+
+  const currentUserId = profile?.id;
+  const currentUserEmail = profile?.email;
+
+  const staffWithoutCurrentUser = (staff || []).filter((member) => {
+    if (!currentUserId && !currentUserEmail) return true;
+    return member.id !== currentUserId && member.email !== currentUserEmail;
   });
 
   // Filter staff based on search term
   const filteredStaff = staffWithoutCurrentUser.filter((member) => {
-    if (activeTeamId) {
-      // Team member structure
-      const teamMember = member as TeamStaffMember;
-      const name = teamMember.name || '';
-      const email = teamMember.email || '';
-      const role = teamMember.role || '';
-      const searchLower = searchTerm.toLowerCase();
+    const name = member.name || '';
+    const email = member.email || '';
+    const role = member.role || '';
+    const searchLower = searchTerm.toLowerCase();
 
-      return (
-        name.toLowerCase().includes(searchLower) ||
-        email.toLowerCase().includes(searchLower) ||
-        role.toLowerCase().includes(searchLower)
-      );
-    } else {
-      // Organization member structure
-      const orgMember = member as OrgStaffMember;
-      const name = orgMember.user.name || '';
-      const email = orgMember.user.email || '';
-      const role = orgMember.role || '';
-      const searchLower = searchTerm.toLowerCase();
-
-      return (
-        name.toLowerCase().includes(searchLower) ||
-        email.toLowerCase().includes(searchLower) ||
-        role.toLowerCase().includes(searchLower)
-      );
-    }
+    return (
+      name.toLowerCase().includes(searchLower) ||
+      email.toLowerCase().includes(searchLower) ||
+      role.toLowerCase().includes(searchLower)
+    );
   });
 
   // Determine display name for header
   const displayName = activeTeamId
-    ? activeTeam?.name || 'selected unit'
+    ? "Selected team"
     : activeOrganizationId
-      ? `All units in ${activeOrganization?.name || 'care home'}`
-      : '';
-
-  // Debugging: Track team switching and staff list changes
-  useEffect(() => {
-    console.log("[STAFF-PAGE] Team context changed:", {
-      activeTeamId,
-      activeTeamName: activeTeam?.name,
-      activeOrganizationId,
-      activeOrganizationName: activeOrganization?.name,
-      viewingMode: activeTeamId ? "team" : "organization"
-    });
-  }, [activeTeamId, activeTeam, activeOrganizationId, activeOrganization]);
-
-  // Debugging: Log staff list details
-  useEffect(() => {
-    if (staff) {
-      const totalCount = staff.length;
-      
-      // Breakdown by role
-      const roleBreakdown: Record<string, number> = {};
-      staff.forEach((member) => {
-        const role = activeTeamId 
-          ? (member as TeamStaffMember).role || "unknown"
-          : (member as OrgStaffMember).role || "unknown";
-        roleBreakdown[role] = (roleBreakdown[role] || 0) + 1;
-      });
-
-      console.log("[STAFF-PAGE] Staff list loaded:", {
-        totalCount,
-        roleBreakdown,
-        activeTeamId,
-        activeTeamName: activeTeam?.name,
-        source: activeTeamId ? "teamStaff" : "enrichedOrgStaff"
-      });
-
-      // Log individual staff members for debugging (first 5)
-      const sampleStaff = staff.slice(0, 5).map((member) => {
-        const isTeamMember = activeTeamId;
-        const teamMember = member as TeamStaffMember;
-        const orgMember = member as OrgStaffMember;
-        return {
-          email: isTeamMember ? teamMember.email : orgMember.user.email,
-          role: isTeamMember ? teamMember.role : orgMember.role,
-          name: isTeamMember ? teamMember.name : orgMember.user.name
-        };
-      });
-      console.log("[STAFF-PAGE] Sample staff members (first 5):", sampleStaff);
-    } else {
-      console.log("[STAFF-PAGE] Staff list is loading...");
-    }
-  }, [staff, activeTeamId, activeTeam]);
-
-  // Debugging: Log when search filter is applied
-  useEffect(() => {
-    if (staff && searchTerm) {
-      console.log("[STAFF-PAGE] Search filter applied:", {
-        searchTerm,
-        totalStaff: staff.length,
-        filteredCount: filteredStaff.length
-      });
-    }
-  }, [searchTerm, staff, filteredStaff.length]);
+      ? "All teams"
+      : "";
 
   // Conditional returns after all hooks
-  if (isActiveMemberLoading) {
+  if (!profile) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Checking permissions...</p>
+        <p className="text-muted-foreground">Loading profile...</p>
       </div>
     );
   }
 
-  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+  if (profile && !canViewStaffList(profile.role as UserRole)) {
     return null;
   }
 
@@ -278,7 +214,7 @@ function StaffPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Team/Unit</TableHead>
+                <TableHead>Team</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -290,39 +226,13 @@ function StaffPage() {
                 </TableRow>
               ) : filteredStaff.length ? (
                 filteredStaff.map((member) => {
-                  // Handle different member structures
-                  // Check if this is team-level view (activeTeamId exists) vs org-level view
-                  const isTeamMember = !!activeTeamId;
-                  const teamMember = member as TeamStaffMember;
-                  const orgMember = member as OrgStaffMember;
-
-                  // Determine which data structure we're using based on whether activeTeamId exists
-                  // If activeTeamId exists, we're using teamStaff (TeamStaffMember structure)
-                  // If not, we're using enrichedOrgStaff (OrgStaffMember structure)
-                  const name = isTeamMember ? teamMember.name : orgMember.user.name;
-                  const email = isTeamMember ? teamMember.email : orgMember.user.email;
-                  const phone = isTeamMember ? teamMember.phone : orgMember.phone;
-                  const imageUrl = isTeamMember ? teamMember.imageUrl : orgMember.user.image;
-                  // Extract role - ensure it's always a string (backend should guarantee this, but defensive check)
-                  const rawRole = isTeamMember ? teamMember.role : orgMember.role;
-                  const role = rawRole && typeof rawRole === 'string' && rawRole.trim() !== '' ? rawRole : undefined;
-                  
-                  // Debug logging for role issues
-                  if (!role && email) {
-                    console.warn(`[STAFF-PAGE] ⚠️ Missing role for ${email}:`, {
-                      isTeamMember,
-                      activeTeamId,
-                      rawRole,
-                      rawRoleType: typeof rawRole,
-                      teamMemberRole: isTeamMember ? teamMember.role : undefined,
-                      orgMemberRole: !isTeamMember ? orgMember.role : undefined,
-                      fullMember: member,
-                      memberKeys: Object.keys(member)
-                    });
-                  }
-                  
-                  const memberId = isTeamMember ? teamMember.userId : (orgMember.userId || orgMember.id);
-                  const teamName = isTeamMember ? teamMember.teamName : orgMember.teamName; // Team name for both views
+                  const name = member.name;
+                  const email = member.email;
+                  const phone = member.phone;
+                  const imageUrl = member.image_url;
+                  const role = member.role;
+                  const memberId = member.id;
+                  const teamName = member.team_name;
 
                   // Get initials from name or email
                   const nameParts = name?.split(' ') || [];
@@ -381,7 +291,7 @@ function StaffPage() {
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            {activeTeamId ? 'N/A' : 'All units'}
+                            {activeTeamId ? 'N/A' : 'All teams'}
                           </span>
                         )}
                       </TableCell>

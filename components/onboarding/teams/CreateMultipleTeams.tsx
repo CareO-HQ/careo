@@ -9,17 +9,16 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
 import { CreateMultipleTeamsSchema } from "@/schemas/CreateMultipleTeamsSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "convex/react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
 
 export default function CreateMultipleTeams({
   step,
@@ -29,13 +28,8 @@ export default function CreateMultipleTeams({
   setStep: (step: number) => void;
 }) {
   const [isLoading, startTransition] = useTransition();
-  const organization = authClient.useActiveOrganization();
+  const { profile, refresh: refreshProfile } = useProfile();
   const router = useRouter();
-  const setIsOnboardingCompleted = useMutation(
-    api.user.setIsOnboardingCompleted
-  );
-  const existingTeams = useQuery(api.auth.getTeamsForCurrentUser) || [];
-  const updateActiveTeam = useMutation(api.auth.updateActiveTeam);
 
   const form = useForm<z.infer<typeof CreateMultipleTeamsSchema>>({
     resolver: zodResolver(CreateMultipleTeamsSchema),
@@ -50,73 +44,34 @@ export default function CreateMultipleTeams({
 
   function onSubmit(values: z.infer<typeof CreateMultipleTeamsSchema>) {
     startTransition(async () => {
+      if (!profile || !profile.active_organization_id || !profile.active_care_home_id) {
+        toast.error("Missing profile context (organization or care home)");
+        return;
+      }
+
       try {
-        // Filter out teams with empty names
         const teamsWithNames = values.teams.filter(
           (team) => team?.name && team.name.trim() !== ""
         );
 
-        const finalData = {
-          ...values,
-          teams: teamsWithNames
-        };
-
         let createdCount = 0;
-        let existingCount = 0;
         let errorCount = 0;
 
-        for (const team of finalData.teams) {
-          if (!team?.name) continue;
-
-          // Check if team already exists in the fetched list
-          const existingTeam = existingTeams.find(
-            (t: any) => t.name.toLowerCase() === team.name.toLowerCase()
-          );
-
-          if (existingTeam) {
-            toast.info(`Team "${team.name}" already exists`);
-            try {
-              await updateActiveTeam({ teamId: existingTeam.id });
-            } catch (e) {
-              console.error("Failed to set active team:", e);
-            }
-            existingCount++;
-            continue;
-          }
-
-          try {
-            const { error } = await authClient.organization.createTeam({
+        for (const team of teamsWithNames) {
+          const { error } = await supabase
+            .from("teams")
+            .insert({
+              organization_id: profile.active_organization_id,
+              care_home_id: profile.active_care_home_id,
               name: team.name,
-              organizationId: organization?.data?.id
+              created_by: profile.id
             });
 
-            if (!error) {
-              createdCount++;
-            } else {
-              // Check if team already exists (fallback if not in list yet)
-              if (
-                error.message?.toLowerCase().includes("exist") ||
-                error.code === "TEAM_EXISTS"
-              ) {
-                toast.info(`Team "${team.name}" already exists`);
-                // Treat as success for the purpose of onboarding flow
-                existingCount++;
-              } else {
-                errorCount++;
-                console.error("Error creating team:", error);
-              }
-            }
-          } catch (error: any) {
-            if (
-              error?.message?.toLowerCase().includes("exist") ||
-              error?.code === "TEAM_EXISTS"
-            ) {
-              toast.info(`Team "${team.name}" already exists`);
-              existingCount++;
-            } else {
-              errorCount++;
-              console.error("Error creating team:", error);
-            }
+          if (!error) {
+            createdCount++;
+          } else {
+            errorCount++;
+            console.error("Error creating team:", error);
           }
         }
 
@@ -132,11 +87,23 @@ export default function CreateMultipleTeams({
           );
         }
 
+        // Mark onboarding as complete in both public.users and auth.users metadata
+        const { error: completionError } = await supabase
+          .from("users")
+          .update({
+            is_onboarding_complete: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", profile.id);
+
+        if (completionError) throw completionError;
+
+        await refreshProfile();
+        toast.success("Onboarding complete!");
         router.push("/dashboard");
-        await setIsOnboardingCompleted();
-      } catch (error) {
-        console.error("Error creating teams:", error);
-        toast.error("An unexpected error occurred");
+      } catch (error: any) {
+        console.error("Error completing onboarding:", error);
+        toast.error(error.message || "An unexpected error occurred");
       }
     });
   }

@@ -10,7 +10,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
+import { useProfile } from "@/hooks/use-profile";
 import {
   MessageCircleQuestionMarkIcon,
   HomeIcon,
@@ -25,7 +25,7 @@ import HelpSupportDialog from "./HelpSupportDialog";
 import { LogoutButton } from "../auth/LogoutButton";
 
 export function AdminSidebar() {
-  const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
   const pathname = usePathname();
 
   return (
@@ -113,9 +113,9 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenuItem className="list-none">
               <div className="px-2 py-2 text-sm">
-                <p className="font-medium">{session?.user?.name || "Admin"}</p>
+                <p className="font-medium">{profile?.name || "Admin"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {session?.user?.email}
+                  {profile?.email}
                 </p>
               </div>
             </SidebarMenuItem>

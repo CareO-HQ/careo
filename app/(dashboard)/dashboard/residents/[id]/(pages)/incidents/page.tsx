@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/hooks/use-profile";
+import { formatDateForDisplay, formatTimestampToUKTime } from "@/lib/date-utils";
+import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
 import {
   Card,
   CardContent,
@@ -58,7 +59,7 @@ import { ComprehensiveIncidentForm } from "./components/comprehensive-incident-f
 import { NHSReportForm } from "./components/nhs-report-form";
 import { BHSCTReportForm } from "./components/bhsct-report-form";
 import { SEHSCTReportForm } from "./components/sehsct-report-form";
-import { authClient } from "@/lib/auth-client";
+import { generateIncidentPDF } from "./utils";
 
 import {
   Dialog,
@@ -86,15 +87,14 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [showNHSReportView, setShowNHSReportView] = React.useState(false);
   const [selectedNHSReport, setSelectedNHSReport] = React.useState<any>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
-  const { data: session } = authClient.useSession();
-  const { data: activeMember } = authClient.useActiveMember();
+  const { profile } = useProfile();
 
   // Debug role access
   React.useEffect(() => {
-    if (activeMember) {
-      console.log("Logged in role:", activeMember.role);
+    if (profile) {
+      console.log("Logged in role:", profile.role);
     }
-  }, [activeMember]);
+  }, [profile]);
 
   const itemsPerPage = 5;
 
@@ -104,36 +104,140 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [selectedTrust, setSelectedTrust] = React.useState<string>("");
   const [showTrustForm, setShowTrustForm] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [showRestrictivePracticeForm, setShowRestrictivePracticeForm] = React.useState(false);
+  const [restrictivePracticeIncident, setRestrictivePracticeIncident] = React.useState<any>(null);
 
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const [resident, setResident] = React.useState<any>(undefined);
+  const fullName = resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : "";
+  const initials = resident ? `${(resident.first_name || "R")[0]}${(resident.last_name || "E")[0]}`.toUpperCase() : "RE";
 
-  const incidents = useQuery(api.incidents.getByResident, {
-    residentId: id as Id<"residents">
-  });
+  const calculateAge = (dateOfBirth: string) => {
+    if (!dateOfBirth) return 0;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
 
-  const incidentStats = useQuery(api.incidents.getIncidentStats, {
-    residentId: id as Id<"residents">
-  });
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
 
-  // Get trust incident reports for all incidents
-  const trustReports = useQuery(api.trustIncidentReports.getByResidentId, {
-    residentId: id as Id<"residents">
-  });
+    return age;
+  };
+  const [incidents, setIncidents] = React.useState<any[]>([]);
+  const [incidentStats, setIncidentStats] = React.useState<any>(null);
+  const [trustReports, setTrustReports] = React.useState<any[]>([]);
+  const [bhsctReports, setBhsctReports] = React.useState<any[]>([]);
+  const [sehsctReports, setSehsctReports] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  // Get BHSCT reports for all incidents
-  const bhsctReports = useQuery(api.bhsctReports.getByResident, {
-    residentId: id as Id<"residents">
-  });
+  const fetchData = React.useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    try {
+      // Fetch resident
+      const { data: resData } = await supabase
+        .from("residents")
+        .select("*")
+        .eq("id", id)
+        .single();
+      setResident(resData);
 
-  // Get SEHSCT reports for all incidents
-  const sehsctReports = useQuery(api.sehsctReports.getByResident, {
-    residentId: id as Id<"residents">
-  });
+      // Fetch incidents
+      const { data: incData } = await supabase
+        .from("incidents")
+        .select(`
+          *,
+          care_homes (
+            name
+          )
+        `)
+        .eq("resident_id", id)
+        .order("date", { ascending: false })
+        .order("time", { ascending: false });
+
+      const formattedIncData = incData?.map(inc => ({
+        ...inc,
+        home_name: (inc.care_homes as any)?.name
+      }));
+
+      setIncidents(formattedIncData || []);
+
+      // Fetch trust reports
+      const { data: trData } = await supabase
+        .from("trust_incident_reports")
+        .select("*")
+        .eq("resident_id", id);
+
+      const allTrustReports = trData || [];
+      setTrustReports(allTrustReports.filter(r => r.report_type === "nhs"));
+      setBhsctReports(allTrustReports.filter(r => r.report_type === "bhsct"));
+      setSehsctReports(allTrustReports.filter(r => r.report_type === "sehsct"));
+
+      // Calculate stats (simplified for now, can be improved)
+      if (incData) {
+        const total = incData.length;
+        const falls = incData.filter(i =>
+          i.incident_types?.some((t: string) => t.toLowerCase().includes("fall"))
+        ).length;
+
+        let daysSinceLast = 0;
+        if (incData.length > 0) {
+          const lastIncidentDate = new Date(incData[0].date);
+          const today = new Date();
+          const diffTime = Math.abs(today.getTime() - lastIncidentDate.getTime());
+          daysSinceLast = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        setIncidentStats({
+          totalIncidents: total,
+          fallsCount: falls,
+          daysSinceLastIncident: daysSinceLast
+        });
+      }
+
+    } catch (error) {
+      console.error("Error fetching incidents data:", error);
+      toast.error("Failed to load incidents data");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Mutation for deleting incidents
-  const deleteIncident = useMutation(api.incidents.remove);
+  const handleDeleteIncidentMutation = async (incidentId: string) => {
+    try {
+      // 1. Delete associated trust reports first to avoid foreign key constraints
+      const { error: trustReportsError } = await supabase
+        .from("trust_incident_reports")
+        .delete()
+        .eq("incident_id", incidentId);
+
+      if (trustReportsError) {
+        console.warn("Could not delete associated trust reports:", trustReportsError);
+        // We continue anyway, as the main delete might still work or have its own error
+      }
+
+      // 2. Delete the incident itself
+      const { error } = await supabase
+        .from("incidents")
+        .delete()
+        .eq("id", incidentId);
+
+      if (error) throw error;
+
+      toast.success("Incident report deleted successfully");
+      fetchData();
+    } catch (error) {
+      console.error("Error deleting incident:", error);
+      toast.error("Failed to delete incident report");
+      throw error; // Rethrow so the caller knows it failed
+    }
+  };
 
   // Memoize NHS report existence check to avoid repeated .some() calls
   // MUST be before any early returns to maintain hook order
@@ -141,37 +245,48 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     const map = new Map<string, boolean>();
 
     bhsctReports?.forEach(report => {
-      map.set(report.incidentId, true);
+      map.set(report.incident_id, true);
     });
 
     sehsctReports?.forEach(report => {
-      map.set(report.incidentId, true);
+      map.set(report.incident_id, true);
+    });
+
+    trustReports?.forEach(report => {
+      map.set(report.incident_id, true);
     });
 
     return map;
-  }, [bhsctReports, sehsctReports]);
+  }, [bhsctReports, sehsctReports, trustReports]);
 
   // Get trust reports for a specific incident (including BHSCT and SEHSCT reports)
   const getTrustReportsForIncident = React.useCallback((incidentId: string) => {
-    const oldTrustReports = trustReports?.filter(report => report.incidentId === incidentId) || [];
-    const bhsctReportsForIncident = bhsctReports?.filter(report => report.incidentId === incidentId) || [];
-    const sehsctReportsForIncident = sehsctReports?.filter(report => report.incidentId === incidentId) || [];
+    const oldTrustReportsRaw = trustReports?.filter(report => report.incident_id === incidentId) || [];
+    const bhsctReportsForIncident = bhsctReports?.filter(report => report.incident_id === incidentId) || [];
+    const sehsctReportsForIncident = sehsctReports?.filter(report => report.incident_id === incidentId) || [];
+
+    // Format NHS reports with trust_name fallback
+    const formattedOldTrustReports = oldTrustReportsRaw.map(report => ({
+      ...report,
+      trust_name: report.trust_name || "NHS",
+      report_type: report.report_type || "nhs",
+    }));
 
     // Convert BHSCT reports to the same format as trust reports
     const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
       ...report,
-      trustName: "BHSCT",
-      reportType: "bhsct",
+      trust_name: report.trust_name || "BHSCT",
+      report_type: "bhsct",
     }));
 
     // Convert SEHSCT reports to the same format as trust reports
     const formattedSehsctReports = sehsctReportsForIncident.map(report => ({
       ...report,
-      trustName: "SEHSCT",
-      reportType: "sehsct",
+      trust_name: report.trust_name || "SEHSCT",
+      report_type: "sehsct",
     }));
 
-    return [...oldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
+    return [...formattedOldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
   }, [trustReports, bhsctReports, sehsctReports]);
 
   // No longer need manual getUser effect
@@ -208,35 +323,18 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
-
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
-  };
-
+  // Placeholder removed
   const handleViewIncident = (incidentId: string) => {
-    const incident = incidents?.find(i => i._id === incidentId);
+    const incident = incidents?.find(i => i.id === incidentId);
     if (incident) {
-      // Deep clone the incident object to prevent Convex real-time updates from triggering re-renders
       setSelectedIncident(JSON.parse(JSON.stringify(incident)));
       setShowViewDialog(true);
     }
   };
 
   const handleEditIncident = (incidentId: string) => {
-    const incident = incidents?.find(i => i._id === incidentId);
+    const incident = incidents?.find(i => i.id === incidentId);
     if (incident) {
-      // Deep clone the incident object to prevent Convex real-time updates from triggering useEffect loops
       setSelectedIncident(JSON.parse(JSON.stringify(incident)));
       setShowReportForm(true);
     }
@@ -248,24 +346,23 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     }
 
     try {
-      await deleteIncident({ incidentId: incidentId as Id<"incidents"> });
-      toast.success("Incident report deleted successfully");
+      await handleDeleteIncidentMutation(incidentId);
+      // Success toast is handled in the mutation
     } catch (error) {
-      console.error("Error deleting incident:", error);
-      toast.error("Failed to delete incident report");
+      // Error toast is handled in the mutation
     }
   };
 
   const handleDownloadIncident = async (incidentId: string) => {
     try {
-      const incident = incidents?.find(i => i._id === incidentId);
+      const incident = incidents?.find(i => i.id === incidentId);
       if (!incident) {
         toast.error("Incident not found");
         return;
       }
 
       // Generate PDF content
-      const pdfContent = generateIncidentPDF(incident);
+      const pdfContent = generateIncidentPDF(incident, fullName);
 
       // Create a blob and download
       const blob = new Blob([pdfContent], { type: 'text/html' });
@@ -286,7 +383,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   };
 
   const handleNHSReport = (incidentId: string) => {
-    const incident = incidents?.find(i => i._id === incidentId);
+    const incident = incidents?.find(i => i.id === incidentId);
     if (!incident) {
       toast.error("Incident not found");
       return;
@@ -307,24 +404,40 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     setShowTrustForm(false);
     setSelectedTrust("");
     setTrustPickerIncident(null);
+    // Refresh data to show newly created trust reports
+    fetchData();
   };
 
-  const handleNHSReportCreated = (reportId: string) => {
-    // Optionally download the NHS report immediately after creation
-    const incident = nhsReportIncident;
-    if (incident) {
-      const trustReport = trustReports?.find(r => r.incidentId === incident._id && r.reportType === "nhs");
-      if (trustReport) {
-        generateAndDownloadNHSReport(incident, trustReport);
+  const handleNHSReportCreated = async (reportId: string) => {
+    // Refresh the UI list
+    fetchData();
+
+    // Fetch the newly created report directly for immediate download
+    try {
+      const { data: report, error } = await supabase
+        .from('trust_incident_reports')
+        .select('*')
+        .eq('id', reportId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching new report for download:", error);
+        return;
       }
+
+      if (report && nhsReportIncident) {
+        generateAndDownloadNHSReport(nhsReportIncident, report);
+      }
+    } catch (err) {
+      console.error("Failed to handle new report creation:", err);
     }
   };
 
   const generateAndDownloadNHSReport = async (incident: any, trustReport: any) => {
     try {
       // Check report type
-      const isBHSCT = trustReport.reportType === "bhsct";
-      const isSEHSCT = trustReport.reportType === "sehsct";
+      const isBHSCT = trustReport.report_type === "bhsct";
+      const isSEHSCT = trustReport.report_type === "sehsct";
 
       const reportLabel = isBHSCT ? 'BHSCT' : isSEHSCT ? 'SEHSCT' : 'NHS';
       toast.loading(`Generating ${reportLabel} report PDF...`);
@@ -354,10 +467,10 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       const a = document.createElement('a');
       a.href = url;
       const fileName = isBHSCT
-        ? `BHSCT-Report-${incident.date}-${incident._id.slice(-6)}.pdf`
+        ? `BHSCT-Report-${incident.date}-${incident.id.slice(-6)}.pdf`
         : isSEHSCT
-          ? `SEHSCT-Report-${incident.date}-${incident._id.slice(-6)}.pdf`
-          : `NHS-Report-${incident.date}-${incident._id.slice(-6)}.pdf`;
+          ? `SEHSCT-Report-${incident.date}-${incident.id.slice(-6)}.pdf`
+          : `NHS-Report-${incident.date}-${incident.id.slice(-6)}.pdf`;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
@@ -374,7 +487,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   };
 
   const handleBodyMap = (incidentId: string) => {
-    const incident = incidents?.find(i => i._id === incidentId);
+    const incident = incidents?.find(i => i.id === incidentId);
     if (!incident) {
       toast.error("Incident not found");
       return;
@@ -389,7 +502,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
   const handlePS1Report = async (incidentId: string) => {
     try {
-      const incident = incidents?.find(i => i._id === incidentId);
+      const incident = incidents?.find(i => i.id === incidentId);
       if (!incident) {
         toast.error("Incident not found");
         return;
@@ -416,108 +529,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     }
   };
 
-  const generateIncidentPDF = (incident: any) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Incident Report - ${incident.date}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
-            h2 { color: #555; margin-top: 20px; }
-            .section { margin-bottom: 20px; }
-            .field { margin-bottom: 10px; }
-            .label { font-weight: bold; color: #666; }
-            .value { margin-left: 10px; }
-            .header { background: #f5f5f5; padding: 10px; margin-bottom: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Incident Report</h1>
-            <div class="field">
-              <span class="label">Resident:</span>
-              <span class="value">${fullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Report Date:</span>
-              <span class="value">${incident.date} ${incident.time}</span>
-            </div>
-          </div>
-          
-          <div class="section">
-            <h2>Incident Details</h2>
-            <div class="field">
-              <span class="label">Type:</span>
-              <span class="value">${incident.incidentTypes?.join(", ") || "N/A"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Level:</span>
-              <span class="value">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "N/A"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Location:</span>
-              <span class="value">${incident.homeName} - ${incident.unit}</span>
-            </div>
-          </div>
 
-          <div class="section">
-            <h2>Description</h2>
-            <p>${incident.detailedDescription || "No description provided"}</p>
-          </div>
-
-          <div class="section">
-            <h2>Injured Person</h2>
-            <div class="field">
-              <span class="label">Name:</span>
-              <span class="value">${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}</span>
-            </div>
-            <div class="field">
-              <span class="label">DOB:</span>
-              <span class="value">${incident.injuredPersonDOB}</span>
-            </div>
-            <div class="field">
-              <span class="label">Status:</span>
-              <span class="value">${incident.injuredPersonStatus?.join(", ") || "N/A"}</span>
-            </div>
-          </div>
-
-          ${incident.treatmentTypes && incident.treatmentTypes.length > 0 ? `
-          <div class="section">
-            <h2>Treatment</h2>
-            <div class="field">
-              <span class="label">Types:</span>
-              <span class="value">${incident.treatmentTypes.join(", ")}</span>
-            </div>
-            ${incident.treatmentDetails ? `
-            <div class="field">
-              <span class="label">Details:</span>
-              <span class="value">${incident.treatmentDetails}</span>
-            </div>
-            ` : ''}
-          </div>
-          ` : ''}
-
-          <div class="section">
-            <h2>Report Completion</h2>
-            <div class="field">
-              <span class="label">Completed By:</span>
-              <span class="value">${incident.completedByFullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Job Title:</span>
-              <span class="value">${incident.completedByJobTitle}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date Completed:</span>
-              <span class="value">${incident.dateCompleted}</span>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-  };
 
   const generateBHSCTReportPDF = (incident: any, report: any) => {
     // BHSCT Official Logo (simplified SVG version based on official branding)
@@ -585,7 +597,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <div class="report-meta">
             <div class="meta-item">
               <div class="meta-label">Report ID</div>
-              <div class="meta-value">#${report._id.slice(-8).toUpperCase()}</div>
+              <div class="meta-value">#${report.id.slice(-8).toUpperCase()}</div>
             </div>
             <div class="meta-item">
               <div class="meta-label">Report Date</div>
@@ -762,7 +774,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
           <div class="footer">
             <p><strong>Generated by CareO System</strong></p>
-            <p>Report ID: ${report._id} | Generated on: ${new Date().toLocaleString()}</p>
+            <p>Report ID: ${report.id} | Generated on: ${new Date().toLocaleString()}</p>
             <p>Reported by: ${report.reportedByName} | Original Report Date: ${new Date(report.createdAt).toLocaleDateString()}</p>
             <p style="margin-top: 10px;">© ${new Date().getFullYear()} Belfast Health and Social Care Trust. All rights reserved.</p>
           </div>
@@ -1320,7 +1332,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   };
 
   const handleDownloadNHSReportFromBadge = (report: any) => {
-    const incident = incidents?.find(i => i._id === report.incidentId);
+    const incident = incidents?.find(i => i.id === report.incident_id);
     if (incident) {
       generateAndDownloadNHSReport(incident, report);
     }
@@ -1343,11 +1355,11 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Incidents & Falls</h1>
             <p className="text-muted-foreground text-sm">
-              View and manage incident reports for {resident.firstName} {resident.lastName}.
+              View and manage incident reports for {resident.first_name} {resident.last_name}.
             </p>
           </div>
           <div className="flex flex-row gap-2">
-            {canCreateIncident(activeMember?.role as any) && (
+            {canCreateIncident(profile?.role as any) && (
               <Button
                 onClick={() => setShowReportForm(true)}
               >
@@ -1386,7 +1398,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               <div className="space-y-3">
                 {paginatedIncidents.map((incident) => (
                   <div
-                    key={incident._id}
+                    key={incident.id}
                     className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
                   >
                     <div className="flex items-start space-x-3 flex-1">
@@ -1396,17 +1408,17 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
                           <h4 className="font-semibold text-gray-900">
-                            {incident.incidentTypes?.join(", ") || "Incident"}
+                            {incident.incident_types?.join(", ") || "Incident"}
                           </h4>
                           <Badge
-                            className={`text-xs border-0 ${incident.incidentLevel === "death" ? "bg-red-100 text-red-800" :
-                              incident.incidentLevel === "permanent_harm" ? "bg-red-100 text-red-800" :
-                                incident.incidentLevel === "minor_injury" ? "bg-yellow-100 text-yellow-800" :
-                                  incident.incidentLevel === "no_harm" ? "bg-green-100 text-green-800" :
+                            className={`text-xs border-0 ${incident.incident_level === "death" ? "bg-red-100 text-red-800" :
+                              incident.incident_level === "permanent_harm" ? "bg-red-100 text-red-800" :
+                                incident.incident_level === "minor_injury" ? "bg-yellow-100 text-yellow-800" :
+                                  incident.incident_level === "no_harm" ? "bg-green-100 text-green-800" :
                                     "bg-gray-100 text-gray-800"
                               }`}
                           >
-                            {incident.incidentLevel
+                            {incident.incident_level
                               ?.replace("_", " ")
                               .toLowerCase()
                               .replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -1416,29 +1428,28 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>{new Date(incident.date).toLocaleDateString()}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
+
+                          <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-1">
                             <Clock className="w-3 h-3" />
-                            <span>{incident.time}</span>
+                            <span>{formatDateForDisplay(incident.date)}</span>
+                            <span>at</span>
+                            <span>{incident.time ? formatTimestampToUKTime(incident.date + 'T' + incident.time) : '--'}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <User className="w-3 h-3" />
-                            <span>{incident.completedByFullName}</span>
+                            <span>{incident.completed_by_full_name}</span>
                           </div>
                           {/* Trust Report Indicators - inline with metadata */}
-                          {getTrustReportsForIncident(incident._id).map((report) => (
+                          {getTrustReportsForIncident(incident.id).map((report) => (
                             <Badge
-                              key={report._id}
+                              key={report.id}
                               variant="outline"
                               className="text-xs bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
-                              title={`${report.trustName} Report - Click to view`}
+                              title={`${report.trust_name} Report - Click to view`}
                               onClick={() => handleViewNHSReport(report, incident)}
                             >
                               <FileBarChart className="w-3 h-3 mr-1" />
-                              {report.trustName}
+                              {report.trust_name}
                             </Badge>
                           ))}
                         </div>
@@ -1458,37 +1469,53 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => handleViewIncident(incident._id)}>
+                          <DropdownMenuItem onClick={() => handleViewIncident(incident.id)}>
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          {canEditIncident(activeMember?.role as any) && (
-                            <DropdownMenuItem onClick={() => handleEditIncident(incident._id)}>
+                          {canEditIncident(profile?.role as any) && (
+                            <DropdownMenuItem onClick={() => handleEditIncident(incident.id)}>
                               <Pencil className="w-4 h-4 mr-2" />
                               Edit Incident
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => handleDownloadIncident(incident._id)}>
+                          <DropdownMenuItem onClick={() => handleDownloadIncident(incident.id)}>
                             <Download className="w-4 h-4 mr-2" />
                             Download PDF
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          {canForwardIncident(activeMember?.role as any) && (
-                            <DropdownMenuItem
-                              onClick={() => handleNHSReport(incident._id)}
-                              disabled={nhsReportExistsMap.get(incident._id) || false}
-                            >
-                              <FileBarChart className="w-4 h-4 mr-2" />
-                              {nhsReportExistsMap.get(incident._id)
-                                ? "NHS Report Generated"
-                                : "Generate NHS Report"}
-                            </DropdownMenuItem>
+                          {canForwardIncident(profile?.role as any) && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleNHSReport(incident.id)}
+                              >
+                                <FileBarChart className="w-4 h-4 mr-2" />
+                                <span>{nhsReportExistsMap.get(incident.id) ? "Generate Another NHS Report" : "Generate NHS Report"}</span>
+                              </DropdownMenuItem>
+
+                              {nhsReportExistsMap.get(incident.id) && (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const reports = getTrustReportsForIncident(incident.id);
+                                    if (reports.length > 0) {
+                                      handleViewNHSReport(reports[0], incident);
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  <span>View NHS Report(s)</span>
+                                </DropdownMenuItem>
+                              )}
+                            </>
                           )}
                           <DropdownMenuItem>
                             <User className="w-4 h-4 mr-2" />
                             <span>Body Map</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            setRestrictivePracticeIncident(incident);
+                            setShowRestrictivePracticeForm(true);
+                          }}>
                             <ShieldAlert className="w-4 h-4 mr-2" />
                             <span>Restrictive Practice Form</span>
                           </DropdownMenuItem>
@@ -1496,11 +1523,11 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                             <ClipboardCheck className="w-4 h-4 mr-2" />
                             <span>Generate APP1 Report</span>
                           </DropdownMenuItem>
-                          {canEditIncident(activeMember?.role as any) && (
+                          {canEditIncident(profile?.role as any) && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleDeleteIncident(incident._id)}
+                                onClick={() => handleDeleteIncident(incident.id)}
                                 className="text-red-600 focus:text-red-600 focus:bg-red-50"
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -1632,7 +1659,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         {resident && (
           <ComprehensiveIncidentForm
             residentId={id}
-            residentName={`${resident.firstName} ${resident.lastName}`}
+            residentName={`${resident.first_name} ${resident.last_name}`}
             isOpen={showReportForm}
             onClose={() => {
               setShowReportForm(false);
@@ -1671,22 +1698,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                         <p className="text-sm text-gray-500">Incident Level</p>
                         <Badge
                           variant={
-                            selectedIncident.incidentLevel === "death" ? "destructive" :
-                              selectedIncident.incidentLevel === "permanent_harm" ? "destructive" :
-                                selectedIncident.incidentLevel === "minor_injury" ? "secondary" :
+                            selectedIncident.incident_level === "death" ? "destructive" :
+                              selectedIncident.incident_level === "permanent_harm" ? "destructive" :
+                                selectedIncident.incident_level === "minor_injury" ? "secondary" :
                                   "outline"
                           }
                         >
-                          {selectedIncident.incidentLevel?.replace("_", " ").toUpperCase()}
+                          {selectedIncident.incident_level?.replace("_", " ").toUpperCase()}
                         </Badge>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Location</p>
-                        <p className="font-medium">{selectedIncident.homeName} - {selectedIncident.unit}</p>
+                        <p className="font-medium">{selectedIncident.home_name} - {selectedIncident.unit}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Incident Types</p>
-                        <p className="font-medium">{selectedIncident.incidentTypes?.join(", ") || "N/A"}</p>
+                        <p className="font-medium">{selectedIncident.incident_types?.join(", ") || "N/A"}</p>
                       </div>
                     </div>
                   </div>
@@ -1694,7 +1721,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   {/* Description */}
                   <div className="border-b pb-4">
                     <h3 className="font-semibold text-lg mb-3">Detailed Description</h3>
-                    <p className="text-gray-700 whitespace-pre-wrap">{selectedIncident.detailedDescription}</p>
+                    <p className="text-gray-700 whitespace-pre-wrap">{selectedIncident.detailed_description}</p>
                   </div>
 
                   {/* Injured Person Details */}
@@ -1703,38 +1730,38 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-gray-500">Name</p>
-                        <p className="font-medium">{selectedIncident.injuredPersonFirstName} {selectedIncident.injuredPersonSurname}</p>
+                        <p className="font-medium">{selectedIncident.injured_person_first_name} {selectedIncident.injured_person_surname}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Date of Birth</p>
-                        <p className="font-medium">{selectedIncident.injuredPersonDOB}</p>
+                        <p className="font-medium">{selectedIncident.injured_person_dob}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Status</p>
-                        <p className="font-medium">{selectedIncident.injuredPersonStatus?.join(", ") || "N/A"}</p>
+                        <p className="font-medium">{selectedIncident.injured_person_status?.join(", ") || "N/A"}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Health Care Number</p>
-                        <p className="font-medium">{selectedIncident.healthCareNumber || "N/A"}</p>
+                        <p className="font-medium">{selectedIncident.health_care_number || "N/A"}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Injury Details */}
-                  {(selectedIncident.injuryDescription || selectedIncident.bodyPartInjured) && (
+                  {(selectedIncident.injury_description || selectedIncident.body_part_injured) && (
                     <div className="border-b pb-4">
                       <h3 className="font-semibold text-lg mb-3">Injury Details</h3>
                       <div className="grid grid-cols-2 gap-4">
-                        {selectedIncident.injuryDescription && (
+                        {selectedIncident.injury_description && (
                           <div>
                             <p className="text-sm text-gray-500">Injury Description</p>
-                            <p className="font-medium">{selectedIncident.injuryDescription}</p>
+                            <p className="font-medium">{selectedIncident.injury_description}</p>
                           </div>
                         )}
-                        {selectedIncident.bodyPartInjured && (
+                        {selectedIncident.body_part_injured && (
                           <div>
                             <p className="text-sm text-gray-500">Body Part Injured</p>
-                            <p className="font-medium">{selectedIncident.bodyPartInjured}</p>
+                            <p className="font-medium">{selectedIncident.body_part_injured}</p>
                           </div>
                         )}
                       </div>
@@ -1742,30 +1769,30 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   )}
 
                   {/* Treatment */}
-                  {(selectedIncident.treatmentTypes?.length > 0 || selectedIncident.treatmentDetails) && (
+                  {(selectedIncident.treatment_types?.length > 0 || selectedIncident.treatment_details) && (
                     <div className="border-b pb-4">
                       <h3 className="font-semibold text-lg mb-3">Treatment</h3>
                       <div className="space-y-3">
-                        {selectedIncident.treatmentTypes?.length > 0 && (
+                        {selectedIncident.treatment_types?.length > 0 && (
                           <div>
                             <p className="text-sm text-gray-500">Treatment Types</p>
                             <div className="flex flex-wrap gap-2 mt-1">
-                              {selectedIncident.treatmentTypes.map((type: string, index: number) => (
+                              {selectedIncident.treatment_types.map((type: string, index: number) => (
                                 <Badge key={index} variant="secondary">{type}</Badge>
                               ))}
                             </div>
                           </div>
                         )}
-                        {selectedIncident.treatmentDetails && (
+                        {selectedIncident.treatment_details && (
                           <div>
                             <p className="text-sm text-gray-500">Treatment Details</p>
-                            <p className="font-medium">{selectedIncident.treatmentDetails}</p>
+                            <p className="font-medium">{selectedIncident.treatment_details}</p>
                           </div>
                         )}
-                        {selectedIncident.vitalSigns && (
+                        {selectedIncident.vital_signs && (
                           <div>
                             <p className="text-sm text-gray-500">Vital Signs</p>
-                            <p className="font-medium">{selectedIncident.vitalSigns}</p>
+                            <p className="font-medium">{selectedIncident.vital_signs}</p>
                           </div>
                         )}
                       </div>
@@ -1773,25 +1800,25 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   )}
 
                   {/* Witnesses */}
-                  {(selectedIncident.witness1Name || selectedIncident.witness2Name) && (
+                  {(selectedIncident.witness1_name || selectedIncident.witness2_name) && (
                     <div className="border-b pb-4">
                       <h3 className="font-semibold text-lg mb-3">Witnesses</h3>
                       <div className="grid grid-cols-2 gap-4">
-                        {selectedIncident.witness1Name && (
+                        {selectedIncident.witness1_name && (
                           <div>
                             <p className="text-sm text-gray-500">Witness 1</p>
-                            <p className="font-medium">{selectedIncident.witness1Name}</p>
-                            {selectedIncident.witness1Contact && (
-                              <p className="text-sm text-gray-600">{selectedIncident.witness1Contact}</p>
+                            <p className="font-medium">{selectedIncident.witness1_name}</p>
+                            {selectedIncident.witness1_contact && (
+                              <p className="text-sm text-gray-600">{selectedIncident.witness1_contact}</p>
                             )}
                           </div>
                         )}
-                        {selectedIncident.witness2Name && (
+                        {selectedIncident.witness2_name && (
                           <div>
                             <p className="text-sm text-gray-500">Witness 2</p>
-                            <p className="font-medium">{selectedIncident.witness2Name}</p>
-                            {selectedIncident.witness2Contact && (
-                              <p className="text-sm text-gray-600">{selectedIncident.witness2Contact}</p>
+                            <p className="font-medium">{selectedIncident.witness2_name}</p>
+                            {selectedIncident.witness2_contact && (
+                              <p className="text-sm text-gray-600">{selectedIncident.witness2_contact}</p>
                             )}
                           </div>
                         )}
@@ -1857,7 +1884,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             incidentId={nhsReportIncident._id}
             residentId={id}
             incident={nhsReportIncident}
-            user={session?.user}
+            user={profile as any}
             onReportCreated={handleNHSReportCreated}
           />
         )}
@@ -2799,6 +2826,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               {[
                 { code: "BHSCT", name: "Belfast Health and Social Care Trust", color: "blue" },
                 { code: "SEHSCT", name: "South Eastern Health and Social Care Trust", color: "green" },
+                { code: "NHS", name: "Generic NHS Trust Report", color: "gray" },
                 { code: "WHSCT", name: "Western Health and Social Care Trust", color: "purple" },
                 { code: "SHSCT", name: "Southern Health and Social Care Trust", color: "orange" },
                 { code: "NHSCT", name: "Northern Health and Social Care Trust", color: "red" }
@@ -2829,7 +2857,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <BHSCTReportForm
             incident={trustPickerIncident}
             resident={resident}
-            user={session?.user}
+            user={profile as any}
             open={showTrustForm}
             onClose={handleCloseTrustForm}
           />
@@ -2837,9 +2865,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <SEHSCTReportForm
             incident={trustPickerIncident}
             resident={resident}
-            user={session?.user}
+            user={profile as any}
             open={showTrustForm}
             onClose={handleCloseTrustForm}
+          />
+        ) : selectedTrust === "NHS" ? (
+          <NHSReportForm
+            isOpen={showTrustForm}
+            onClose={handleCloseTrustForm}
+            incidentId={trustPickerIncident?.id || ""}
+            residentId={id}
+            incident={trustPickerIncident}
+            user={profile}
+            onReportCreated={(reportId) => {
+              handleCloseTrustForm();
+              fetchData();
+            }}
           />
         ) : (
           <Dialog open={showTrustForm} onOpenChange={handleCloseTrustForm}>
@@ -3009,6 +3050,43 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   {isSubmitting ? "Submitting..." : "Submit Report"}
                 </Button>
               </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Restrictive Practice Form Dialog */}
+        {showRestrictivePracticeForm && restrictivePracticeIncident && resident && profile && (
+          <Dialog open={showRestrictivePracticeForm} onOpenChange={(open) => {
+            if (!open) {
+              setShowRestrictivePracticeForm(false);
+              setRestrictivePracticeIncident(null);
+            }
+          }}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Restrictive Practice Form</DialogTitle>
+                <DialogDescription>
+                  Complete restrictive practice documentation for incident on {restrictivePracticeIncident.date}
+                </DialogDescription>
+              </DialogHeader>
+              <BestInterestDecisionDialog
+                residentId={id}
+                teamId={resident.team_id || ""}
+                organizationId={resident.organization_id || ""}
+                userId={profile.id || ""}
+                userName={profile.name || ""}
+                resident={resident}
+                onClose={() => {
+                  setShowRestrictivePracticeForm(false);
+                  setRestrictivePracticeIncident(null);
+                  fetchData();
+                }}
+                initialData={{
+                  typeOfDecision: ["Restraint / Restrictive practice"],
+                  detailsOfDecision: restrictivePracticeIncident.detailed_description || "",
+                  dateOfDecision: restrictivePracticeIncident.date || "",
+                }}
+              />
             </DialogContent>
           </Dialog>
         )}

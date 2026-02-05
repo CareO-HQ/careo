@@ -59,6 +59,8 @@ export const bedrailConsentSchema = z.object({
   teamId: z.string(),
   organizationId: z.string(),
   userId: z.string(),
+  assessment_date: z.string().optional(),
+  completed_by: z.string().optional(),
 
   // Header Information
   residentName: z.string().min(1, "Resident name is required"),

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { cn, formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
-import { useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Select,
   SelectContent,
@@ -31,10 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { authClient } from "@/lib/auth-client";
-import { api } from "@/convex/_generated/api";
-import { useQuery, useMutation } from "convex/react";
-import { useToast } from "@/hooks/use-toast";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { toast } from "sonner";
 import ImageSelector from "@/components/onboarding/profile/ImageSelector";
 import {
   Mail,
@@ -50,7 +49,6 @@ import {
   Heart,
   User2Icon
 } from "lucide-react";
-import React from "react";
 import { format } from "date-fns";
 
 type StaffOverviewProps = {
@@ -59,28 +57,11 @@ type StaffOverviewProps = {
 
 export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const { id } = React.use(params);
-  const { data: activeOrg, isPending: isActiveOrgLoading } = authClient.useActiveOrganization();
-  const { data: activeMember, isPending: isActiveMemberLoading } = authClient.useActiveMember();
-  const { toast } = useToast();
+  const { profile: currentProfile, refresh: refreshCurrentProfile } = useProfile();
+  const { supabase } = useSupabase();
 
-  // Find the staff member from organization members (computed before hooks that need it)
-  const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);
-
-  // Get staff details from local database
-  const staffDetails = useQuery(
-    api.users.getStaffDetailsByUserId,
-    staffMember?.userId ? { userId: staffMember.userId } : "skip"
-  );
-
-  // Fetch staff member's profile image from Convex
-  const userImage = useQuery(
-    api.files.image.getUserImageByUserId,
-    staffMember?.userId ? { userId: staffMember.userId } : "skip"
-  );
-
-  const updateStaffDetails = useMutation(api.users.updateStaffDetails);
-  const generateUploadUrl = useMutation(api.files.image.generateUploadUrl);
-  const sendImage = useMutation(api.files.image.sendImage);
+  const [staffMember, setStaffMember] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Form state
   const [isEditOpen, setIsEditOpen] = React.useState(false);
@@ -89,93 +70,106 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const [formData, setFormData] = React.useState({
     phone: "",
     address: "",
-    dateOfJoin: "",
-    rightToWorkStatus: "not_verified" as "verified" | "pending" | "expired" | "not_verified",
-    nextOfKinName: "",
-    nextOfKinRelationship: "",
-    nextOfKinPhone: "",
-    nextOfKinEmail: "",
-    nextOfKinAddress: "",
+    date_of_join: "",
+    right_to_work_status: "not_verified",
+    next_of_kin_name: "",
+    next_of_kin_relationship: "",
+    next_of_kin_phone: "",
+    next_of_kin_email: "",
+    next_of_kin_address: "",
   });
 
-  // Update form when staff details load
-  React.useEffect(() => {
-    if (staffDetails) {
+  const fetchStaffMember = useCallback(async () => {
+    if (!supabase) return;
+    setIsLoading(true);
+
+    const { data, error } = await supabase
+      .from("users")
+      .select(`
+        *,
+        organizations:active_organization_id (
+          id,
+          name
+        )
+      `)
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching staff profile:", error);
+      setStaffMember(null);
+    } else {
+      setStaffMember(data);
+      // Initialize form data
       setFormData({
-        phone: staffDetails.phone || "",
-        address: staffDetails.address || "",
-        dateOfJoin: staffDetails.dateOfJoin || "",
-        rightToWorkStatus: staffDetails.rightToWorkStatus || "not_verified",
-        nextOfKinName: staffDetails.nextOfKinName || "",
-        nextOfKinRelationship: staffDetails.nextOfKinRelationship || "",
-        nextOfKinPhone: staffDetails.nextOfKinPhone || "",
-        nextOfKinEmail: staffDetails.nextOfKinEmail || "",
-        nextOfKinAddress: staffDetails.nextOfKinAddress || "",
+        phone: data.phone || "",
+        address: data.address || "",
+        date_of_join: data.date_of_join || "",
+        right_to_work_status: data.right_to_work_status || "not_verified",
+        next_of_kin_name: data.next_of_kin_name || "",
+        next_of_kin_relationship: data.next_of_kin_relationship || "",
+        next_of_kin_phone: data.next_of_kin_phone || "",
+        next_of_kin_email: data.next_of_kin_email || "",
+        next_of_kin_address: data.next_of_kin_address || "",
       });
     }
-  }, [staffDetails]);
+    setIsLoading(false);
+  }, [id, supabase]);
 
-  // Permission check effect
   useEffect(() => {
-    if (!isActiveMemberLoading && activeMember) {
-      if (!canViewStaffList(activeMember.role as UserRole)) {
-        window.location.href = "/dashboard";
-      }
-    }
-  }, [activeMember, isActiveMemberLoading]);
+    fetchStaffMember();
+  }, [fetchStaffMember]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!staffMember) return;
+    if (!staffMember || !supabase) return;
 
     try {
-      // Update staff details
-      await updateStaffDetails({
-        userId: staffMember.userId,
-        ...formData,
-      });
+      let imageUrl = staffMember.image_url;
 
-      // Upload photo if selected
+      // Handle Image Upload
       if (selectedFile) {
-        const uploadUrl = await generateUploadUrl();
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${id}-${Math.random()}.${fileExt}`;
+        const filePath = `avatars/${fileName}`;
 
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile.type },
-          body: selectedFile,
-        });
+        const { error: uploadError } = await supabase.storage
+          .from('careo-public')
+          .upload(filePath, selectedFile);
 
-        const { storageId } = await result.json();
+        if (uploadError) throw uploadError;
 
-        await sendImage({
-          storageId,
-          type: "profile",
-          userId: staffMember.userId,
-        });
+        const { data: { publicUrl } } = supabase.storage
+          .from('careo-public')
+          .getPublicUrl(filePath);
+
+        imageUrl = publicUrl;
       }
 
-      toast({
-        title: "Success",
-        description: "Staff details updated successfully",
-      });
+      // Update staff details
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          ...formData,
+          image_url: imageUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
 
+      if (updateError) throw updateError;
+
+      toast.success("Staff details updated successfully");
       setIsEditOpen(false);
       setSelectedFile(null);
-
-      // Refresh the page to show updates
-      window.location.reload();
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to update staff details",
-        variant: "destructive",
-      });
+      fetchStaffMember(); // Refresh data
+    } catch (error: any) {
+      console.error("Error updating staff:", error);
+      toast.error(error.message || "Failed to update staff details");
     }
   };
 
-  // Early returns AFTER all hooks
-  if (isActiveOrgLoading || isActiveMemberLoading) {
+  if (isLoading || !currentProfile) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -186,29 +180,29 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
     );
   }
 
-  if (activeMember && !canViewStaffList(activeMember.role as UserRole)) {
+  if (currentProfile && !canViewStaffList(currentProfile.role as UserRole)) {
     return null;
   }
 
-  if (!activeOrg || !staffMember) {
+  if (!staffMember) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading...</p>
+          <p className="text-lg font-semibold">Staff member not found</p>
+          <p className="text-muted-foreground">The staff member you&apos;re looking for doesn&apos;t exist.</p>
         </div>
       </div>
     );
   }
 
-  const fullName = staffMember.user.name || staffMember.user.email;
-  const nameParts = staffMember.user.name?.split(' ') || [];
+  const fullName = staffMember.name || staffMember.email;
+  const nameParts = staffMember.name?.split(' ') || [];
   const initials = nameParts.length >= 2
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-    : staffMember.user.name?.[0]?.toUpperCase() || staffMember.user.email[0].toUpperCase();
+    : staffMember.name?.[0]?.toUpperCase() || staffMember.email[0].toUpperCase();
 
-  const memberSince = format(new Date(staffMember.createdAt), 'MMMM dd, yyyy');
-  const dateOfJoinFormatted = formData.dateOfJoin ? format(new Date(formData.dateOfJoin), 'MMMM dd, yyyy') : 'Not set';
+  const memberSince = format(new Date(staffMember.created_at), 'MMMM dd, yyyy');
+  const dateOfJoinFormatted = formData.date_of_join ? format(new Date(formData.date_of_join), 'MMMM dd, yyyy') : 'Not set';
 
   const getRightToWorkStatusColor = (status: string) => {
     switch (status) {
@@ -261,11 +255,11 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 <div className="mb-6">
                   <ImageSelector
                     placeholder={<User2Icon strokeWidth={1.5} className="w-14 h-14 text-muted-foreground" />}
-                    currentImageUrl={userImage?.url || staffMember.user.image || ""}
+                    currentImageUrl={staffMember.image_url || ""}
                     fileId={undefined}
                     selectedFile={selectedFile}
                     setSelectedFile={setSelectedFile}
-                    userInitial={fullName.split(' ').map(n => n[0]).join('')}
+                    userInitial={fullName.split(' ').map((n: string) => n[0]).join('')}
                   />
                 </div>
 
@@ -283,7 +277,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label htmlFor="dateOfJoin">Date of Join</Label>
+                      <Label htmlFor="date_of_join">Date of Join</Label>
                       <Popover
                         open={isDatePickerOpen}
                         onOpenChange={setIsDatePickerOpen}
@@ -295,12 +289,12 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                             type="button"
                             className={cn(
                               "w-full justify-start text-left font-normal",
-                              !formData.dateOfJoin && "text-muted-foreground"
+                              !formData.date_of_join && "text-muted-foreground"
                             )}
                           >
                             <Calendar className="mr-2 h-4 w-4" />
-                            {formData.dateOfJoin ? (
-                              format(new Date(formData.dateOfJoin), "PPP")
+                            {formData.date_of_join ? (
+                              format(new Date(formData.date_of_join), "PPP")
                             ) : (
                               <span>Pick a date</span>
                             )}
@@ -309,10 +303,10 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                         <PopoverContent className="w-auto p-0" align="start">
                           <CalendarComponent
                             mode="single"
-                            selected={formData.dateOfJoin ? new Date(formData.dateOfJoin) : undefined}
+                            selected={formData.date_of_join ? new Date(formData.date_of_join) : undefined}
                             onSelect={(date) => {
                               if (date) {
-                                setFormData({ ...formData, dateOfJoin: format(date, "yyyy-MM-dd") });
+                                setFormData({ ...formData, date_of_join: format(date, "yyyy-MM-dd") });
                                 setIsDatePickerOpen(false);
                               }
                             }}
@@ -322,7 +316,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                               return date > today;
                             }}
                             captionLayout="dropdown"
-                            defaultMonth={formData.dateOfJoin ? new Date(formData.dateOfJoin) : new Date()}
+                            defaultMonth={formData.date_of_join ? new Date(formData.date_of_join) : new Date()}
                             startMonth={new Date(new Date().getFullYear() - 50, 0)}
                             endMonth={new Date()}
                           />
@@ -341,10 +335,10 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="rightToWorkStatus">Right to Work Status</Label>
+                    <Label htmlFor="right_to_work_status">Right to Work Status</Label>
                     <Select
-                      value={formData.rightToWorkStatus}
-                      onValueChange={(value) => setFormData({ ...formData, rightToWorkStatus: value as typeof formData.rightToWorkStatus })}
+                      value={formData.right_to_work_status}
+                      onValueChange={(value) => setFormData({ ...formData, right_to_work_status: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -364,51 +358,51 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                   <h3 className="font-semibold">Next of Kin Information</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="nextOfKinName">Full Name</Label>
+                      <Label htmlFor="next_of_kin_name">Full Name</Label>
                       <Input
-                        id="nextOfKinName"
-                        value={formData.nextOfKinName}
-                        onChange={(e) => setFormData({ ...formData, nextOfKinName: e.target.value })}
+                        id="next_of_kin_name"
+                        value={formData.next_of_kin_name}
+                        onChange={(e) => setFormData({ ...formData, next_of_kin_name: e.target.value })}
                         placeholder="Next of Kin Name"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="nextOfKinRelationship">Relationship</Label>
+                      <Label htmlFor="next_of_kin_relationship">Relationship</Label>
                       <Input
-                        id="nextOfKinRelationship"
-                        value={formData.nextOfKinRelationship}
-                        onChange={(e) => setFormData({ ...formData, nextOfKinRelationship: e.target.value })}
+                        id="next_of_kin_relationship"
+                        value={formData.next_of_kin_relationship}
+                        onChange={(e) => setFormData({ ...formData, next_of_kin_relationship: e.target.value })}
                         placeholder="e.g., Spouse, Parent"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="nextOfKinPhone">Phone Number</Label>
+                      <Label htmlFor="next_of_kin_phone">Phone Number</Label>
                       <Input
-                        id="nextOfKinPhone"
-                        value={formData.nextOfKinPhone}
-                        onChange={(e) => setFormData({ ...formData, nextOfKinPhone: e.target.value })}
+                        id="next_of_kin_phone"
+                        value={formData.next_of_kin_phone}
+                        onChange={(e) => setFormData({ ...formData, next_of_kin_phone: e.target.value })}
                         placeholder="+44 1234 567890"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="nextOfKinEmail">Email</Label>
+                      <Label htmlFor="next_of_kin_email">Email</Label>
                       <Input
-                        id="nextOfKinEmail"
+                        id="next_of_kin_email"
                         type="email"
-                        value={formData.nextOfKinEmail}
-                        onChange={(e) => setFormData({ ...formData, nextOfKinEmail: e.target.value })}
+                        value={formData.next_of_kin_email}
+                        onChange={(e) => setFormData({ ...formData, next_of_kin_email: e.target.value })}
                         placeholder="email@example.com"
                       />
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="nextOfKinAddress">Address</Label>
+                    <Label htmlFor="next_of_kin_address">Address</Label>
                     <Textarea
-                      id="nextOfKinAddress"
-                      value={formData.nextOfKinAddress}
-                      onChange={(e) => setFormData({ ...formData, nextOfKinAddress: e.target.value })}
+                      id="next_of_kin_address"
+                      value={formData.next_of_kin_address}
+                      onChange={(e) => setFormData({ ...formData, next_of_kin_address: e.target.value })}
                       placeholder="Enter full address"
                       rows={3}
                     />
@@ -432,7 +426,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
           <div className="flex items-center space-x-4">
             <Avatar className="w-24 h-24">
               <AvatarImage
-                src={userImage?.url || staffMember.user.image || ""}
+                src={staffMember.image_url || ""}
                 alt={fullName}
                 className="border-2"
               />
@@ -446,8 +440,8 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 <Badge variant="secondary">
                   {formatRoleName(staffMember.role)}
                 </Badge>
-                <Badge variant="outline" className={getRightToWorkStatusColor(formData.rightToWorkStatus)}>
-                  {getRightToWorkStatusText(formData.rightToWorkStatus)}
+                <Badge variant="outline" className={getRightToWorkStatusColor(formData.right_to_work_status)}>
+                  {getRightToWorkStatusText(formData.right_to_work_status)}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
@@ -466,7 +460,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{staffMember.user.email}</p>
+                  <p className="font-medium">{staffMember.email}</p>
                 </div>
               </div>
 
@@ -506,7 +500,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Organization</p>
-                  <p className="font-medium">{activeOrg.name}</p>
+                  <p className="font-medium">{staffMember.organizations?.name || "Not assigned"}</p>
                 </div>
               </div>
 
@@ -529,7 +523,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Date of Join</p>
                   <p className="font-medium">
-                    {formData.dateOfJoin ? dateOfJoinFormatted : <span className="text-muted-foreground">Not set</span>}
+                    {formData.date_of_join ? dateOfJoinFormatted : <span className="text-muted-foreground">Not set</span>}
                   </p>
                 </div>
               </div>
@@ -540,8 +534,8 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Right to Work</p>
-                  <Badge variant="outline" className={getRightToWorkStatusColor(formData.rightToWorkStatus)}>
-                    {getRightToWorkStatusText(formData.rightToWorkStatus)}
+                  <Badge variant="outline" className={getRightToWorkStatusColor(formData.right_to_work_status)}>
+                    {getRightToWorkStatusText(formData.right_to_work_status)}
                   </Badge>
                 </div>
               </div>
@@ -554,27 +548,27 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
               <Heart className="w-5 h-5" />
               Next of Kin
             </h3>
-            {formData.nextOfKinName ? (
+            {formData.next_of_kin_name ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Name</p>
-                  <p className="font-medium">{formData.nextOfKinName}</p>
+                  <p className="font-medium">{formData.next_of_kin_name}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Relationship</p>
-                  <p className="font-medium">{formData.nextOfKinRelationship}</p>
+                  <p className="font-medium">{formData.next_of_kin_relationship}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium">{formData.nextOfKinPhone || "Not set"}</p>
+                  <p className="font-medium">{formData.next_of_kin_phone || "Not set"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{formData.nextOfKinEmail || "Not set"}</p>
+                  <p className="font-medium">{formData.next_of_kin_email || "Not set"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="text-sm text-muted-foreground">Address</p>
-                  <p className="font-medium">{formData.nextOfKinAddress || "Not set"}</p>
+                  <p className="font-medium">{formData.next_of_kin_address || "Not set"}</p>
                 </div>
               </div>
             ) : (
