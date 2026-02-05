@@ -1,9 +1,6 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -54,6 +51,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { residentService, Resident } from "@/lib/resident-service";
+import { multidisciplinaryService, MultidisciplinaryNote } from "@/lib/multidisciplinary-service";
+import { toast } from "sonner";
 
 type MultidisciplinaryNotesDocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -62,7 +62,11 @@ type MultidisciplinaryNotesDocumentsPageProps = {
 export default function MultidisciplinaryNotesDocumentsPage({ params }: MultidisciplinaryNotesDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+
+  // State for data
+  const [resident, setResident] = useState<Resident | null | undefined>(undefined);
+  const [multidisciplinaryNotes, setMultidisciplinaryNotes] = useState<MultidisciplinaryNote[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,12 +79,30 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
   // Dialog state
   const [selectedNote, setSelectedNote] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [selectedDayNotes, setSelectedDayNotes] = useState<MultidisciplinaryNote[]>([]);
+  const [isDailyViewDialogOpen, setIsDailyViewDialogOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string>("");
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Fetch data
+  const fetchData = React.useCallback(async () => {
+    try {
+      const [resData, notesData] = await Promise.all([
+        residentService.getResidentById(id),
+        multidisciplinaryService.getNotesByResidentId(id)
+      ]);
+      setResident(resData);
+      setMultidisciplinaryNotes(notesData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
 
-  // Fetch multidisciplinary notes
-  const multidisciplinaryNotes = useQuery(api.multidisciplinaryNotes.getByResidentId, { residentId });
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -139,16 +161,94 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
     return filtered;
   }, [multidisciplinaryNotes, searchQuery, selectedMonth, selectedYear, sortOrder]);
 
+  // Group filtered notes by day
+  const groupedNotes = useMemo(() => {
+    const groups: { [key: string]: MultidisciplinaryNote[] } = {};
+    filteredNotes.forEach(note => {
+      if (!groups[note.noteDate]) {
+        groups[note.noteDate] = [];
+      }
+      groups[note.noteDate].push(note);
+    });
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [filteredNotes]);
+
   // Pagination
   const totalPages = Math.ceil(filteredNotes.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedNotes = filteredNotes.slice(startIndex, endIndex);
 
+  // Group paginated notes for display
+  const paginatedGroupedNotes = useMemo(() => {
+    const groups: { [key: string]: MultidisciplinaryNote[] } = {};
+    paginatedNotes.forEach(note => {
+      if (!groups[note.noteDate]) {
+        groups[note.noteDate] = [];
+      }
+      groups[note.noteDate].push(note);
+    });
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [paginatedNotes]);
+
   // Handlers
   const handleViewNote = (note: any) => {
     setSelectedNote(note);
     setIsViewDialogOpen(true);
+  };
+
+  const handleViewDay = (day: string, notes: MultidisciplinaryNote[]) => {
+    setSelectedDay(day);
+    setSelectedDayNotes(notes);
+    setIsDailyViewDialogOpen(true);
+  };
+
+  const handleDownloadDailyPDF = async (day: string, notes: MultidisciplinaryNote[]) => {
+    if (!resident) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch('/api/pdf/multidisciplinary-note', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resident: {
+            first_name: resident.firstName,
+            last_name: resident.lastName,
+          },
+          dayData: {
+            date: day,
+            notes: notes.map(n => ({
+              team_member_name: n.teamMemberName,
+              note_time: n.noteTime,
+              reason_for_visit: n.reasonForVisit,
+              outcome: n.outcome,
+              relative_informed: n.relativeInformed,
+              relative_informed_details: n.relativeInformedDetails,
+              signature: n.signature
+            }))
+          }
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mdt-report-${resident.firstName}-${resident.lastName}-${day}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("MDT report downloaded successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to download MDT report");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleExport = () => {
@@ -162,7 +262,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
       note.teamMemberName,
       note.reasonForVisit,
       note.outcome,
-      note.relativeInformed === 'yes' ? 'Yes' : 'No',
+      note.relativeInformed ? 'Yes' : 'No',
       note.signature
     ]);
 
@@ -184,7 +284,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
   };
 
   // Loading state
-  if (!resident || !multidisciplinaryNotes) {
+  if (isLoading || resident === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -244,7 +344,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-0 bg-gradient-to-br from-indigo-50 to-indigo-100">
+        <Card className="border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -258,7 +358,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
+        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -268,7 +368,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
                     const noteDate = new Date(note.noteDate);
                     const now = new Date();
                     return noteDate.getMonth() === now.getMonth() &&
-                           noteDate.getFullYear() === now.getFullYear();
+                      noteDate.getFullYear() === now.getFullYear();
                   }).length}
                 </p>
               </div>
@@ -279,13 +379,13 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100">
+        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-700">Relatives Informed</p>
                 <p className="text-2xl font-bold text-purple-900">
-                  {multidisciplinaryNotes.filter(note => note.relativeInformed === 'yes').length}
+                  {multidisciplinaryNotes.filter(note => note.relativeInformed).length}
                 </p>
               </div>
               <div className="p-2 bg-white rounded-lg">
@@ -295,11 +395,11 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100">
+        <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-orange-700">Unique Team Members</p>
+                <p className="text-sm font-medium text-orange-700">Unique Members</p>
                 <p className="text-2xl font-bold text-orange-900">
                   {new Set(multidisciplinaryNotes.map(note => note.teamMemberName)).size}
                 </p>
@@ -313,11 +413,11 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
       </div>
 
       {/* Filters and Search */}
-      <Card className="border-0">
+      <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Filter className="w-5 h-5" />
+            <div className="flex items-center space-x-2 text-lg">
+              <Filter className="w-5 h-5 text-gray-500" />
               <span>Filter Notes</span>
             </div>
             <Button
@@ -407,13 +507,13 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
       </Card>
 
       {/* Notes Table */}
-      <Card className="border-0">
-        <CardHeader>
-          <CardTitle>
+      <Card className="border-0 shadow-sm overflow-hidden">
+        <CardHeader className="bg-gray-50/50 border-b">
+          <CardTitle className="text-lg">
             Multidisciplinary Notes ({filteredNotes.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {filteredNotes.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
@@ -423,71 +523,76 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
               </p>
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Team Member</TableHead>
-                      <TableHead>Reason for Visit</TableHead>
-                      <TableHead>Outcome</TableHead>
-                      <TableHead>Relative Informed</TableHead>
-                      <TableHead>Signature</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedNotes.map((note) => (
-                      <TableRow key={note._id}>
-                        <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{format(new Date(note.noteDate), "dd MMM yyyy")}</span>
-                            <span className="text-xs text-gray-500">{note.noteTime}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <span>{note.teamMemberName}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <p className="truncate">{note.reasonForVisit}</p>
-                        </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <p className="truncate">{note.outcome}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`text-xs border-0 ${
-                            note.relativeInformed === 'yes'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {note.relativeInformed === 'yes' ? 'Yes' : 'No'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{note.signature}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewNote(note)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            <div className="space-y-0">
+              {paginatedGroupedNotes.map(([date, notes]) => (
+                <div key={date} className="border-b last:border-b-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="hidden">
+                        <TableRow>
+                          <TableHead>Summary</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow className="hover:bg-gray-50/50">
+                          <TableCell className="py-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="p-2 bg-indigo-50 rounded-lg">
+                                  <Calendar className="w-4 h-4 text-indigo-600" />
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-gray-900 block">
+                                    {format(new Date(date), "EEEE, MMMM d, yyyy")}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {notes.length} Multidisciplinary Note{notes.length > 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 border-t sm:border-t-0 sm:border-l sm:pl-4 pt-2 sm:pt-0">
+                                <div className="flex items-center space-x-1">
+                                  <Users className="w-3 h-3" />
+                                  <span>{notes.map(n => n.teamMemberName).join(", ")}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right py-4">
+                            <div className="flex items-center justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewDay(date, notes)}
+                                className="h-8 text-xs"
+                              >
+                                <Eye className="w-3.5 h-3.5 mr-1.5 align-middle" />
+                                <span className="align-middle">View Detail</span>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownloadDailyPDF(date, notes)}
+                                disabled={isDownloading}
+                                className="h-8 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                              >
+                                <Download className="w-3.5 h-3.5 mr-1.5 align-middle" />
+                                <span className="align-middle">Download PDF</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ))}
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center justify-between p-4 bg-gray-50 border-t">
                   <div className="text-sm text-gray-500">
                     Showing {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} of {filteredNotes.length} notes
                   </div>
@@ -502,29 +607,26 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
                     <div className="flex items-center space-x-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="h-8 w-8 p-0"
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(pageNum =>
+                          pageNum === 1 ||
+                          pageNum === totalPages ||
+                          (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                        )
+                        .map((pageNum, idx, arr) => (
+                          <React.Fragment key={pageNum}>
+                            {idx > 0 && arr[idx - 1] !== pageNum - 1 && <span className="text-gray-400 text-xs">...</span>}
+                            <Button
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="h-8 w-8 p-0 text-xs"
+                            >
+                              {pageNum}
+                            </Button>
+                          </React.Fragment>
+                        ))
+                      }
                     </div>
                     <Button
                       variant="outline"
@@ -538,7 +640,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -547,7 +649,7 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Multidisciplinary Note Details</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-indigo-900">Multidisciplinary Note Details</DialogTitle>
             <DialogDescription>
               Complete multidisciplinary note details for {fullName}
             </DialogDescription>
@@ -556,80 +658,91 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
             {selectedNote && (
               <div className="space-y-6">
                 {/* Note Overview */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Visit Overview</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                  <h3 className="font-semibold text-indigo-900 mb-4 flex items-center">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Visit Overview
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div>
-                      <p className="text-sm text-gray-500">Date</p>
-                      <p className="font-medium">{format(new Date(selectedNote.noteDate), "PPP")}</p>
+                      <p className="text-xs text-indigo-600 uppercase font-bold tracking-wider mb-1">Date</p>
+                      <p className="font-medium text-gray-900">{format(new Date(selectedNote.noteDate), "PPP")}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Time</p>
-                      <p className="font-medium">{selectedNote.noteTime}</p>
+                      <p className="text-xs text-indigo-600 uppercase font-bold tracking-wider mb-1">Time</p>
+                      <p className="font-medium text-gray-900">{selectedNote.noteTime}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Team Member</p>
+                      <p className="text-xs text-indigo-600 uppercase font-bold tracking-wider mb-1">Team Member</p>
                       <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedNote.teamMemberName}</p>
+                        <User className="w-3 h-3 text-indigo-600" />
+                        <p className="font-medium text-gray-900">{selectedNote.teamMemberName}</p>
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Relative Informed</p>
-                      <Badge className={`${
-                        selectedNote.relativeInformed === 'yes'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      } border-0`}>
-                        {selectedNote.relativeInformed === 'yes' ? 'Yes' : 'No'}
+                      <p className="text-xs text-indigo-600 uppercase font-bold tracking-wider mb-1">Relative Informed</p>
+                      <Badge className={`${selectedNote.relativeInformed
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                        } border-0`}>
+                        {selectedNote.relativeInformed ? 'Yes' : 'No'}
                       </Badge>
                     </div>
                   </div>
                 </div>
 
                 {/* Visit Details */}
-                <div className="border-b pb-4">
-                  <h3 className="font-semibold text-lg mb-3">Visit Details</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-500 mb-2">Reason for Visit</p>
-                      <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                        {selectedNote.reasonForVisit}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-2">Outcome</p>
-                      <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                        {selectedNote.outcome}
-                      </p>
-                    </div>
-                    {selectedNote.relativeInformedDetails && (
-                      <div>
-                        <p className="text-sm text-gray-500 mb-2">Relative Contact Details</p>
-                        <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
-                          {selectedNote.relativeInformedDetails}
-                        </p>
-                      </div>
-                    )}
+                <div className="space-y-4">
+                  <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                      <ClipboardList className="w-4 h-4 mr-2 text-indigo-600" />
+                      Reason for Visit
+                    </h3>
+                    <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
+                      {selectedNote.reasonForVisit}
+                    </p>
                   </div>
+                  <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                      <UserCheck className="w-4 h-4 mr-2 text-indigo-600" />
+                      Outcome
+                    </h3>
+                    <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
+                      {selectedNote.outcome}
+                    </p>
+                  </div>
+                  {selectedNote.relativeInformedDetails && (
+                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                        <Users className="w-4 h-4 mr-2 text-indigo-600" />
+                        Relative Contact Details
+                      </h3>
+                      <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
+                        {selectedNote.relativeInformedDetails}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Record Information */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">Record Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                    <FileText className="w-4 h-4 mr-2 text-gray-500" />
+                    Record Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                      <p className="text-sm text-gray-500">Signed By</p>
+                      <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Signed By</p>
                       <div className="flex items-center space-x-2">
-                        <UserCheck className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{selectedNote.signature}</p>
+                        <UserCheck className="w-3 h-3 text-gray-400" />
+                        <p className="font-medium text-gray-900">{selectedNote.signature}</p>
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Date Created</p>
+                      <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Date Created</p>
                       <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedNote.createdAt || selectedNote.noteDate), "PPP")}</p>
+                        <Clock className="w-3 h-3 text-gray-400" />
+                        <p className="font-medium text-gray-900">{format(new Date(selectedNote.createdAt || selectedNote.noteDate), "PPP")}</p>
                       </div>
                     </div>
                   </div>
@@ -642,6 +755,85 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
               variant="outline"
               onClick={() => setIsViewDialogOpen(false)}
             >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Daily View Dialog */}
+      <Dialog open={isDailyViewDialogOpen} onOpenChange={setIsDailyViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-indigo-900">MDT Visits - {selectedDay ? format(new Date(selectedDay), "EEEE, MMMM d, yyyy") : ''}</DialogTitle>
+            <DialogDescription>
+              Summary of all multidisciplinary team visits for this day.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[70vh] pr-4">
+            <div className="space-y-4 py-4">
+              {selectedDayNotes.map((note, index) => (
+                <Card key={note.id} className="border shadow-sm overflow-hidden">
+                  <div className="bg-indigo-50/50 px-4 py-2 border-b flex justify-between items-center">
+                    <div className="flex items-center space-x-2 text-indigo-700 font-semibold">
+                      <Users className="w-4 h-4" />
+                      <span>Visit {index + 1}: {note.teamMemberName}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{note.noteTime}</span>
+                    </div>
+                  </div>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Reason for Visit</h4>
+                        <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600 whitespace-pre-wrap min-h-[60px]">
+                          {note.reasonForVisit}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Outcome & Recommendations</h4>
+                        <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600 whitespace-pre-wrap min-h-[60px]">
+                          {note.outcome}
+                        </div>
+                      </div>
+                    </div>
+                    {note.relativeInformedDetails && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Relative Contact Details</h4>
+                        <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600 whitespace-pre-wrap">
+                          {note.relativeInformedDetails}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pt-2 border-t text-xs text-gray-500">
+                      <div className="flex items-center space-x-4">
+                        <span className="flex items-center space-x-1">
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Signed: {note.signature}</span>
+                        </span>
+                      </div>
+                      <Badge variant="outline" className={`${note.relativeInformed ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                        Relative {note.relativeInformed ? 'Informed' : 'Not Informed'}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => handleDownloadDailyPDF(selectedDay, selectedDayNotes)}
+              disabled={isDownloading}
+              className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
+            <Button variant="outline" onClick={() => setIsDailyViewDialogOpen(false)}>
               Close
             </Button>
           </div>

@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useMemo, useEffect } from "react";
+import { residentService, type Resident } from "@/lib/resident-service";
+import { lifestyleService, type SocialActivity } from "@/lib/lifestyle-service";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { getUKTodayDate, UK_TIMEZONE, formatTimestampToUKDate } from "@/lib/date-utils";
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import {
   Card,
   CardContent,
@@ -60,7 +60,11 @@ type SocialActivitiesDocumentsPageProps = {
 export default function SocialActivitiesDocumentsPage({ params }: SocialActivitiesDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const residentId = id as Id<"residents">;
+
+  // State
+  const [resident, setResident] = useState<Resident | null | undefined>(undefined);
+  const [allActivities, setAllActivities] = useState<SocialActivity[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,13 +78,34 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
   const [selectedDate, setSelectedDate] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
+  // Data Fetching
+  useEffect(() => {
+    const fetchResident = async () => {
+      try {
+        const data = await residentService.getResidentById(id);
+        setResident(data);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      }
+    };
+    fetchResident();
+  }, [id]);
 
-  // Fetch all social activities for this resident
-  const allActivities = useQuery(api.socialActivities.getSocialActivitiesByResidentId, {
-    residentId,
-  });
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        const data = await lifestyleService.getSocialActivities(id, 1000); // Fetch up to 1000 for client-side filtering
+        setAllActivities(data);
+      } catch (error) {
+        console.error("Error fetching social activities:", error);
+        setAllActivities([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchActivities();
+  }, [id]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -99,7 +124,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     }
     const years = new Set<number>();
     activitiesArray.forEach((activity: any) => {
-      const year = new Date(activity.activityDate).getFullYear();
+      const year = toZonedTime(new Date(activity.activityDate + 'T12:00:00'), UK_TIMEZONE).getFullYear();
       years.add(year);
     });
     return Array.from(years).sort((a, b) => b - a);
@@ -121,7 +146,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
 
     return Array.from(grouped.entries()).map(([date, activities]) => ({
       date,
-      formattedDate: format(new Date(date), "PPP"),
+      formattedDate: formatInTimeZone(new Date(date + 'T12:00:00'), UK_TIMEZONE, "PPP"),
       activities,
       count: activities.length,
     }));
@@ -136,7 +161,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     // Filter by year
     if (selectedYear !== "all") {
       filtered = filtered.filter(report => {
-        const year = new Date(report.date).getFullYear();
+        const year = toZonedTime(new Date(report.date + 'T12:00:00'), UK_TIMEZONE).getFullYear();
         return year === parseInt(selectedYear);
       });
     }
@@ -144,7 +169,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     // Filter by month
     if (selectedMonth !== "all") {
       filtered = filtered.filter(report => {
-        const month = new Date(report.date).getMonth();
+        const month = toZonedTime(new Date(report.date + 'T12:00:00'), UK_TIMEZONE).getMonth();
         return month === parseInt(selectedMonth);
       });
     }
@@ -183,12 +208,12 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const thisMonth = activitiesArray.filter((activity: any) => {
-      const activityDate = new Date(activity.activityDate);
+      const activityDate = toZonedTime(new Date(activity.activityDate + 'T12:00:00'), UK_TIMEZONE);
       return activityDate.getMonth() === currentMonth && activityDate.getFullYear() === currentYear;
     }).length;
 
     const thisWeek = activitiesArray.filter((activity: any) => {
-      const activityDate = new Date(activity.activityDate);
+      const activityDate = toZonedTime(new Date(activity.activityDate + 'T12:00:00'), UK_TIMEZONE);
       return activityDate >= oneWeekAgo;
     }).length;
 
@@ -225,7 +250,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `social-activities-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `social-activities-${fullName.replace(/\s+/g, "-")}-${getUKTodayDate()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -276,7 +301,7 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
       <div class="activities">
         <h2>Activities</h2>
         ${activities && activities.length > 0
-          ? activities.map((activity: any) => `
+        ? activities.map((activity: any) => `
               <div class="log-entry">
                 <strong>${activity.activityName}</strong> (${activity.activityType.replace(/_/g, ' ')})<br>
                 Time: ${activity.activityTime}<br>
@@ -285,8 +310,8 @@ export default function SocialActivitiesDocumentsPage({ params }: SocialActiviti
                 Recorded by: ${activity.recordedBy}
               </div>
             `).join('')
-          : '<p>No activities recorded for this date.</p>'
-        }
+        : '<p>No activities recorded for this date.</p>'
+      }
       </div>
     `;
   };

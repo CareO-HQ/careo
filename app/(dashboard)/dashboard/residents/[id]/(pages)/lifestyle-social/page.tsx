@@ -1,15 +1,16 @@
 "use client";
 
-import React from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useState, useEffect } from "react";
+import { residentService, type Resident } from "@/lib/resident-service";
+import { lifestyleService, type PersonalInterests, type SocialActivity, type SocialConnection } from "@/lib/lifestyle-service";
 import { useProfile } from "@/hooks/use-profile";
 import { canAddLifestyleActivity } from "@/lib/permissions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { getUKTodayDate, getUKNow, UK_TIMEZONE, formatTimestampToUKDate } from "@/lib/date-utils";
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import {
   Card,
   CardContent,
@@ -129,42 +130,92 @@ type SocialConnectionFormData = z.infer<typeof SocialConnectionSchema>;
 export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
 
-  // State declarations (must come before computed values that use them)
-  const [isActivityDialogOpen, setIsActivityDialogOpen] = React.useState(false);
-  const [isPersonalInterestsDialogOpen, setIsPersonalInterestsDialogOpen] = React.useState(false);
-  const [isSocialConnectionDialogOpen, setIsSocialConnectionDialogOpen] = React.useState(false);
-  const [currentActivityStep, setCurrentActivityStep] = React.useState(1);
-  const [activitiesPage, setActivitiesPage] = React.useState(1);
+  // State
+  const [resident, setResident] = useState<Resident | null | undefined>(undefined);
+  const [personalInterests, setPersonalInterests] = useState<PersonalInterests | null>(null);
+  const [activitiesData, setActivitiesData] = useState<{ activities: SocialActivity[], totalCount: number, totalPages: number } | undefined>(undefined);
+  const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // State declarations
+  const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
+  const [isPersonalInterestsDialogOpen, setIsPersonalInterestsDialogOpen] = useState(false);
+  const [isSocialConnectionDialogOpen, setIsSocialConnectionDialogOpen] = useState(false);
+  const [currentActivityStep, setCurrentActivityStep] = useState(1);
+  const [activitiesPage, setActivitiesPage] = useState(1);
   const activitiesPerPage = 10;
 
-  // Fetch personal interests data
-  const personalInterests = useQuery(api.personalInterests.getPersonalInterestsByResidentId, {
-    residentId: id as Id<"residents">
+  // Data Fetching
+  useEffect(() => {
+    const fetchResident = async () => {
+      try {
+        const data = await residentService.getResidentById(id);
+        setResident(data);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      }
+    };
+    fetchResident();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchPersonalInterests = async () => {
+      try {
+        const data = await lifestyleService.getPersonalInterests(id);
+        setPersonalInterests(data);
+      } catch (error) {
+        console.error("Error fetching personal interests:", error);
+      }
+    };
+    fetchPersonalInterests();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        const data = await lifestyleService.getPaginatedSocialActivities(id, activitiesPage, activitiesPerPage);
+        setActivitiesData(data);
+      } catch (error) {
+        console.error("Error fetching social activities:", error);
+      }
+    };
+    fetchActivities();
+  }, [id, activitiesPage]);
+
+  useEffect(() => {
+    const fetchConnections = async () => {
+      try {
+        const data = await lifestyleService.getSocialConnections(id);
+        setSocialConnections(data);
+      } catch (error) {
+        console.error("Error fetching social connections:", error);
+      }
+    };
+    fetchConnections();
+  }, [id]);
+
+  // Time options for the dropdown (15-minute intervals)
+  const timeOptions = Array.from({ length: 96 }, (_, i) => {
+    const hour = Math.floor(i / 4).toString().padStart(2, '0');
+    const minute = ((i % 4) * 15).toString().padStart(2, '0');
+    return `${hour}:${minute}`;
   });
 
-  // Fetch paginated social activities (server-side pagination)
-  const activitiesData = useQuery(api.socialActivities.getPaginatedSocialActivities, {
-    residentId: id as Id<"residents">,
-    page: activitiesPage,
-    pageSize: activitiesPerPage,
-  });
+  const getNearestTimeOption = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes;
+    const nearestInterval = Math.round(totalMinutes / 15) * 15;
+    const roundedHours = Math.floor(nearestInterval / 60) % 24;
+    const roundedMinutes = nearestInterval % 60;
+    return `${roundedHours.toString().padStart(2, '0')}:${roundedMinutes.toString().padStart(2, '0')}`;
+  };
 
-  // Fetch social connections
-  const socialConnections = useQuery(api.socialConnections.getSocialConnectionsByResidentId, {
-    residentId: id as Id<"residents">,
-  });
-
-  // Mutations
-  const createSocialActivityMutation = useMutation(api.socialActivities.createSocialActivity);
-  const createSocialConnectionMutation = useMutation(api.socialConnections.createSocialConnection);
-
-  // Get today's date
-  const today = new Date().toISOString().split('T')[0];
-  const currentTime = new Date().toTimeString().slice(0, 5);
+  // Get today's date in UK timezone
+  const today = getUKTodayDate();
+  const rawCurrentTime = formatInTimeZone(new Date(), UK_TIMEZONE, 'HH:mm');
+  const currentTime = getNearestTimeOption(rawCurrentTime);
 
   // Form setup
   const form = useForm<SocialActivityFormData>({
@@ -233,8 +284,8 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         return;
       }
 
-      await createSocialActivityMutation({
-        residentId: id as Id<"residents">,
+      await lifestyleService.createSocialActivity({
+        residentId: id,
         activityDate: data.activityDate,
         activityTime: data.activityTime,
         activityType: data.activityType,
@@ -254,10 +305,14 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
 
       toast.success("Social activity recorded successfully");
 
-      // Reset form with current date/time for next entry
+      // Refetch activities
+      const updatedActivities = await lifestyleService.getPaginatedSocialActivities(id, activitiesPage, activitiesPerPage);
+      setActivitiesData(updatedActivities);
+
+      // Reset form with current UK date/time for next entry
       form.reset({
-        activityDate: new Date().toISOString().split('T')[0],
-        activityTime: new Date().toTimeString().slice(0, 5),
+        activityDate: getUKTodayDate(),
+        activityTime: getNearestTimeOption(formatInTimeZone(new Date(), UK_TIMEZONE, 'HH:mm')),
         activityType: "group_activity",
         activityName: "",
         participants: "",
@@ -293,8 +348,8 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
         return;
       }
 
-      await createSocialConnectionMutation({
-        residentId: id as Id<"residents">,
+      await lifestyleService.createSocialConnection({
+        residentId: id,
         name: data.name,
         relationship: data.relationship,
         type: data.type,
@@ -307,6 +362,10 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
       });
 
       toast.success("Social connection added successfully");
+
+      // Refetch connections
+      const updatedConnections = await lifestyleService.getSocialConnections(id);
+      setSocialConnections(updatedConnections);
 
       // Reset form
       connectionForm.reset();
@@ -590,7 +649,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                             <div className="flex items-center space-x-1">
                               <Calendar className="w-3 h-3" />
-                              <span>{new Date(activity.activityDate).toLocaleDateString()}</span>
+                              <span>{formatTimestampToUKDate(activity.activityDate)}</span>
                             </div>
                             <div className="flex items-center space-x-1">
                               <Clock className="w-3 h-3" />
@@ -804,7 +863,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                                   >
                                     <Calendar className="mr-2 h-4 w-4" />
                                     {field.value ? (
-                                      format(new Date(field.value), "PPP")
+                                      formatInTimeZone(toZonedTime(new Date(field.value + 'T12:00:00'), UK_TIMEZONE), UK_TIMEZONE, "PPP")
                                     ) : (
                                       <span>Pick a date</span>
                                     )}
@@ -814,21 +873,25 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                               <PopoverContent className="w-auto p-0" align="start">
                                 <CalendarComponent
                                   mode="single"
-                                  selected={field.value ? new Date(field.value) : undefined}
+                                  selected={field.value ? toZonedTime(new Date(field.value + 'T12:00:00'), UK_TIMEZONE) : undefined}
                                   onSelect={(date) => {
                                     if (date) {
-                                      field.onChange(format(date, "yyyy-MM-dd"));
+                                      // Use local date parts to avoid timezone shifting
+                                      const year = date.getFullYear();
+                                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                                      const day = String(date.getDate()).padStart(2, '0');
+                                      field.onChange(`${year}-${month}-${day}`);
                                     }
                                   }}
                                   disabled={(date) => {
-                                    const today = new Date();
-                                    today.setHours(23, 59, 59, 999);
-                                    return date > today;
+                                    const now = getUKNow();
+                                    now.setHours(23, 59, 59, 999);
+                                    return date > now;
                                   }}
                                   captionLayout="dropdown"
-                                  defaultMonth={field.value ? new Date(field.value) : new Date()}
+                                  defaultMonth={field.value ? toZonedTime(new Date(field.value + 'T12:00:00'), UK_TIMEZONE) : getUKNow()}
                                   startMonth={new Date(new Date().getFullYear() - 1, 0)}
-                                  endMonth={new Date()}
+                                  endMonth={getUKNow()}
                                 />
                               </PopoverContent>
                             </Popover>
@@ -843,9 +906,20 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Activity Time</FormLabel>
-                            <FormControl>
-                              <Input type="time" {...field} />
-                            </FormControl>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select time..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[300px]">
+                                {timeOptions.map((time) => (
+                                  <SelectItem key={time} value={time}>
+                                    {time}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1175,7 +1249,7 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
           residentId={id}
           residentName={fullName}
           organizationId={resident?.organizationId || ""}
-          createdBy={user?.user?.id || ""}
+          createdBy={profile?.id || ""}
           existingData={personalInterests ? {
             mainInterests: personalInterests.mainInterests,
             hobbies: personalInterests.hobbies,
