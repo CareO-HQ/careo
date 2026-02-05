@@ -157,7 +157,8 @@ export const handoverService = {
                     team_name: teamName,
                     organization_id: organizationId,
                     handover_data: residentHandovers,
-                    created_by: createdBy
+                    created_by: createdBy,
+                    updated_by: createdBy
                 })
                 .select()
                 .single();
@@ -173,8 +174,9 @@ export const handoverService = {
         shift: "day" | "night";
         comment: string;
         createdBy: string;
+        organizationId: string;
     }) {
-        const { teamId, residentId, date, shift, comment, createdBy } = args;
+        const { teamId, residentId, date, shift, comment, createdBy, organizationId } = args;
 
         // handover_comments table doesn't have team_id in migration, but let's check.
         // Actually, the migration I saw was:
@@ -213,6 +215,7 @@ export const handoverService = {
                 .from("handover_comments")
                 .insert({
                     resident_id: residentId,
+                    organization_id: organizationId,
                     date,
                     shift,
                     comment,

@@ -222,7 +222,8 @@ export default function HandoverPage() {
           columns={getColumns(
             activeTeamId ?? undefined,
             profile?.id,
-            profile?.name || "Unknown"
+            profile?.name || "Unknown",
+            profile?.active_organization_id ?? undefined
           )}
           data={residents || []}
           teamName={activeTeamName ?? ""}

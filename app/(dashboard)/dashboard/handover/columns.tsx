@@ -262,12 +262,14 @@ const CommentsCell = ({
   residentId,
   teamId,
   currentUserId,
-  currentUserName
+  currentUserName,
+  organizationId,
 }: {
   residentId: string;
   teamId?: string;
   currentUserId?: string;
   currentUserName?: string;
+  organizationId?: string;
 }) => {
   const today = new Date().toISOString().split('T')[0];
   const shift = getCurrentShift();
@@ -319,6 +321,7 @@ const CommentsCell = ({
           shift,
           comment: value,
           createdBy: currentUserId,
+          organizationId: organizationId || "",
         });
         setLastSavedAt(Date.now());
       } catch (error) {
@@ -370,7 +373,8 @@ const CommentsCell = ({
 export const getColumns = (
   teamId?: string,
   currentUserId?: string,
-  currentUserName?: string
+  currentUserName?: string,
+  organizationId?: string
 ): ColumnDef<Resident, unknown>[] => [
     {
       id: "name",
@@ -546,6 +550,7 @@ export const getColumns = (
             teamId={teamId}
             currentUserId={currentUserId}
             currentUserName={currentUserName}
+            organizationId={organizationId}
           />
         );
       }
