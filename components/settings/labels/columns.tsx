@@ -8,18 +8,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { Id } from "@/convex/_generated/dataModel";
 import { getLabelClassName } from "@/lib/settings/labels";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { FileIcon, MoreHorizontal, PencilIcon, Trash2Icon } from "lucide-react";
 
 interface Label {
-  _id: Id<"labels">;
-  _creationTime: number;
+  id: string;
   name: string;
   color: string;
-  organizationId: string;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export const columns: ColumnDef<Label>[] = [

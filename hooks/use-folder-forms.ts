@@ -579,13 +579,20 @@ export function useFolderForms({
   // Actually, easiest is to ensure consumers handle 'created_at' or map it here.
   // Let's map created_at -> completedAt (or _creationTime) for the `getAllPdfFiles` logic which is also in this hook.
 
-  const mapToConvexLike = (data: any[] | undefined | null) => {
+  const mapToConvexLike = (data: any[] | any | undefined | null) => {
     if (!data) return undefined;
-    return Array.isArray(data) ? data.map(item => ({
-      ...item,
-      _id: item.id,
-      _creationTime: new Date(item.created_at).getTime()
-    })) : { ...data, _id: data.id, _creationTime: new Date(data.created_at).getTime() };
+    if (Array.isArray(data)) {
+      return data.map(item => ({
+        ...item,
+        _id: item.id,
+        _creationTime: new Date(item.created_at).getTime()
+      }));
+    }
+    // Ensure data is an object before spreading
+    if (typeof data === 'object' && data !== null) {
+      return { ...data, _id: data.id, _creationTime: new Date(data.created_at).getTime() };
+    }
+    return undefined;
   };
 
   const allPreAdmissionFormsMapped = useMemo(() => mapToConvexLike(allPreAdmissionForms), [allPreAdmissionForms]);

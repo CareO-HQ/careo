@@ -23,11 +23,9 @@ export const authClient = {
       data: {
         user: user
           ? {
-              id: user.id,
-              name: profile?.name || user.user_metadata?.name || user.email?.split("@")[0] || "",
-              email: user.email || "",
-              image: profile?.image_url || user.user_metadata?.avatar_url || null,
               ...user,
+              name: profile?.name || user.user_metadata?.name || user.email?.split("@")[0] || "",
+              image: profile?.image_url || user.user_metadata?.avatar_url || null,
             }
           : null,
         session,
@@ -132,7 +130,7 @@ export const authClient = {
    * This would need to be implemented via a server-side API route
    */
   revokeSessions: async (
-    params: {},
+    params: object,
     callbacks?: { onSuccess?: () => void; onError?: () => void }
   ) => {
     // TODO: Implement all sessions revocation using Supabase

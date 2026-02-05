@@ -32,7 +32,7 @@ export default function AllCarePlansPage() {
   } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [resident, setResident] = useState<any>(undefined);
-  const [allCarePlans, setAllCarePlans] = useState<any[]>(undefined);
+  const [allCarePlans, setAllCarePlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

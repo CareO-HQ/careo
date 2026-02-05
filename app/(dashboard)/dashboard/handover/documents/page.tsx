@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { format } from "date-fns";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,31 +30,54 @@ import { toast } from "sonner";
 export default function HandoverDocumentsPage() {
   const router = useRouter();
   const { activeTeamId } = useActiveTeam();
-
-  const [handovers, setHandovers] = useState<any[] | null>(null);
+  const { supabase } = useSupabase();
+  const [handovers, setHandovers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch handover reports from Supabase
   useEffect(() => {
-    async function fetchHandovers() {
-      if (!activeTeamId) return;
-      setIsLoading(true);
+    if (!activeTeamId || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchHandovers = async () => {
       try {
-        const data = await handoverService.getHandoverReportsByTeam(activeTeamId);
-        setHandovers(data);
+        const { data, error } = await supabase
+          .from("handover_reports")
+          .select("*")
+          .eq("team_id", activeTeamId)
+          .order("date", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        // Transform data to match expected format
+        const transformed = (data || []).map((report) => ({
+          _id: report.id,
+          id: report.id,
+          date: report.date,
+          shift: report.shift,
+          teamId: report.team_id,
+          createdAt: new Date(report.created_at).getTime(),
+          updatedAt: report.updated_at ? new Date(report.updated_at).getTime() : null,
+        }));
+
+        setHandovers(transformed);
       } catch (error) {
-        console.error("Failed to fetch handover reports:", error);
-        toast.error("Failed to load handover reports");
+        console.error("Error fetching handover reports:", error);
+        setHandovers([]);
       } finally {
         setIsLoading(false);
       }
-    }
+    };
+
     fetchHandovers();
-  }, [activeTeamId]);
+  }, [activeTeamId, supabase]);
 
   // Group handovers by date
   const groupedHandovers = useMemo(() => {
-    if (!handovers) return [];
+    if (!handovers || handovers.length === 0) return [];
 
     // Group by date
     const grouped = handovers.reduce((acc: any, handover: any) => {
@@ -179,9 +203,9 @@ export default function HandoverDocumentsPage() {
                   <TableCell className="h-8 py-1">
                     {item.day ? (
                       <div className="flex items-center gap-1.5">
-                        <Badge
-                          variant="outline"
-                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black border-transparent"
+                      <Badge
+                         
+                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black"
                           onClick={() => router.push(`/dashboard/handover/documents/${item.day.id}`)}
                         >
                           <Eye className="h-3 w-3 mr-1" />
@@ -198,7 +222,7 @@ export default function HandoverDocumentsPage() {
                       <div className="flex items-center gap-1.5">
                         <Badge
                           variant="outline"
-                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100 text-black border-transparent"
+                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100"
                           onClick={() => router.push(`/dashboard/handover/documents/${item.night.id}`)}
                         >
                           <Eye className="h-3 w-3 mr-1" />

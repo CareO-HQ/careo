@@ -101,7 +101,7 @@ export default function ResidentHandlingProfile({
   const handleNext = async () => {
     setDatePopoverOpen(false);
     Object.keys(reviewDatePopovers).forEach(k => setReviewDatePopovers(prev => ({ ...prev, [k]: false })));
-    let isValid = step === 1
+    const isValid = step === 1
       ? await form.trigger(["completedBy", "jobRole", "date", "residentName", "bedroomNumber", "weight", "weightBearing"])
       : await form.trigger([`${["", "", "transferBed", "transferChair", "walking", "toileting", "movementInBed", "bath", "outdoorMobility"][step]}.nStaff`] as any);
     if (isValid || step === totalSteps) {

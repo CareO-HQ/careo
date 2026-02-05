@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     const appointmentsWithStatus = await Promise.all(
       (appointments || []).map(async (apt: any) => {
         // Fetch resident info
-        let resident = null;
+        let resident: { id: string; firstName: string; lastName: string; imageUrl: string | null } | null = null;
         if (apt.resident_id) {
           const { data: residentData } = await supabase
             .from("residents")
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
               id: residentData.id,
               firstName: residentData.first_name,
               lastName: residentData.last_name,
-              imageUrl: residentData.image_url,
+              imageUrl: residentData.image_url ?? null,
             };
           }
         }

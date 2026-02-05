@@ -941,7 +941,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Clock className="w-5 h-5 text-gray-600" />
-              <span>Tonight's Checks</span>
+              <span>Tonight&apos;s Checks</span>
               <BadgeComponent variant="outline" className="ml-auto">{new Date().toLocaleDateString('en-GB', { timeZone: 'Europe/London' })}</BadgeComponent>
             </CardTitle>
           </CardHeader>

@@ -30,7 +30,7 @@ export const getNotifications = async (userId: string, limit = 50, onlyUnread = 
     const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
 
     // 2. Fetch notifications
-    let query = supabase
+    const query = supabase
         .from("notifications")
         .select("*")
         .or(`user_id.eq.${userId},user_id.is.null`)

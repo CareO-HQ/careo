@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
+import { Resident } from "@/types";
 import { ArrowLeft, Eye, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -31,89 +31,189 @@ interface ArchivedAudit {
 function CareFileAuditViewPageContent() {
   const params = useParams();
   const router = useRouter();
-  const residentId = params.residentId as Id<"residents">;
+  const residentId = params.residentId as string;
   const auditId = params.auditId as string;
+  const { supabase } = useSupabase();
 
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
-  const [templateId, setTemplateId] = useState<Id<"careFileAuditTemplates"> | null>(null);
-  const [isCheckingId, setIsCheckingId] = useState(true);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [resident, setResident] = useState<Resident | null | undefined>(undefined);
+  const [template, setTemplate] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch resident data
-  const resident = useQuery(api.residents.getById, { residentId });
-
-  // Try to get templateId from responseId (in case old URL is used)
-  const templateIdFromResponse = useQuery(
-    api.careFileAuditResponses.getTemplateIdFromResponse,
-    auditId && isCheckingId ? { possibleResponseId: auditId } : "skip"
-  );
-
-  // Determine if auditId is a templateId or responseId, and redirect if needed
   useEffect(() => {
-    if (!isCheckingId) return;
-
-    // If we got a templateId from the response query, it means auditId was a responseId
-    if (templateIdFromResponse) {
-      // Redirect to the correct URL with templateId
-      router.replace(`/dashboard/careo-audit/${residentId}/carefileaudit/${templateIdFromResponse}/view`);
-      setIsCheckingId(false);
-    } else if (templateIdFromResponse === null) {
-      // Query returned null, which means auditId is not a valid responseId
-      // So it must be a templateId already
-      setTemplateId(auditId as Id<"careFileAuditTemplates">);
-      setIsCheckingId(false);
+    if (!supabase || !residentId) {
+      setResident(null);
+      return;
     }
-  }, [templateIdFromResponse, auditId, residentId, router, isCheckingId]);
 
-  // Fetch template to get the name
-  const template = useQuery(
-    api.careFileAuditTemplates.getTemplateById,
-    templateId ? { templateId } : "skip"
-  );
+    const fetchResident = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
+
+        if (error) throw error;
+        setResident(data as Resident);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      }
+    };
+
+    fetchResident();
+  }, [supabase, residentId]);
+
+  // Check if auditId is a templateId or responseId
+  useEffect(() => {
+    if (!auditId || !supabase) return;
+
+    const checkAuditId = async () => {
+      try {
+        // Try to fetch as completion (responseId)
+        const { data: completionData } = await supabase
+          .from("audit_care_file_completions")
+          .select("template_id")
+          .eq("id", auditId)
+          .single();
+
+        if (completionData) {
+          // It's a responseId, redirect to templateId
+          router.replace(`/dashboard/careo-audit/${residentId}/carefileaudit/${completionData.template_id}/view`);
+          return;
+        }
+
+        // Try to fetch as template
+        const { data: templateData } = await supabase
+          .from("audit_care_file_templates")
+          .select("*")
+          .eq("id", auditId)
+          .single();
+
+        if (templateData) {
+          // It's a templateId
+          setTemplateId(auditId);
+          setTemplate(templateData);
+        } else {
+          setTemplateId(null);
+        }
+      } catch (error) {
+        console.error("Error checking audit ID:", error);
+        setTemplateId(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuditId();
+  }, [auditId, residentId, router, supabase]);
+
+  // Fetch template if not already loaded
+  useEffect(() => {
+    if (!templateId || template) return;
+
+    const fetchTemplate = async () => {
+      try {
+        const templateData = await auditService.getCareFileTemplateById(templateId);
+        setTemplate(templateData);
+      } catch (error) {
+        console.error("Error fetching template:", error);
+      }
+    };
+
+    fetchTemplate();
+  }, [templateId, template]);
 
   // Load completed audits from database for this template and resident
-  const dbArchivedAudits = useQuery(
-    api.careFileAuditResponses.getResponsesByTemplateAndResident,
-    residentId && templateId
-      ? {
-          templateId,
-          residentId,
-        }
-      : "skip"
-  );
+  const [dbArchivedAudits, setDbArchivedAudits] = useState<any[]>([]);
+  useEffect(() => {
+    if (!templateId || !residentId || !supabase) return;
+
+    const fetchCompletions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("audit_care_file_completions")
+          .select("*")
+          .eq("template_id", templateId)
+          .eq("resident_id", residentId)
+          .order("completed_at", { ascending: false });
+
+        if (error) throw error;
+        setDbArchivedAudits(data || []);
+      } catch (error) {
+        console.error("Error fetching completions:", error);
+        setDbArchivedAudits([]);
+      }
+    };
+
+    fetchCompletions();
+  }, [templateId, residentId, supabase]);
 
   // Load all action plans for this template
-  const allTemplateActionPlans = useQuery(
-    api.careFileAuditActionPlans.getActionPlansByTemplate,
-    templateId ? { templateId } : "skip"
-  );
+  const [allTemplateActionPlans, setAllTemplateActionPlans] = useState<any[]>([]);
+  useEffect(() => {
+    if (!templateId || !supabase) return;
+
+    const fetchActionPlans = async () => {
+      try {
+        // Get all completions for this template
+        const { data: completions } = await supabase
+          .from("audit_care_file_completions")
+          .select("id")
+          .eq("template_id", templateId);
+
+        if (!completions || completions.length === 0) {
+          setAllTemplateActionPlans([]);
+          return;
+        }
+
+        const completionIds = completions.map(c => c.id);
+        const { data, error } = await supabase
+          .from("audit_care_file_action_plans")
+          .select("*")
+          .in("audit_response_id", completionIds);
+
+        if (error) throw error;
+        setAllTemplateActionPlans(data || []);
+      } catch (error) {
+        console.error("Error fetching action plans:", error);
+        setAllTemplateActionPlans([]);
+      }
+    };
+
+    fetchActionPlans();
+  }, [templateId, supabase]);
 
   useEffect(() => {
     if (dbArchivedAudits) {
       const formatted = dbArchivedAudits
         .filter((audit) => audit.status === "completed")
         .map((audit) => ({
-          id: audit._id,
-          templateName: audit.templateName,
-          completedAt: audit.completedAt || audit.createdAt,
+          id: audit.id,
+          templateName: audit.template_name || template?.name || "",
+          completedAt: audit.completed_at ? new Date(audit.completed_at).getTime() : new Date(audit.created_at).getTime(),
           status: audit.status,
           items: audit.items,
-          overallNotes: audit.overallNotes,
+          overallNotes: audit.overall_notes,
         }))
         .sort((a, b) => b.completedAt - a.completedAt);
       setArchivedAudits(formatted as any);
     }
-  }, [dbArchivedAudits]);
+  }, [dbArchivedAudits, template]);
 
   // Helper function to get action plans count for a specific audit response
   const getActionPlansCountForAudit = (auditResponseId: string): number => {
-    if (!allTemplateActionPlans) return 0;
+    if (!allTemplateActionPlans || allTemplateActionPlans.length === 0) return 0;
 
     return allTemplateActionPlans.filter(
-      (plan: any) => plan.auditResponseId === auditResponseId
+      (plan: any) => plan.audit_response_id === auditResponseId
     ).length;
   };
 
-  if (resident === undefined || template === undefined) {
+  if (isLoading || resident === undefined || template === null) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading...</p>
@@ -160,7 +260,7 @@ function CareFileAuditViewPageContent() {
           <div>
             <h1 className="text-xl font-semibold">Archived Audits</h1>
             <p className="text-sm text-muted-foreground">
-              {template.name} - {resident.firstName} {resident.lastName}
+              {template?.name || "Care File Audit"} - {resident?.first_name} {resident?.last_name}
             </p>
           </div>
         </div>
@@ -176,7 +276,7 @@ function CareFileAuditViewPageContent() {
             <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Archived Audits</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              No completed audits found for &quot;{template.name}&quot;
+              No completed audits found for &quot;{template?.name || "this template"}&quot;
             </p>
             <Button
               variant="outline"

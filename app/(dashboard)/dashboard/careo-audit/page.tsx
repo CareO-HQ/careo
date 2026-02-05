@@ -73,6 +73,7 @@ interface Resident {
 
 function CareOAuditPageContent() {
   const router = useRouter();
+  const push = (href: string) => router.push(href as Parameters<typeof router.push>[0]);
   const searchParams = useSearchParams();
   const [audits, setAudits] = useState<Audit[]>([]);
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
@@ -367,7 +368,7 @@ function CareOAuditPageContent() {
       fetchData();
 
       if (newTemplateId) {
-        router.push(`/dashboard/careo-audit/${activeTab}/${newTemplateId}`);
+        push(`/dashboard/careo-audit/${activeTab}/${newTemplateId}`);
       }
 
     } catch (error) {
@@ -508,7 +509,7 @@ function CareOAuditPageContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${activeTab}/${audit.id}`)}>
+                            <DropdownMenuItem onClick={() => push(`/dashboard/careo-audit/${activeTab}/${audit.id}`)}>
                               <Eye className="mr-2 h-4 w-4" /> View/Edit
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -575,7 +576,7 @@ function CareOAuditPageContent() {
                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => {
                           const id = resident.id || resident._id;
-                          if (id) router.push(`/dashboard/careo-audit/${id}/carefileaudit`);
+                          if (id) push(`/dashboard/careo-audit/${id}/carefileaudit`);
                         }}
                       >
                         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -623,7 +624,7 @@ function CareOAuditPageContent() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => {
                                 const id = resident.id || resident._id;
-                                if (id) router.push(`/dashboard/careo-audit/${id}/carefileaudit`);
+                                if (id) push(`/dashboard/careo-audit/${id}/carefileaudit`);
                               }}>
                                 <Eye className="mr-2 h-4 w-4" /> View Audits
                               </DropdownMenuItem>
@@ -681,7 +682,7 @@ function CareOAuditPageContent() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => router.push(`/dashboard/careo-audit/${activeTab}/${audit.id}`)}>
+                              <DropdownMenuItem onClick={() => push(`/dashboard/careo-audit/${activeTab}/${audit.id}`)}>
                                 <Eye className="mr-2 h-4 w-4" /> View/Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleDeleteClick(audit)} className="text-red-600">

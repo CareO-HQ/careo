@@ -43,6 +43,15 @@ import { CalendarIcon, Clock, MapPin, User, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+const TIME_OPTIONS_15MIN: string[] = (() => {
+  const options: string[] = [];
+  for (let i = 0; i < 24; i++) {
+    for (let j = 0; j < 60; j += 15) {
+      options.push(`${i.toString().padStart(2, "0")}:${j.toString().padStart(2, "0")}`);
+    }
+  }
+  return options;
+})();
 
 const IncidentSchema = z.object({
   type: z.enum([
@@ -311,21 +320,7 @@ export function ReportIncidentForm({
               <FormField
                 control={form.control}
                 name="time"
-                render={({ field }) => {
-                  // Generate time options (15 minute intervals)
-                  const timeOptions = React.useMemo(() => {
-                    const options: string[] = [];
-                    for (let i = 0; i < 24; i++) {
-                      for (let j = 0; j < 60; j += 15) {
-                        const hour = i.toString().padStart(2, "0");
-                        const minute = j.toString().padStart(2, "0");
-                        options.push(`${hour}:${minute}`);
-                      }
-                    }
-                    return options;
-                  }, []);
-
-                  return (
+                render={({ field }) => (
                     <FormItem>
                       <FormLabel>Time of Incident</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -336,7 +331,7 @@ export function ReportIncidentForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="max-h-[200px]">
-                          {timeOptions.map((time) => (
+                          {TIME_OPTIONS_15MIN.map((time) => (
                             <SelectItem key={time} value={time}>
                               {time}
                             </SelectItem>
@@ -345,8 +340,7 @@ export function ReportIncidentForm({
                       </Select>
                       <FormMessage />
                     </FormItem>
-                  );
-                }}
+                )}
               />
 
               <FormField

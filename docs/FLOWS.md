@@ -7,18 +7,18 @@ This lifecycle diagram shows how a resident is admitted into the system.
 sequenceDiagram
     participant A as Admin/Manager
     participant F as Frontend (Onboarding Wizard)
-    participant C as Convex (Backend)
-    participant DB as Database
+    participant S as Supabase (Backend)
+    participant DB as PostgreSQL Database
 
     A->>F: Enter Resident Basic Details
-    F->>C: mutation: residents.create()
-    C->>DB: Insert Resident Doc (isActive: true)
-    C->>DB: Initialize Audit Log
-    C-->>F: success(residentId)
+    F->>S: Server Action: createResident()
+    S->>DB: INSERT INTO residents (is_active: true)
+    S->>DB: Initialize Audit Log
+    S-->>F: success(residentId)
     F->>A: Prompt for Risk Assessment
     A->>F: Complete Care File (Handling, Diet, Meds)
-    F->>C: mutation: careFiles.save()
-    C-->>F: Onboarding Complete
+    F->>S: Server Action: saveCareFile()
+    S-->>F: Onboarding Complete
 ```
 
 ## 2. Medication Administration workflow

@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -119,37 +120,39 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
 
   // Auth data - matching daily care pattern
   const { profile } = useProfile();
+  const { supabase } = useSupabase();
 
   // Current user info for staff display
   const currentUserName = profile?.name || profile?.email?.split('@')[0] || "";
 
-  // Fetch resident data - using Convex for now as it's used elsewhere
+  // Fetch resident data from Supabase
   useEffect(() => {
-    // For now, we'll fetch resident from Convex
-    // TODO: Migrate to Supabase API when residents are migrated
     async function fetchResident() {
+      if (!supabase || !id) return;
+      
       try {
-        // Using a simple fetch to Convex HTTP endpoint or direct Supabase query
-        // For now, we'll use the resident data structure expected
-        // This will be updated when residents are fully migrated to Supabase
-        const response = await fetch(`/api/residents/${id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setResident(data);
-        } else {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching resident:", error);
           // Fallback: set basic resident structure
-          setResident({ id, firstName: "Resident", lastName: "" });
+          setResident({ id, first_name: "Resident", last_name: "" });
+        } else {
+          setResident(data);
         }
       } catch (error) {
         console.error("Error fetching resident:", error);
-        // Fallback: set basic resident structure
-        setResident({ id, firstName: "Resident", lastName: "" });
+        setResident({ id, first_name: "Resident", last_name: "" });
       }
     }
     if (id) {
       fetchResident();
     }
-  }, [id]);
+  }, [id, supabase]);
 
   // Fetch progress notes
   const fetchProgressNotes = async (cursor: string | null = null, append: boolean = false) => {
@@ -242,7 +245,6 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       fetchProgressNotes(null, false);
       fetchStats();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, filterType, searchQuery]);
 
   const form = useForm<ProgressNoteFormData>({
@@ -697,7 +699,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                   <div className="flex justify-center pt-4 border-t">
                     <Button
                       variant="outline"
-                      onClick={() => loadMore(ITEMS_PER_PAGE)}
+                      onClick={() => loadMore()}
                       disabled={isLoading || !canLoadMore}
                       className="w-full sm:w-auto"
                     >

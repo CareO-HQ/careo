@@ -1,6 +1,4 @@
-import { useQuery } from "convex/react";
 import EmailPDF from "./EmailPDF";
-import { api } from "@/convex/_generated/api";
 
 interface EmailPDFWithStorageIdProps {
   formKey: string;
@@ -15,17 +13,9 @@ export default function EmailPDFWithStorageId({
   filename,
   residentName
 }: EmailPDFWithStorageIdProps) {
-  const storageId = useQuery(api.emailHelpers.getPDFStorageId, {
-    formKey,
-    formId
-  });
-
-  // Don't render if we don't have a storage ID yet
-  if (!storageId) {
-    return (
-      <div className="h-4 w-4 bg-muted-foreground/20 rounded animate-pulse" />
-    );
-  }
+  // TODO: Implement PDF storage ID retrieval with Supabase
+  // For now, use formId as a placeholder
+  const storageId = formId;
 
   return (
     <EmailPDF

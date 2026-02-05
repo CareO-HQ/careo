@@ -8,10 +8,8 @@ import {
   LocationInfo,
   formatHoursOnly
 } from "@/types";
-import { useQuery } from "convex/react";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
-import { api } from "@/convex/_generated/api";
 import { getLocationByIP } from "@/lib/settings/location";
 import RevokeSingleSessionModal from "@/components/settings/members/RevokeSingleSessionModal";
 import RevokeAllSessionsModal from "@/components/settings/members/RevokeAllSessionsModal";
@@ -21,12 +19,31 @@ function SessionPageContent() {
   const [email] = useQueryState("email");
   const [userId] = useQueryState("userId");
   const [sessions, setSessions] = useState<SessionWithLocation[]>([]);
+  const [user, setUser] = useState<{ name: string | null; email: string | null } | null>(null);
   const { profile, isLoading: isPending } = useProfile();
-  const { session: currentSession } = useSupabase();
+  const { session: currentSession, supabase } = useSupabase();
 
-  const user = useQuery(api.user.getUserByEmail, {
-    email: email || ""
-  });
+  useEffect(() => {
+    if (!email || !supabase) return;
+
+    const fetchUser = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("name, email")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (error) throw error;
+        setUser(data);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        setUser(null);
+      }
+    };
+
+    fetchUser();
+  }, [email, supabase]);
 
   const fetchLocationsForSessions = useCallback(async (sessions: Session[]) => {
     // Process sessions sequentially to avoid rate limiting
@@ -123,7 +140,7 @@ function SessionPageContent() {
                   <div className="flex flex-col justify-start items-start">
                     <div className="flex flex-row justify-start items-center gap-2">
                       <p className="text-sm font-medium">{session.ipAddress}</p>
-                      {session.id === currentSession?.session.id && (
+                      {session.id === (currentSession as { session?: { id?: string } })?.session?.id && (
                         <p className="text-xs text-muted-foreground">
                           Current session
                         </p>

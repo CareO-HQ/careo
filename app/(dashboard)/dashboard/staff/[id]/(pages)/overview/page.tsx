@@ -189,7 +189,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-lg font-semibold">Staff member not found</p>
-          <p className="text-muted-foreground">The staff member you're looking for doesn't exist.</p>
+          <p className="text-muted-foreground">The staff member you&apos;re looking for doesn&apos;t exist.</p>
         </div>
       </div>
     );

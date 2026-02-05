@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
+import { auditService } from "@/lib/audit-service";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -27,7 +26,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 
 interface ItemResponse {
@@ -53,25 +51,67 @@ function GovernanceAuditViewSinglePageContent() {
   const params = useParams();
   const router = useRouter();
   // auditId parameter actually contains the responseId for this page
-  const responseId = params.auditId as Id<"governanceAuditCompletions">;
+  const responseId = params.auditId as string;
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [actionPlanToDelete, setActionPlanToDelete] = useState<Id<"governanceAuditActionPlans"> | null>(null);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
+  const [dbResponse, setDbResponse] = useState<any | null>(null);
+  const [dbActionPlans, setDbActionPlans] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load the completed response from database
-  const dbResponse = useQuery(
-    api.governanceAuditResponses.getResponseById,
-    { responseId }
-  );
+  useEffect(() => {
+    if (!responseId) return;
+
+    const fetchResponse = async () => {
+      try {
+        const response = await auditService.getGovernanceResponseById(responseId);
+        setDbResponse(response);
+      } catch (error) {
+        console.error("Error fetching audit response:", error);
+        setDbResponse(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchResponse();
+  }, [responseId]);
 
   // Load action plans from database
-  const dbActionPlans = useQuery(
-    api.governanceAuditActionPlans.getActionPlansByAudit,
-    { auditResponseId: responseId }
-  );
+  useEffect(() => {
+    if (!responseId) return;
 
-  // Delete action plan mutation
-  const deleteActionPlan = useMutation(api.governanceAuditActionPlans.deleteActionPlan);
+    const fetchActionPlans = async () => {
+      try {
+        const plans = await auditService.getGovernanceActionPlans(responseId);
+        setDbActionPlans(plans || []);
+      } catch (error) {
+        console.error("Error fetching action plans:", error);
+        setDbActionPlans([]);
+      }
+    };
+
+    fetchActionPlans();
+  }, [responseId]);
+
+  // Delete action plan handler
+  const handleDeleteActionPlan = async () => {
+    if (!actionPlanToDelete) return;
+
+    try {
+      await auditService.deleteGovernanceActionPlan(actionPlanToDelete);
+      // Refresh action plans
+      const plans = await auditService.getGovernanceActionPlans(responseId);
+      setDbActionPlans(plans || []);
+      setDeleteDialogOpen(false);
+      setActionPlanToDelete(null);
+      toast.success("Action plan deleted");
+    } catch (error) {
+      console.error("Error deleting action plan:", error);
+      toast.error("Failed to delete action plan");
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -150,26 +190,12 @@ function GovernanceAuditViewSinglePageContent() {
     }, 500);
   };
 
-  const handleDeleteActionPlan = async () => {
-    if (!actionPlanToDelete) return;
-
-    try {
-      await deleteActionPlan({ actionPlanId: actionPlanToDelete });
-      toast.success("Action plan deleted successfully");
-      setDeleteDialogOpen(false);
-      setActionPlanToDelete(null);
-    } catch (error) {
-      console.error("Failed to delete action plan:", error);
-      toast.error("Failed to delete action plan. Please try again.");
-    }
-  };
-
   const openDeleteDialog = (planId: string) => {
-    setActionPlanToDelete(planId as Id<"governanceAuditActionPlans">);
+    setActionPlanToDelete(planId);
     setDeleteDialogOpen(true);
   };
 
-  if (dbResponse === undefined) {
+  if (isLoading || dbResponse === undefined) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading...</p>
@@ -202,14 +228,14 @@ function GovernanceAuditViewSinglePageContent() {
   // Transform action plans from database format
   const actionPlans: ActionPlan[] = dbActionPlans
     ? dbActionPlans.map((plan: any) => ({
-        id: plan._id,
-        auditId: plan.auditResponseId,
+        id: plan.id,
+        auditId: plan.audit_response_id,
         text: plan.description,
-        assignedTo: plan.assignedToName || plan.assignedTo,
-        dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
+        assignedTo: plan.assigned_to_name || plan.assigned_to,
+        dueDate: plan.due_date ? new Date(plan.due_date) : undefined,
         priority: plan.priority,
         status: plan.status,
-        latestComment: plan.latestComment,
+        latestComment: plan.latest_comment,
       }))
     : [];
 
@@ -272,7 +298,7 @@ function GovernanceAuditViewSinglePageContent() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <div>
-                        <h1 className="text-2xl font-bold">{dbResponse.templateName}</h1>
+                        <h1 className="text-2xl font-bold">{dbResponse.template_name}</h1>
                         <p className="text-sm text-muted-foreground">
                           Governance Audit
                         </p>
@@ -285,10 +311,10 @@ function GovernanceAuditViewSinglePageContent() {
                   <div className="text-right text-sm">
                     <p className="font-medium">Completed Date</p>
                     <p className="text-muted-foreground">
-                      {format(new Date(dbResponse.completedAt || dbResponse.createdAt), "PPP")}
+                      {format(new Date(dbResponse.completed_at || dbResponse.created_at), "PPP")}
                     </p>
                     <p className="text-muted-foreground">
-                      {format(new Date(dbResponse.completedAt || dbResponse.createdAt), "p")}
+                      {format(new Date(dbResponse.completed_at || dbResponse.created_at), "p")}
                     </p>
                     <p className="font-medium mt-2">Audited By</p>
                     <p className="text-muted-foreground">{dbResponse.auditedBy}</p>
@@ -356,11 +382,11 @@ function GovernanceAuditViewSinglePageContent() {
                 </div>
 
                 {/* Overall Notes */}
-                {dbResponse.overallNotes && (
+                {dbResponse.overall_notes && (
                   <div className="mt-6">
                     <h3 className="text-sm font-semibold mb-2">Overall Notes</h3>
                     <div className="border rounded-lg p-4 bg-muted/30">
-                      <p className="text-sm">{dbResponse.overallNotes}</p>
+                      <p className="text-sm">{dbResponse.overall_notes}</p>
                     </div>
                   </div>
                 )}

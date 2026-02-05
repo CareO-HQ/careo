@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import React, { useEffect, useState } from "react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Badge } from "@/components/ui/badge";
+import { Resident } from "@/types";
 import {
   Card,
   CardContent,
@@ -37,11 +36,38 @@ type AdditionalPageProps = {
 export default function AdditionalPage({ params }: AdditionalPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const resident = useQuery(api.residents.getById, {
-    residentId: id as Id<"residents">
-  });
+  const { supabase } = useSupabase();
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (resident === undefined) {
+  useEffect(() => {
+    if (!supabase || !id) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchResident = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) throw error;
+        setResident(data as Resident);
+      } catch (error) {
+        console.error("Error fetching resident:", error);
+        setResident(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchResident();
+  }, [supabase, id]);
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -73,8 +99,8 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
@@ -234,7 +260,7 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
             <div className="flex items-center space-x-3">
               <Avatar className="w-12 h-12 flex-shrink-0">
                 <AvatarImage
-                  src={resident.imageUrl}
+                  src={resident.image_url}
                   alt={fullName}
                   className="border"
                 />
@@ -246,7 +272,7 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
                 <h3 className="font-semibold text-sm truncate">{fullName}</h3>
                 <div className="flex flex-wrap gap-1 mt-1">
                   <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
+                    Room {resident.room_number || "N/A"}
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
                     <FileText className="w-3 h-3 mr-1" />
@@ -278,7 +304,7 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
             <div className="flex items-center space-x-3">
               <Avatar className="w-15 h-15">
                 <AvatarImage
-                  src={resident.imageUrl}
+                  src={resident.image_url}
                   alt={fullName}
                   className="border"
                 />
@@ -290,11 +316,11 @@ export default function AdditionalPage({ params }: AdditionalPageProps) {
                 <h3 className="font-semibold">{fullName}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 text-xs">
-                    Room {resident.roomNumber || "N/A"}
+                    Room {resident.room_number || "N/A"}
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 text-xs">
                     <Calendar className="w-3 h-3 mr-1" />
-                    {calculateAge(resident.dateOfBirth)} years old
+                    {calculateAge(resident.date_of_birth)} years old
                   </Badge>
                   <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-xs">
                     <ClipboardList className="w-3 h-3 mr-1" />

@@ -15,38 +15,123 @@ import { ColumnDef } from "@tanstack/react-table";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentShift } from "@/lib/config/shift-config";
 import { toast } from "sonner";
-import { handoverService } from "@/lib/handover-service";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useHandoverComment } from "@/hooks/use-handover-comment";
+import { useProfile } from "@/hooks/use-profile";
 
-// Helper hook for handover stats
-const useHandoverStats = (residentId: string, teamId?: string) => {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+// Helper function to fetch handover report data
+const useHandoverReport = (residentId: string, teamId?: string) => {
+  const { supabase } = useSupabase();
+  const [report, setReport] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      if (!residentId) return;
-      setLoading(true);
+    if (!residentId || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchReport = async () => {
       try {
-        const timestamp = teamId ? await handoverService.getLastHandoverTimestamp(teamId) : undefined;
-        const data = await handoverService.getHandoverStats(residentId, timestamp || undefined);
-        setStats(data);
-      } catch (err) {
-        console.error("Failed to fetch handover stats:", err);
+        const today = new Date().toISOString().split('T')[0];
+        const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
+
+        // Fetch food/fluid logs for today
+        const { data: logs, error: logsError } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", residentId)
+          .eq("date", today)
+          .eq("is_archived", false)
+          .order("timestamp", { ascending: false });
+
+        if (logsError) throw logsError;
+
+        // Separate food and fluid logs
+        const foodLogs = (logs || []).filter(log =>
+          log.type_of_food_drink &&
+          !fluidTypes.includes(log.type_of_food_drink) &&
+          !log.fluid_consumed_ml &&
+          log.amount_eaten &&
+          log.amount_eaten !== "None" &&
+          log.amount_eaten.trim() !== ""
+        );
+
+        const fluidLogs = (logs || []).filter(log =>
+          fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
+        );
+
+        const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
+
+        // Fetch incidents for today
+        const { data: incidents, error: incidentsError } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", residentId)
+          .eq("date", today)
+          .order("time", { ascending: false });
+
+        if (incidentsError) throw incidentsError;
+
+        // Fetch hospital transfers for today
+        const { data: transfers, error: transfersError } = await supabase
+          .from("hospital_transfers")
+          .select("*")
+          .eq("resident_id", residentId)
+          .eq("date", today);
+
+        if (transfersError) throw transfersError;
+
+        setReport({
+          foodIntakeCount: foodLogs.length,
+          foodIntakeLogs: foodLogs.map(log => ({
+            id: log.id,
+            typeOfFoodDrink: log.type_of_food_drink,
+            amountEaten: log.amount_eaten,
+            section: log.section,
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          totalFluid,
+          fluidLogs: fluidLogs.map(log => ({
+            id: log.id,
+            typeOfFoodDrink: log.type_of_food_drink,
+            fluidConsumedMl: log.fluid_consumed_ml,
+            section: log.section,
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          incidentCount: incidents?.length || 0,
+          incidents: (incidents || []).map(inc => ({
+            id: inc.id,
+            type: inc.incident_types || [],
+            level: inc.incident_level,
+            time: inc.time,
+          })),
+          hospitalTransferCount: transfers?.length || 0,
+          hospitalTransfers: (transfers || []).map(transfer => ({
+            id: transfer.id,
+            hospitalName: transfer.hospital_name,
+            reason: transfer.reason,
+          })),
+        });
+      } catch (error) {
+        console.error("Error fetching handover report:", error);
+        setReport(null);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
-    fetchStats();
-  }, [residentId, teamId]);
 
-  return { stats, loading };
+    fetchReport();
+  }, [residentId, teamId, supabase]);
+
+  return { report, isLoading };
 };
 
 // Component for displaying handover report
 const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  const { stats: report, loading } = useHandoverStats(residentId, teamId);
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  if (loading || !report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
@@ -99,9 +184,9 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
 
 // Component for displaying fluid total
 const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  const { stats: report, loading } = useHandoverStats(residentId, teamId);
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  if (loading || !report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
@@ -158,9 +243,9 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
 
 // Component for displaying incidents
 const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  const { stats: report, loading } = useHandoverStats(residentId, teamId);
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  if (loading || !report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
@@ -192,10 +277,10 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
                 </span>
               </div>
               <div className="text-sm text-muted-foreground">
-                Type: {incident.type.join(", ") || "Not specified"}
+                Type: {Array.isArray(incident.type) ? incident.type.join(", ") : incident.type || "Not specified"}
               </div>
               <div className="text-sm">
-                Level: <span className="capitalize">{(incident.level || "").replace("_", " ")}</span>
+                Level: <span className="capitalize">{incident.level?.replace("_", " ") || "Not specified"}</span>
               </div>
               {index < report.incidents.length - 1 && (
                 <div className="border-t my-1" />
@@ -210,9 +295,9 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
 
 // Component for displaying hospital transfers
 const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  const { stats: report, loading } = useHandoverStats(residentId, teamId);
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
 
-  if (loading || !report) {
+  if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
@@ -274,83 +359,19 @@ const CommentsCell = ({
   const today = new Date().toISOString().split('T')[0];
   const shift = getCurrentShift();
 
-  const [comment, setComment] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const initialLoadComplete = useRef(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-
-  // Load existing comment on mount
-  useEffect(() => {
-    async function loadComment() {
-      if (!residentId) return;
-      try {
-        const data = await handoverService.getComment(residentId, today, shift);
-        if (data && !initialLoadComplete.current) {
-          setComment(data.comment);
-          setLastSavedAt(new Date(data.updated_at).getTime());
-          initialLoadComplete.current = true;
-        }
-      } catch (error) {
-        console.error("Failed to load comment:", error);
-      }
-    }
-    loadComment();
-  }, [residentId, today, shift]);
-
-  // Auto-save with debounce
-  const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setComment(value);
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Set new timeout for auto-save (2 seconds)
-    saveTimeoutRef.current = setTimeout(async () => {
-      if (!teamId || !currentUserId || !currentUserName) return;
-
-      setIsSaving(true);
-      try {
-        await handoverService.saveComment({
-          teamId,
-          residentId: residentId,
-          date: today,
-          shift,
-          comment: value,
-          createdBy: currentUserId,
-          organizationId: organizationId || "",
-        });
-        setLastSavedAt(Date.now());
-      } catch (error) {
-        console.error("Failed to save comment:", error);
-        toast.error("Failed to save comment. Please check your connection and try again.");
-      } finally {
-        setIsSaving(false);
-      }
-    }, 2000);
-  };
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Format last saved time
-  const getLastSavedText = () => {
-    if (!lastSavedAt) return null;
-
-    return `Edited at ${new Date(lastSavedAt).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-  };
+  const {
+    comment,
+    setComment,
+    isSaving,
+    lastSavedText,
+  } = useHandoverComment({
+    teamId: teamId || "",
+    residentId,
+    date: today,
+    shift,
+    currentUserId: currentUserId || "",
+    currentUserName: currentUserName || "",
+  });
 
   return (
     <div className="relative w-full h-full">
@@ -359,11 +380,11 @@ const CommentsCell = ({
         className="h-8 w-full text-sm border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-2"
         data-resident-id={residentId}
         value={comment}
-        onChange={handleCommentChange}
+        onChange={(e) => setComment(e.target.value)}
       />
-      {(isSaving || lastSavedAt) && (
+      {(isSaving || lastSavedText) && (
         <div className="absolute bottom-0 right-2 text-[10px] text-muted-foreground italic">
-          {isSaving ? "Saving..." : getLastSavedText()}
+          {isSaving ? "Saving..." : lastSavedText}
         </div>
       )}
     </div>
@@ -376,147 +397,150 @@ export const getColumns = (
   currentUserName?: string,
   organizationId?: string
 ): ColumnDef<Resident, unknown>[] => [
-    {
-      id: "name",
-      accessorFn: (row) => `${row.firstName || row.first_name || ''} ${row.lastName || row.last_name || ''}`.trim(),
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">Name</div>
-        );
-      },
-      enableSorting: false,
-      size: 130,
-      filterFn: (row, columnId, value) => {
-        const resident = row.original;
-        if (!value || typeof value !== 'string') return true;
+  {
+    id: "name",
+    accessorFn: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Name</div>
+      );
+    },
+    enableSorting: false,
+    size: 180,
+    filterFn: (row, columnId, value) => {
+      const resident = row.original;
+      if (!value || typeof value !== 'string') return true;
 
-        const searchTerm = value.toLowerCase().trim();
-        if (!searchTerm) return true;
+      const searchTerm = value.toLowerCase().trim();
+      if (!searchTerm) return true;
 
-        const firstName = (resident.firstName || resident.first_name || '').toLowerCase();
-        const lastName = (resident.lastName || resident.last_name || '').toLowerCase();
-        const fullName = `${firstName} ${lastName}`.trim();
+      const firstName = (resident.first_name || '').toLowerCase();
+      const lastName = (resident.last_name || '').toLowerCase();
+      const fullName = `${firstName} ${lastName}`.trim();
 
-        return firstName.includes(searchTerm) ||
-          lastName.includes(searchTerm) ||
-          fullName.includes(searchTerm);
-      },
-      cell: ({ row }) => {
-        const resident = row.original;
-        const firstName = resident.firstName || resident.first_name || '';
-        const lastName = resident.lastName || resident.last_name || '';
-        const name = `${firstName} ${lastName}`;
-        const initials =
-          `${(firstName[0] || '')}${(lastName[0] || '')}`.toUpperCase();
+      return firstName.includes(searchTerm) ||
+             lastName.includes(searchTerm) ||
+             fullName.includes(searchTerm);
+    },
+    cell: ({ row }) => {
+      const resident = row.original;
+      const name = `${resident.first_name} ${resident.last_name}`;
+      const initials =
+        `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
-        return (
-          <div className="flex items-center gap-2">
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={resident.imageUrl || resident.image_url} alt={name} />
-              <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
-            </Avatar>
-            <div className="font-medium text-xs truncate max-w-[90px]">
-              {firstName} {lastName}
-            </div>
+      return (
+        <div className="flex items-center gap-2">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={resident.image_url} alt={name} />
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <div className="font-medium text-sm">
+            {resident.first_name} {resident.last_name}
           </div>
-        );
-      }
+        </div>
+      );
+    }
+  },
+  {
+    accessorKey: "roomNumber",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Room No</div>
+      );
     },
-    {
-      accessorKey: "roomNumber",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">Room No</div>
-        );
-      },
-      enableSorting: true,
-      size: 50,
-      sortingFn: (rowA, rowB) => {
-        const a = rowA.original.roomNumber || rowA.original.room_number;
-        const b = rowB.original.roomNumber || rowB.original.room_number;
+    enableSorting: true,
+    size: 80,
+    sortingFn: (rowA, rowB) => {
+      const a = rowA.original.room_number;
+      const b = rowB.original.room_number;
 
-        if (!a && !b) return 0;
-        if (!a) return 1;
-        if (!b) return -1;
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
 
-        const numA = parseInt(a, 10);
-        const numB = parseInt(b, 10);
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
 
-        if (!isNaN(numA) && !isNaN(numB)) {
-          return numA - numB;
-        }
-
-        return a.localeCompare(b);
-      },
-      cell: ({ row }) => {
-        return (
-          <p className="text-muted-foreground text-xs">
-            {row.original.roomNumber || row.original.room_number || "-"}
-          </p>
-        );
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
       }
     },
-    {
-      accessorKey: "foodIntake",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">
-            Food Intake
-          </div>
-        );
-      },
-      enableSorting: false,
-      size: 70,
-      cell: ({ row }) => {
-        const resident = row.original;
-        return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
-      }
+    cell: ({ row }) => {
+      return (
+        <p className="text-muted-foreground">
+          {row.original.room_number || "-"}
+        </p>
+      );
+    }
+  },
+  {
+    accessorKey: "foodIntake",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Food Intake
+        </div>
+      );
     },
-    {
-      accessorKey: "fluidTotal",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">
-            Fluid Total
-          </div>
-        );
-      },
-      enableSorting: false,
-      size: 70,
-      cell: ({ row }) => {
-        const resident = row.original;
-        return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
-      }
+    enableSorting: false,
+    size: 100,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
+    }
+  },
+  {
+    accessorKey: "fluidTotal",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Fluid Total
+        </div>
+      );
     },
-    {
-      accessorKey: "incidents",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">Incidents</div>
-        );
-      },
-      enableSorting: false,
-      size: 50,
-      cell: ({ row }) => {
-        const resident = row.original;
-        return <IncidentsCell residentId={resident.id} teamId={teamId} />;
-      }
+    enableSorting: false,
+    size: 90,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
+    }
+  },
+  {
+    accessorKey: "incidents",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Incidents</div>
+      );
     },
-    {
-      accessorKey: "hospitalTransfer",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">
-            Hospital Transfer
-          </div>
-        );
-      },
-      enableSorting: false,
-      size: 100,
-      cell: ({ row }) => {
-        const resident = row.original;
-        return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
-      }
+    enableSorting: false,
+    size: 80,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <IncidentsCell residentId={resident.id} teamId={teamId} />;
+    }
+  },
+  {
+    accessorKey: "hospitalTransfer",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Hospital Transfer
+        </div>
+      );
+    },
+    enableSorting: false,
+    size: 130,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
+    }
+  },
+  {
+    accessorKey: "medication",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">Medication</div>
+      );
     },
     {
       accessorKey: "medication",
@@ -533,26 +557,17 @@ export const getColumns = (
         );
       }
     },
-    {
-      accessorKey: "comments",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">Comments</div>
-        );
-      },
-      enableSorting: false,
-      size: 200,
-      cell: ({ row }) => {
-        const resident = row.original;
-        return (
-          <CommentsCell
-            residentId={resident.id}
-            teamId={teamId}
-            currentUserId={currentUserId}
-            currentUserName={currentUserName}
-            organizationId={organizationId}
-          />
-        );
-      }
+    enableSorting: false,
+    size: 300,
+    cell: ({ row }) => {
+      const resident = row.original;
+      return (
+        <CommentsCell
+          residentId={resident.id}
+          teamId={teamId}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+        />
+      );
     }
   ];

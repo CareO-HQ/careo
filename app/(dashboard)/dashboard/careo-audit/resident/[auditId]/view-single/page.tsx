@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Resident as ResidentType } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
 import {
   Table,
   TableBody,
@@ -30,7 +30,6 @@ import {
 import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import type { Id } from "@/convex/_generated/dataModel";
 
 interface Question {
   id: string;
@@ -78,82 +77,97 @@ export default function ViewCompletedAuditPage() {
   const router = useRouter();
   const auditId = params.auditId as string;
   const { activeTeamId } = useActiveTeam();
+  const { supabase } = useSupabase();
 
   const [auditData, setAuditData] = useState<CompletedAudit | null>(null);
   const [cameFromArchived, setCameFromArchived] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [actionPlanToDelete, setActionPlanToDelete] = useState<Id<"residentAuditActionPlans"> | null>(null);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
+  const [dbAudit, setDbAudit] = useState<any | null>(null);
+  const [dbTemplate, setDbTemplate] = useState<any | null>(null);
+  const [dbActionPlans, setDbActionPlans] = useState<any[]>([]);
+  const [dbResidents, setDbResidents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check if it's a database audit (Convex ID)
-  const isConvexId = /^[a-z]/.test(auditId);
-
-  // Load from database if it's a Convex ID
-  const dbAudit = useQuery(
-    api.auditResponses.getResponseById,
-    isConvexId && auditId
-      ? { responseId: auditId as any }
-      : "skip"
-  );
-
-  // Load template to get questions (only if we have a database audit)
-  const dbTemplate = useQuery(
-    api.auditTemplates.getTemplateById,
-    isConvexId && dbAudit?.templateId
-      ? { templateId: dbAudit.templateId }
-      : "skip"
-  );
-
-  // Load action plans from database
-  const dbActionPlans = useQuery(
-    api.auditActionPlans.getActionPlansByAudit,
-    isConvexId && auditId
-      ? { auditResponseId: auditId as Id<"residentAuditCompletions"> }
-      : "skip"
-  );
-
-  // Delete action plan mutation
-  const deleteActionPlan = useMutation(api.auditActionPlans.deleteActionPlan);
-
+  // Fetch audit response from database
   useEffect(() => {
-    // Check if user came from archived page
-    if (typeof window !== 'undefined') {
-      const referrer = document.referrer;
-      const fromArchived = referrer.includes('/careo-audit/archived');
-      setCameFromArchived(fromArchived);
-    }
-  }, []);
+    if (!auditId || !supabase) return;
 
-  const handleBack = () => {
-    // Always go back to archived page if we have audit data
-    if (auditData && dbAudit) {
-      // Include templateId for database audits
-      const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}&templateId=${dbAudit.templateId}`;
-      router.push(backUrl as any);
-    } else if (auditData) {
-      // Fallback without templateId for localStorage audits
-      const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}`;
-      router.push(backUrl as any);
-    } else {
-      // Fallback to main listing
-      router.push("/dashboard/careo-audit?tab=resident");
-    }
-  };
+    const fetchAudit = async () => {
+      try {
+        const response = await auditService.getResidentResponseById(auditId);
+        setDbAudit(response);
+        
+        // Fetch template if we have template_id
+        if (response?.template_id) {
+          const template = await auditService.getResidentTemplateById(response.template_id);
+          setDbTemplate(template);
+        }
+      } catch (error) {
+        console.error("Error fetching audit response:", error);
+        setDbAudit(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAudit();
+  }, [auditId, supabase]);
+
+  // Fetch action plans
+  useEffect(() => {
+    if (!auditId || !supabase) return;
+
+    const fetchActionPlans = async () => {
+      try {
+        const plans = await auditService.getResidentActionPlans(auditId);
+        setDbActionPlans(plans || []);
+      } catch (error) {
+        console.error("Error fetching action plans:", error);
+        setDbActionPlans([]);
+      }
+    };
+
+    fetchActionPlans();
+  }, [auditId, supabase]);
 
   // Fetch residents
-  const dbResidents = useQuery(
-    api.residents.getByTeamId,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
-  ) as ResidentType[] | undefined;
+  useEffect(() => {
+    if (!activeTeamId || !supabase) return;
+
+    const fetchResidents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("team_id", activeTeamId);
+
+        if (error) throw error;
+        setDbResidents((data || []).map((r: any) => ({
+          id: r.id,
+          first_name: r.first_name,
+          last_name: r.last_name,
+          room_number: r.room_number,
+          image_url: r.image_url,
+        })));
+      } catch (error) {
+        console.error("Error fetching residents:", error);
+        setDbResidents([]);
+      }
+    };
+
+    fetchResidents();
+  }, [activeTeamId, supabase]);
 
   // Load completed audit data from database or localStorage
   useEffect(() => {
-    if (isConvexId && dbAudit && dbTemplate) {
+    if (dbAudit && dbTemplate) {
       // Transform database format to component format
       const transformed: CompletedAudit = {
-        id: dbAudit._id,
-        name: dbAudit.templateName,
-        category: dbAudit.category,
-        completedAt: dbAudit.completedAt || dbAudit.createdAt,
+        id: dbAudit.id,
+        name: dbAudit.template_name || dbTemplate.name,
+        category: dbAudit.category || "resident",
+        completedAt: dbAudit.completed_at ? new Date(dbAudit.completed_at).getTime() : new Date(dbAudit.created_at).getTime(),
         questions: dbTemplate.questions || [], // Load questions from template
         answers: [],
         comments: [],
@@ -163,12 +177,14 @@ export default function ViewCompletedAuditPage() {
       };
 
       // Transform responses to answers format
-      dbAudit.responses.forEach((response: any) => {
-        response.answers.forEach((answer: any) => {
+      const responses = dbAudit.responses || [];
+      responses.forEach((response: any) => {
+        const answers = response.answers || [];
+        answers.forEach((answer: any) => {
           if (answer.value) {
             transformed.answers.push({
-              residentId: response.residentId,
-              questionId: answer.questionId,
+              residentId: response.resident_id || response.residentId,
+              questionId: answer.question_id || answer.questionId,
               value: answer.value,
               notes: answer.notes,
             });
@@ -177,33 +193,33 @@ export default function ViewCompletedAuditPage() {
 
         if (response.comment) {
           transformed.comments.push({
-            residentId: response.residentId,
+            residentId: response.resident_id || response.residentId,
             text: response.comment,
           });
         }
 
         if (response.date) {
-          transformed.residentDates[response.residentId] = response.date;
+          transformed.residentDates[response.resident_id || response.residentId] = response.date;
         }
       });
 
       // Transform database action plans to component format
-      if (dbActionPlans) {
+      if (dbActionPlans && dbActionPlans.length > 0) {
         transformed.actionPlans = dbActionPlans.map((plan: any) => ({
-          id: plan._id,
-          auditId: plan.auditResponseId,
+          id: plan.id,
+          auditId: plan.audit_response_id,
           text: plan.description,
-          assignedTo: plan.assignedToName || plan.assignedTo,
-          dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined,
+          assignedTo: plan.assigned_to_name || plan.assigned_to,
+          dueDate: plan.due_date ? new Date(plan.due_date) : undefined,
           priority: plan.priority,
           status: plan.status,
-          latestComment: plan.latestComment,
+          latestComment: plan.latest_comment,
         }));
       }
 
       setAuditData(transformed);
-    } else if (!isConvexId) {
-      // Load from localStorage
+    } else {
+      // Load from localStorage as fallback
       const completedAudits = localStorage.getItem('completed-audits');
       if (completedAudits) {
         const audits = JSON.parse(completedAudits);
@@ -213,7 +229,7 @@ export default function ViewCompletedAuditPage() {
         }
       }
     }
-  }, [auditId, isConvexId, dbAudit, dbTemplate, dbActionPlans]);
+  }, [auditId, dbAudit, dbTemplate, dbActionPlans]);
 
   const getAnswer = (residentId: string, questionId: string) => {
     if (!auditData) return null;
@@ -249,23 +265,108 @@ export default function ViewCompletedAuditPage() {
     }, 500);
   };
 
+  const openDeleteDialog = (planId: string) => {
+    setActionPlanToDelete(planId);
+    setDeleteDialogOpen(true);
+  };
+
   const handleDeleteActionPlan = async () => {
     if (!actionPlanToDelete) return;
 
     try {
-      await deleteActionPlan({ actionPlanId: actionPlanToDelete });
-      toast.success("Action plan deleted successfully");
+      await auditService.deleteResidentActionPlan(actionPlanToDelete);
+      // Refresh action plans
+      const plans = await auditService.getResidentActionPlans(auditId);
+      setDbActionPlans(plans || []);
       setDeleteDialogOpen(false);
       setActionPlanToDelete(null);
+      toast.success("Action plan deleted");
+      
+      // Refresh audit data to update action plans
+      if (dbAudit && dbTemplate) {
+        const transformed: CompletedAudit = {
+          id: dbAudit.id,
+          name: dbAudit.template_name || dbTemplate.name,
+          category: dbAudit.category || "resident",
+          completedAt: dbAudit.completed_at ? new Date(dbAudit.completed_at).getTime() : new Date(dbAudit.created_at).getTime(),
+          questions: dbTemplate.questions || [],
+          answers: [],
+          comments: [],
+          residentDates: {},
+          actionPlans: [],
+          status: dbAudit.status,
+        };
+
+        const responses = dbAudit.responses || [];
+        responses.forEach((response: any) => {
+          const answers = response.answers || [];
+          answers.forEach((answer: any) => {
+            if (answer.value) {
+              transformed.answers.push({
+                residentId: response.resident_id || response.residentId,
+                questionId: answer.question_id || answer.questionId,
+                value: answer.value,
+                notes: answer.notes,
+              });
+            }
+          });
+
+          if (response.comment) {
+            transformed.comments.push({
+              residentId: response.resident_id || response.residentId,
+              text: response.comment,
+            });
+          }
+
+          if (response.date) {
+            transformed.residentDates[response.resident_id || response.residentId] = response.date;
+          }
+        });
+
+        if (plans && plans.length > 0) {
+          transformed.actionPlans = plans.map((plan: any) => ({
+            id: plan.id,
+            auditId: plan.audit_response_id,
+            text: plan.description,
+            assignedTo: plan.assigned_to_name || plan.assigned_to,
+            dueDate: plan.due_date ? new Date(plan.due_date) : undefined,
+            priority: plan.priority,
+            status: plan.status,
+            latestComment: plan.latest_comment,
+          }));
+        }
+
+        setAuditData(transformed);
+      }
     } catch (error) {
-      console.error("Failed to delete action plan:", error);
-      toast.error("Failed to delete action plan. Please try again.");
+      console.error("Error deleting action plan:", error);
+      toast.error("Failed to delete action plan");
     }
   };
 
-  const openDeleteDialog = (planId: string) => {
-    setActionPlanToDelete(planId as Id<"residentAuditActionPlans">);
-    setDeleteDialogOpen(true);
+  useEffect(() => {
+    // Check if user came from archived page
+    if (typeof window !== 'undefined') {
+      const referrer = document.referrer;
+      const fromArchived = referrer.includes('/careo-audit/archived');
+      setCameFromArchived(fromArchived);
+    }
+  }, []);
+
+  const handleBack = () => {
+    // Always go back to archived page if we have audit data
+    if (auditData && dbAudit) {
+      // Include templateId for database audits
+      const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}&templateId=${dbAudit.template_id}`;
+      router.push(backUrl as any);
+    } else if (auditData) {
+      // Fallback without templateId for localStorage audits
+      const backUrl = `/dashboard/careo-audit/archived?name=${encodeURIComponent(auditData.name)}&category=${auditData.category}`;
+      router.push(backUrl as any);
+    } else {
+      // Fallback to main listing
+      router.push("/dashboard/careo-audit?tab=resident");
+    }
   };
 
   if (!auditData) {
@@ -379,31 +480,31 @@ export default function ViewCompletedAuditPage() {
                   </TableHeader>
                   <TableBody>
             {(dbResidents || []).map(resident => {
-              const hasData = auditData.answers.some(a => a.residentId === resident._id) ||
-                             getComment(resident._id) ||
-                             getResidentDate(resident._id);
+              const hasData = auditData.answers.some(a => a.residentId === resident.id) ||
+                             getComment(resident.id) ||
+                             getResidentDate(resident.id);
 
               // Only show residents that have audit data
               if (!hasData) return null;
 
               return (
-                    <TableRow key={resident._id} className="hover:bg-muted/50">
+                    <TableRow key={resident.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
+                            <AvatarImage src={resident.image_url} alt={`${resident.first_name} ${resident.last_name}`} />
                             <AvatarFallback>
-                              {resident.firstName[0]}{resident.lastName[0]}
+                              {resident.first_name[0]}{resident.last_name[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <span>{resident.firstName} {resident.lastName}</span>
+                          <span>{resident.first_name} {resident.last_name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        {resident.roomNumber || "-"}
+                        {resident.room_number || "-"}
                       </TableCell>
                       {auditData.questions.map(question => {
-                        const answer = getAnswer(resident._id, question.id);
+                        const answer = getAnswer(resident.id, question.id);
                         return (
                           <TableCell key={question.id}>
                             {answer?.value ? (
@@ -428,12 +529,12 @@ export default function ViewCompletedAuditPage() {
                         );
                       })}
                       <TableCell className="text-sm">
-                        {getResidentDate(resident._id)
-                          ? format(new Date(getResidentDate(resident._id)!), "MMM dd, yyyy")
+                        {getResidentDate(resident.id)
+                          ? format(new Date(getResidentDate(resident.id)!), "MMM dd, yyyy")
                           : "-"}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {getComment(resident._id) || "-"}
+                        {getComment(resident.id) || "-"}
                       </TableCell>
                     </TableRow>
                   );
@@ -485,7 +586,7 @@ export default function ViewCompletedAuditPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium flex-1">{plan.text}</p>
-                        {isConvexId && (
+                        {dbAudit && (
                           <Button
                             variant="ghost"
                             size="icon"

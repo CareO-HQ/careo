@@ -29,15 +29,12 @@ import {
   SheetTitle,
   SheetTrigger
 } from "@/components/ui/sheet";
-// import { api } from "@/convex/_generated/api"; // Removed
-// import { Id } from "@/convex/_generated/dataModel"; // Removed
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { useFolderForms } from "@/hooks/use-folder-forms";
 import { usePdfUrl } from "@/hooks/use-pdf-url";
 import { useProfile } from "@/hooks/use-profile";
 import { CareFileFormKey } from "@/types/care-files";
-// import { useAction, useMutation, useQuery } from "convex/react"; // Removed
 import JSZip from "jszip";
 import {
   Archive,
@@ -736,7 +733,7 @@ export default function CareFileFolder({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Care Plan?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{deleteCarePlanDialog.carePlanName}".
+              This will permanently delete &quot;{deleteCarePlanDialog.carePlanName}&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

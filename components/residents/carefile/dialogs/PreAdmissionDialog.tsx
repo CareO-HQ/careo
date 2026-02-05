@@ -42,7 +42,6 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-// import { useMutation } from "convex/react"; // Removed
 import { supabase } from "@/lib/supabase";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
@@ -99,7 +98,7 @@ export default function PreAdmissionDialog({
         // Spread assessment_data if available
         ...(initialData.assessment_data || {}),
 
-        // Fallbacks for specific fields if not in assessment_data but top level in initialData from Convex
+        // Fallbacks for specific fields if not in assessment_data but top level in initialData
         userName: initialData.assessment_data?.userName || initialData.userName || userName,
         jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || "",
         date: initialData.assessment_data?.date || initialData.date || undefined,

@@ -36,9 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { authClient } from "@/lib/auth-client";
-import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
@@ -71,16 +69,31 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const { toast } = useToast();
-  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { supabase } = useSupabase();
+  const [staffMember, setStaffMember] = React.useState<{ id: string; name?: string; email?: string; userId?: string; image_url?: string | null } | null>(null);
+  const [staffLoading, setStaffLoading] = React.useState(true);
 
-  // Find the staff member from organization members
-  const staffMember = activeOrg?.members?.find((m) => m.id === id || m.userId === id);
-
-  // Fetch staff member's profile image from Convex
-  const userImage = useQuery(
-    api.files.image.getUserImageByUserId,
-    staffMember?.userId ? { userId: staffMember.userId } : "skip"
-  );
+  React.useEffect(() => {
+    if (!supabase || !id) {
+      setStaffLoading(false);
+      return;
+    }
+    setStaffLoading(true);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("users")
+          .select("id, name, email, image_url")
+          .eq("id", id)
+          .single();
+        setStaffMember(data ? { ...data, userId: data.id } : null);
+      } catch {
+        setStaffMember(null);
+      } finally {
+        setStaffLoading(false);
+      }
+    })();
+  }, [supabase, id]);
 
   // Dialog states
   const [isOnlineDialogOpen, setIsOnlineDialogOpen] = React.useState(false);
@@ -201,7 +214,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
     );
   };
 
-  if (!activeOrg) {
+  if (staffLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -233,11 +246,11 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
     );
   }
 
-  const fullName = staffMember.user.name || staffMember.user.email;
-  const nameParts = staffMember.user.name?.split(' ') || [];
+  const fullName = staffMember.name || staffMember.email || "";
+  const nameParts = staffMember.name?.split(' ') || [];
   const initials = nameParts.length >= 2
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-    : staffMember.user.name?.[0]?.toUpperCase() || staffMember.user.email[0].toUpperCase();
+    : staffMember.name?.[0]?.toUpperCase() || staffMember.email?.[0]?.toUpperCase() || "?";
 
   return (
 
@@ -254,7 +267,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
           </Button>
           <Avatar className="w-20 h-20">
             <AvatarImage
-              src={userImage?.url || staffMember.user.image || ""}
+              src={staffMember?.image_url || ""}
               alt={fullName}
               className="border"
             />

@@ -412,7 +412,7 @@ export default function NotificationPage() {
           </div>
         ) : (
           filteredNotifications.map((notification) => {
-            const typeInfo = getNotificationTypeInfo(notification.type);
+            const typeInfo = getNotificationTypeInfo(notification.type ?? "unknown");
             const initials = notification.sender_name
               ? notification.sender_name
                 .split(" ")

@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Eye, Calendar } from "lucide-react";
 import { format } from "date-fns";
@@ -19,6 +16,8 @@ import {
 } from "@/components/ui/table";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
 
 interface ArchivedAudit {
   id: string;
@@ -36,69 +35,111 @@ function ClinicalAuditViewPageContent() {
   const auditId = params.auditId as string;
   const { activeOrganizationId } = useActiveTeam();
 
+  const { supabase } = useSupabase();
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
-  const [templateId, setTemplateId] = useState<Id<"clinicalAuditTemplates"> | null>(null);
-  const [isCheckingId, setIsCheckingId] = useState(true);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [template, setTemplate] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Try to get templateId from responseId (in case old URL is used)
-  const templateIdFromResponse = useQuery(
-    api.clinicalAuditResponses.getTemplateIdFromResponse,
-    auditId && isCheckingId ? { possibleResponseId: auditId } : "skip"
-  );
-
-  // Determine if auditId is a templateId or responseId, and redirect if needed
+  // Check if auditId is a templateId or responseId
   useEffect(() => {
-    if (!isCheckingId) return;
+    if (!auditId || !supabase) return;
 
-    // If we got a templateId from the response query, it means auditId was a responseId
-    if (templateIdFromResponse) {
-      // Redirect to the correct URL with templateId
-      router.replace(`/dashboard/careo-audit/clinical/${templateIdFromResponse}/view`);
-      setIsCheckingId(false);
-    } else if (templateIdFromResponse === null) {
-      // Query returned null, which means auditId is not a valid responseId
-      // So it must be a templateId already
-      setTemplateId(auditId as Id<"clinicalAuditTemplates">);
-      setIsCheckingId(false);
-    }
-  }, [templateIdFromResponse, auditId, router, isCheckingId]);
+    const checkAuditId = async () => {
+      try {
+        // Try to fetch as completion (responseId)
+        const { data: completionData } = await supabase
+          .from("audit_clinical_completions")
+          .select("template_id")
+          .eq("id", auditId)
+          .single();
 
-  // Fetch template to get the name
-  const template = useQuery(
-    api.clinicalAuditTemplates.getTemplateById,
-    templateId ? { templateId } : "skip"
-  );
+        if (completionData) {
+          // It's a responseId, redirect to templateId
+          router.replace(`/dashboard/careo-audit/clinical/${completionData.template_id}/view`);
+          return;
+        }
+
+        // Try to fetch as template
+        const { data: templateData } = await supabase
+          .from("audit_clinical_templates")
+          .select("*")
+          .eq("id", auditId)
+          .single();
+
+        if (templateData) {
+          // It's a templateId
+          setTemplateId(auditId);
+          setTemplate(templateData);
+        } else {
+          setTemplateId(null);
+        }
+      } catch (error) {
+        console.error("Error checking audit ID:", error);
+        setTemplateId(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuditId();
+  }, [auditId, router, supabase]);
+
+  // Fetch template if not already loaded
+  useEffect(() => {
+    if (!templateId || template) return;
+
+    const fetchTemplate = async () => {
+      try {
+        const templateData = await auditService.getClinicalTemplateById(templateId);
+        setTemplate(templateData);
+      } catch (error) {
+        console.error("Error fetching template:", error);
+      }
+    };
+
+    fetchTemplate();
+  }, [templateId, template]);
 
   // Load completed audits from database for this template
-  const dbArchivedAudits = useQuery(
-    api.clinicalAuditResponses.getCompletedResponsesByTemplate,
-    templateId && activeOrganizationId
-      ? {
-          templateId,
-          organizationId: activeOrganizationId,
-        }
-      : "skip"
-  );
-
   useEffect(() => {
-    if (dbArchivedAudits) {
-      const formatted = dbArchivedAudits
-        .filter((audit) => audit.status === "completed")
-        .map((audit) => ({
-          id: audit._id,
-          templateName: audit.templateName,
-          completedAt: audit.completedAt || audit.createdAt,
-          status: audit.status,
-          items: audit.items,
-          overallNotes: audit.overallNotes,
-          auditedBy: audit.auditedBy,
-        }))
-        .sort((a, b) => b.completedAt - a.completedAt);
-      setArchivedAudits(formatted as any);
-    }
-  }, [dbArchivedAudits]);
+    if (!templateId || !activeOrganizationId || !supabase) return;
 
-  if (template === undefined) {
+    const fetchCompletions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("audit_clinical_completions")
+          .select("*")
+          .eq("template_id", templateId)
+          .eq("organization_id", activeOrganizationId)
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false });
+
+        if (error) throw error;
+
+        const formatted = (data || [])
+          .map((audit) => ({
+            id: audit.id,
+            templateName: audit.template_name || template?.name || "",
+            completedAt: audit.completed_at ? new Date(audit.completed_at).getTime() : new Date(audit.created_at).getTime(),
+            status: audit.status,
+            items: audit.items,
+            overallNotes: audit.overall_notes,
+            auditedBy: audit.audited_by_name || audit.audited_by,
+          }))
+          .sort((a, b) => b.completedAt - a.completedAt);
+        
+        setArchivedAudits(formatted);
+      } catch (error) {
+        console.error("Error fetching completions:", error);
+        setArchivedAudits([]);
+      }
+    };
+
+    fetchCompletions();
+  }, [templateId, activeOrganizationId, supabase, template]);
+
+  if (isLoading || template === null) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading...</p>
@@ -133,7 +174,7 @@ function ClinicalAuditViewPageContent() {
           <div>
             <h1 className="text-xl font-semibold">Archived Audits</h1>
             <p className="text-sm text-muted-foreground">
-              {template.name}
+              {template?.name || "Clinical Audit"}
             </p>
           </div>
         </div>
@@ -149,7 +190,7 @@ function ClinicalAuditViewPageContent() {
             <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Archived Audits</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              No completed audits found for &quot;{template.name}&quot;
+              No completed audits found for &quot;{template?.name || "this template"}&quot;
             </p>
             <Button
               variant="outline"

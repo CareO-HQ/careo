@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getColumns } from "./columns";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getAge } from "@/lib/utils";
 import {
   Dialog,
@@ -31,13 +31,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { CalendarIcon, FileText, MessageSquare, Users } from "lucide-react";
 import { getCurrentShift } from "@/lib/config/shift-config";
-import { residentService } from "@/lib/resident-service";
-import { handoverService } from "@/lib/handover-service";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
+import { getUKTodayDate } from "@/lib/date-utils";
 
 export default function HandoverPage() {
   const router = useRouter();
-  const { profile, isLoading: isProfileLoading } = useProfile();
+  const { supabase } = useSupabase();
+  const { activeTeamId, activeTeam } = useActiveTeam();
+  const { profile: currentUser } = useProfile();
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [isLoadingResidents, setIsLoadingResidents] = useState(true);
 
   const [residents, setResidents] = useState<Resident[]>([]);
   const [isResidentsLoading, setIsResidentsLoading] = useState(true);
@@ -47,42 +51,50 @@ export default function HandoverPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [commentsSummary, setCommentsSummary] = useState<{ total: number; withComments: number; withoutComments: number } | null>(null);
 
-  const activeTeamId = profile?.active_team_id;
-  const activeTeamName = profile?.active_team_name;
-  const organizationId = profile?.active_organization_id;
-
-  // Fetch residents
+  // Fetch residents from Supabase
   useEffect(() => {
-    async function fetchResidents() {
-      if (!activeTeamId) return;
-      setIsResidentsLoading(true);
-      try {
-        const data = await residentService.getResidentsByTeamId(activeTeamId);
-        setResidents(data as any);
-      } catch (error) {
-        console.error("Failed to fetch residents:", error);
-        toast.error("Failed to fetch residents");
-      } finally {
-        setIsResidentsLoading(false);
-      }
+    if (!activeTeamId || !supabase) {
+      setIsLoadingResidents(false);
+      return;
     }
+
+    const fetchResidents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("team_id", activeTeamId);
+
+        if (error) throw error;
+        setResidents((data as Resident[]) || []);
+      } catch (error) {
+        console.error("Error fetching residents:", error);
+        setResidents([]);
+      } finally {
+        setIsLoadingResidents(false);
+      }
+    };
+
     fetchResidents();
-  }, [activeTeamId]);
+  }, [activeTeamId, supabase]);
 
   // Load comments summary when dialog opens
   const loadCommentsSummary = async () => {
-    if (!activeTeamId || residents.length === 0) return;
+    if (!activeTeamId || !residents || !supabase) return;
 
     const dateString = selectedDate.toISOString().split('T')[0];
 
     try {
-      const commentsData = await handoverService.getCommentsByTeamDateShift(
-        activeTeamId,
-        dateString,
-        selectedShift
-      );
+      const { data: commentsData, error } = await supabase
+        .from("handover_comments")
+        .select("*")
+        .eq("team_id", activeTeamId)
+        .eq("date", dateString)
+        .eq("shift", selectedShift);
 
-      const withComments = commentsData?.filter(c => c.comment.trim().length > 0).length || 0;
+      if (error) throw error;
+
+      const withComments = commentsData?.filter(c => c.comment && c.comment.trim().length > 0).length || 0;
       const total = residents.length;
 
       setCommentsSummary({
@@ -104,7 +116,7 @@ export default function HandoverPage() {
   }, [isDialogOpen, selectedDate, selectedShift, activeTeamId, residents.length]);
 
   const handleSaveHandover = async () => {
-    if (!activeTeamId || !organizationId || residents.length === 0 || !profile) {
+    if (!activeTeamId || !activeTeam || !residents || !currentUser || !supabase) {
       toast.error("Missing required information");
       return;
     }
@@ -113,53 +125,160 @@ export default function HandoverPage() {
     try {
       const dateString = selectedDate.toISOString().split('T')[0];
 
+      // Check if handover already exists for this date/shift
+      const { data: existingHandover } = await supabase
+        .from("handover_reports")
+        .select("*")
+        .eq("team_id", activeTeamId)
+        .eq("date", dateString)
+        .eq("shift", selectedShift)
+        .maybeSingle();
+
+      if (existingHandover) {
+        const confirmed = confirm(
+          `A handover report already exists for ${format(selectedDate, "PPP")} - ${selectedShift} shift.\n\nDo you want to overwrite it?`
+        );
+        if (!confirmed) {
+          setIsSaving(false);
+          return;
+        }
+        // Delete existing handover if confirmed
+        await supabase
+          .from("handover_reports")
+          .delete()
+          .eq("id", existingHandover.id);
+      }
+
       // Wait for any pending auto-saves to complete (2s debounce + 0.5s buffer)
       toast.info("Finalizing comments...");
       await new Promise(resolve => setTimeout(resolve, 2500));
 
       // Fetch handover data for each resident
       const residentHandoversPromises = residents.map(async (resident) => {
-        // Fetch the handover report stats for this resident
-        const stats = await handoverService.getHandoverStats(resident.id);
+        const today = getUKTodayDate();
+        const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
+
+        // Fetch food/fluid logs for today
+        const { data: logs } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", today)
+          .eq("is_archived", false)
+          .order("timestamp", { ascending: false });
+
+        // Separate food and fluid logs
+        const foodLogs = (logs || []).filter(log =>
+          log.type_of_food_drink &&
+          !fluidTypes.includes(log.type_of_food_drink) &&
+          !log.fluid_consumed_ml &&
+          log.amount_eaten &&
+          log.amount_eaten !== "None" &&
+          log.amount_eaten.trim() !== ""
+        );
+
+        const fluidLogs = (logs || []).filter(log =>
+          fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
+        );
+
+        const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
+
+        // Fetch incidents for today
+        const { data: incidents } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", today)
+          .order("time", { ascending: false });
+
+        // Fetch hospital transfers for today
+        const { data: transfers } = await supabase
+          .from("hospital_transfers")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", today);
 
         // Get comments from database
-        const commentData = await handoverService.getComment(resident.id, dateString, selectedShift);
+        const { data: commentData } = await supabase
+          .from("handover_comments")
+          .select("*")
+          .eq("team_id", activeTeamId)
+          .eq("resident_id", resident.id)
+          .eq("date", dateString)
+          .eq("shift", selectedShift)
+          .maybeSingle();
+
         const comments = commentData?.comment || "";
 
         return {
           residentId: resident.id,
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          roomNumber: resident.roomNumber,
-          age: getAge(resident.dateOfBirth || resident.date_of_birth),
-          foodIntakeCount: stats.foodIntakeCount,
-          foodIntakeLogs: stats.foodIntakeLogs,
-          totalFluid: stats.totalFluid,
-          fluidLogs: stats.fluidLogs,
-          incidentCount: stats.incidentCount,
-          incidents: stats.incidents,
-          hospitalTransferCount: stats.hospitalTransferCount,
-          hospitalTransfers: stats.hospitalTransfers,
+          residentName: `${resident.first_name} ${resident.last_name}`,
+          roomNumber: resident.room_number,
+          age: getAge(resident.date_of_birth),
+          foodIntakeCount: foodLogs.length,
+          foodIntakeLogs: foodLogs.map(log => ({
+            id: log.id.toString(),
+            typeOfFoodDrink: log.type_of_food_drink,
+            amountEaten: log.amount_eaten,
+            section: log.section,
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          totalFluid: totalFluid,
+          fluidLogs: fluidLogs.map(log => ({
+            id: log.id.toString(),
+            typeOfFoodDrink: log.type_of_food_drink,
+            fluidConsumedMl: log.fluid_consumed_ml,
+            section: log.section,
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          incidentCount: incidents?.length || 0,
+          incidents: (incidents || []).map(inc => ({
+            id: inc.id.toString(),
+            type: inc.incident_types || [],
+            level: inc.incident_level,
+            time: inc.time,
+          })),
+          hospitalTransferCount: transfers?.length || 0,
+          hospitalTransfers: (transfers || []).map(transfer => ({
+            id: transfer.id.toString(),
+            hospitalName: transfer.hospital_name,
+            reason: transfer.reason,
+          })),
           comments: comments,
         };
       });
 
       const residentHandovers = await Promise.all(residentHandoversPromises);
 
-      await handoverService.saveHandoverReport({
-        date: dateString,
-        shift: selectedShift,
-        teamId: activeTeamId,
-        teamName: activeTeamName || "Unknown Team",
-        organizationId: organizationId,
+      // Prepare handover_data JSONB structure
+      const handoverData = {
+        teamName: activeTeam.name,
+        organizationId: currentUser.active_organization_id || "",
         residentHandovers: residentHandovers,
-        createdBy: profile.id,
-        createdByName: profile.name || "Unknown",
-        updatedBy: profile.id,
-        updatedByName: profile.name || "Unknown",
-      });
+        createdByName: currentUser.name || "Unknown",
+        updatedByName: currentUser.name || "Unknown",
+      };
+
+      // Insert handover report into Supabase
+      const { error: insertError } = await supabase
+        .from("handover_reports")
+        .insert({
+          date: dateString,
+          shift: selectedShift,
+          team_id: activeTeamId,
+          handover_data: handoverData,
+          created_by: currentUser.id,
+        });
+
+      if (insertError) throw insertError;
 
       // Cleanup: Delete draft comments after successful archive
-      await handoverService.deleteCommentsAfterArchive(activeTeamId, dateString, selectedShift);
+      await supabase
+        .from("handover_comments")
+        .delete()
+        .eq("team_id", activeTeamId)
+        .eq("date", dateString)
+        .eq("shift", selectedShift);
 
       toast.success("Handover saved successfully!");
       setIsDialogOpen(false);
@@ -218,16 +337,24 @@ export default function HandoverPage() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <DataTable<Resident, unknown>
-          columns={getColumns(
-            activeTeamId ?? undefined,
-            profile?.id,
-            profile?.name || "Unknown",
-            profile?.active_organization_id ?? undefined
-          )}
-          data={residents || []}
-          teamName={activeTeamName ?? ""}
-        />
+        {isLoadingResidents ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2 text-muted-foreground">Loading residents...</p>
+            </div>
+          </div>
+        ) : (
+          <DataTable<Resident, unknown>
+            columns={getColumns(
+              activeTeamId ?? undefined,
+              currentUser?.id,
+              currentUser?.name || "Unknown"
+            )}
+            data={residents || []}
+            teamName={activeTeam?.name ?? ""}
+          />
+        )}
       </div>
 
       {/* Save Handover Dialog */}

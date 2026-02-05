@@ -129,7 +129,7 @@ export function DataTable<TData, TValue>({
                 <DialogHeader>
                   <DialogTitle>Create New Resident Profile</DialogTitle>
                   <DialogDescription>
-                    Enter the resident's personal information and relevant care
+                    Enter the resident&apos;s personal information and relevant care
                     details to create their profile.
                   </DialogDescription>
                 </DialogHeader>
